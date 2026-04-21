@@ -1,0 +1,33 @@
+[project]
+name = "tokit-role1"
+version = "0.1.0"
+description = "Role 1 Python modules for prompt compilation and request analysis in tokit."
+requires-python = "==3.13.*"
+dependencies = [
+  "pydantic==2.13.3",
+]
+
+[project.optional-dependencies]
+dev = [
+  "mypy==1.20.1",
+  "pytest==9.0.3",
+  "ruff==0.15.9",
+]
+
+[build-system]
+requires = ["setuptools>=80.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.pytest.ini_options]
+testpaths = ["tests/python"]
+pythonpath = ["python"]
+
+[tool.ruff]
+target-version = "py313"
+line-length = 100
+
+[tool.mypy]
+python_version = "3.13"
+files = ["python/role1", "tests/python"]
+mypy_path = ["python"]
+strict = true
