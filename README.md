@@ -43,8 +43,10 @@ User → tokit → LLM CLI → tokit → Output
 
 ## 📂 Docs
 
-- ARCHITECTURE.md
-- PIPELINE.md
-- SCHEMAS.md
-- ENGINEERING_GUIDELINES.md
-- ROLES.md
+- [ARCHITECTURE.md](./docs/ARCHITECTURE.md)
+- [PIPELINE.md](./docs/PIPELINE.md)
+- [SCHEMAS.md](./docs/SCHEMAS.md)
+- [ENGINEERING_GUIDELINES.md](./docs/ENGINEERING_GUIDELINES.md)
+- [ROLES.md](./docs/ROLES.md)
+- [PROJECT_STRUCTURE.md](./docs/PROJECT_STRUCTURE.md)
+- [STACK_VERSIONS.md](./docs/STACK_VERSIONS.md)
