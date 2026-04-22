@@ -15,95 +15,43 @@ Use the repository root as the single source of truth for dependencies:
 
 <!-- 한국어 설명: 이렇게 하면 의존성 위치가 분산되지 않고, 팀원마다 다른 위치에 라이브러리를 추가하는 문제를 막을 수 있습니다. -->
 
-## Helper Scripts
+## TypeScript Workflow
 
-From anywhere in the repository, run:
+For TypeScript dependencies, use the standard npm commands from the repository root:
 
 ```bash
-./scripts/add-ts-dep.sh <package>
-./scripts/add-ts-dev-dep.sh <package>
-./scripts/add-py-dep.sh <package>
-./scripts/add-py-dev-dep.sh <package>
+npm install <package>
+npm install -D <package>
+npm install
 ```
 
 Examples:
 
 ```bash
-./scripts/add-ts-dep.sh zod
-./scripts/add-ts-dev-dep.sh vitest
-./scripts/add-py-dep.sh pydantic
-./scripts/add-py-dev-dep.sh pytest
+npm install zod
+npm install -D vitest
+npm install
 ```
 
-<!-- 한국어 설명: 스크립트는 현재 작업 위치와 관계없이 자동으로 프로젝트 루트로 이동해 올바른 기준 파일에 의존성을 추가합니다. -->
+<!-- 한국어 설명: TypeScript 팀원은 기존 npm 설치 방식을 그대로 사용하며, 루트에서 실행하면 package.json 기준으로 정상 반영됩니다. -->
 
-## Recommended Shortcut Setup
+## Python Helper Commands
 
-For the best developer experience, add the repository `scripts/` directory to your shell `PATH`.
-
-```bash
-export PATH="<repo-path>/scripts:$PATH"
-```
-
-After that, team members can run these commands from any working directory:
+For Python dependencies, keep using the shared commands so `pyproject.toml` is updated consistently:
 
 ```bash
-detoks-add-ts-dep <package>
-detoks-add-ts-dev-dep <package>
-detoks-add-py-dep <package>
-detoks-add-py-dev-dep <package>
+npm run add:py -- <package>
+npm run add:py:dev -- <package>
 ```
 
 Examples:
 
 ```bash
-detoks-add-ts-dep chalk
-detoks-add-ts-dev-dep vitest
-detoks-add-py-dep pydantic
-detoks-add-py-dev-dep pytest
+npm run add:py -- pydantic
+npm run add:py:dev -- pytest
 ```
 
-<!-- 한국어 설명: scripts 디렉터리를 PATH에 추가하면 팀원은 현재 어느 폴더에서 작업 중이든 짧은 전용 명령으로 의존성을 추가할 수 있습니다. -->
-
-### macOS / Linux (`zsh`, `bash`)
-
-For `zsh`, add this line to `~/.zshrc`:
-
-```bash
-export PATH="<repo-path>/scripts:$PATH"
-```
-
-Then reload your shell:
-
-```bash
-source ~/.zshrc
-```
-
-Example:
-
-```bash
-export PATH="/Users/choi/Desktop/workspace/detoks/scripts:$PATH"
-```
-
-<!-- 한국어 설명: macOS 또는 Linux에서 zsh/bash를 쓰는 경우, PATH에 scripts 디렉터리를 등록하면 새 터미널에서도 항상 명령을 바로 사용할 수 있습니다. -->
-
-### Windows (PowerShell)
-
-Add the repository `scripts` directory to your PowerShell profile:
-
-```powershell
-Add-Content -Path $PROFILE -Value '$env:Path = "<repo-path>\\scripts;" + $env:Path'
-. $PROFILE
-```
-
-Example:
-
-```powershell
-Add-Content -Path $PROFILE -Value '$env:Path = "C:\\workspace\\detoks\\scripts;" + $env:Path'
-. $PROFILE
-```
-
-<!-- 한국어 설명: Windows에서는 PowerShell 프로필에 scripts 경로를 추가하면 이후 어느 폴더에서든 전용 명령을 사용할 수 있습니다. -->
+<!-- 한국어 설명: Python은 pip install만으로는 pyproject.toml이 갱신되지 않으므로, 공통 명령을 통해 선언과 설치를 함께 관리합니다. -->
 
 ## Rules
 

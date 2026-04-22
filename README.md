@@ -61,80 +61,71 @@ User → detoks → LLM CLI → detoks → Output
 - TypeScript 의존성 → `package.json`
 - Python 의존성 → `pyproject.toml`
 
-권장 명령어:
+팀 공통 권장 방식:
 
 ```bash
-detoks-add-ts-dep <package>
-detoks-add-ts-dev-dep <package>
-detoks-add-py-dep <package>
-detoks-add-py-dev-dep <package>
+npm install <package>
+npm install -D <package>
+npm run add:py -- <package>
+npm run add:py:dev -- <package>
 ```
 
 예시:
 
 ```bash
-detoks-add-ts-dep chalk
-detoks-add-ts-dev-dep vitest
-detoks-add-py-dep pydantic
-detoks-add-py-dev-dep pytest
+npm install chalk
+npm install -D vitest
+npm run add:py -- pydantic
+npm run add:py:dev -- pytest
 ```
 
-만약 단축 명령을 아직 사용할 수 없다면, 팀원은 아래 두 가지 방식 중 하나를 선택할 수 있습니다.
+### 왜 이 방식을 쓰나?
 
-1. 저장소의 `scripts/` 디렉터리를 `PATH`에 추가
-2. 프로젝트 루트에서 스크립트를 직접 실행
+- TypeScript는 기존 `npm i` / `npm install -D` 사용 습관을 그대로 유지 가능
+- Python은 `pyproject.toml` 반영을 위해 공통 명령을 유지
+- 의존성은 항상 루트 기준 파일에만 반영됨
+- TypeScript와 Python의 관리 방식을 역할에 맞게 분리 가능
+
+### 팀원 적용 방법
+
+1. 최신 코드 받기
 
 ```bash
-./scripts/add-ts-dep.sh <package>
-./scripts/add-ts-dev-dep.sh <package>
-./scripts/add-py-dep.sh <package>
-./scripts/add-py-dev-dep.sh <package>
+git pull
 ```
 
-### macOS / Linux (`zsh`, `bash`)
-
-셸의 `PATH`에 저장소의 `scripts/` 디렉터리를 추가합니다.
+2. Node 의존성 최신화
 
 ```bash
-echo 'export PATH="<repo-path>/scripts:$PATH"' >> ~/.zshrc
-source ~/.zshrc
+npm install
 ```
 
-예시:
+3. Python 의존성 추가가 필요한 팀원은 `uv` 설치 확인
 
 ```bash
-echo 'export PATH="/Users/choi/Desktop/workspace/detoks/scripts:$PATH"' >> ~/.zshrc
-source ~/.zshrc
+uv --version
 ```
 
-설정 후에는 어느 작업 디렉터리에서든 아래처럼 바로 실행할 수 있습니다.
+4. 이후부터는 TypeScript와 Python을 아래 기준으로 사용
 
 ```bash
-detoks-add-ts-dep chalk
-detoks-add-py-dep pydantic
+npm install <package>
+npm install -D <package>
+npm run add:py -- <package>
+npm run add:py:dev -- <package>
 ```
 
-### Windows (PowerShell)
+### 사용 규칙
 
-PowerShell 프로필에 저장소의 `scripts/` 디렉터리를 추가합니다.
+- TypeScript 일반 의존성 → `npm install ...`
+- TypeScript 개발 의존성 → `npm install -D ...`
+- Python 일반 의존성 → `npm run add:py -- ...`
+- Python 개발 의존성 → `npm run add:py:dev -- ...`
+- 하위 폴더에 별도 `package.json` 또는 `pyproject.toml`을 만들지 않음
 
-```powershell
-Add-Content -Path $PROFILE -Value '$env:Path = "<repo-path>\\scripts;" + $env:Path'
-. $PROFILE
-```
+### 참고
 
-예시:
-
-```powershell
-Add-Content -Path $PROFILE -Value '$env:Path = "C:\\workspace\\detoks\\scripts;" + $env:Path'
-. $PROFILE
-```
-
-설정 후에는 어느 작업 디렉터리에서든 동일한 명령을 바로 실행할 수 있습니다.
-
-```powershell
-detoks-add-ts-dep chalk
-detoks-add-py-dep pydantic
-```
-
-만약 팀원이 `PATH`를 수정하고 싶지 않다면, 프로젝트 루트에서 `./scripts/...` 명령으로 직접 실행해도 됩니다.
+- 위 명령은 **프로젝트 루트에서 실행하는 것**을 기준으로 합니다.
+- Python 의존성 추가는 `uv`가 설치되어 있어야 합니다.
+- TypeScript 팀원은 기존 `npm i`, `npm install -D`, `npm install`을 그대로 사용합니다.
+- Python 팀원만 `npm run add:py*` 또는 `uv add` 계열을 사용합니다.
