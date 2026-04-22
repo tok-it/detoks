@@ -1,24 +1,55 @@
-/**
- * LLM에 전달될 컨텍스트의 구조를 정의합니다.
- */
+import { z } from 'zod';
 
-// 모든 태스크가 공유하는 공통 맥락
 export interface SharedContext {
-  projectInfo: string;      // 프로젝트 개요 및 목표
-  conventions: string[];    // 코딩 컨벤션 및 규칙
-  activeRules: string[];    // 현재 활성화된 지침
+  projectInfo: string;
+  conventions: string[];
+  activeRules: string[];
+  keyDecisions: string[];
 }
 
-// 개별 태스크 수행을 위한 구체적 맥락
+export const SharedContextSchema = z.object({
+  projectInfo: z.string(),
+  conventions: z.array(z.string()),
+  activeRules: z.array(z.string()),
+  keyDecisions: z.array(z.string()),
+});
+
 export interface TaskContext {
   currentTaskId: string;
-  relevantState: string;    // 현재 태스크와 관련된 압축된 상태 정보
-  history: string[];        // 이전 태스크들의 핵심 수행 결과 (요약본)
+  relevantState: string;
+  history: string[];
+  dependencies: Record<string, unknown>;
 }
 
-// 최종적으로 LLM에 전달되는 최적화된 컨텍스트
+export const TaskContextSchema = z.object({
+  currentTaskId: z.string(),
+  relevantState: z.string(),
+  history: z.array(z.string()),
+  dependencies: z.record(z.unknown()),
+});
+
 export interface OptimizedContext {
   shared: SharedContext;
   task: TaskContext;
-  tokenUsageEstimate: number; // 예상 토큰 사용량
+  tokenUsageEstimate: number;
 }
+
+export const OptimizedContextSchema = z.object({
+  shared: SharedContextSchema,
+  task: TaskContextSchema,
+  tokenUsageEstimate: z.number().positive(),
+});
+
+export interface CompressedState {
+  sharedContext: SharedContext;
+  taskContext: TaskContext;
+  taskResults: Record<string, unknown>;
+  tokenEstimate: number;
+}
+
+export const CompressedStateSchema = z.object({
+  sharedContext: SharedContextSchema,
+  taskContext: TaskContextSchema,
+  taskResults: z.record(z.unknown()),
+  tokenEstimate: z.number().positive(),
+});

@@ -1,25 +1,87 @@
-/**
- * 개별 작업(Task)의 상태를 정의합니다.
- */
+import { z } from 'zod';
+
 export type TaskStatus = 'pending' | 'running' | 'completed' | 'failed';
-export type TaskType = 'code_generation' | 'review' | 'test' | 'fix';
+export type TaskType = 'create' | 'analyze' | 'modify' | 'validate' | 'document';
 
 export interface Task {
   id: string;
   type: TaskType;
   status: TaskStatus;
-  inputHash: string;      // 입력 중복 방지 및 캐싱용
-  outputSummary?: string; // 토큰 절감을 위해 압축된 결과 요약
-  dependsOn: string[];    // 의존성 태스크 ID 목록
+  inputHash: string;
+  outputSummary?: string;
+  dependsOn: string[];
 }
 
-/**
- * 세션 전체의 동적 상태(Dynamic State)를 정의합니다.
- */
+export const TaskStatusSchema = z.enum(['pending', 'running', 'completed', 'failed']);
+export const TaskTypeSchema = z.enum(['create', 'analyze', 'modify', 'validate', 'document']);
+
+export const TaskSchema = z.object({
+  id: z.string().min(1),
+  type: TaskTypeSchema,
+  status: TaskStatusSchema,
+  inputHash: z.string(),
+  outputSummary: z.string().optional(),
+  dependsOn: z.array(z.string()).default([]),
+});
+
+export interface Checkpoint {
+  id: string;
+  title: string;
+  taskId: string;
+  summary: string;
+  changedFiles: string[];
+  nextAction: string;
+  createdAt: string;
+}
+
+export const CheckpointSchema = z.object({
+  id: z.string().min(1),
+  title: z.string().min(1),
+  taskId: z.string(),
+  summary: z.string(),
+  changedFiles: z.array(z.string()),
+  nextAction: z.string(),
+  createdAt: z.string().datetime(),
+});
+
 export interface SessionState {
   sessionId: string;
   version: string;
+  goal: string;
+  currentTask: string | null;
+  completedTasks: string[];
+  keyDecisions: string[];
+  activeFiles: string[];
   tasks: Task[];
-  metadata: Record<string, any>; // 기타 확장 가능한 동적 데이터
-  updatedAt: string;             // ISO 8601 형식
+  summaries: {
+    rolling: string;
+    latestCheckpoint: string | null;
+  };
+  artifacts: {
+    taskResults: Record<string, unknown>;
+    errors: string[];
+  };
+  metadata: Record<string, unknown>;
+  updatedAt: string;
 }
+
+export const SessionStateSchema = z.object({
+  sessionId: z.string().min(1),
+  version: z.string(),
+  goal: z.string(),
+  currentTask: z.string().nullable(),
+  completedTasks: z.array(z.string()),
+  keyDecisions: z.array(z.string()),
+  activeFiles: z.array(z.string()),
+  tasks: z.array(TaskSchema),
+  summaries: z.object({
+    rolling: z.string(),
+    latestCheckpoint: z.string().nullable(),
+  }),
+  artifacts: z.object({
+    taskResults: z.record(z.unknown()),
+    errors: z.array(z.string()),
+  }),
+  metadata: z.record(z.unknown()).default({}),
+  updatedAt: z.string().datetime(),
+});

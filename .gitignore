@@ -46,10 +46,19 @@ yarn.lock
 
 # Project-specific
 .claude/
+.devlogs/
+.codex/**/*.local.*
+.codex/**/local/
 *.log
 .pytest_cache/
 .coverage
 htmlcov/
+
+# Personal settings & local overrides
+.env.personal
+*.local.json
+*.local.md
+local_config/
 
 # OS
 .DS_Store
