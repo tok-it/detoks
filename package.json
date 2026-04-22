@@ -7,6 +7,8 @@
     "node": ">=24.15.0 <25"
   },
   "scripts": {
+    "add:py": "node scripts/add-py-dep.mjs",
+    "add:py:dev": "node scripts/add-py-dev-dep.mjs",
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run",
