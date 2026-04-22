@@ -48,19 +48,19 @@ export PATH="<repo-path>/scripts:$PATH"
 After that, team members can run these commands from any working directory:
 
 ```bash
-tokit-add-ts-dep <package>
-tokit-add-ts-dev-dep <package>
-tokit-add-py-dep <package>
-tokit-add-py-dev-dep <package>
+detoks-add-ts-dep <package>
+detoks-add-ts-dev-dep <package>
+detoks-add-py-dep <package>
+detoks-add-py-dev-dep <package>
 ```
 
 Examples:
 
 ```bash
-tokit-add-ts-dep chalk
-tokit-add-ts-dev-dep vitest
-tokit-add-py-dep pydantic
-tokit-add-py-dev-dep pytest
+detoks-add-ts-dep chalk
+detoks-add-ts-dev-dep vitest
+detoks-add-py-dep pydantic
+detoks-add-py-dev-dep pytest
 ```
 
 <!-- 한국어 설명: scripts 디렉터리를 PATH에 추가하면 팀원은 현재 어느 폴더에서 작업 중이든 짧은 전용 명령으로 의존성을 추가할 수 있습니다. -->
@@ -82,7 +82,7 @@ source ~/.zshrc
 Example:
 
 ```bash
-export PATH="/Users/choi/Desktop/workspace/tokit/scripts:$PATH"
+export PATH="/Users/choi/Desktop/workspace/detoks/scripts:$PATH"
 ```
 
 <!-- 한국어 설명: macOS 또는 Linux에서 zsh/bash를 쓰는 경우, PATH에 scripts 디렉터리를 등록하면 새 터미널에서도 항상 명령을 바로 사용할 수 있습니다. -->
@@ -99,7 +99,7 @@ Add-Content -Path $PROFILE -Value '$env:Path = "<repo-path>\\scripts;" + $env:Pa
 Example:
 
 ```powershell
-Add-Content -Path $PROFILE -Value '$env:Path = "C:\\workspace\\tokit\\scripts;" + $env:Path'
+Add-Content -Path $PROFILE -Value '$env:Path = "C:\\workspace\\detoks\\scripts;" + $env:Path'
 . $PROFILE
 ```
 

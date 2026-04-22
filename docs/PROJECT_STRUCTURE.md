@@ -5,7 +5,7 @@ This scaffold separates **Role 1 (Python)** from the rest of the system, which i
 ## Tree
 
 ```text
-tokit/
+detoks/
 ├── docs/
 ├── scripts/
 ├── python/

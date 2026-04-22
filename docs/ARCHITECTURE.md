@@ -2,8 +2,8 @@
 
 ## Overview
 
-tokit is a **wrapper system** that operates in front of an LLM CLI.
-<!-- 한국어 설명: tokit은 LLM CLI 앞단에서 동작하며, 사용자 요청을 정리하고 실행 흐름을 통제하는 래퍼 시스템입니다. -->
+detoks is a **wrapper system** that operates in front of an LLM CLI.
+<!-- 한국어 설명: detoks는 LLM CLI 앞단에서 동작하며, 사용자 요청을 정리하고 실행 흐름을 통제하는 래퍼 시스템입니다. -->
 
 ---
 

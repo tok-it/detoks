@@ -1,7 +1,7 @@
 [project]
-name = "tokit-role1"
+name = "detoks-role1"
 version = "0.1.0"
-description = "Role 1 Python modules for prompt compilation and request analysis in tokit."
+description = "Role 1 Python modules for prompt compilation and request analysis in detoks."
 requires-python = "==3.13.*"
 dependencies = [
   "pydantic==2.13.3",

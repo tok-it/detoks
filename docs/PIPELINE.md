@@ -2,8 +2,8 @@
 
 ## Overview
 
-tokit operates as a **stage-based pipeline** from input to output.
-<!-- 한국어 설명: tokit은 입력부터 결과 반환까지 여러 단계를 순차적으로 거치는 파이프라인 구조로 동작합니다. -->
+detoks operates as a **stage-based pipeline** from input to output.
+<!-- 한국어 설명: detoks는 입력부터 결과 반환까지 여러 단계를 순차적으로 거치는 파이프라인 구조로 동작합니다. -->
 
 ---
 
