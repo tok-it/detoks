@@ -1,6 +1,6 @@
-# 🚀 tokit
+# 🚀 detoks
 
-tokit은 LLM CLI(codex, gemini 등) 앞단에서 동작하는 **interactive wrapper shell**로,  
+detoks는 LLM CLI(codex, gemini 등) 앞단에서 동작하는 **interactive wrapper shell**로,  
 입력·출력·세션을 최적화하여 **토큰 사용을 줄이고 개발 효율을 극대화**하는 시스템이다.
 
 ---
@@ -16,7 +16,7 @@ tokit은 LLM CLI(codex, gemini 등) 앞단에서 동작하는 **interactive wrap
 
 ## 🧠 한 줄 정의
 
-> tokit은 LLM 사용 방식을 재설계하여 토큰과 컨텍스트를 최적화하는 CLI 시스템이다
+> detoks는 LLM 사용 방식을 재설계하여 토큰과 컨텍스트를 최적화하는 CLI 시스템이다
 
 ---
 
@@ -37,7 +37,7 @@ tokit은 LLM CLI(codex, gemini 등) 앞단에서 동작하는 **interactive wrap
 ---
 
 ## 🏗 구조
-User → tokit → LLM CLI → tokit → Output
+User → detoks → LLM CLI → detoks → Output
 
 ---
 
@@ -64,19 +64,19 @@ User → tokit → LLM CLI → tokit → Output
 권장 명령어:
 
 ```bash
-tokit-add-ts-dep <package>
-tokit-add-ts-dev-dep <package>
-tokit-add-py-dep <package>
-tokit-add-py-dev-dep <package>
+detoks-add-ts-dep <package>
+detoks-add-ts-dev-dep <package>
+detoks-add-py-dep <package>
+detoks-add-py-dev-dep <package>
 ```
 
 예시:
 
 ```bash
-tokit-add-ts-dep chalk
-tokit-add-ts-dev-dep vitest
-tokit-add-py-dep pydantic
-tokit-add-py-dev-dep pytest
+detoks-add-ts-dep chalk
+detoks-add-ts-dev-dep vitest
+detoks-add-py-dep pydantic
+detoks-add-py-dev-dep pytest
 ```
 
 만약 단축 명령을 아직 사용할 수 없다면, 팀원은 아래 두 가지 방식 중 하나를 선택할 수 있습니다.
@@ -103,15 +103,15 @@ source ~/.zshrc
 예시:
 
 ```bash
-echo 'export PATH="/Users/choi/Desktop/workspace/tokit/scripts:$PATH"' >> ~/.zshrc
+echo 'export PATH="/Users/choi/Desktop/workspace/detoks/scripts:$PATH"' >> ~/.zshrc
 source ~/.zshrc
 ```
 
 설정 후에는 어느 작업 디렉터리에서든 아래처럼 바로 실행할 수 있습니다.
 
 ```bash
-tokit-add-ts-dep chalk
-tokit-add-py-dep pydantic
+detoks-add-ts-dep chalk
+detoks-add-py-dep pydantic
 ```
 
 ### Windows (PowerShell)
@@ -126,15 +126,15 @@ Add-Content -Path $PROFILE -Value '$env:Path = "<repo-path>\\scripts;" + $env:Pa
 예시:
 
 ```powershell
-Add-Content -Path $PROFILE -Value '$env:Path = "C:\\workspace\\tokit\\scripts;" + $env:Path'
+Add-Content -Path $PROFILE -Value '$env:Path = "C:\\workspace\\detoks\\scripts;" + $env:Path'
 . $PROFILE
 ```
 
 설정 후에는 어느 작업 디렉터리에서든 동일한 명령을 바로 실행할 수 있습니다.
 
 ```powershell
-tokit-add-ts-dep chalk
-tokit-add-py-dep pydantic
+detoks-add-ts-dep chalk
+detoks-add-py-dep pydantic
 ```
 
 만약 팀원이 `PATH`를 수정하고 싶지 않다면, 프로젝트 루트에서 `./scripts/...` 명령으로 직접 실행해도 됩니다.

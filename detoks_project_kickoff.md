@@ -1,8 +1,8 @@
-# 🚀 tokit Project Kickoff Document
+# 🚀 detoks Project Kickoff Document
 
 ## 1. 프로젝트 개요
 
-**tokit**은 LLM CLI(codex, gemini 등) 앞단에서 동작하는 **interactive wrapper shell**로,  
+**detoks**는 LLM CLI(codex, gemini 등) 앞단에서 동작하는 **interactive wrapper shell**로,  
 입력·출력·세션을 최적화하여 **토큰 사용을 줄이고 개발 효율을 극대화**하는 시스템이다.
 
 > 핵심 철학:  

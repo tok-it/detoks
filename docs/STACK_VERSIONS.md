@@ -1,7 +1,7 @@
 # Stack Versions
 
-This file defines the initial version baseline for **tokit**.
-<!-- 한국어 설명: 이 문서는 tokit 프로젝트에서 사용할 언어, 런타임, 라이브러리 버전의 초기 기준선을 정의합니다. -->
+This file defines the initial version baseline for **detoks**.
+<!-- 한국어 설명: 이 문서는 detoks 프로젝트에서 사용할 언어, 런타임, 라이브러리 버전의 초기 기준선을 정의합니다. -->
 
 ## Version Matrix
 
