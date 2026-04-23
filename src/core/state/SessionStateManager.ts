@@ -1,7 +1,8 @@
 import { promises as fs } from 'fs';
 import { join } from 'path';
-import type { SessionState, Checkpoint } from '../../types/index.js';
-import { SessionStateSchema, CheckpointSchema } from '../../types/index.js';
+import type { SessionState, Checkpoint } from '../../schemas/pipeline.js';
+import { SessionStateSchema, CheckpointSchema } from '../../schemas/pipeline.js';
+import { StateValidator } from './StateValidator.js';
 
 const STATE_DIR = '.state';
 const SESSIONS_DIR = join(STATE_DIR, 'sessions');
@@ -20,8 +21,9 @@ export class SessionStateManager {
   static async saveSession(state: SessionState): Promise<void> {
     try {
       await this.ensureDirectories();
-      const validated = SessionStateSchema.parse(state);
-      const filePath = join(SESSIONS_DIR, `${validated.session_id}.json`);
+      // StateValidator를 사용하여 비즈니스 규칙 및 구조 검증
+      const validated = StateValidator.validate(state);
+      const filePath = join(SESSIONS_DIR, `${validated.shared_context.session_id || 'default'}.json`);
       await fs.writeFile(filePath, JSON.stringify(validated, null, 2));
     } catch (error) {
       throw new Error(`Failed to save session: ${error}`);
@@ -33,11 +35,13 @@ export class SessionStateManager {
       const filePath = join(SESSIONS_DIR, `${sessionId}.json`);
       const data = await fs.readFile(filePath, 'utf-8');
       const parsed = JSON.parse(data);
-      return SessionStateSchema.parse(parsed);
+      // 로드 시에도 검증 수행
+      return StateValidator.validate(parsed);
     } catch (error) {
       throw new Error(`Failed to load session ${sessionId}: ${error}`);
     }
   }
+
 
   static async sessionExists(sessionId: string): Promise<boolean> {
     try {

@@ -133,26 +133,13 @@ export const CheckpointSchema = z.object({
 });
 
 export const SessionStateSchema = z.object({
-  session_id: z.string().min(1),
-  version: z.string(),
-  goal: z.string(),
-  current_task: z.string().nullable(),
-  completed_tasks: z.array(z.string()),
-  key_decisions: z.array(z.string()),
-  active_files: z.array(z.string()),
-  tasks: z.array(TaskSchema),
-  summaries: z.object({
-    rolling: z.string(),
-    latest_checkpoint: z.string().nullable(),
-  }),
-  artifacts: z.object({
-    task_results: z.record(z.string(), z.unknown()),
-    errors: z.array(z.string()),
-  }),
-  metadata: z.record(z.string(), z.unknown()).default({}),
+  shared_context: z.record(z.string(), z.unknown()).default({}),
+  task_results: z.record(z.string(), z.unknown()).default({}),
+  current_task_id: z.string().optional().nullable(),
+  completed_task_ids: z.array(z.string()).default([]),
   last_summary: z.string().optional(),
   next_action: z.string().optional(),
-  updated_at: z.string().datetime(),
+  updated_at: z.string().datetime().optional(),
 });
 
 export type UserRequest = z.infer<typeof UserRequestSchema>;
