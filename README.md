@@ -45,8 +45,10 @@ User → detoks → LLM CLI → detoks → Output
 
 - [ARCHITECTURE.md](./docs/ARCHITECTURE.md)
 - [DEPENDENCY_WORKFLOW.md](./docs/DEPENDENCY_WORKFLOW.md)
+- [DES_DATA_FLOW.md](./docs/DES_DATA_FLOW.md)
 - [PIPELINE.md](./docs/PIPELINE.md)
 - [SCHEMAS.md](./docs/SCHEMAS.md)
+- [SHARED_DATA_FLOW.md](./docs/SHARED_DATA_FLOW.md)
 - [ENGINEERING_GUIDELINES.md](./docs/ENGINEERING_GUIDELINES.md)
 - [ROLES.md](./docs/ROLES.md)
 - [PROJECT_STRUCTURE.md](./docs/PROJECT_STRUCTURE.md)
