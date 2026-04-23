@@ -142,6 +142,23 @@ export const SessionStateSchema = z.object({
   updated_at: z.string().datetime().optional(),
 });
 
+// Role 1이 실제로 보내는 최소 구조 (TaskGraphProcessor 입력용)
+export const RawTaskSchema = z.object({
+  id: z.string().min(1),
+  type: RequestCategorySchema,
+  depends_on: z.array(z.string()).default([]),
+  title: z.string().optional(),
+  description: z.string().optional(),
+});
+
+export const RawAnalyzedRequestSchema = z.object({
+  intent: z.string(),
+  tasks: z.array(RawTaskSchema).default([]),
+});
+
+export type RawTask = z.infer<typeof RawTaskSchema>;
+export type RawAnalyzedRequest = z.infer<typeof RawAnalyzedRequestSchema>;
+
 export type UserRequest = z.infer<typeof UserRequestSchema>;
 export type RequestCategory = z.infer<typeof RequestCategorySchema>;
 export type CompiledPrompt = z.infer<typeof CompiledPromptSchema>;
