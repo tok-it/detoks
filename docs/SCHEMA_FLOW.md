@@ -13,7 +13,7 @@ detoks의 7단계 데이터 변환 흐름과 역할별 책임을 정의합니다
   ↓ (Role 1)
 CompiledPrompt
   ↓ (Role 1)
-AnalyzedRequest
+CompiledSentences
   ↓ (Role 2.1)
 TaskGraph
   ↓ (Role 2.2)
@@ -31,9 +31,9 @@ SessionState
 ### Role 1: AI Prompt Engineer
 
 **책임:**
-- 자연어 입력 정규화
-- 요청 분류 및 키워드 추출
-- Task 후보 추출
+- 한국어 → 영어 변환
+- 문장 단위 분리
+- 불필요한 정보 제거 (압축)
 
 **생성 데이터:**
 
@@ -48,17 +48,15 @@ type CompiledPrompt = {
 };
 ```
 
-#### 2. AnalyzedRequest
+#### 2. CompiledSentences
 
 ```ts
-type AnalyzedRequest = {
-  category: string;
-  keywords: string[];
-  tasks: Task[];
+type CompiledSentences = {
+  sentences: string[];
 };
 ```
 
-**의미:** 단순 문자열이 아닌 구조화된 요청으로 변환
+**의미:** task 분해 / id / depends_on 생성은 Role 2.1 전담. Role 1은 전처리만 담당.
 
 ---
 
@@ -177,7 +175,7 @@ type ExecutionResult = {
 |--------|------|------|
 | UserRequest | User | 입력 |
 | CompiledPrompt | Role 1 | 생성 |
-| AnalyzedRequest | Role 1 | 생성 |
+| CompiledSentences | Role 1 | 생성 |
 | TaskGraph | Role 2.1 | 생성 |
 | ExecutionContext | Role 2.2 | 생성 |
 | ExecutionRequest | Role 3 | 생성 |
@@ -218,7 +216,7 @@ type ExecutionResult = {
 ```ts
 UserRequestSchema
 CompiledPromptSchema
-AnalyzedRequestSchema
+CompiledSentencesSchema
 TaskSchema
 TaskGraphSchema
 ExecutionContextSchema
