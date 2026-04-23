@@ -1,5 +1,6 @@
 import type { AdapterExecutionRequest, AdapterExecutionResult } from "../../../core/executor/types.js";
 import type { AdapterExecutionContext, CliAdapter } from "../interface.js";
+import { executeAdapterViaSubprocess } from "../real.js";
 import { buildStubRawOutput } from "../stub.js";
 
 export class CodexStubAdapter implements CliAdapter {
@@ -16,8 +17,12 @@ export class CodexStubAdapter implements CliAdapter {
 
   async execute(
     request: AdapterExecutionRequest,
-    _context?: AdapterExecutionContext,
+    context?: AdapterExecutionContext,
   ): Promise<AdapterExecutionResult> {
+    if (context?.executionMode === "real") {
+      return executeAdapterViaSubprocess(this, request, context);
+    }
+
     return {
       success: true,
       rawOutput: buildStubRawOutput(this.target, request.prompt),

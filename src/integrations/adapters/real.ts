@@ -1,6 +1,9 @@
 import type { AdapterExecutionContext, CliAdapter } from "./interface.js";
 import type { AdapterExecutionRequest, AdapterExecutionResult } from "../../core/executor/types.js";
 
+export const shouldUseRealExecution = (context?: AdapterExecutionContext): boolean =>
+  context?.executionMode === "real";
+
 export const executeAdapterViaSubprocess = async (
   adapter: CliAdapter,
   request: AdapterExecutionRequest,

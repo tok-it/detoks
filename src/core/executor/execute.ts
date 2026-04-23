@@ -22,6 +22,7 @@ export const executeWithAdapter = async (request: ExecutorRequest): Promise<Exec
     ...(request.cwd !== undefined ? { cwd: request.cwd } : {}),
     ...(request.sessionId !== undefined ? { sessionId: request.sessionId } : {}),
   }, {
+    executionMode: "stub",
     subprocessRunner,
   });
 
