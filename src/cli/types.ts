@@ -1,9 +1,13 @@
-import type { UserRequest } from "../schemas/pipeline.js";
+import { AdapterValues as CoreAdapterValues } from "../core/pipeline/types.js";
+import type {
+  Adapter,
+  InteractionMode,
+  PipelineExecutionRequest,
+  PipelineExecutionResult,
+} from "../core/pipeline/types.js";
 
-export const AdapterValues = ["codex", "gemini"] as const;
-export type Adapter = (typeof AdapterValues)[number];
-
-export type CliMode = "run" | "repl";
+export const AdapterValues = CoreAdapterValues;
+export type CliMode = InteractionMode;
 
 export interface CliArgs {
   mode: CliMode;
@@ -12,25 +16,5 @@ export interface CliArgs {
   verbose: boolean;
 }
 
-export interface NormalizedCliRequest {
-  mode: CliMode;
-  adapter: Adapter;
-  verbose: boolean;
-  userRequest: UserRequest;
-}
-
-export interface PipelineStageStatus {
-  name: string;
-  owner: "role1" | "role2.1" | "role2.2" | "role3";
-  status: "ready" | "stubbed";
-}
-
-export interface CliExecutionResult {
-  ok: boolean;
-  mode: CliMode;
-  adapter: Adapter;
-  summary: string;
-  nextAction: string;
-  stages: PipelineStageStatus[];
-  rawOutput: string;
-}
+export type NormalizedCliRequest = PipelineExecutionRequest;
+export type CliExecutionResult = PipelineExecutionResult;
