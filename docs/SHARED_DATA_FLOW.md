@@ -52,6 +52,17 @@ Compressed and normalized prompt output from the Prompt Compiler.
 ### 3. AnalyzedRequest
 Classified request with extracted keywords and task candidates.
 
+Top-level category values should use the shared intent set below:
+
+- `explore`
+- `create`
+- `modify`
+- `analyze`
+- `validate`
+- `execute`
+- `document`
+- `plan`
+
 ### 4. TaskGraph
 Executable task structure with dependency order.
 
@@ -98,6 +109,7 @@ src/schemas/pipeline.ts
 This file contains the shared Zod schemas for:
 
 - `UserRequest`
+- `RequestCategory`
 - `CompiledPrompt`
 - `AnalyzedRequest`
 - `Task`

@@ -1,7 +1,11 @@
-import { z } from 'zod';
+import { z } from "zod";
+import {
+  RequestCategorySchema,
+  type RequestCategory,
+} from "../schemas/pipeline.js";
 
-export type TaskStatus = 'pending' | 'running' | 'completed' | 'failed';
-export type TaskType = 'explore' | 'create' | 'modify' | 'analyze' | 'validate' | 'execute' | 'document' | 'plan';
+export type TaskStatus = "pending" | "running" | "completed" | "failed";
+export type TaskType = RequestCategory;
 
 export interface Task {
   id: string;
@@ -12,8 +16,13 @@ export interface Task {
   dependsOn: string[];
 }
 
-export const TaskStatusSchema = z.enum(['pending', 'running', 'completed', 'failed']);
-export const TaskTypeSchema = z.enum(['explore', 'create', 'modify', 'analyze', 'validate', 'execute', 'document', 'plan']);
+export const TaskStatusSchema = z.enum([
+  "pending",
+  "running",
+  "completed",
+  "failed",
+]);
+export const TaskTypeSchema = RequestCategorySchema;
 
 export const TaskSchema = z.object({
   id: z.string().min(1),

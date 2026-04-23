@@ -1,14 +1,14 @@
 import { z } from "zod";
 
 /**
- * Shared pipeline schemas for detoks.
+ * detoks의 공용 파이프라인 스키마입니다.
  *
- * Document mapping:
+ * 문서 매핑:
  * - docs/SCHEMAS.md
  * - docs/SHARED_DATA_FLOW.md
  * - docs/API_SPEC.md
  *
- * Role to schema ownership:
+ * 역할별 스키마 소유 범위:
  * - Role 1 (AI Prompt Engineer):
  *   UserRequestSchema, CompiledPromptSchema, AnalyzedRequestSchema
  * - Role 2.1 (Task Graph Engineer):
@@ -17,7 +17,43 @@ import { z } from "zod";
  *   ExecutionContextSchema, SessionStateSchema
  * - Role 3 (CLI / System Engineer):
  *   ExecutionResultSchema
+ *
+ * 최상위 요청 / 작업 분류:
+ * - explore: 파일, 구조, 참조, 문맥을 탐색하는 작업
+ * - create: 새 파일, 기능, 스키마, 초안을 만드는 작업
+ * - modify: 기존 산출물을 수정하거나 리팩터링하는 작업
+ * - analyze: 원인, 구조, 트레이드오프, 동작을 분석하는 작업
+ * - validate: 테스트, 타입체크, 검증, 리뷰를 수행하는 작업
+ * - execute: 명령, 워크플로우, 도구 기반 동작을 실행하는 작업
+ * - document: 설명, 요약, 문서화로 정리하는 작업
+ * - plan: 작업을 분해하고 순서를 오케스트레이션하는 작업
  */
+
+export const RequestCategoryValues = [
+  "explore",
+  "create",
+  "modify",
+  "analyze",
+  "validate",
+  "execute",
+  "document",
+  "plan",
+] as const;
+
+/**
+ * 요청 분석과 작업 분해에서 공통으로 사용하는 최상위 의도 분류입니다.
+ *
+ * 한글 대응:
+ * - explore  -> 탐색
+ * - create   -> 생성
+ * - modify   -> 수정
+ * - analyze  -> 분석
+ * - validate -> 검증
+ * - execute  -> 실행
+ * - document -> 정리/문서화
+ * - plan     -> 계획/오케스트레이션
+ */
+export const RequestCategorySchema = z.enum(RequestCategoryValues);
 
 export const UserRequestSchema = z.object({
   raw_input: z.string().min(1),
@@ -36,7 +72,7 @@ export const CompiledPromptSchema = z.object({
 
 export const TaskSchema = z.object({
   id: z.string().min(1),
-  type: z.string().min(1),
+  type: RequestCategorySchema,
   title: z.string().min(1),
   description: z.string().optional(),
   depends_on: z.array(z.string()).default([]),
@@ -45,7 +81,7 @@ export const TaskSchema = z.object({
 });
 
 export const AnalyzedRequestSchema = z.object({
-  category: z.string().min(1),
+  category: RequestCategorySchema,
   keywords: z.array(z.string()).default([]),
   tasks: z.array(TaskSchema).default([]),
 });
@@ -86,6 +122,7 @@ export const SessionStateSchema = z.object({
 });
 
 export type UserRequest = z.infer<typeof UserRequestSchema>;
+export type RequestCategory = z.infer<typeof RequestCategorySchema>;
 export type CompiledPrompt = z.infer<typeof CompiledPromptSchema>;
 export type Task = z.infer<typeof TaskSchema>;
 export type AnalyzedRequest = z.infer<typeof AnalyzedRequestSchema>;
