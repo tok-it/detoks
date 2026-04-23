@@ -11,9 +11,13 @@ export interface Task {
   id: string;
   type: TaskType;
   status: TaskStatus;
+  title: string;
+  description?: string | undefined;
   input_hash: string;
   output_summary?: string | undefined;
   depends_on: string[];
+  priority?: number | undefined;
+  owner_role?: 'role1' | 'role2.1' | 'role2.2' | 'role3' | undefined;
 }
 
 export const TaskStatusSchema = z.enum([
@@ -28,9 +32,13 @@ export const TaskSchema = z.object({
   id: z.string().min(1),
   type: TaskTypeSchema,
   status: TaskStatusSchema,
+  title: z.string().min(1),
+  description: z.string().optional(),
   input_hash: z.string(),
   output_summary: z.string().optional(),
   depends_on: z.array(z.string()).default([]),
+  priority: z.number().optional(),
+  owner_role: z.enum(['role1', 'role2.1', 'role2.2', 'role3']).optional(),
 });
 
 export interface Checkpoint {
@@ -71,6 +79,8 @@ export interface SessionState {
     errors: string[];
   };
   metadata: Record<string, unknown>;
+  last_summary?: string | undefined;
+  next_action?: string | undefined;
   updated_at: string;
 }
 
@@ -92,5 +102,7 @@ export const SessionStateSchema = z.object({
     errors: z.array(z.string()),
   }),
   metadata: z.record(z.string(), z.unknown()).default({}),
+  last_summary: z.string().optional(),
+  next_action: z.string().optional(),
   updated_at: z.string().datetime(),
 });

@@ -1,20 +1,135 @@
 # 📦 Schemas
 
-## Task Schema
+7단계 변환 흐름에서 사용하는 모든 데이터 스키마를 정의합니다.
+
+---
+
+## 1. UserRequest
 
 ```ts
-type TaskStatus = 'pending' | 'running' | 'completed' | 'failed';
-type TaskType = 'explore' | 'create' | 'modify' | 'analyze' | 'validate' | 'execute' | 'document' | 'plan';
+type UserRequest = {
+  raw_input: string;
+  session_id?: string;
+};
+```
+
+**설명:** 사용자의 자연어 입력
+
+---
+
+## 2. CompiledPrompt
+
+```ts
+type CompiledPrompt = {
+  raw_input: string;
+  normalized_input: string;
+  compressed_prompt: string;
+  language: "ko" | "en" | "mixed";
+};
+```
+
+**책임:** Role 1 (AI Prompt Engineer)  
+**설명:** 자연어를 정규화하고 압축한 결과
+
+---
+
+## 3. AnalyzedRequest
+
+```ts
+type AnalyzedRequest = {
+  category: string;
+  keywords: string[];
+  tasks: Array<{
+    id: string;
+    type: string;
+  }>;
+};
+```
+
+**책임:** Role 1 (AI Prompt Engineer)  
+**설명:** 요청을 분류하고 Task 후보를 추출
+
+---
+
+## 4. Task & TaskGraph
+
+```ts
+type TaskStatus = "pending" | "running" | "completed" | "failed";
+type TaskType = "explore" | "create" | "modify" | "analyze" | "validate" | "execute" | "document" | "plan";
 
 type Task = {
   id: string;
   type: TaskType;
   status: TaskStatus;
+  title: string;
+  description?: string;
   input_hash: string;
   output_summary?: string;
   depends_on: string[];
+  priority?: number;
+  owner_role?: "role1" | "role2.1" | "role2.2" | "role3";
 };
 
+type TaskGraph = {
+  tasks: Task[];
+};
+```
+
+**책임:** Role 2.1 (Task Graph Engineer)  
+**설명:** Task를 세분화하고 의존성을 정의한 그래프
+
+---
+
+## 5. ExecutionContext
+
+```ts
+type ExecutionContext = {
+  session_id: string;
+  active_task_id: string;
+  shared_context: Record<string, unknown>;
+  selected_context: Record<string, unknown>;
+  context_summary?: string;
+};
+```
+
+**책임:** Role 2.2 (State & Context Engineer)  
+**설명:** 현재 Task 실행에 필요한 압축된 문맥
+
+---
+
+## 6. ExecutionRequest & ExecutionResult
+
+```ts
+type ExecutionRequest = {
+  task_id: string;
+  prompt: string;
+  target: "codex" | "gemini";
+  context: ExecutionContext;
+  timeout_ms?: number;
+};
+
+type ExecutionError = {
+  code: string;
+  message: string;
+};
+
+type ExecutionResult = {
+  task_id: string;
+  success: boolean;
+  raw_output: string;
+  structured_output?: Record<string, unknown>;
+  error?: ExecutionError;
+};
+```
+
+**책임:** Role 3 (CLI / System Engineer)  
+**설명:** 실제 실행 요청과 결과
+
+---
+
+## 7. SessionState & Checkpoint
+
+```ts
 type Checkpoint = {
   id: string;
   title: string;
@@ -23,10 +138,6 @@ type Checkpoint = {
   changed_files: string[];
   next_action: string;
   created_at: string;
-};
-
-type TaskGraph = {
-  tasks: Task[];
 };
 
 type SessionState = {
@@ -47,15 +158,23 @@ type SessionState = {
     errors: string[];
   };
   metadata: Record<string, unknown>;
+  last_summary?: string;
+  next_action?: string;
   updated_at: string;
 };
 ```
-<!-- 한국어 설명: Task, Checkpoint, SessionState는 작업 실행과 세션 상태 관리를 위한 핵심 데이터 구조이며, 모든 필드는 snake_case를 따릅니다. -->
+
+**책임:** Role 2.2 (State & Context Engineer)  
+**설명:** 세션 전체 상태 및 체크포인트
+
+---
 
 ## Rules
 
-- Every task must have an `id`.
+- Every task must have an `id` and `title`.
 - `depends_on` must always be present.
-- `task_id`, `input_hash`, `output_summary`, `created_at`, `updated_at` follow snake_case convention.
+- All field names follow `snake_case` convention.
+- All timestamps are ISO 8601 format.
 - State must be JSON-serializable.
-<!-- 한국어 설명: 각 작업은 고유 id를 가져야 하고, 의존성 필드는 항상 존재해야 하며, 모든 필드는 snake_case를 따르고, 상태 데이터는 JSON으로 직렬화 가능해야 합니다. -->
+- `owner_role` indicates which role is responsible for the task.
+<!-- 한국어 설명: 모든 필드는 snake_case를 따르고, Task는 id와 title을 필수로 가지며, 모든 상태는 JSON 직렬화 가능해야 합니다. -->
