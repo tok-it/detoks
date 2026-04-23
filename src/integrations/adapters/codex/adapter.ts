@@ -5,6 +5,15 @@ import { buildStubRawOutput } from "../stub.js";
 export class CodexStubAdapter implements CliAdapter {
   readonly target = "codex" as const;
 
+  buildSubprocessRequest(request: AdapterExecutionRequest) {
+    return {
+      command: "codex",
+      args: [],
+      ...(request.cwd !== undefined ? { cwd: request.cwd } : {}),
+      input: request.prompt,
+    };
+  }
+
   async execute(
     request: AdapterExecutionRequest,
     _context?: AdapterExecutionContext,
