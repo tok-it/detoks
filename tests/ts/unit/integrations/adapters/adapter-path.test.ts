@@ -47,6 +47,7 @@ describe("adapter subprocess path", () => {
         verbose: false,
       },
       {
+        executionMode: "real",
         subprocessRunner: createStubSubprocessRunner(),
       },
     );
