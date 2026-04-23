@@ -1,3 +1,22 @@
+# Agent-related
+AGENTS.md
+.codex/
+.codex/**/*.local.*
+.codex/**/local/
+
+# Environment & secrets
+**/.env
+**/.env.*
+!**/.env.example
+.env.local
+.env.*.local
+.env.personal
+.gemini/
+.claude/
+*.local.json
+*.local.md
+local_config/
+
 # Python
 __pycache__/
 *.py[cod]
@@ -6,7 +25,6 @@ __pycache__/
 .Python
 build/
 develop-eggs/
-dist/
 downloads/
 eggs/
 .eggs/
@@ -24,41 +42,29 @@ MANIFEST
 venv/
 ENV/
 env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
 
-# IDEs
+# Node / TypeScript
+node_modules/
+dist/
+npm-debug.log
+yarn.lock
+*.log
+
+# IDEs / editors
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
 
-# Node.js
-node_modules/
-npm-debug.log
-package-lock.json
-yarn.lock
-
-# Environment & Secrets
-.env
-.env.local
-.env.*.local
-.gemini/
-
 # Project-specific
-.claude/
 .devlogs/
-.codex/**/*.local.*
-.codex/**/local/
-*.log
-.pytest_cache/
-.coverage
-htmlcov/
-
-# Personal settings & local overrides
-.env.personal
-*.local.json
-*.local.md
-local_config/
 
 # OS
 .DS_Store
