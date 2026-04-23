@@ -3,10 +3,13 @@ import type { UserRequest } from "../../schemas/pipeline.js";
 export const AdapterValues = ["codex", "gemini"] as const;
 export type Adapter = (typeof AdapterValues)[number];
 export type InteractionMode = "run" | "repl";
+export const ExecutionModeValues = ["stub", "real"] as const;
+export type ExecutionMode = (typeof ExecutionModeValues)[number];
 
 export interface PipelineExecutionRequest {
   mode: InteractionMode;
   adapter: Adapter;
+  executionMode: ExecutionMode;
   verbose: boolean;
   userRequest: UserRequest;
 }

@@ -21,6 +21,7 @@ export const orchestratePipeline = async (
   const execution = await executeWithAdapter({
     adapter: request.adapter,
     mode: request.mode,
+    executionMode: request.executionMode,
     prompt,
     verbose: request.verbose,
     ...(request.userRequest.cwd !== undefined ? { cwd: request.userRequest.cwd } : {}),

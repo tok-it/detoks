@@ -6,6 +6,7 @@ describe("orchestratePipeline", () => {
     const result = await orchestratePipeline({
       mode: "run",
       adapter: "codex",
+      executionMode: "stub",
       verbose: false,
       userRequest: {
         raw_input: "hello detoks",
@@ -18,5 +19,20 @@ describe("orchestratePipeline", () => {
     expect(result.summary).toContain("stub executor accepted prompt");
     expect(result.stages).toHaveLength(6);
     expect(result.rawOutput).toBe("[stub:codex] hello detoks");
+  });
+
+  it("passes execution mode through to the executor boundary", async () => {
+    const result = await orchestratePipeline({
+      mode: "run",
+      adapter: "codex",
+      executionMode: "real",
+      verbose: false,
+      userRequest: {
+        raw_input: "hello detoks",
+      },
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.rawOutput).toBe("[stub:subprocess] codex");
   });
 });
