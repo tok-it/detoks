@@ -3,6 +3,7 @@ import type { ExecutorRequest, ExecutorResult } from "./types.js";
 import type { CliAdapter } from "../../integrations/adapters/interface.js";
 import { CodexStubAdapter } from "../../integrations/adapters/codex/adapter.js";
 import { GeminiStubAdapter } from "../../integrations/adapters/gemini/adapter.js";
+import { createStubSubprocessRunner } from "../../integrations/subprocess/runner.js";
 
 const adapterRegistry: Record<Adapter, CliAdapter> = {
   codex: new CodexStubAdapter(),
@@ -13,12 +14,15 @@ export const getAdapter = (adapter: Adapter): CliAdapter => adapterRegistry[adap
 
 export const executeWithAdapter = async (request: ExecutorRequest): Promise<ExecutorResult> => {
   const adapter = getAdapter(request.adapter);
+  const subprocessRunner = createStubSubprocessRunner();
   const result = await adapter.execute({
     mode: request.mode,
     prompt: request.prompt,
     verbose: request.verbose,
     ...(request.cwd !== undefined ? { cwd: request.cwd } : {}),
     ...(request.sessionId !== undefined ? { sessionId: request.sessionId } : {}),
+  }, {
+    subprocessRunner,
   });
 
   return {
