@@ -33,21 +33,16 @@ type CompiledPrompt = {
 
 ---
 
-## 3. AnalyzedRequest
+## 3. CompiledSentences
 
 ```ts
-type AnalyzedRequest = {
-  category: string;
-  keywords: string[];
-  tasks: Array<{
-    id: string;
-    type: string;
-  }>;
+type CompiledSentences = {
+  sentences: string[];
 };
 ```
 
 **책임:** Role 1 (AI Prompt Engineer)  
-**설명:** 요청을 분류하고 Task 후보를 추출
+**설명:** 한국어 입력을 영어로 변환한 뒤 문장 단위로 분리한 결과. task 분해 / id / depends_on 생성은 Role 2.1 담당.
 
 ---
 

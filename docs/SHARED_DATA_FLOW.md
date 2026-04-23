@@ -9,7 +9,7 @@ The recommended flow is:
 ```text
 UserRequest
 → CompiledPrompt
-→ AnalyzedRequest
+→ CompiledSentences
 → TaskGraph
 → ExecutionContext
 → ExecutionResult
@@ -24,7 +24,7 @@ UserRequest
 
 ### Role 1: AI Prompt Engineer
 - produces `CompiledPrompt`
-- produces `AnalyzedRequest`
+- produces `CompiledSentences`
 
 ### Role 2.1: Task Graph Engineer
 - produces `TaskGraph`
@@ -49,19 +49,9 @@ Raw user input entering the system.
 ### 2. CompiledPrompt
 Compressed and normalized prompt output from the Prompt Compiler.
 
-### 3. AnalyzedRequest
-Classified request with extracted keywords and task candidates.
-
-Top-level category values should use the shared intent set below:
-
-- `explore`
-- `create`
-- `modify`
-- `analyze`
-- `validate`
-- `execute`
-- `document`
-- `plan`
+### 3. CompiledSentences
+Korean input translated to English and split into individual sentences.
+Task decomposition, id generation, and depends_on assignment are handled by Role 2.1.
 
 ### 4. TaskGraph
 Executable task structure with dependency order.
@@ -111,7 +101,7 @@ This file contains the shared Zod schemas for:
 - `UserRequest`
 - `RequestCategory`
 - `CompiledPrompt`
-- `AnalyzedRequest`
+- `CompiledSentences`
 - `Task`
 - `TaskGraph`
 - `ExecutionContext`
