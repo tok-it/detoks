@@ -79,9 +79,9 @@ export const SessionStateSchema = z.object({
     latestCheckpoint: z.string().nullable(),
   }),
   artifacts: z.object({
-    taskResults: z.record(z.unknown()),
+    taskResults: z.record(z.string(), z.unknown()),
     errors: z.array(z.string()),
   }),
-  metadata: z.record(z.unknown()).default({}),
+  metadata: z.record(z.string(), z.unknown()).default({}),
   updatedAt: z.string().datetime(),
 });

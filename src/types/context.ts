@@ -25,7 +25,7 @@ export const TaskContextSchema = z.object({
   currentTaskId: z.string(),
   relevantState: z.string(),
   history: z.array(z.string()),
-  dependencies: z.record(z.unknown()),
+  dependencies: z.record(z.string(), z.unknown()),
 });
 
 export interface OptimizedContext {
@@ -50,6 +50,6 @@ export interface CompressedState {
 export const CompressedStateSchema = z.object({
   sharedContext: SharedContextSchema,
   taskContext: TaskContextSchema,
-  taskResults: z.record(z.unknown()),
+  taskResults: z.record(z.string(), z.unknown()),
   tokenEstimate: z.number().positive(),
 });
