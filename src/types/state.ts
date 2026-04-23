@@ -8,7 +8,7 @@ export interface Task {
   type: TaskType;
   status: TaskStatus;
   inputHash: string;
-  outputSummary?: string;
+  outputSummary?: string | undefined;
   dependsOn: string[];
 }
 
