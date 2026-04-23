@@ -1,5 +1,9 @@
+# Root-level documentation (only README.md tracked)
+/*.md
+!README.md
+!.github/**
+
 # Agent-related
-AGENTS.md
 .codex/
 .codex/**/*.local.*
 .codex/**/local/

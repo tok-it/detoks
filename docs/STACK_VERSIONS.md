@@ -10,7 +10,7 @@ This file defines the initial version baseline for **detoks**.
 | TypeScript runtime | Node.js | `24.15.0` | Current LTS line and the safest production baseline for the main CLI/runtime layer. |
 | TypeScript language | TypeScript | `5.8.3` | Stable TypeScript baseline for strict mode, NodeNext modules, and the current Node runtime. |
 | TS execution | tsx | `4.20.5` | Lightweight TypeScript runner for local execution without a separate build step. |
-| TS validation | zod | `4.1.5` | TypeScript-side schema validation and typing source of truth. |
+| TS validation | zod | `4.3.6` | TypeScript-side schema validation with full z.record() and z.nullable() support for complex schemas. |
 | TS testing | vitest | `3.2.4` | Fast unit/integration testing for the TypeScript layers. |
 | TS Node types | `@types/node` | `24.3.1` | Matches the Node 24 runtime family used by this project. |
 | Python runtime | Python | `3.13.13` | Mature maintenance release with installers, safer for team standardization than Python 3.14.x. |

@@ -70,11 +70,21 @@ export const CompiledPromptSchema = z.object({
   preserved_constraints: z.array(z.string()).default([]),
 });
 
+export const TaskStatusSchema = z.enum([
+  "pending",
+  "running",
+  "completed",
+  "failed",
+]);
+
 export const TaskSchema = z.object({
   id: z.string().min(1),
   type: RequestCategorySchema,
+  status: TaskStatusSchema,
   title: z.string().min(1),
   description: z.string().optional(),
+  input_hash: z.string(),
+  output_summary: z.string().optional(),
   depends_on: z.array(z.string()).default([]),
   priority: z.number().int().optional(),
   owner_role: z.enum(["role1", "role2.1", "role2.2", "role3"]).optional(),
@@ -112,21 +122,34 @@ export const ExecutionResultSchema = z.object({
   next_action: z.string().optional(),
 });
 
+export const CheckpointSchema = z.object({
+  id: z.string().min(1),
+  title: z.string().min(1),
+  task_id: z.string(),
+  summary: z.string(),
+  changed_files: z.array(z.string()),
+  next_action: z.string(),
+  created_at: z.string().datetime(),
+});
+
 export const SessionStateSchema = z.object({
   shared_context: z.record(z.string(), z.unknown()).default({}),
   task_results: z.record(z.string(), z.unknown()).default({}),
-  current_task_id: z.string().optional(),
+  current_task_id: z.string().optional().nullable(),
   completed_task_ids: z.array(z.string()).default([]),
   last_summary: z.string().optional(),
   next_action: z.string().optional(),
+  updated_at: z.string().datetime().optional(),
 });
 
 export type UserRequest = z.infer<typeof UserRequestSchema>;
 export type RequestCategory = z.infer<typeof RequestCategorySchema>;
 export type CompiledPrompt = z.infer<typeof CompiledPromptSchema>;
+export type TaskStatus = z.infer<typeof TaskStatusSchema>;
 export type Task = z.infer<typeof TaskSchema>;
 export type AnalyzedRequest = z.infer<typeof AnalyzedRequestSchema>;
 export type TaskGraph = z.infer<typeof TaskGraphSchema>;
+export type Checkpoint = z.infer<typeof CheckpointSchema>;
 export type ExecutionContext = z.infer<typeof ExecutionContextSchema>;
 export type ExecutionResult = z.infer<typeof ExecutionResultSchema>;
 export type SessionState = z.infer<typeof SessionStateSchema>;
