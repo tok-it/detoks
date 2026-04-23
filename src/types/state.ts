@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 export type TaskStatus = 'pending' | 'running' | 'completed' | 'failed';
-export type TaskType = 'create' | 'analyze' | 'modify' | 'validate' | 'document';
+export type TaskType = 'explore' | 'create' | 'modify' | 'analyze' | 'validate' | 'execute' | 'document' | 'plan';
 
 export interface Task {
   id: string;
@@ -13,7 +13,7 @@ export interface Task {
 }
 
 export const TaskStatusSchema = z.enum(['pending', 'running', 'completed', 'failed']);
-export const TaskTypeSchema = z.enum(['create', 'analyze', 'modify', 'validate', 'document']);
+export const TaskTypeSchema = z.enum(['explore', 'create', 'modify', 'analyze', 'validate', 'execute', 'document', 'plan']);
 
 export const TaskSchema = z.object({
   id: z.string().min(1),
