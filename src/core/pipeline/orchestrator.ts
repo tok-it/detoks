@@ -1,3 +1,4 @@
+import { executeWithAdapter } from "../executor/execute.js";
 import type { PipelineExecutionRequest, PipelineExecutionResult } from "./types.js";
 
 const buildStages = (): PipelineExecutionResult["stages"] => [
@@ -17,15 +18,24 @@ export const orchestratePipeline = async (
   request: PipelineExecutionRequest,
 ): Promise<PipelineExecutionResult> => {
   const prompt = request.userRequest.raw_input;
-  const shortPrompt = prompt.length > 96 ? `${prompt.slice(0, 93)}...` : prompt;
+  const execution = await executeWithAdapter({
+    adapter: request.adapter,
+    mode: request.mode,
+    prompt,
+    verbose: request.verbose,
+    ...(request.userRequest.cwd !== undefined ? { cwd: request.userRequest.cwd } : {}),
+    ...(request.userRequest.session_id !== undefined
+      ? { sessionId: request.userRequest.session_id }
+      : {}),
+  });
 
   return {
-    ok: true,
+    ok: execution.ok,
     mode: request.mode,
     adapter: request.adapter,
     summary: `stub executor accepted prompt (${prompt.length} chars)`,
     nextAction: "connect core pipeline modules behind this boundary",
     stages: buildStages(),
-    rawOutput: `[stub:${request.adapter}] ${shortPrompt}`,
+    rawOutput: execution.rawOutput,
   };
 };
