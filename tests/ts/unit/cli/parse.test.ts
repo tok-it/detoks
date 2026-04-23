@@ -10,6 +10,7 @@ describe("parseCliArgs", () => {
       adapter: "codex",
       executionMode: "stub",
       verbose: false,
+      showHelp: false,
     });
   });
 
@@ -27,6 +28,41 @@ describe("parseCliArgs", () => {
       adapter: "gemini",
       executionMode: "real",
       verbose: true,
+      showHelp: false,
     });
+  });
+
+  it("parses help flags without treating them as errors", () => {
+    const parsed = parseCliArgs(["--help"]);
+    expect(parsed).toMatchObject({
+      mode: "run",
+      adapter: "codex",
+      executionMode: "stub",
+      verbose: false,
+      showHelp: true,
+    });
+  });
+
+  it("accepts -h as a help alias", () => {
+    const parsed = parseCliArgs(["-h"]);
+    expect(parsed).toMatchObject({
+      showHelp: true,
+    });
+  });
+
+  it("treats help as higher priority than normal parsing", () => {
+    const parsed = parseCliArgs(["hello detoks", "--help"]);
+    expect(parsed).toMatchObject({
+      showHelp: true,
+      adapter: "codex",
+      executionMode: "stub",
+    });
+  });
+
+  it("adds actionable guidance to parse errors", () => {
+    expect(() => parseCliArgs(["--execution-mode"])).toThrow(
+      /Run `detoks --help` for usage/,
+    );
+    expect(() => parseCliArgs(["--unknown"])).toThrow(/Run `detoks --help` for usage/);
   });
 });

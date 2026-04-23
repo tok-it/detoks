@@ -20,6 +20,7 @@ export interface CliArgs {
   adapter: Adapter;
   executionMode: ExecutionMode;
   verbose: boolean;
+  showHelp: boolean;
 }
 
 export type NormalizedCliRequest = PipelineExecutionRequest;
