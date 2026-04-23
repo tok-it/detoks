@@ -8,16 +8,37 @@ import type { Task, TaskGraph, RequestCategory } from "../../schemas/pipeline.js
 /**
  * Role 1의 sentences[]를 받아 실행 가능한 TaskGraph로 변환합니다.
  *
- * Role 1 담당: 한국어 → 영어 변환, 문장 단위 분리
- * Role 2.1 담당:
- *   - single / multi 요청 구분
- *   - 각 문장 type 분류
- *   - id 생성
- *   - type 흐름 기반 depends_on 결정 (sequential vs parallel)
+ * ─── 역할 분담 ──────────────────────────────────────────────────
+ * Role 1 담당 : 한국어 → 영어 변환, 한 문장 = 하나의 실행 단위로 분리
+ * Role 2.1 담당 (이 클래스):
+ *   1. single(문장 1개) / multi(문장 여러 개) 요청 구분
+ *   2. 각 문장의 type 분류 (explore / create / modify / ...)
+ *   3. task id 자동 생성 (t1, t2, t3, ...)
+ *   4. depends_on 결정 — 이전 type → 현재 type이 자연스러운 흐름이면 sequential(의존),
+ *                        흐름이 끊기면 parallel(독립, depends_on: [])
+ * ────────────────────────────────────────────────────────────────
+ *
+ * 전체 파이프라인에서의 위치:
+ *   Role 1 output (sentences[])
+ *     → TaskGraphProcessor.process()   ← 여기
+ *     → DAGValidator.validate()
+ *     → DependencyResolver.resolve()
+ *     → ParallelClassifier.classify()
  */
 export class TaskGraphProcessor {
-  // type A → type B 가 "자연스러운 흐름"인 관계 정의
-  // 이 관계에 해당하면 sequential(의존), 해당하지 않으면 parallel(독립)
+  /**
+   * type A → type B 전환이 "자연스러운 실행 흐름"인 조합을 정의한 테이블입니다.
+   *
+   * 이 테이블에 해당하면 → sequential (t_prev 완료 후 t_curr 실행, depends_on: ["t_prev"])
+   * 해당하지 않으면   → parallel  (서로 독립 실행, depends_on: [])
+   *
+   * 예시:
+   *   "explore" 다음 "analyze" → 자연스러운 흐름 (탐색 후 분석)    → sequential
+   *   "explore" 다음 "document"→ 테이블에 없음 (탐색 후 바로 문서화는 비약) → parallel
+   *   "create"  다음 "validate"→ 자연스러운 흐름 (생성 후 검증)    → sequential
+   *
+   * document는 보통 마지막 단계이므로 어떤 type도 뒤따르지 않음 → 빈 배열
+   */
   private static readonly FLOWS_TO: Partial<Record<RequestCategory, RequestCategory[]>> = {
     explore:  ["analyze", "modify", "create", "validate"],
     plan:     ["explore", "create", "execute"],
@@ -29,10 +50,27 @@ export class TaskGraphProcessor {
     document: [],
   };
 
+  /**
+   * Role 1의 raw output을 파싱하여 TaskGraph를 반환합니다.
+   *
+   * @param rawInput - Role 1이 넘겨준 값. 내부적으로 CompiledSentencesSchema로 검증.
+   *                   형식: { sentences: string[] }
+   * @returns 유효성 검증된 TaskGraph 객체 (Zod parse 통과)
+   *
+   * single 예시 (문장 1개):
+   *   input : { sentences: ["Explore the src directory"] }
+   *   output: { tasks: [{ id:"t1", type:"explore", depends_on:[], ... }] }
+   *
+   * multi 예시 (문장 여러 개):
+   *   input : { sentences: ["Explore src", "Analyze structure", "Create module"] }
+   *   types : ["explore", "analyze", "create"]
+   *   흐름  : explore→analyze (O, sequential), analyze→create (O, sequential)
+   *   output: t1(depends_on:[]), t2(depends_on:["t1"]), t3(depends_on:["t2"])
+   */
   static process(rawInput: unknown): TaskGraph {
     const { sentences } = CompiledSentencesSchema.parse(rawInput);
 
-    // single 요청: 문장 1개 → task 1개, depends_on 없음
+    // single 요청: 문장이 1개면 의존 관계가 성립하지 않으므로 바로 반환
     if (sentences.length === 1) {
       const sentence = sentences[0]!;
       const type = this.classifyType(sentence);
@@ -40,8 +78,11 @@ export class TaskGraphProcessor {
       return TaskGraphSchema.parse({ tasks });
     }
 
-    // multi 요청: 먼저 모든 type을 분류한 뒤 흐름 기반으로 depends_on 결정
+    // multi 요청
+    // ① 먼저 모든 문장의 type을 한 번에 분류 — resolveDependsOn에서 이전 type을 참조하기 때문
     const types: RequestCategory[] = sentences.map((s) => this.classifyType(s));
+
+    // ② 각 문장을 Task로 변환하면서 depends_on 결정
     const tasks: Task[] = sentences.map((sentence, index) => {
       const type = types[index]!;
       const dependsOn = this.resolveDependsOn(index, types);
@@ -51,15 +92,36 @@ export class TaskGraphProcessor {
     return TaskGraphSchema.parse({ tasks });
   }
 
-  // type 흐름이 자연스러우면 이전 task에 의존(sequential)
-  // 흐름이 끊기면 독립(parallel, depends_on: [])
+  /**
+   * index번째 task의 depends_on을 결정합니다.
+   *
+   * 판단 기준: FLOWS_TO[이전 type]에 현재 type이 포함되어 있으면 sequential
+   *
+   * 예시:
+   *   types = ["explore", "analyze", "document"]
+   *   index=1: FLOWS_TO["explore"].includes("analyze") → true  → depends_on: ["t1"]
+   *   index=2: FLOWS_TO["analyze"].includes("document")→ true  → depends_on: ["t2"]
+   *
+   *   types = ["create", "explore"]
+   *   index=1: FLOWS_TO["create"].includes("explore")  → false → depends_on: []  (병렬)
+   */
   private static resolveDependsOn(index: number, types: RequestCategory[]): string[] {
+    // 첫 번째 task는 항상 아무것도 기다리지 않음
     if (index === 0) return [];
     const prev = types[index - 1] as RequestCategory;
     const curr = types[index] as RequestCategory;
+    // t1, t2, t3... — index는 0-based이므로 이전 task id는 `t${index}` (1-based 기준)
     return this.FLOWS_TO[prev]?.includes(curr) ? [`t${index}`] : [];
   }
 
+  /**
+   * 하나의 문장으로부터 Task 객체를 생성합니다.
+   *
+   * @param sentence  - Role 1이 분리한 영어 문장 (title로 그대로 사용)
+   * @param index     - 0-based 인덱스 → id는 `t${index+1}` 형태
+   * @param type      - classifyType()이 결정한 RequestCategory
+   * @param dependsOn - resolveDependsOn()이 결정한 선행 task id 배열
+   */
   private static buildTask(
     sentence: string,
     index: number,
@@ -70,14 +132,24 @@ export class TaskGraphProcessor {
     return {
       id,
       type,
-      title: sentence,
-      status: "pending",
+      title: sentence,         // Role 1이 이미 영어로 변환한 문장을 그대로 사용
+      status: "pending",       // 모든 task는 생성 시점에 pending 상태로 초기화
       input_hash: this.computeInputHash(id, type, sentence),
       depends_on: dependsOn,
     };
   }
 
-  // 영어 문장 키워드 기반 type 분류
+  /**
+   * 영어 문장에서 키워드를 찾아 RequestCategory를 결정합니다.
+   *
+   * 매칭 우선순위: 위에서 아래 순서로 첫 번째 매칭된 type 반환
+   * 아무 키워드도 매칭되지 않으면 "execute"를 기본값으로 사용
+   *
+   * 예시:
+   *   "Find all usages of X"    → "read|find|..." 매칭  → "explore"
+   *   "Create a new component"  → "create|implement|..." 매칭 → "create"
+   *   "Run the tests"           → "run|execute|..." 매칭 → "execute"
+   */
   private static classifyType(sentence: string): RequestCategory {
     const s = sentence.toLowerCase();
     if (/read|find|look|search|explore|browse|check/.test(s)) return "explore";
@@ -88,9 +160,16 @@ export class TaskGraphProcessor {
     if (/run|execute|deploy|start|launch/.test(s))             return "execute";
     if (/document|docs|summarize|describe/.test(s))            return "document";
     if (/plan|design|organize|structure|outline/.test(s))      return "plan";
-    return "execute";
+    return "execute"; // 기본값: 어떤 키워드도 매칭되지 않으면 일반 실행 작업으로 분류
   }
 
+  /**
+   * task의 고유 식별 해시를 생성합니다. (SHA-256 앞 16자리)
+   *
+   * id + type + sentence 세 값을 조합해서 해시화하므로
+   * 같은 문장이라도 id나 type이 다르면 다른 hash가 생성됩니다.
+   * 이후 캐싱, 중복 실행 방지, 상태 추적 등에 활용할 수 있습니다.
+   */
   private static computeInputHash(id: string, type: string, sentence: string): string {
     const content = JSON.stringify({ id, type, sentence });
     return createHash("sha256").update(content).digest("hex").slice(0, 16);
