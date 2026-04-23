@@ -1,8 +1,8 @@
-import type { Adapter } from "../../core/pipeline/types.js";
+import type { Adapter, ExecutionMode } from "../../core/pipeline/types.js";
 import type { AdapterExecutionRequest, AdapterExecutionResult } from "../../core/executor/types.js";
 import type { SubprocessRequest, SubprocessRunner } from "../subprocess/types.js";
 
-export type AdapterExecutionMode = "stub" | "real";
+export type AdapterExecutionMode = ExecutionMode;
 
 export interface AdapterExecutionContext {
   executionMode: AdapterExecutionMode;

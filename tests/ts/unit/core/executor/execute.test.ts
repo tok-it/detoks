@@ -6,6 +6,7 @@ describe("executeWithAdapter", () => {
     const result = await executeWithAdapter({
       adapter: "codex",
       mode: "run",
+      executionMode: "stub",
       prompt: "hello codex",
       verbose: false,
     });
@@ -20,6 +21,7 @@ describe("executeWithAdapter", () => {
     const result = await executeWithAdapter({
       adapter: "gemini",
       mode: "run",
+      executionMode: "stub",
       prompt: "hello gemini",
       verbose: true,
     });
@@ -27,6 +29,20 @@ describe("executeWithAdapter", () => {
     expect(result.ok).toBe(true);
     expect(result.adapter).toBe("gemini");
     expect(result.rawOutput).toBe("[stub:gemini] hello gemini");
+    expect(result.exitCode).toBe(0);
+  });
+
+  it("uses the real execution path when requested", async () => {
+    const result = await executeWithAdapter({
+      adapter: "codex",
+      mode: "run",
+      executionMode: "real",
+      prompt: "hello real codex",
+      verbose: false,
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.rawOutput).toBe("[stub:subprocess] codex");
     expect(result.exitCode).toBe(0);
   });
 });

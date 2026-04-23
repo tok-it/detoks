@@ -1,4 +1,4 @@
-import type { Adapter, InteractionMode } from "../pipeline/types.js";
+import type { Adapter, ExecutionMode, InteractionMode } from "../pipeline/types.js";
 
 export interface AdapterExecutionRequest {
   mode: InteractionMode;
@@ -17,6 +17,7 @@ export interface AdapterExecutionResult {
 
 export interface ExecutorRequest extends AdapterExecutionRequest {
   adapter: Adapter;
+  executionMode: ExecutionMode;
 }
 
 export interface ExecutorResult {

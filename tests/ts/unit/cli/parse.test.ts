@@ -8,15 +8,24 @@ describe("parseCliArgs", () => {
       mode: "run",
       prompt: "hello detoks",
       adapter: "codex",
+      executionMode: "stub",
       verbose: false,
     });
   });
 
   it("parses repl mode with flags", () => {
-    const parsed = parseCliArgs(["repl", "--adapter", "gemini", "--verbose"]);
+    const parsed = parseCliArgs([
+      "repl",
+      "--adapter",
+      "gemini",
+      "--execution-mode",
+      "real",
+      "--verbose",
+    ]);
     expect(parsed).toEqual({
       mode: "repl",
       adapter: "gemini",
+      executionMode: "real",
       verbose: true,
     });
   });
