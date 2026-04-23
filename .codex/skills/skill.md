@@ -128,14 +128,14 @@ Use this template when documenting or enforcing the repository workflow for all 
 - `chore/github-actions-ci`
 <!-- 한국어 설명: 브랜치 이름은 작업 목적이 드러나도록 feature/fix/docs/chore 접두사를 사용하는 것을 권장합니다. -->
 
-### Repository-Specific Fill-In Block
+### detoks Repository Policy
 ```text
-Default branch:
-Protected branch(es):
-Required approvals:
-Required status checks:
-Direct push policy:
-Release branch policy:
-Emergency hotfix process:
+Default branch:        dev
+Protected branch(es):  main, dev
+Required approvals:    1
+Required status checks: CI (GitHub Actions)
+Direct push policy:    Not allowed on dev or main
+Release branch policy: Promote dev → main for stable milestones only
+Emergency hotfix process: branch hotfix/* from main → PR to main → backmerge to dev
 ```
-<!-- 한국어 설명: 위 블록은 저장소별로 보호 브랜치, 승인 수, 상태 체크, 직접 푸시 허용 범위 등을 채워 넣는 최종 운영 정책 템플릿입니다. -->
+<!-- 한국어 설명: detoks 저장소의 실제 운영 정책입니다. 직접 푸시 금지, CI 통과 및 리뷰 1명 필수, 긴급 수정은 hotfix 브랜치를 통해 main과 dev 모두에 반영합니다. -->
