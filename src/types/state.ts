@@ -11,9 +11,9 @@ export interface Task {
   id: string;
   type: TaskType;
   status: TaskStatus;
-  inputHash: string;
-  outputSummary?: string | undefined;
-  dependsOn: string[];
+  input_hash: string;
+  output_summary?: string | undefined;
+  depends_on: string[];
 }
 
 export const TaskStatusSchema = z.enum([
@@ -28,69 +28,69 @@ export const TaskSchema = z.object({
   id: z.string().min(1),
   type: TaskTypeSchema,
   status: TaskStatusSchema,
-  inputHash: z.string(),
-  outputSummary: z.string().optional(),
-  dependsOn: z.array(z.string()).default([]),
+  input_hash: z.string(),
+  output_summary: z.string().optional(),
+  depends_on: z.array(z.string()).default([]),
 });
 
 export interface Checkpoint {
   id: string;
   title: string;
-  taskId: string;
+  task_id: string;
   summary: string;
-  changedFiles: string[];
-  nextAction: string;
-  createdAt: string;
+  changed_files: string[];
+  next_action: string;
+  created_at: string;
 }
 
 export const CheckpointSchema = z.object({
   id: z.string().min(1),
   title: z.string().min(1),
-  taskId: z.string(),
+  task_id: z.string(),
   summary: z.string(),
-  changedFiles: z.array(z.string()),
-  nextAction: z.string(),
-  createdAt: z.string().datetime(),
+  changed_files: z.array(z.string()),
+  next_action: z.string(),
+  created_at: z.string().datetime(),
 });
 
 export interface SessionState {
-  sessionId: string;
+  session_id: string;
   version: string;
   goal: string;
-  currentTask: string | null;
-  completedTasks: string[];
-  keyDecisions: string[];
-  activeFiles: string[];
+  current_task: string | null;
+  completed_tasks: string[];
+  key_decisions: string[];
+  active_files: string[];
   tasks: Task[];
   summaries: {
     rolling: string;
-    latestCheckpoint: string | null;
+    latest_checkpoint: string | null;
   };
   artifacts: {
-    taskResults: Record<string, unknown>;
+    task_results: Record<string, unknown>;
     errors: string[];
   };
   metadata: Record<string, unknown>;
-  updatedAt: string;
+  updated_at: string;
 }
 
 export const SessionStateSchema = z.object({
-  sessionId: z.string().min(1),
+  session_id: z.string().min(1),
   version: z.string(),
   goal: z.string(),
-  currentTask: z.string().nullable(),
-  completedTasks: z.array(z.string()),
-  keyDecisions: z.array(z.string()),
-  activeFiles: z.array(z.string()),
+  current_task: z.string().nullable(),
+  completed_tasks: z.array(z.string()),
+  key_decisions: z.array(z.string()),
+  active_files: z.array(z.string()),
   tasks: z.array(TaskSchema),
   summaries: z.object({
     rolling: z.string(),
-    latestCheckpoint: z.string().nullable(),
+    latest_checkpoint: z.string().nullable(),
   }),
   artifacts: z.object({
-    taskResults: z.record(z.string(), z.unknown()),
+    task_results: z.record(z.string(), z.unknown()),
     errors: z.array(z.string()),
   }),
   metadata: z.record(z.string(), z.unknown()).default({}),
-  updatedAt: z.string().datetime(),
+  updated_at: z.string().datetime(),
 });

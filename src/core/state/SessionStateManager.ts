@@ -21,7 +21,7 @@ export class SessionStateManager {
     try {
       await this.ensureDirectories();
       const validated = SessionStateSchema.parse(state);
-      const filePath = join(SESSIONS_DIR, `${validated.sessionId}.json`);
+      const filePath = join(SESSIONS_DIR, `${validated.session_id}.json`);
       await fs.writeFile(filePath, JSON.stringify(validated, null, 2));
     } catch (error) {
       throw new Error(`Failed to save session: ${error}`);
@@ -89,7 +89,7 @@ export class SessionStateManager {
       }
 
       return checkpoints.sort((a, b) =>
-        new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+        new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
       );
     } catch (error) {
       throw new Error(`Failed to list checkpoints: ${error}`);

@@ -1,29 +1,29 @@
 import { z } from 'zod';
 
 export interface SharedContext {
-  projectInfo: string;
+  project_info: string;
   conventions: string[];
-  activeRules: string[];
-  keyDecisions: string[];
+  active_rules: string[];
+  key_decisions: string[];
 }
 
 export const SharedContextSchema = z.object({
-  projectInfo: z.string(),
+  project_info: z.string(),
   conventions: z.array(z.string()),
-  activeRules: z.array(z.string()),
-  keyDecisions: z.array(z.string()),
+  active_rules: z.array(z.string()),
+  key_decisions: z.array(z.string()),
 });
 
 export interface TaskContext {
-  currentTaskId: string;
-  relevantState: string;
+  current_task_id: string;
+  relevant_state: string;
   history: string[];
   dependencies: Record<string, unknown>;
 }
 
 export const TaskContextSchema = z.object({
-  currentTaskId: z.string(),
-  relevantState: z.string(),
+  current_task_id: z.string(),
+  relevant_state: z.string(),
   history: z.array(z.string()),
   dependencies: z.record(z.string(), z.unknown()),
 });
@@ -31,25 +31,25 @@ export const TaskContextSchema = z.object({
 export interface OptimizedContext {
   shared: SharedContext;
   task: TaskContext;
-  tokenUsageEstimate: number;
+  token_usage_estimate: number;
 }
 
 export const OptimizedContextSchema = z.object({
   shared: SharedContextSchema,
   task: TaskContextSchema,
-  tokenUsageEstimate: z.number().positive(),
+  token_usage_estimate: z.number().positive(),
 });
 
 export interface CompressedState {
-  sharedContext: SharedContext;
-  taskContext: TaskContext;
-  taskResults: Record<string, unknown>;
-  tokenEstimate: number;
+  shared_context: SharedContext;
+  task_context: TaskContext;
+  task_results: Record<string, unknown>;
+  token_estimate: number;
 }
 
 export const CompressedStateSchema = z.object({
-  sharedContext: SharedContextSchema,
-  taskContext: TaskContextSchema,
-  taskResults: z.record(z.string(), z.unknown()),
-  tokenEstimate: z.number().positive(),
+  shared_context: SharedContextSchema,
+  task_context: TaskContextSchema,
+  task_results: z.record(z.string(), z.unknown()),
+  token_estimate: z.number().positive(),
 });
