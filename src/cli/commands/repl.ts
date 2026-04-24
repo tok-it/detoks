@@ -12,7 +12,7 @@ export const runReplCommand = async (baseArgs: CliArgs): Promise<void> => {
   const sessionId = `repl-${Date.now()}`;
 
   output.write(
-    `detoks repl started (adapter=${baseArgs.adapter}, executionMode=${baseArgs.executionMode}, verbose=${String(baseArgs.verbose)}). type "exit" to quit.\n`,
+    `detoks repl started (adapter=${baseArgs.adapter}, executionMode=${baseArgs.executionMode}, verbose=${String(baseArgs.verbose)}). stub = simulated output; real = adapter's real execution path. type "exit" to quit.\n`,
   );
 
   try {

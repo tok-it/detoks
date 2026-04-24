@@ -21,6 +21,7 @@ export interface CliArgs {
   executionMode: ExecutionMode;
   verbose: boolean;
   showHelp: boolean;
+  helpTopic?: "main" | "repl";
 }
 
 export type NormalizedCliRequest = PipelineExecutionRequest;

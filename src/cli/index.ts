@@ -9,7 +9,7 @@ const main = async (): Promise<void> => {
   const args = parseCliArgs(process.argv.slice(2));
 
   if (args.showHelp) {
-    console.log(getCliUsage());
+    console.log(getCliUsage(args.helpTopic ?? "main"));
     return;
   }
 

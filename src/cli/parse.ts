@@ -9,15 +9,41 @@ import {
 
 const DEFAULT_ADAPTER = "codex";
 const DEFAULT_EXECUTION_MODE = "stub";
-const CLI_USAGE = [
+const EXECUTION_MODE_HELP = [
+  "Execution mode:",
+  "    stub = simulated output for fast, safe CLI testing",
+  "    real = runs the adapter's real execution path",
+].join("\n");
+const CLI_USAGE_MAIN = [
   "Usage:",
   '  detoks "<prompt>" [--adapter codex|gemini] [--execution-mode stub|real] [--verbose]',
   "  detoks repl [--adapter codex|gemini] [--execution-mode stub|real] [--verbose]",
+  "  detoks repl --help",
   "  detoks --help",
   "",
   "Options:",
   "  --adapter codex|gemini        Target adapter (default: codex)",
   "  --execution-mode stub|real    Runtime execution mode (default: stub)",
+  EXECUTION_MODE_HELP,
+  "  --verbose                     Show full JSON output and error stacks",
+  "  -h, --help                    Show this help message",
+].join("\n");
+
+const CLI_USAGE_REPL = [
+  "Usage:",
+  "  detoks repl [--adapter codex|gemini] [--execution-mode stub|real] [--verbose]",
+  "  detoks repl --help",
+  "",
+  "REPL notes:",
+  "  - type a prompt and press Enter to run it",
+  "  - type exit, quit, or .exit to leave the REPL",
+  "  - each prompt is executed as a separate work unit",
+  "  - execution-mode controls whether prompts use simulated or real execution",
+  "",
+  "Options:",
+  "  --adapter codex|gemini        Target adapter (default: codex)",
+  "  --execution-mode stub|real    Runtime execution mode (default: stub)",
+  EXECUTION_MODE_HELP,
   "  --verbose                     Show full JSON output and error stacks",
   "  -h, --help                    Show this help message",
 ].join("\n");
@@ -56,12 +82,14 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
     }
 
     if (current === "-h" || current === "--help") {
+      const helpTopic = positionals[0] === "repl" ? "repl" : "main";
       return {
         mode: "run",
         adapter,
         executionMode,
         verbose,
         showHelp: true,
+        helpTopic,
       };
     }
 
@@ -125,7 +153,7 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
         "REPL mode does not accept prompt arguments. Run `detoks repl --help` for usage.",
       );
     }
-    return { mode: "repl", adapter, executionMode, verbose, showHelp: false };
+    return { mode: "repl", adapter, executionMode, verbose, showHelp: false, helpTopic: "repl" };
   }
 
   const prompt = assertPrompt(positionals.join(" "));
@@ -136,10 +164,12 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
     executionMode,
     verbose,
     showHelp: false,
+    helpTopic: "main",
   };
 };
 
-export const getCliUsage = (): string => CLI_USAGE;
+export const getCliUsage = (topic: "main" | "repl" = "main"): string =>
+  topic === "repl" ? CLI_USAGE_REPL : CLI_USAGE_MAIN;
 
 export const toNormalizedRequest = (
   args: CliArgs,
