@@ -1,0 +1,16 @@
+{
+  "shared_context": {
+    "session_id": "3f42907e2e8f"
+  },
+  "task_results": {
+    "t1": {
+      "summary": "[stub:codex] [EXECUTE] hello detoks\n\nContext: No previous task context available.",
+      "raw_output": "[stub:codex] [EXECUTE] hello detoks\n\nContext: No previous task context available."
+    }
+  },
+  "current_task_id": null,
+  "completed_task_ids": [
+    "t1"
+  ],
+  "updated_at": "2026-04-24T05:44:00.715Z"
+}
