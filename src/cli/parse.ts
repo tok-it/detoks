@@ -14,6 +14,8 @@ const EXECUTION_MODE_HELP = [
   "    stub = simulated output for fast, safe CLI testing",
   "    real = runs the adapter's real execution path",
 ].join("\n");
+const VERBOSE_HELP =
+  "  --verbose                     Show full success JSON and error stacks (output only)";
 const CLI_USAGE_MAIN = [
   "Usage:",
   '  detoks "<prompt>" [--adapter codex|gemini] [--execution-mode stub|real] [--verbose]',
@@ -25,7 +27,7 @@ const CLI_USAGE_MAIN = [
   "  --adapter codex|gemini        Target adapter (default: codex)",
   "  --execution-mode stub|real    Runtime execution mode (default: stub)",
   EXECUTION_MODE_HELP,
-  "  --verbose                     Show full JSON output and error stacks",
+  VERBOSE_HELP,
   "  -h, --help                    Show this help message",
 ].join("\n");
 
@@ -44,7 +46,7 @@ const CLI_USAGE_REPL = [
   "  --adapter codex|gemini        Target adapter (default: codex)",
   "  --execution-mode stub|real    Runtime execution mode (default: stub)",
   EXECUTION_MODE_HELP,
-  "  --verbose                     Show full JSON output and error stacks",
+  VERBOSE_HELP,
   "  -h, --help                    Show this help message",
 ].join("\n");
 

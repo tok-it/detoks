@@ -78,6 +78,7 @@ describe("parseCliArgs", () => {
     expect(usage).toContain("Execution mode:");
     expect(usage).toContain("stub = simulated output for fast, safe CLI testing");
     expect(usage).toContain("real = runs the adapter's real execution path");
+    expect(usage).toContain("Show full success JSON and error stacks");
   });
 
   it("documents execution mode differences in repl help", () => {
@@ -85,6 +86,7 @@ describe("parseCliArgs", () => {
     expect(usage).toContain("execution-mode controls whether prompts use simulated or real execution");
     expect(usage).toContain("stub = simulated output for fast, safe CLI testing");
     expect(usage).toContain("real = runs the adapter's real execution path");
+    expect(usage).toContain("Show full success JSON and error stacks");
   });
 
   it("adds actionable guidance to parse errors", () => {
