@@ -17,7 +17,14 @@ export interface PipelineExecutionRequest {
 export interface PipelineStageStatus {
   name: string;
   owner: "role1" | "role2.1" | "role2.2" | "role3";
-  status: "ready" | "stubbed";
+  status: "ready" | "stubbed" | "completed" | "failed";
+}
+
+export interface TaskExecutionRecord {
+  taskId: string;
+  status: "completed" | "failed" | "skipped";
+  rawOutput: string;
+  blockedBy?: string;
 }
 
 export interface PipelineExecutionResult {
@@ -28,4 +35,6 @@ export interface PipelineExecutionResult {
   nextAction: string;
   stages: PipelineStageStatus[];
   rawOutput: string;
+  sessionId: string;
+  taskRecords: TaskExecutionRecord[];
 }

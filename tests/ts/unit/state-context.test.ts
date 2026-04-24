@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { StateValidator } from '../../../src/core/state/StateValidator.js';
 import { ContextSelector } from '../../../src/core/context/ContextSelector.js';
 import { ContextCompressor } from '../../../src/core/context/ContextCompressor.js';
+import { StateValidationError } from '../../../src/core/errors/StateErrors.js';
 import type { SessionState, Task } from '../../../src/schemas/pipeline.js';
 
 describe('State & Context Engine Unit Tests', () => {
@@ -25,13 +26,15 @@ describe('State & Context Engine Unit Tests', () => {
       expect(() => StateValidator.validate(mockState)).not.toThrow();
     });
 
-    it('should throw error if shared_context is missing (Two-Tier rule)', () => {
-      const invalidState = { ...mockState, shared_context: undefined };
-      expect(() => StateValidator.validate(invalidState)).toThrow();
+    it('should throw StateValidationError if shared_context is missing (Two-Tier rule)', () => {
+      const invalidState = { ...mockState, shared_context: {} };
+      expect(() => StateValidator.validate(invalidState)).toThrow(StateValidationError);
+      expect(() => StateValidator.validate(invalidState)).toThrow(/shared_context must be a non-empty object/);
     });
 
-    it('should throw error if current_task is already in completed_task_ids', () => {
+    it('should throw StateValidationError if current_task is already in completed_task_ids', () => {
       const invalidState = { ...mockState, current_task_id: 'task-1' };
+      expect(() => StateValidator.validate(invalidState)).toThrow(StateValidationError);
       expect(() => StateValidator.validate(invalidState)).toThrow(/already marked as completed/);
     });
   });

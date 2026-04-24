@@ -210,6 +210,7 @@ type RequestAnalyzeResponse = {
 ### Notes
 
 - category is a routing and orchestration label
+- semantic meaning of the eight task categories is defined in `docs/TYPE_DEFINITION.md`
 - keywords are used for context selection and later retrieval
 - tasks must be decomposed into executable units
 
