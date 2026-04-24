@@ -33,8 +33,14 @@ SessionState
 ### Role 1: AI Prompt Engineer
 
 **책임:**
+- 입력 정규화
 - 한국어 → 영어 변환
+- protected segment masking / restore
+- span-level translation / clean
+- validation / repair / fallback
 - 불필요한 정보 제거 (압축)
+- `CompiledPrompt`, `Role2PromptInput` 생성
+- batch result 기록
 
 **생성 데이터:**
 
@@ -46,6 +52,24 @@ type CompiledPrompt = {
   normalized_input: string;
   compressed_prompt: string;
   language: "ko" | "en" | "mixed";
+  compression_provider: "nlp_adapter";
+  inference_time_sec?: number;
+  validation_errors?: string[];
+  repair_actions?: string[];
+  debug?: {
+    masked_text: string;
+    placeholders: Array<{
+      placeholder: string;
+      original: string;
+      kind: string;
+    }>;
+    spans: Array<{
+      kind: string;
+      text: string;
+      translate: boolean;
+    }>;
+    fallback_span_count: number;
+  };
 };
 ```
 
@@ -58,6 +82,24 @@ type Role2PromptInput = {
 ```
 
 **의미:** Role 1은 문장 단위 배열을 만들지 않고, `CompiledPrompt.compressed_prompt`를 `Role2PromptInput.compiled_prompt`로 Role 2.1에 전달한다. task 분해 / id / depends_on 생성은 Role 2.1 전담이다.
+
+**Role 1 내부 흐름:**
+1. input normalize
+2. protected segment masking
+3. span 분리
+4. 한국어 span 번역
+5. clean
+6. validate
+7. repair
+8. fallback
+9. conservative compression
+10. `CompiledPrompt`
+11. `Role2PromptInput`
+
+**Role 1 내부 batch artifact:**
+- `run_metadata` + `results[]` 구조를 사용한다.
+- `debug` mode에서는 `masked_text`, `placeholders`, `spans`, `fallback_span_count`를 item debug metadata로 남긴다.
+- batch result는 Role 1 내부 기록용이며 공식 Role 2.1 handoff는 계속 `Role2PromptInput.compiled_prompt` 하나다.
 
 ---
 

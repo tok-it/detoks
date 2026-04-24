@@ -191,8 +191,23 @@ type PromptCompileResponse = {
   compressed_prompt: string;
   language: "ko" | "en" | "mixed";
   compression_provider: "nlp_adapter";
+  inference_time_sec?: number;
   validation_errors?: string[];
   repair_actions?: string[];
+  debug?: {
+    masked_text: string;
+    placeholders: Array<{
+      placeholder: string;
+      original: string;
+      kind: string;
+    }>;
+    spans: Array<{
+      kind: string;
+      text: string;
+      translate: boolean;
+    }>;
+    fallback_span_count: number;
+  };
 };
 ```
 
@@ -202,6 +217,7 @@ type PromptCompileResponse = {
 - output must remain semantically aligned with the original request
 - output must be shorter and cleaner than the source input when possible
 - `max_translation_attempts` defaults to `5` and counts the primary request plus fallback requests
+- `validation_errors`, `repair_actions`, `inference_time_sec`, `debug` are Role 1 metadata fields and are not part of the Role 2.1 handoff contract
 - Role 2.1 handoff uses `Role2PromptInput { compiled_prompt: string }`
 - task decomposition, `id`, and `depends_on` generation are not part of this API
 
@@ -209,35 +225,69 @@ type PromptCompileResponse = {
 
 ### Prompt Compression Strategy
 
-v1 prompt compression is based on code-unit preservation and an external NLP adapter. It does not use LLM-based prompt engineering or a small language model for compression.
+v1 prompt compression uses a conservative `nlp_adapter` implementation that preserves protected code-like units and applies rule-based shortening. It does not use LLM-based prompt engineering or a small language model for compression.
 
 Flow:
 
 1. mask protected segments
 2. translate Korean input to English
-3. preserve code, paths, commands, JSON keys, API names, model names, and Markdown units
-4. analyze translated English text through the NLP adapter
-5. remove duplicate sentences, verbose background, and low-information phrases
+3. preserve code, paths, commands, JSON keys, API names, model names, and Markdown units through masking
+4. remove duplicate sentences, filler phrases, and low-information wording conservatively
+5. validate placeholder order and action-signal preservation
 6. produce `compressed_prompt`
-7. validate the compressed output through guardrails
-
-NLP adapter minimum capabilities:
-
-- sentence splitting
-- tokenization
-- keyword or noun phrase extraction
-- sentence importance scoring
-- redundancy detection
+7. if compression is unsafe, fall back to `normalized_input`
 
 Compression rules:
 
 - code blocks, inline code, shell commands, paths, URLs, JSON keys, API names, and model names must not be compressed
 - Markdown headings, bullets, and numbered lists should be preserved as much as possible
 - filenames, paths, commands, options, numeric constraints, error messages, forbidden conditions, completion criteria, and test requirements must be preserved
-- if NLP compression fails guardrails validation, the pipeline must fall back to the translated text or a more conservative rule-compressed result
+- if compression loses placeholders, action signals, or becomes too aggressive, the pipeline must fall back to `normalized_input`
 - `llm` and `small_model` providers are extension points only and must not be used by v1 compression
 
-<!-- 한국어 설명: v1 압축은 번역 후 영어 텍스트를 대상으로 하며, 코드 단위 보호와 NLP adapter 기반 분석만 사용합니다. LLM 및 소형 모델 압축은 추후 확장 지점으로만 남깁니다. -->
+<!-- 한국어 설명: v1 압축은 번역 후 영어 텍스트를 대상으로 하며, 보호 구간 마스킹과 보수적 규칙 기반 축약을 사용합니다. LLM 및 소형 모델 압축은 추후 확장 지점으로만 남깁니다. -->
+
+### Role 1 Batch Result Artifact
+
+Role 1 batch execution records results in the following internal artifact shape:
+
+```ts
+type BatchRunMetadata = {
+  generated_at: string;
+  pipeline_mode: "safe" | "debug";
+  input_count: number;
+};
+
+type BatchPipelineItemResult = {
+  index: number;
+  raw_input: string;
+  normalized_input?: string;
+  compiled_prompt?: string;
+  role2_handoff?: string;
+  language?: "ko" | "en" | "mixed";
+  inference_time_sec?: number;
+  status: "completed" | "failed";
+  validation_errors: string[];
+  repair_actions: string[];
+  error?: string;
+  debug?: PromptCompileResponse["debug"];
+};
+
+type BatchPipelineResult = {
+  run_metadata: BatchRunMetadata;
+  results: BatchPipelineItemResult[];
+};
+```
+
+The `verify:role1` script may emit an additional verification artifact with:
+
+- `summary.completed_count`
+- `summary.failed_count`
+- `summary.average_inference_time_sec`
+- `summary.average_token_reduction_rate`
+- per-item `input_prompt_tokens`, `compiled_prompt_tokens`, `token_reduction_rate`
+
+Token metrics in the verification artifact are measured with `tiktoken` using `o200k_base`.
 
 ---
 

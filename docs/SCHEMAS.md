@@ -10,6 +10,8 @@
 type UserRequest = {
 	raw_input: string;
 	session_id?: string;
+	cwd?: string;
+	timestamp?: string;
 };
 ```
 
@@ -25,11 +27,29 @@ type CompiledPrompt = {
 	normalized_input: string;
 	compressed_prompt: string;
 	language: "ko" | "en" | "mixed";
+	compression_provider: "nlp_adapter";
+	inference_time_sec?: number;
+	validation_errors?: string[];
+	repair_actions?: string[];
+	debug?: {
+		masked_text: string;
+		placeholders: Array<{
+			placeholder: string;
+			original: string;
+			kind: string;
+		}>;
+		spans: Array<{
+			kind: string;
+			text: string;
+			translate: boolean;
+		}>;
+		fallback_span_count: number;
+	};
 };
 ```
 
 **책임:** Role 1 (AI Prompt Engineer)  
-**설명:** 자연어를 정규화하고 압축한 결과
+**설명:** 자연어를 정규화하고 압축한 결과. 공식 Role 2.1 handoff는 `compressed_prompt`만 사용하고, 나머지 필드는 Role 1 내부 검증/디버그 metadata다.
 
 ---
 
@@ -43,6 +63,41 @@ type Role2PromptInput = {
 
 **책임:** Role 1 (AI Prompt Engineer)  
 **설명:** Role 1이 Role 2.1로 넘기는 handoff schema. 값은 `CompiledPrompt.compressed_prompt`와 동일한 압축 영문 프롬프트 전문이다. task 분해 / id / depends_on 생성은 Role 2.1 담당.
+
+---
+
+## 3-1. Role1 BatchPipelineResult
+
+```ts
+type BatchRunMetadata = {
+	generated_at: string;
+	pipeline_mode: "safe" | "debug";
+	input_count: number;
+};
+
+type BatchPipelineItemResult = {
+	index: number;
+	raw_input: string;
+	normalized_input?: string;
+	compiled_prompt?: string;
+	role2_handoff?: string;
+	language?: "ko" | "en" | "mixed";
+	inference_time_sec?: number;
+	status: "completed" | "failed";
+	validation_errors: string[];
+	repair_actions: string[];
+	error?: string;
+	debug?: CompiledPrompt["debug"];
+};
+
+type BatchPipelineResult = {
+	run_metadata: BatchRunMetadata;
+	results: BatchPipelineItemResult[];
+};
+```
+
+**책임:** Role 1 (AI Prompt Engineer)  
+**설명:** Role 1 batch 처리 결과 기록용 내부 schema. 실패 item도 drop하지 않고 `results[]`에 유지한다.
 
 ---
 
