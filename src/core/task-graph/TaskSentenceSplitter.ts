@@ -174,7 +174,7 @@ export class TaskSentenceSplitter {
 
   private static splitLines(text: string): string[] {
     const expanded = text
-      .replace(/(^|\n)\s*[-*]\s+/g, "$1")
+      .replace(/(^|\n)\s*[-*•◦]\s+/g, "$1")
       .replace(/(^|\n)\s*\d+[.)]\s+/g, "$1")
       .replace(/\s+(?=\d+[.)]\s+)/g, "\n");
 
@@ -265,6 +265,8 @@ export class TaskSentenceSplitter {
     if (!left || !right) return [this.cleanClause(segment)].filter(Boolean);
     if (!this.startsWithAction(left)) return [this.cleanClause(segment)].filter(Boolean);
     if (!this.startsWithFollowUpAction(right)) return [this.cleanClause(segment)].filter(Boolean);
+    // "find and add" 같은 compound verb 방지: left에 object(동사 외 단어)가 있어야 분리
+    if (left.trim().split(/\s+/).length < 2) return [this.cleanClause(segment)].filter(Boolean);
 
     return [left, ...this.splitFollowUp(right)];
   }

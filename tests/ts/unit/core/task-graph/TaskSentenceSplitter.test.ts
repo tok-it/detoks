@@ -143,6 +143,24 @@ describe("TaskSentenceSplitter", () => {
     ]);
   });
 
+  it("does not split and-as-compound-verb with no object on left", () => {
+    const result = TaskSentenceSplitter.split("find and add all usages");
+
+    expect(result.sentences).toEqual(["find and add all usages"]);
+  });
+
+  it("splits unicode bullet list into individual task sentences", () => {
+    const result = TaskSentenceSplitter.split(
+      "• Find the module\n• Analyze the flow\n• Fix the bug",
+    );
+
+    expect(result.sentences).toEqual([
+      "Find the module",
+      "Analyze the flow",
+      "Fix the bug",
+    ]);
+  });
+
   describe("integration with TaskGraphProcessor", () => {
     it("create → validate: sequential dependency", () => {
       const compiled = TaskSentenceSplitter.split("Create a new endpoint and test it");
@@ -166,6 +184,14 @@ describe("TaskSentenceSplitter", () => {
       expect(compiled.sentences).toEqual(["Analyze the issue", "propose a plan"]);
       const graph = TaskGraphProcessor.process(compiled);
       expect(graph.tasks.map((t) => t.type)).toEqual(["analyze", "plan"]);
+    });
+
+    it("add tests → validate type, not create", () => {
+      const compiled = TaskSentenceSplitter.split("Create a new endpoint and add tests");
+      const graph = TaskGraphProcessor.process(compiled);
+
+      expect(graph.tasks.map((t) => t.type)).toEqual(["create", "validate"]);
+      expect(graph.tasks[1]!.depends_on).toEqual(["t1"]);
     });
 
     it("explore → analyze → modify: three-step sequential chain", () => {
