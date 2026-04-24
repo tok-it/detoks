@@ -116,7 +116,7 @@ describe('🔗 전체 연결성 테스트 (CLI → State & Context)', () => {
       // selected_context에 의존성 Task 결과가 포함되어야 함
     });
 
-    it('Strict Mode: 실패한 의존성 Task가 있으면 에러를 throw해야 함', () => {
+    it('Strict Mode 계약: 실패한 의존성 Task 결과는 선택 컨텍스트에서 제외해야 함', () => {
       const stateWithFailedTask: SessionState = {
         ...testState,
         shared_context: {
@@ -139,9 +139,9 @@ describe('🔗 전체 연결성 테스트 (CLI → State & Context)', () => {
         output_summary: undefined
       };
 
-      expect(() => {
-        ContextBuilder.build(stateWithFailedTask, task);
-      }).toThrow();
+      const context = ContextBuilder.build(stateWithFailedTask, task);
+      expect(context.selected_context['task_001']).toBeUndefined();
+      expect(context.context_summary).toContain('No previous task context available.');
     });
   });
 
@@ -337,7 +337,7 @@ describe('🔗 전체 연결성 테스트 (CLI → State & Context)', () => {
       expect(loaded.completed_task_ids).toContain('task_1');
     });
 
-    it('에러 복구: Strict Mode 테스트', () => {
+    it('에러 복구 계약: 실패한 의존성 Task는 컨텍스트에 포함되지 않아야 함', () => {
       const stateWithError: SessionState = {
         ...testState,
         shared_context: {
@@ -360,10 +360,9 @@ describe('🔗 전체 연결성 테스트 (CLI → State & Context)', () => {
         output_summary: undefined
       };
 
-      // Strict Mode에서 실패해야 함
-      expect(() => {
-        ContextBuilder.build(stateWithError, dependentTask);
-      }).toThrow();
+      const context = ContextBuilder.build(stateWithError, dependentTask);
+      expect(context.selected_context['task_fail']).toBeUndefined();
+      expect(context.context_summary).toContain('No previous task context available.');
     });
   });
 });
