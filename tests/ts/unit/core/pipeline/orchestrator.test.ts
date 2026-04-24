@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { orchestratePipeline } from "../../../../../src/core/pipeline/orchestrator.js";
 
 describe("orchestratePipeline", () => {
-  it("returns the current stubbed pipeline result shape", async () => {
+  it("executes task graph and returns structured result", async () => {
     const result = await orchestratePipeline({
       mode: "run",
       adapter: "codex",
@@ -16,9 +16,12 @@ describe("orchestratePipeline", () => {
     expect(result.ok).toBe(true);
     expect(result.mode).toBe("run");
     expect(result.adapter).toBe("codex");
-    expect(result.summary).toContain("stub executor accepted prompt");
-    expect(result.stages).toHaveLength(6);
-    expect(result.rawOutput).toBe("[stub:codex] hello detoks");
+    expect(result.summary).toBe("All 1 task(s) completed");
+    expect(result.stages).toHaveLength(5);
+    expect(result.sessionId).toBeTypeOf("string");
+    expect(result.taskRecords).toHaveLength(1);
+    expect(result.taskRecords[0]!.status).toBe("completed");
+    expect(result.rawOutput).toContain("[stub:codex]");
   });
 
   it("passes execution mode through to the executor boundary", async () => {
