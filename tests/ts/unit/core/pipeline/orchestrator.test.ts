@@ -18,6 +18,7 @@ describe("orchestratePipeline", () => {
     expect(result.adapter).toBe("codex");
     expect(result.summary).toBe("All 1 task(s) completed");
     expect(result.stages).toHaveLength(5);
+    expect(result.stages[0]!.status).toBe("completed");
     expect(result.sessionId).toBeTypeOf("string");
     expect(result.taskRecords).toHaveLength(1);
     expect(result.taskRecords[0]!.status).toBe("completed");
