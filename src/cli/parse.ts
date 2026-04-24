@@ -19,17 +19,20 @@ const VERBOSE_HELP =
 const CLI_USAGE_MAIN = [
   "Usage:",
   '  detoks "<prompt>" [--adapter codex|gemini] [--execution-mode stub|real] [--verbose]',
+  "  detoks --file <path> [--verbose]",
   "  detoks repl [--adapter codex|gemini] [--execution-mode stub|real] [--verbose]",
   "  detoks repl --help",
   "  detoks --help",
   "",
   "Examples:",
   '  detoks "summarize the current repo status"',
+  "  detoks --file tests/data/row_data.json --verbose",
   "  detoks repl --adapter codex --execution-mode stub",
   "",
   "Options:",
   "  --adapter codex|gemini        Target adapter (default: codex)",
   "  --execution-mode stub|real    Runtime execution mode (default: stub)",
+  "  --file <path>                 Run batch prompt compilation from a JSON file",
   EXECUTION_MODE_HELP,
   VERBOSE_HELP,
   "  -h, --help                    Show this help message",
@@ -77,6 +80,7 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
   const positionals: string[] = [];
   let adapter: CliArgs["adapter"] = DEFAULT_ADAPTER;
   let executionMode: CliArgs["executionMode"] = DEFAULT_EXECUTION_MODE;
+  let inputFile: string | undefined;
   let verbose = false;
 
   for (let i = 0; i < argv.length; i += 1) {
@@ -148,6 +152,24 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
       continue;
     }
 
+    if (current === "--file") {
+      const next = argv[i + 1];
+      if (!next) {
+        throw new Error("--file requires a path. Run `detoks --help` for usage.");
+      }
+      inputFile = next;
+      i += 1;
+      continue;
+    }
+
+    if (current.startsWith("--file=")) {
+      inputFile = current.split("=")[1] ?? "";
+      if (!inputFile) {
+        throw new Error("--file requires a path. Run `detoks --help` for usage.");
+      }
+      continue;
+    }
+
     if (current.startsWith("--")) {
       throw new Error(`Unknown flag: ${current}. Run \`detoks --help\` for usage.`);
     }
@@ -157,12 +179,30 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
 
   const first = positionals[0];
   if (first === "repl") {
+    if (inputFile) {
+      throw new Error("REPL mode does not support --file. Run `detoks repl --help` for usage.");
+    }
     if (positionals.length > 1) {
       throw new Error(
         "REPL mode does not accept prompt arguments. Run `detoks repl --help` for usage.",
       );
     }
     return { mode: "repl", adapter, executionMode, verbose, showHelp: false, helpTopic: "repl" };
+  }
+
+  if (inputFile) {
+    if (positionals.length > 0) {
+      throw new Error("Prompt input and --file cannot be used together. Run `detoks --help` for usage.");
+    }
+    return {
+      mode: "run",
+      inputFile,
+      adapter,
+      executionMode,
+      verbose,
+      showHelp: false,
+      helpTopic: "main",
+    };
   }
 
   const prompt = assertPrompt(positionals.join(" "));

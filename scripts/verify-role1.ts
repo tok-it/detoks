@@ -2,7 +2,8 @@
 
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, join, resolve } from "node:path";
-import { compilePrompt, createRole2PromptInput } from "../src/core/prompt/compiler.js";
+import { get_encoding } from "tiktoken";
+import { runBatchPromptPipeline } from "../src/core/pipeline/batch.js";
 import { loadRole1RuntimeConfig } from "../src/core/prompt/config.js";
 
 interface VerifyOptions {
@@ -21,11 +22,39 @@ interface BatchInput {
 interface VerificationItem {
   index: number;
   raw_input: string;
+  normalized_input: string;
   compiled_prompt: string;
   role2_handoff: string;
   language: "ko" | "en" | "mixed";
+  status: "completed" | "failed";
+  inference_time_sec: number;
+  input_prompt_tokens: number;
+  compiled_prompt_tokens: number;
+  token_reduction_rate: number | null;
   validation_errors: string[];
   repair_actions: string[];
+  error?: string;
+  debug?: {
+    masked_text: string;
+    placeholders: Array<{
+      placeholder: string;
+      original: string;
+      kind: string;
+    }>;
+    spans: Array<{
+      kind: string;
+      text: string;
+      translate: boolean;
+    }>;
+    fallback_span_count: number;
+  };
+}
+
+interface VerificationSummary {
+  completed_count: number;
+  failed_count: number;
+  average_inference_time_sec: number;
+  average_token_reduction_rate: number;
 }
 
 function getUsage(): string {
@@ -165,6 +194,30 @@ function maskApiKey(value: string | undefined): string {
   return `${value.slice(0, 3)}***${value.slice(-2)}`;
 }
 
+function roundMetric(value: number): number {
+  return Number(value.toFixed(3));
+}
+
+function encodeTokenCount(
+  encoding: ReturnType<typeof get_encoding>,
+  text: string,
+): number {
+  return encoding.encode(text).length;
+}
+
+function calculateTokenReductionRate(
+  inputPromptTokens: number,
+  compiledPromptTokens: number,
+): number | null {
+  if (inputPromptTokens <= 0 || compiledPromptTokens <= 0) {
+    return null;
+  }
+
+  return roundMetric(
+    ((inputPromptTokens - compiledPromptTokens) / inputPromptTokens) * 100,
+  );
+}
+
 async function main(): Promise<void> {
   const options = parseArgs(process.argv.slice(2));
   const runtimeConfig = loadRole1RuntimeConfig({
@@ -191,78 +244,148 @@ async function main(): Promise<void> {
     ),
   );
 
-  const results: VerificationItem[] = [];
+  const batchResult = await runBatchPromptPipeline(inputs, {
+    env: {
+      ...process.env,
+      ...(options.debug ? { PIPELINE_MODE: "debug" } : {}),
+    },
+  });
+  const encoding = get_encoding("o200k_base");
 
-  for (const [index, raw_input] of inputs.entries()) {
-    const compiled = await compilePrompt(
-      { raw_input },
-      {
-        env: {
-          ...process.env,
-          ...(options.debug ? { PIPELINE_MODE: "debug" } : {}),
-        },
-      },
-    );
-    const handoff = createRole2PromptInput(compiled);
+  try {
+    const results: VerificationItem[] = batchResult.results.map((item, index) => {
+      const inputPromptTokens = encodeTokenCount(encoding, item.raw_input);
+      const compiledPrompt = item.compiled_prompt ?? "";
+      const compiledPromptTokens = encodeTokenCount(encoding, compiledPrompt);
 
-    const item: VerificationItem = {
-      index: options.index !== undefined ? options.index : index,
-      raw_input,
-      compiled_prompt: compiled.compressed_prompt,
-      role2_handoff: handoff.compiled_prompt,
-      language: compiled.language,
-      validation_errors: compiled.validation_errors ?? [],
-      repair_actions: compiled.repair_actions ?? [],
+      return {
+        index: options.index !== undefined ? options.index : index,
+        raw_input: item.raw_input,
+        normalized_input: item.normalized_input ?? "",
+        compiled_prompt: compiledPrompt,
+        role2_handoff: item.role2_handoff ?? "",
+        language: item.language ?? "en",
+        status: item.status,
+        inference_time_sec: item.inference_time_sec ?? 0,
+        input_prompt_tokens: inputPromptTokens,
+        compiled_prompt_tokens: compiledPromptTokens,
+        token_reduction_rate: calculateTokenReductionRate(
+          inputPromptTokens,
+          compiledPromptTokens,
+        ),
+        validation_errors: item.validation_errors,
+        repair_actions: item.repair_actions,
+        ...(item.error ? { error: item.error } : {}),
+        ...(item.debug ? { debug: item.debug } : {}),
+      };
+    });
+
+    for (const item of results) {
+      console.log(
+        JSON.stringify(
+          {
+            index: item.index,
+            status: item.status,
+            language: item.language,
+            raw_input: item.raw_input,
+            normalized_input: item.normalized_input,
+            compiled_prompt: item.compiled_prompt,
+            role2_handoff: item.role2_handoff,
+            inference_time_sec: item.inference_time_sec,
+            input_prompt_tokens: item.input_prompt_tokens,
+            compiled_prompt_tokens: item.compiled_prompt_tokens,
+            token_reduction_rate: item.token_reduction_rate,
+            validation_errors: item.validation_errors,
+            repair_actions: item.repair_actions,
+            ...(item.error ? { error: item.error } : {}),
+            ...(options.debug && item.debug
+              ? {
+                  debug: {
+                    masked_text: item.debug.masked_text,
+                    placeholder_count: item.debug.placeholders.length,
+                    span_count: item.debug.spans.length,
+                    fallback_span_count: item.debug.fallback_span_count,
+                  },
+                }
+              : {}),
+          },
+          null,
+          2,
+        ),
+      );
+    }
+
+    const completedCount = results.filter((item) => item.status === "completed").length;
+    const failedCount = results.length - completedCount;
+    const inferenceSamples = results
+      .map((item) => item.inference_time_sec)
+      .filter((value) => value > 0);
+    const reductionSamples = results
+      .map((item) => item.token_reduction_rate)
+      .filter((value): value is number => value !== null);
+    const summary: VerificationSummary = {
+      completed_count: completedCount,
+      failed_count: failedCount,
+      average_inference_time_sec:
+        inferenceSamples.length > 0
+          ? roundMetric(
+              inferenceSamples.reduce((sum, value) => sum + value, 0) /
+                inferenceSamples.length,
+            )
+          : 0,
+      average_token_reduction_rate:
+        reductionSamples.length > 0
+          ? roundMetric(
+              reductionSamples.reduce((sum, value) => sum + value, 0) /
+                reductionSamples.length,
+            )
+          : 0,
     };
 
-    results.push(item);
-
     console.log(
       JSON.stringify(
         {
-          index: item.index,
-          language: item.language,
-          raw_input: item.raw_input,
-          compiled_prompt: item.compiled_prompt,
-          validation_errors: item.validation_errors,
-          repair_actions: item.repair_actions,
+          ok: failedCount === 0,
+          mode: "role1-verify-summary",
+          ...summary,
         },
         null,
         2,
       ),
-    );
-  }
-
-  if (options.outputPath) {
-    const absoluteOutputPath = isAbsolute(options.outputPath)
-      ? options.outputPath
-      : join(process.cwd(), options.outputPath);
-    mkdirSync(dirname(absoluteOutputPath), { recursive: true });
-    writeFileSync(
-      absoluteOutputPath,
-      JSON.stringify(
-        {
-          generated_at: new Date().toISOString(),
-          pipeline_mode: options.debug ? "debug" : runtimeConfig.pipelineMode,
-          input_count: results.length,
-          results,
-        },
-        null,
-        2,
-      ),
-      "utf8",
     );
 
-    console.log(
-      JSON.stringify(
-        {
-          ok: true,
-          output: absoluteOutputPath,
-        },
-        null,
-        2,
-      ),
-    );
+    if (options.outputPath) {
+      const absoluteOutputPath = isAbsolute(options.outputPath)
+        ? options.outputPath
+        : join(process.cwd(), options.outputPath);
+      mkdirSync(dirname(absoluteOutputPath), { recursive: true });
+      writeFileSync(
+        absoluteOutputPath,
+        JSON.stringify(
+          {
+            summary,
+            run_metadata: batchResult.run_metadata,
+            results,
+          },
+          null,
+          2,
+        ),
+        "utf8",
+      );
+
+      console.log(
+        JSON.stringify(
+          {
+            ok: true,
+            output: absoluteOutputPath,
+          },
+          null,
+          2,
+        ),
+      );
+    }
+  } finally {
+    encoding.free();
   }
 }
 

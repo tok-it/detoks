@@ -41,6 +41,8 @@ describe("orchestratePipeline", () => {
     expect(result.taskRecords).toHaveLength(1);
     expect(result.taskRecords[0]!.status).toBe("completed");
     expect(result.rawOutput).toContain("[stub:codex]");
+    expect(result.compiledPrompt).toBe("hello detoks");
+    expect(result.role2Handoff).toBe(result.compiledPrompt);
   });
 
   it("passes execution mode through to the executor boundary", async () => {

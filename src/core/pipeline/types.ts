@@ -37,4 +37,6 @@ export interface PipelineExecutionResult {
   rawOutput: string;
   sessionId: string;
   taskRecords: TaskExecutionRecord[];
+  compiledPrompt?: string;
+  role2Handoff?: string;
 }

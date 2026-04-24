@@ -28,6 +28,6 @@ line-length = 100
 
 [tool.mypy]
 python_version = "3.13"
-files = ["python/role1", "tests/python"]
+files = ["python/llama_server", "tests/python"]
 mypy_path = ["python"]
 strict = true

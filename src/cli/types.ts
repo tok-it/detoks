@@ -9,6 +9,7 @@ import type {
   PipelineExecutionRequest,
   PipelineExecutionResult,
 } from "../core/pipeline/types.js";
+import type { BatchPipelineResult } from "../schemas/pipeline.js";
 
 export const AdapterValues = CoreAdapterValues;
 export const ExecutionModeValues = CoreExecutionModeValues;
@@ -17,6 +18,7 @@ export type CliMode = InteractionMode;
 export interface CliArgs {
   mode: CliMode;
   prompt?: string;
+  inputFile?: string;
   adapter: Adapter;
   executionMode: ExecutionMode;
   verbose: boolean;
@@ -26,3 +28,4 @@ export interface CliArgs {
 
 export type NormalizedCliRequest = PipelineExecutionRequest;
 export type CliExecutionResult = PipelineExecutionResult;
+export type CliBatchExecutionResult = BatchPipelineResult;

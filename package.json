@@ -17,9 +17,11 @@
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run",
     "test:watch": "vitest",
-    "verify:role1": "tsx scripts/verify-role1.ts"
+    "verify:role1": "tsx scripts/verify-role1.ts",
+    "verify:role1:rows": "tsx scripts/verify-role1.ts --file tests/data/row_data.json"
   },
   "dependencies": {
+    "tiktoken": "^1.0.22",
     "zod": "4.3.6"
   },
   "devDependencies": {

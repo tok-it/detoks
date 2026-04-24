@@ -32,6 +32,19 @@ describe("compilePrompt", () => {
     expect(compiled.language).toBe("en");
   });
 
+  it("영문 입력은 보수적으로 압축하되 핵심 토큰을 보존한다", async () => {
+    const compiled = await compilePrompt({
+      raw_input:
+        "Can you please update src/api/user.ts and run npm test -- --runInBand 2 times?",
+    });
+
+    expect(compiled.language).toBe("en");
+    expect(compiled.compressed_prompt).toBe(
+      "Update src/api/user.ts and run npm test -- --runInBand 2 times?",
+    );
+    expect(compiled.repair_actions ?? []).toContain("compressed_with_nlp_adapter");
+  });
+
   it("지원하지 않는 압축 provider는 오류를 반환한다", async () => {
     await expect(
       compilePrompt({
@@ -122,6 +135,8 @@ describe("compilePrompt", () => {
     );
 
     expect(compiled.validation_errors).toContain("korean_text_remaining");
-    expect(compiled.repair_actions ?? []).toEqual([]);
+    expect(compiled.repair_actions ?? []).toContain(
+      "compression_fallback_to_normalized_input",
+    );
   });
 });
