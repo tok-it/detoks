@@ -37,6 +37,7 @@ detoks는 LLM CLI(codex, gemini 등) 앞단에서 동작하는 **interactive wra
 ---
 
 ## 🏗 구조
+
 User → detoks → LLM CLI → detoks → Output
 
 ---
