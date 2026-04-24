@@ -69,6 +69,7 @@ type TaskGraph = {
   tasks: Task[];
 };
 ```
+Semantic meaning of `TaskType` is defined canonically in `docs/TYPE_DEFINITION.md`.
 
 **책임:** Role 2.1 (Task Graph Engineer)  
 **설명:** Task를 세분화하고 의존성을 정의한 그래프

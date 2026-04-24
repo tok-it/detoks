@@ -91,6 +91,7 @@ The wrapper CLI may call all stages, but each stage still has its own owner.
 ### 5. Request Analyzer
 - classify request category
 - extract keywords and candidate tasks
+- use `docs/TYPE_DEFINITION.md` as the semantic source of truth for the eight top-level task types
 
 <!-- 한국어 설명: 상위 분류(explore/create/modify/analyze/validate/execute/document/plan)는 여기서 결정됩니다. -->
 
