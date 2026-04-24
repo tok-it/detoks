@@ -1,7 +1,25 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { orchestratePipeline } from "../../../../../src/core/pipeline/orchestrator.js";
+import { executeWithAdapter } from "../../../../../src/core/executor/execute.js";
+
+vi.mock("../../../../../src/core/executor/execute.js", async () => {
+  const actual = await vi.importActual<typeof import("../../../../../src/core/executor/execute.js")>(
+    "../../../../../src/core/executor/execute.js",
+  );
+
+  return {
+    ...actual,
+    executeWithAdapter: vi.fn(actual.executeWithAdapter),
+  };
+});
+
+const executeWithAdapterMock = vi.mocked(executeWithAdapter);
 
 describe("orchestratePipeline", () => {
+  beforeEach(() => {
+    executeWithAdapterMock.mockClear();
+  });
+
   it("executes task graph and returns structured result", async () => {
     const result = await orchestratePipeline({
       mode: "run",
@@ -25,6 +43,13 @@ describe("orchestratePipeline", () => {
   });
 
   it("passes execution mode through to the executor boundary", async () => {
+    executeWithAdapterMock.mockResolvedValueOnce({
+      ok: true,
+      adapter: "codex",
+      rawOutput: "[mock-real] codex",
+      exitCode: 0,
+    });
+
     const result = await orchestratePipeline({
       mode: "run",
       adapter: "codex",
@@ -36,6 +61,12 @@ describe("orchestratePipeline", () => {
     });
 
     expect(result.ok).toBe(true);
-    expect(result.rawOutput).toBe("[stub:subprocess] codex");
+    expect(result.rawOutput).toBe("[mock-real] codex");
+    expect(executeWithAdapterMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        adapter: "codex",
+        executionMode: "real",
+      }),
+    );
   });
 });

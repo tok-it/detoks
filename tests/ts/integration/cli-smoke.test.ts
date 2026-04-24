@@ -11,6 +11,13 @@ const runCli = (args: string[]) =>
     encoding: "utf8",
   });
 
+const runCliWithInput = (args: string[], input: string) =>
+  spawnSync(process.execPath, ["--import", "tsx", cliEntry, ...args], {
+    cwd: repoRoot,
+    encoding: "utf8",
+    input,
+  });
+
 describe("detoks CLI smoke", () => {
   it("keeps default stdout concise and verbose stdout full", () => {
     const defaultRun = runCli(["hello detoks"]);
@@ -76,5 +83,33 @@ describe("detoks CLI smoke", () => {
     });
     expect(verboseJson.stack).toContain("Unknown flag: --unknown");
     expect(verboseRun.stderr).not.toBe(defaultRun.stderr);
+  });
+
+  it("shows start and close messages for repl in default mode", () => {
+    const replRun = runCliWithInput(["repl"], "exit\n");
+
+    expect(replRun.error).toBeUndefined();
+    expect(replRun.status).toBe(0);
+    expect(replRun.stderr).toBe("");
+    expect(replRun.stdout).toContain("detoks repl started");
+    expect(replRun.stdout).toContain("executionMode=stub");
+    expect(replRun.stdout).toContain("verbose=false");
+    expect(replRun.stdout).toContain('type "exit" to quit.');
+    expect(replRun.stdout).toContain("detoks> ");
+    expect(replRun.stdout.trimEnd()).toMatch(/detoks repl closed\.$/);
+  });
+
+  it("shows verbose=true in repl start message for verbose mode", () => {
+    const replRun = runCliWithInput(["repl", "--verbose"], "exit\n");
+
+    expect(replRun.error).toBeUndefined();
+    expect(replRun.status).toBe(0);
+    expect(replRun.stderr).toBe("");
+    expect(replRun.stdout).toContain("detoks repl started");
+    expect(replRun.stdout).toContain("executionMode=stub");
+    expect(replRun.stdout).toContain("verbose=true");
+    expect(replRun.stdout).toContain('type "exit" to quit.');
+    expect(replRun.stdout).toContain("detoks> ");
+    expect(replRun.stdout.trimEnd()).toMatch(/detoks repl closed\.$/);
   });
 });

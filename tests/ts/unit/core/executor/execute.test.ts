@@ -1,7 +1,38 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { executeWithAdapter } from "../../../../../src/core/executor/execute.js";
 
+const subprocessMocks = vi.hoisted(() => {
+  const createStubRunner = vi.fn(() => ({
+    run: vi.fn(async (request: { command: string }) => ({
+      stdout: `[stub-runner:${request.command}]`,
+      stderr: "",
+      exitCode: 0,
+      timedOut: false,
+    })),
+  }));
+
+  const createRealRunner = vi.fn(() => ({
+    run: vi.fn(async (request: { command: string }) => ({
+      stdout: `[real-runner:${request.command}]`,
+      stderr: "",
+      exitCode: 0,
+      timedOut: false,
+    })),
+  }));
+
+  return { createStubRunner, createRealRunner };
+});
+
+vi.mock("../../../../../src/integrations/subprocess/runner.js", () => ({
+  createStubSubprocessRunner: subprocessMocks.createStubRunner,
+  createRealSubprocessRunner: subprocessMocks.createRealRunner,
+}));
+
 describe("executeWithAdapter", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   it("routes to the codex stub adapter", async () => {
     const result = await executeWithAdapter({
       adapter: "codex",
@@ -15,6 +46,8 @@ describe("executeWithAdapter", () => {
     expect(result.adapter).toBe("codex");
     expect(result.rawOutput).toBe("[stub:codex] hello codex");
     expect(result.exitCode).toBe(0);
+    expect(subprocessMocks.createStubRunner).toHaveBeenCalledTimes(1);
+    expect(subprocessMocks.createRealRunner).not.toHaveBeenCalled();
   });
 
   it("routes to the gemini stub adapter", async () => {
@@ -30,6 +63,8 @@ describe("executeWithAdapter", () => {
     expect(result.adapter).toBe("gemini");
     expect(result.rawOutput).toBe("[stub:gemini] hello gemini");
     expect(result.exitCode).toBe(0);
+    expect(subprocessMocks.createStubRunner).toHaveBeenCalledTimes(1);
+    expect(subprocessMocks.createRealRunner).not.toHaveBeenCalled();
   });
 
   it("uses the real execution path when requested", async () => {
@@ -42,7 +77,8 @@ describe("executeWithAdapter", () => {
     });
 
     expect(result.ok).toBe(true);
-    expect(result.rawOutput).toBe("[stub:subprocess] codex");
+    expect(result.rawOutput).toBe("[real-runner:codex]");
     expect(result.exitCode).toBe(0);
+    expect(subprocessMocks.createRealRunner).toHaveBeenCalledTimes(1);
   });
 });
