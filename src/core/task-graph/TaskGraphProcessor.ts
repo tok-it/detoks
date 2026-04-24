@@ -6,10 +6,11 @@ import {
 import type { Task, TaskGraph, RequestCategory } from "../../schemas/pipeline.js";
 
 /**
- * Role 1의 sentences[]를 받아 실행 가능한 TaskGraph로 변환합니다.
+ * Role 2.1 내부 sentence split 결과를 받아 실행 가능한 TaskGraph로 변환합니다.
  *
  * ─── 역할 분담 ──────────────────────────────────────────────────
- * Role 1 담당 : 한국어 → 영어 변환, 한 문장 = 하나의 실행 단위로 분리
+ * Role 1 담당 : 한국어 → 영어 변환, compressed_prompt 생성
+ * Role 2.1 내부 보조 : compiled_prompt 문자열을 sentence 단위로 분리
  * Role 2.1 담당 (이 클래스):
  *   1. single(문장 1개) / multi(문장 여러 개) 요청 구분
  *   2. 각 문장의 type 분류 (explore / create / modify / ...)
@@ -19,7 +20,8 @@ import type { Task, TaskGraph, RequestCategory } from "../../schemas/pipeline.js
  * ────────────────────────────────────────────────────────────────
  *
  * 전체 파이프라인에서의 위치:
- *   Role 1 output (sentences[])
+ *   Role 1 output (compiled_prompt)
+ *     → Role 2.1 internal split (sentences[])
  *     → TaskGraphProcessor.process()   ← 여기
  *     → DAGValidator.validate()
  *     → DependencyResolver.resolve()
@@ -155,9 +157,9 @@ export class TaskGraphProcessor {
   };
 
   /**
-   * Role 1의 raw output을 파싱하여 TaskGraph를 반환합니다.
+   * Role 2.1 내부 sentence split 결과를 파싱하여 TaskGraph를 반환합니다.
    *
-   * @param rawInput - Role 1이 넘겨준 값. 내부적으로 CompiledSentencesSchema로 검증.
+   * @param rawInput - Role 2.1 내부 분리 결과. 내부적으로 CompiledSentencesSchema로 검증.
    *                   형식: { sentences: string[] }
    * @returns 유효성 검증된 TaskGraph 객체 (Zod parse 통과)
    *
@@ -221,7 +223,7 @@ export class TaskGraphProcessor {
   /**
    * 하나의 문장으로부터 Task 객체를 생성합니다.
    *
-   * @param sentence  - Role 1이 분리한 영어 문장 (title로 그대로 사용)
+   * @param sentence  - Role 2.1 내부 분리 결과의 영어 문장 (title로 그대로 사용)
    * @param index     - 0-based 인덱스 → id는 `t${index+1}` 형태
    * @param type      - classifyType()이 결정한 RequestCategory
    * @param dependsOn - resolveDependsOn()이 결정한 선행 task id 배열

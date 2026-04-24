@@ -1,0 +1,51 @@
+import { describe, expect, it } from "vitest";
+import {
+  mask_protected_segments,
+  restore_placeholders,
+} from "../../../../../src/core/translate/masking.js";
+
+describe("mask_protected_segments", () => {
+  it("보호 대상 마스킹 후 restore 시 원문이 그대로 복원된다", () => {
+    const sourceText = [
+      "Use REST API with GPT-4.1 in src/core/prompt/compiler.ts.",
+      'Send to test@example.com and fetch https://example.com/docs.',
+      'JSON sample: {"userId": 123, "API": "v1"}',
+      "Run `npm test` before deploy.",
+      "```ts",
+      'const path = "src/core/prompt/compiler.ts";',
+      "```",
+    ].join("\n");
+
+    const masked = mask_protected_segments(sourceText, {
+      protected_terms: ["REST API"],
+      preferred_translations: {
+        deploy: "deploy",
+      },
+    });
+
+    expect(masked.placeholders.length).toBeGreaterThanOrEqual(8);
+    expect(masked.placeholders[0]!.placeholder).toBe("__PH_0001__");
+    expect(masked.placeholders.at(-1)!.placeholder).toMatch(/^__PH_\d{4}__$/);
+    expect(masked.masked_text).not.toContain("REST API");
+    expect(masked.masked_text).not.toContain("https://example.com/docs");
+    expect(masked.masked_text).not.toContain("test@example.com");
+    expect(restore_placeholders(masked.masked_text, masked.placeholders)).toBe(
+      sourceText,
+    );
+  });
+
+  it("compound protected term은 longest-to-shortest로 단일 placeholder 처리한다", () => {
+    const sourceText = "Use REST API and API together.";
+    const masked = mask_protected_segments(sourceText, {
+      protected_terms: ["API", "REST API"],
+    });
+
+    expect(masked.placeholders).toHaveLength(2);
+    expect(masked.placeholders[0]!.original).toBe("REST API");
+    expect(masked.placeholders[1]!.original).toBe("API");
+    expect(masked.masked_text).toBe("Use __PH_0001__ and __PH_0002__ together.");
+    expect(restore_placeholders(masked.masked_text, masked.placeholders)).toBe(
+      sourceText,
+    );
+  });
+});

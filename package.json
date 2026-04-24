@@ -16,7 +16,8 @@
     "cli": "tsx src/cli/index.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "verify:role1": "tsx scripts/verify-role1.ts"
   },
   "dependencies": {
     "zod": "4.3.6"

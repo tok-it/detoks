@@ -83,3 +83,5 @@ stress-sessions/
 Thumbs.db
 tests/ts/integration/
 tests/integration/
+tests/data
+tmp
