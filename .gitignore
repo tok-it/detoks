@@ -80,3 +80,5 @@ docs/role1/
 Thumbs.db
 tests/ts/integration/
 tests/integration/
+tests/data
+tmp

@@ -41,6 +41,12 @@ describe("complete_chat", () => {
     );
 
     expect(fetchImplementation).toHaveBeenCalledOnce();
+    const mockCalls = fetchImplementation.mock.calls as unknown as Array<
+      [string | URL | Request, RequestInit?]
+    >;
+    expect(mockCalls[0]?.[0]).toBe(
+      "http://127.0.0.1:1234/v1/chat/completions",
+    );
     expect(response.content).toBe("Create a new file");
     expect(response.raw_response).toBeTruthy();
     expect(response.inference_time_sec).toBeTypeOf("number");

@@ -71,6 +71,7 @@ describe("compilePrompt", () => {
           OPENAI_API_BASE: "http://127.0.0.1:1234/v1",
           OPENAI_API_KEY: "test-key",
           MODEL_NAME: "local-model",
+          TRANSLATION_MAX_ATTEMPTS: "1",
         },
         fetchImplementation,
       },
@@ -80,5 +81,47 @@ describe("compilePrompt", () => {
     expect(compiled.language).toBe("ko");
     expect(compiled.normalized_input).toBe("Create a new file");
     expect(compiled.compressed_prompt).toBe("Create a new file");
+  });
+
+  it("검증 실패가 있으면 validation_errors와 repair_actions를 응답에 남긴다", async () => {
+    const fetchImplementation = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            choices: [
+              {
+                message: {
+                  content: "Translation: 새 파일을 생성해",
+                },
+              },
+            ],
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json",
+            },
+          },
+        ),
+      );
+
+    const compiled = await compilePrompt(
+      {
+        raw_input: "새 파일을 생성해",
+      },
+      {
+        env: {
+          OPENAI_API_BASE: "http://127.0.0.1:1234/v1",
+          OPENAI_API_KEY: "test-key",
+          MODEL_NAME: "local-model",
+          TRANSLATION_MAX_ATTEMPTS: "1",
+        },
+        fetchImplementation,
+      },
+    );
+
+    expect(compiled.validation_errors).toContain("korean_text_remaining");
+    expect(compiled.repair_actions ?? []).toEqual([]);
   });
 });

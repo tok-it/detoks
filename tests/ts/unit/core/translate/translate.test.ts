@@ -59,6 +59,7 @@ describe("translate_to_english", () => {
     expect(result.raw_responses).toHaveLength(1);
     expect(result.fallback_span_count).toBe(0);
     expect(result.span_results[0]!.status).toBe("translated");
+    expect(result.validation_errors).toEqual([]);
   });
 
   it("영문 입력 span은 LLM 호출 없이 그대로 유지한다", async () => {
@@ -85,6 +86,7 @@ describe("translate_to_english", () => {
     expect(fetchImplementation).not.toHaveBeenCalled();
     expect(result.text).toBe("Create a file");
     expect(result.span_results[0]!.status).toBe("skipped");
+    expect(result.debug).toBeUndefined();
   });
 
   it("검증 실패 span은 fallback으로 재시도하고 성공 metadata를 남긴다", async () => {
@@ -199,5 +201,94 @@ describe("translate_to_english", () => {
     expect(result.span_results[0]!.validation_errors).toContain(
       "korean_text_remaining",
     );
+  });
+
+  it("debug mode에서는 debug metadata를 남긴다", async () => {
+    const fetchImplementation = vi.fn(async () => {
+      return new Response(
+        JSON.stringify({
+          choices: [
+            {
+              message: {
+                content: "Create __PH_0001__ file",
+              },
+            },
+          ],
+        }),
+        {
+          status: 200,
+          headers: {
+            "content-type": "application/json",
+          },
+        },
+      );
+    });
+
+    const result = await translate_to_english("`app.ts` 파일 생성", {
+      config: {
+        openaiApiBase: "http://127.0.0.1:1234/v1",
+        openaiApiKey: "test-key",
+        modelName: "local-model",
+        pipelineMode: "debug",
+        requestTimeout: 30000,
+        translationMaxAttempts: 2,
+        temperature: 0,
+      },
+      policies: {
+        protectedTerms: [],
+        preferredTranslations: {},
+        forbiddenPatterns: [],
+      },
+      fetchImplementation,
+    });
+
+    expect(result.debug).toBeDefined();
+    expect(result.debug!.masked_text).toContain("__PH_0001__");
+    expect(result.debug!.placeholders[0]!.original).toBe("`app.ts`");
+    expect(result.debug!.fallback_span_count).toBe(0);
+  });
+
+  it("깨진 placeholder 형식도 repair로 복구하고 최종 validation 오류는 남기지 않는다", async () => {
+    const fetchImplementation = vi.fn(async () => {
+      return new Response(
+        JSON.stringify({
+          choices: [
+            {
+              message: {
+                content: "Check PH_0001__ endpoint first",
+              },
+            },
+          ],
+        }),
+        {
+          status: 200,
+          headers: {
+            "content-type": "application/json",
+          },
+        },
+      );
+    });
+
+    const result = await translate_to_english("`endpoint.ts` 엔드포인트 확인", {
+      config: {
+        openaiApiBase: "http://127.0.0.1:1234/v1",
+        openaiApiKey: "test-key",
+        modelName: "local-model",
+        pipelineMode: "safe",
+        requestTimeout: 30000,
+        translationMaxAttempts: 2,
+        temperature: 0,
+      },
+      policies: {
+        protectedTerms: [],
+        preferredTranslations: {},
+        forbiddenPatterns: [],
+      },
+      fetchImplementation,
+    });
+
+    expect(result.text).toBe("Check `endpoint.ts` endpoint first");
+    expect(result.span_results[0]!.output_text).toContain("__PH_0001__");
+    expect(result.validation_errors).toEqual([]);
   });
 });

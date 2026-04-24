@@ -26,6 +26,13 @@ export interface LlmClientOptions {
 
 const DEFAULT_TIMEOUT_MS = 30_000;
 
+function buildChatCompletionsUrl(apiBase: string): string {
+  return new URL(
+    "chat/completions",
+    apiBase.endsWith("/") ? apiBase : `${apiBase}/`,
+  ).toString();
+}
+
 function extractContent(payload: Record<string, unknown>): string {
   const choice = Array.isArray(payload.choices)
     ? payload.choices[0]
@@ -92,7 +99,7 @@ export async function complete_chat(
 
   try {
     const response = await fetchImplementation(
-      new URL("/chat/completions", options.apiBase).toString(),
+      buildChatCompletionsUrl(options.apiBase),
       {
         method: "POST",
         headers: {

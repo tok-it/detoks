@@ -13,6 +13,19 @@ describe("repair_translation", () => {
     expect(result.repair_actions).toContain("placeholder_order_restored");
   });
 
+  it("깨진 placeholder 형식을 원래 placeholder로 복구한다", () => {
+    const result = repair_translation({
+      source_text: "__PH_0001__ 엔드포인트를 확인해",
+      compressed_prompt: "Check PH_0001__ endpoint",
+      placeholders: ["__PH_0001__"],
+    });
+
+    expect(result.output).toBe("Check __PH_0001__ endpoint");
+    expect(result.repair_actions).toContain(
+      "placeholder_form_restored:__PH_0001__",
+    );
+  });
+
   it("forbidden pattern과 wrapper를 제거한다", () => {
     const result = repair_translation({
       source_text: "파일을 생성해",

@@ -32,6 +32,14 @@ export interface TranslateToEnglishResult {
   inference_time_sec: number;
   fallback_span_count: number;
   span_results: TranslationSpanResult[];
+  validation_errors: string[];
+  repair_actions: string[];
+  debug?: {
+    masked_text: string;
+    placeholders: PlaceholderEntry[];
+    spans: TranslatableSpan[];
+    fallback_span_count: number;
+  };
 }
 
 export interface TranslationSpanResult {
@@ -43,12 +51,29 @@ export interface TranslationSpanResult {
   repair_actions: string[];
 }
 
-const TRANSLATION_SYSTEM_PROMPT = [
-  "Translate Korean user input into concise English.",
-  "Preserve placeholders exactly as written.",
-  "Do not add explanations, labels, numbering, or code fences.",
-  "Keep commands, paths, JSON keys, URLs, emails, and model names unchanged.",
-].join(" ");
+const TRANSLATION_SYSTEM_PROMPT = `You are a translator that translates Korean into English.
+
+🚨 CRITICAL RULES (MUST FOLLOW STRICTLY):
+- ONLY output translated English results.
+- DO NOT add any explanation, summary, commentary, or extra text.
+- DO NOT omit, shorten, or partially translate the input.
+- TRANSLATE EVERYTHING completely.
+
+🚫 STRICTLY FORBIDDEN:
+- descriptions, summaries, omissions, reconstructions
+- commentary, preface, tailings
+- labels, quotes, code blocks
+- ANY content not present in the original text
+
+📌 FORMAT PRESERVATION:
+- Preserve ALL sentences, information, numbers, proper nouns, lists, line breaks, and markdown structures.
+- DO NOT modify or remove markdown symbols or punctuation.
+
+✅ REQUIREMENT:
+- The output must be a FULL, COMPLETE, and FAITHFUL translation of the input text.`;
+
+const TRANSLATION_USER_PROMPT_PREFIX =
+  "Translate the following text data into English.\n\n";
 
 function containsKorean(text: string): boolean {
   return /[가-힣]/.test(text);
@@ -58,6 +83,10 @@ async function translate_span(
   span: TranslatableSpan,
   options: TranslateToEnglishOptions,
   promptType: "primary" | "fallback" = "primary",
+  fallbackContext?: {
+    previous_output: string;
+    validation_errors: string[];
+  },
 ): Promise<LlmCompletionResponse | null> {
   if (!span.translate || !containsKorean(span.text)) {
     return null;
@@ -70,12 +99,18 @@ async function translate_span(
           role: "system",
           content:
             promptType === "fallback"
-              ? `${TRANSLATION_SYSTEM_PROMPT} Return only the corrected English translation. Preserve placeholder count and order exactly.`
+              ? `${TRANSLATION_SYSTEM_PROMPT}
+
+Return only the corrected English translation.
+Preserve placeholder count and order exactly.
+If placeholders were malformed, restore them exactly as in the source.
+The previous attempt failed validation for: ${fallbackContext?.validation_errors.join(", ") ?? "unknown_error"}.
+Previous invalid output: ${fallbackContext?.previous_output ?? ""}`
               : TRANSLATION_SYSTEM_PROMPT,
         },
         {
           role: "user",
-          content: span.text,
+          content: `${TRANSLATION_USER_PROMPT_PREFIX}${span.text}`,
         },
       ],
       temperature: options.config.temperature,
@@ -174,7 +209,10 @@ export async function translate_to_english(
     const repairActions = repaired.repair_actions;
 
     if (validationErrors.length > 0 && attempts < options.config.translationMaxAttempts) {
-      const fallbackResponse = await translate_span(span, options, "fallback");
+      const fallbackResponse = await translate_span(span, options, "fallback", {
+        previous_output: repaired.output,
+        validation_errors: validationErrors,
+      });
       attempts += 1;
 
       if (fallbackResponse) {
@@ -194,14 +232,32 @@ export async function translate_to_english(
           forbidden_patterns: options.policies.forbiddenPatterns,
         });
 
-        if (fallbackValidation.validation_errors.length === 0) {
-          finalText = fallbackCleaned;
+        const fallbackRepaired = repair_translation({
+          source_text: span.text,
+          compressed_prompt: fallbackCleaned,
+          placeholders: placeholderTokens,
+          protected_terms: options.policies.protectedTerms,
+          required_terms: requiredTerms,
+          forbidden_patterns: options.policies.forbiddenPatterns,
+        });
+        const fallbackRepairedValidation = validate_translation({
+          source_text: span.text,
+          compressed_prompt: fallbackRepaired.output,
+          placeholders: placeholderTokens,
+          protected_terms: options.policies.protectedTerms,
+          required_terms: requiredTerms,
+          forbidden_patterns: options.policies.forbiddenPatterns,
+        });
+        repairActions.push(...fallbackRepaired.repair_actions);
+
+        if (fallbackRepairedValidation.validation_errors.length === 0) {
+          finalText = fallbackRepaired.output;
           validationErrors = [];
           status = "fallback_succeeded";
         } else {
           status = "failed";
-          validationErrors = fallbackValidation.validation_errors;
-          finalText = repaired.output;
+          validationErrors = fallbackRepairedValidation.validation_errors;
+          finalText = fallbackRepaired.output;
         }
       } else {
         status = "failed";
@@ -228,6 +284,12 @@ export async function translate_to_english(
     reassemble_spans(translatedSpans),
     masked.placeholders,
   );
+  const finalValidationErrors = containsKorean(restoredText)
+    ? [...new Set(spanResults.flatMap((result) => result.validation_errors))]
+    : [];
+  const finalRepairActions = [
+    ...new Set(spanResults.flatMap((result) => result.repair_actions)),
+  ];
 
   return {
     text: restoredText,
@@ -238,5 +300,17 @@ export async function translate_to_english(
     inference_time_sec: inferenceTimeSec,
     fallback_span_count: fallbackSpanCount,
     span_results: spanResults,
+    validation_errors: finalValidationErrors,
+    repair_actions: finalRepairActions,
+    ...(options.config.pipelineMode === "debug"
+      ? {
+          debug: {
+            masked_text: masked.masked_text,
+            placeholders: masked.placeholders,
+            spans: translatedSpans,
+            fallback_span_count: fallbackSpanCount,
+          },
+        }
+      : {}),
   };
 }

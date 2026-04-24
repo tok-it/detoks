@@ -66,26 +66,31 @@ export async function compilePrompt(
 
   const normalizedInput = normalizeInput(request.raw_input);
   const language = detectLanguage(request.raw_input);
-  const translatedInput =
+  const translationResult =
     language === "en"
-      ? normalizedInput
-      : (
-          await translate_to_english(normalizedInput, {
-            config: runtimeConfig,
-            policies,
-            ...(options.fetchImplementation
-              ? { fetchImplementation: options.fetchImplementation }
-              : {}),
-          })
-        ).text;
-  const compressedPrompt = compressPrompt(translatedInput);
+      ? null
+      : await translate_to_english(normalizedInput, {
+          config: runtimeConfig,
+          policies,
+          ...(options.fetchImplementation
+            ? { fetchImplementation: options.fetchImplementation }
+            : {}),
+        });
+  const translatedOutput = translationResult?.text ?? normalizedInput;
+  const compressedPrompt = compressPrompt(translatedOutput);
 
   return PromptCompileResponseSchema.parse({
     raw_input: request.raw_input,
-    normalized_input: translatedInput,
+    normalized_input: translatedOutput,
     compressed_prompt: compressedPrompt,
     language,
     compression_provider: SUPPORTED_COMPRESSION_PROVIDER,
+    ...(translationResult
+      ? {
+          validation_errors: translationResult.validation_errors,
+          repair_actions: translationResult.repair_actions,
+        }
+      : {}),
   });
 }
 

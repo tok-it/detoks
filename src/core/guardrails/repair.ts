@@ -10,6 +10,45 @@ function collectPlaceholders(text: string): string[] {
   return [...text.matchAll(/__PH_\d{4}__/g)].map((match) => match[0]);
 }
 
+function restorePlaceholderForms(
+  outputText: string,
+  explicitPlaceholders: readonly string[] = [],
+): RepairTranslationResult {
+  if (explicitPlaceholders.length === 0) {
+    return {
+      output: outputText,
+      repair_actions: [],
+    };
+  }
+
+  let repaired = outputText;
+  const repairActions: string[] = [];
+
+  for (const placeholder of explicitPlaceholders) {
+    const match = placeholder.match(/^__PH_(\d{4})__$/);
+    if (!match) {
+      continue;
+    }
+
+    const id = match[1];
+    const variantPattern = new RegExp(
+      String.raw`(?<![A-Za-z0-9])_*(?:PH[_]?${id})_*(?![A-Za-z0-9])`,
+      "g",
+    );
+
+    const next = repaired.replace(variantPattern, placeholder);
+    if (next !== repaired) {
+      repaired = next;
+      repairActions.push(`placeholder_form_restored:${placeholder}`);
+    }
+  }
+
+  return {
+    output: repaired,
+    repair_actions: repairActions,
+  };
+}
+
 function normalizePlaceholderOrder(
   sourceText: string,
   outputText: string,
@@ -85,6 +124,10 @@ export function repair_translation(
   const repairActions = output === request.compressed_prompt
     ? []
     : ["clean_translation_applied"];
+
+  const restoredForms = restorePlaceholderForms(output, request.placeholders);
+  output = restoredForms.output;
+  repairActions.push(...restoredForms.repair_actions);
 
   const ordered = normalizePlaceholderOrder(
     request.source_text,
