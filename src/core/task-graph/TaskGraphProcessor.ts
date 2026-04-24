@@ -29,6 +29,91 @@ export class TaskGraphProcessor {
   // Dependency transitions should stay aligned with docs/TYPE_DEFINITION.md.
   // In particular, explore means discovery, analyze means interpretation,
   // and document is typically treated as a terminal stage.
+  private static readonly TYPE_PATTERNS: ReadonlyArray<{
+    type: RequestCategory;
+    patterns: readonly RegExp[];
+  }> = [
+    {
+      type: "explore",
+      patterns: [
+        /\b(read|find|look(?:\s+for)?|search|explore|browse|locate|discover|lookup|query|grep)\b/,
+        /\b(trace|track|follow|walk\s+through|scan|survey|map\s+out|list)\b/,
+        /\b(find|show|list)\s+(all\s+)?(references|usages|occurrences|call\s+sites)\b/,
+        /\bwhere\b.*\b(defined|implemented|used|referenced|located)\b/,
+        /\bwhich\s+(file|module|function|class|component|service)\b/,
+        /\bwhat\s+(file|module|function|class|component|service)\b/,
+      ],
+    },
+    {
+      type: "document",
+      patterns: [
+        /\b(document|docs|summari[sz]e|describe|explain\s+in\s+docs)\b/,
+        /\b(write|update|add)\s+(the\s+)?(documentation|docs|readme|guide|docstring|comment[s]?)\b/,
+        /\b(write|prepare)\s+(a\s+)?(summary|overview|note[s]?|guide)\b/,
+      ],
+    },
+    {
+      type: "create",
+      patterns: [
+        /\b(create|implement|build|write|add|generate|make|draft|scaffold|introduce)\b/,
+        /\bset\s+up\b/,
+        /\bspin\s+up\b/,
+        /\bbootstrap\b/,
+      ],
+    },
+    {
+      type: "modify",
+      patterns: [
+        /\b(modify|update|change|fix|edit|refactor|revise|adjust|patch|rewrite|rename|clean\s+up)\b/,
+        /\bremove\b/,
+        /\breplace\b/,
+        /\bimprove\b/,
+        /\boptimi[sz]e\b/,
+        /\btune\b/,
+        /\bcorrect\b/,
+      ],
+    },
+    {
+      type: "analyze",
+      patterns: [
+        /\b(analyze|review|inspect|investigate|understand|explain|diagnose|profile)\b/,
+        /\b(compare|assess|evaluate|reason\s+about)\b/,
+        /\bhow\b.*\b(work|works|behaves|behave|flows|flow)\b/,
+        /\bwhy\b/,
+        /\broot\s+cause\b/,
+        /\bimpact\b/,
+        /\btrade[\s-]?off\b/,
+      ],
+    },
+    {
+      type: "validate",
+      patterns: [
+        /\b(test|tests|validate|verify|assert|confirm|ensure|check\s+if)\b/,
+        /\b(lint|typecheck|smoke\s+test|qa)\b/,
+        /\b(pass|passes|passing|fail|fails|failing)\b/,
+      ],
+    },
+    {
+      type: "execute",
+      patterns: [
+        /\b(run|execute|deploy|start|launch|trigger|invoke)\b/,
+        /\binstall\b/,
+        /\b(migrate|seed|compile|build|serve|restart|stop)\b/,
+      ],
+    },
+    {
+      type: "plan",
+      patterns: [
+        /\b(plan|design|organize|outline|strategize)\b/,
+        /\bbreak\s+down\b/,
+        /\bsequence\b/,
+        /\broadmap\b/,
+        /\bstep[\s-]?by[\s-]?step\b/,
+        /\bapproach\b/,
+        /\bgame\s+plan\b/,
+      ],
+    },
+  ];
   /**
    * type A → type B 전환이 "자연스러운 실행 흐름"인 조합을 정의한 테이블입니다.
    *
@@ -159,14 +244,11 @@ export class TaskGraphProcessor {
   // before the execute keywords are evaluated.
   private static classifyType(sentence: string): RequestCategory {
     const s = sentence.toLowerCase();
-    if (/read|find|look|search|explore|browse|check/.test(s)) return "explore";
-    if (/create|implement|build|write|add|generate/.test(s))  return "create";
-    if (/modify|update|change|fix|edit|refactor/.test(s))     return "modify";
-    if (/analyze|review|inspect|investigate/.test(s))          return "analyze";
-    if (/test|validate|verify|assert/.test(s))                 return "validate";
-    if (/run|execute|deploy|start|launch/.test(s))             return "execute";
-    if (/document|docs|summarize|describe/.test(s))            return "document";
-    if (/plan|design|organize|structure|outline/.test(s))      return "plan";
+    for (const entry of this.TYPE_PATTERNS) {
+      if (entry.patterns.some((pattern) => pattern.test(s))) {
+        return entry.type;
+      }
+    }
     return "execute"; // 기본값: 어떤 키워드도 매칭되지 않으면 일반 실행 작업으로 분류
   }
 
