@@ -3,6 +3,7 @@ import { DAGValidator } from "../task-graph/DAGValidator.js";
 import { DependencyResolver } from "../task-graph/DependencyResolver.js";
 import { ParallelClassifier } from "../task-graph/ParallelClassifier.js";
 import { TaskGraphProcessor } from "../task-graph/TaskGraphProcessor.js";
+import { TaskSentenceSplitter } from "../task-graph/TaskSentenceSplitter.js";
 import { ContextBuilder } from "../context/ContextBuilder.js";
 import { SessionStateManager } from "../state/SessionStateManager.js";
 import { executeWithAdapter } from "../executor/execute.js";
@@ -77,9 +78,8 @@ export const orchestratePipeline = async (
 
   // ── Step 1: TaskGraph 생성 (Role 2.1) ────────────────────────────────────
   // Role 1이 아직 stub이므로 raw_input을 단일 sentence로 취급
-  const graph = TaskGraphProcessor.process({
-    sentences: [request.userRequest.raw_input],
-  });
+  const compiledSentences = TaskSentenceSplitter.split(request.userRequest.raw_input);
+  const graph = TaskGraphProcessor.process(compiledSentences);
 
   // ── Step 2: DAG 검증 (Role 2.1 — 1차 검증) ───────────────────────────────
   const validation = DAGValidator.validate(graph);
