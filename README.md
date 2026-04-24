@@ -1,86 +1,106 @@
-# 🚀 detoks
+# detoks
 
-detoks는 LLM CLI(codex, gemini 등) 앞단에서 동작하는 **interactive wrapper shell**로,  
-입력·출력·세션을 최적화하여 **토큰 사용을 줄이고 개발 효율을 극대화**하는 시스템이다.
-
----
-
-## 🎯 핵심 가치
-
-- 불필요한 토큰 사용 최소화
-- 반복 작업 제거
-- LLM 워크플로우 최적화
-- 개발 생산성 향상
-
----
-
-## 🧠 한 줄 정의
-
-> detoks는 LLM 사용 방식을 재설계하여 토큰과 컨텍스트를 최적화하는 CLI 시스템이다
-
----
-
-## 🖼 Preview
-
-<p align="center">
-  <img src="./content.png" alt="detoks content preview" width="512" height="512" padding="20px" />
+<p align="right">
+  <a href="#-한국어">한국어</a> | <a href="#-english">English</a>
 </p>
 
-## 📌 문제
+<p align="center">
+  <img src="./content.png" alt="detoks preview" width="720" />
+</p>
 
 ---
 
-- 반복되는 컨텍스트 전달
-- 과도한 출력
-- 토큰 제한으로 인한 작업 중단
+## 🇰🇷 한국어
 
----
+### detoks란?
 
-## 💡 해결
+detoks는 `codex`, `gemini` 같은 LLM CLI 앞단에서 동작하는 **interactive wrapper CLI**입니다.  
+입력을 작업 단위로 정리하고, task graph / context / state / execution boundary를 관리해서 **LLM CLI 작업 흐름을 더 안정적이고 재현 가능하게** 만드는 것이 목표입니다.
 
-- 입력 정제
-- 출력 압축
-- 상태 기반 세션 관리
+### 현재 프로젝트 성격
 
----
+- **CLI 런타임 UX**
+  - one-shot 실행
+  - REPL 모드
+  - `--help`, `repl --help`
+  - `--adapter`, `--execution-mode`, `--verbose`
+- **파이프라인 골격**
+  - sentence split
+  - task graph build
+  - context build / compression
+  - adapter / subprocess boundary
+  - session state save
+- **실행 모드**
+  - `stub`: 시뮬레이션 경로
+  - `real`: 실제 subprocess 경로
+- **테스트**
+  - `Vitest` 기반 unit / integration / smoke test
+  - `TypeScript` typecheck
 
-## 🏗 구조
+### 현재 상태
 
-User → detoks → LLM CLI → detoks → Output
+현재 `detoks`는 **CLI / REPL / 상태 관리 / adapter 경계 / subprocess 경계 / 테스트 기반 UX 안정화**까지 진행된 상태입니다.
 
----
+아직 진행 중인 큰 축:
 
-## 📂 Docs
+- Prompt / Translate / Guardrails / LLM client 실제 연결
+- real execution path end-to-end 보강
+- session / checkpoint UX 고도화
 
-- [ARCHITECTURE.md](./docs/ARCHITECTURE.md)
-- [DEPENDENCY_WORKFLOW.md](./docs/DEPENDENCY_WORKFLOW.md)
-- [DES_DATA_FLOW.md](./docs/DES_DATA_FLOW.md)
-- [PIPELINE.md](./docs/PIPELINE.md)
-- [SCHEMAS.md](./docs/SCHEMAS.md)
-- [SHARED_DATA_FLOW.md](./docs/SHARED_DATA_FLOW.md)
-- [ENGINEERING_GUIDELINES.md](./docs/ENGINEERING_GUIDELINES.md)
-- [ROLES.md](./docs/ROLES.md)
-- [PROJECT_STRUCTURE.md](./docs/PROJECT_STRUCTURE.md)
-- [STACK_VERSIONS.md](./docs/STACK_VERSIONS.md)
-- [TMUX_WORKFLOW.md](./docs/my docs/TMUX_WORKFLOW.md)
+자세한 현재 진행도는 아래 문서를 참고하세요.
 
----
+- [`docs/PIPELINE.md`](./docs/PIPELINE.md)
+- [`docs/ROLES.md`](./docs/ROLES.md)
+- [`docs/PROJECT_STRUCTURE.md`](./docs/PROJECT_STRUCTURE.md)
+- [`docs/TESTING_GUIDE.md`](./docs/TESTING_GUIDE.md)
 
-## 🧩 팀 의존성 명령
+### 구조 한 줄 요약
 
-의존성은 항상 **프로젝트 루트**를 단일 기준점으로 관리합니다.
+```text
+User Input → detoks CLI → Task Graph / Context / State → Adapter / Subprocess → Output
+```
 
-- TypeScript 의존성 → `package.json`
-- Python 의존성 → `pyproject.toml`
-
-팀 공통 권장 방식:
+### 개발 명령
 
 ```bash
-npm install <package>
-npm install -D <package>
-npm run add:py -- <package>
-npm run add:py:dev -- <package>
+npm install
+npm run build
+npm run typecheck
+npm test
+npm run cli -- --help
 ```
+
+REPL 예시:
+
+```bash
+npm run cli -- repl --adapter codex --execution-mode stub
+```
+
+one-shot 예시:
+
+```bash
+npm run cli -- "summarize the current repo status"
+```
+
+### 문서
+
+- [ARCHITECTURE.md](./docs/ARCHITECTURE.md)
+- [API_SPEC.md](./docs/API_SPEC.md)
+- [PIPELINE.md](./docs/PIPELINE.md)
+- [ROLES.md](./docs/ROLES.md)
+- [PROJECT_STRUCTURE.md](./docs/PROJECT_STRUCTURE.md)
+- [TESTING_GUIDE.md](./docs/TESTING_GUIDE.md)
+- [DEPENDENCY_WORKFLOW.md](./docs/DEPENDENCY_WORKFLOW.md)
+- [ENGINEERING_GUIDELINES.md](./docs/ENGINEERING_GUIDELINES.md)
+- [SCHEMAS.md](./docs/SCHEMAS.md)
+- [STACK_VERSIONS.md](./docs/STACK_VERSIONS.md)
+
+### 의존성 관리
+
+프로젝트 루트 기준:
+
+- TypeScript 의존성: `npm install`, `npm install -D`
+- Python 의존성: `npm run add:py -- ...`, `npm run add:py:dev -- ...`
 
 예시:
 
@@ -91,53 +111,105 @@ npm run add:py -- pydantic
 npm run add:py:dev -- pytest
 ```
 
-### 왜 이 방식을 쓰나?
+---
 
-- TypeScript는 기존 `npm i` / `npm install -D` 사용 습관을 그대로 유지 가능
-- Python은 `pyproject.toml` 반영을 위해 공통 명령을 유지
-- 의존성은 항상 루트 기준 파일에만 반영됨
-- TypeScript와 Python의 관리 방식을 역할에 맞게 분리 가능
+## 🇺🇸 English
 
-### 팀원 적용 방법
+### What is detoks?
 
-1. 최신 코드 받기
+detoks is an **interactive wrapper CLI** that sits in front of LLM CLIs such as `codex` and `gemini`.  
+Its goal is to make LLM CLI work more stable and reproducible by organizing input into work units and managing task graph, context, state, and execution boundaries.
 
-```bash
-git pull
+### Current project scope
+
+- **CLI runtime UX**
+  - one-shot execution
+  - REPL mode
+  - `--help`, `repl --help`
+  - `--adapter`, `--execution-mode`, `--verbose`
+- **Pipeline skeleton**
+  - sentence split
+  - task graph build
+  - context build / compression
+  - adapter / subprocess boundary
+  - session state save
+- **Execution modes**
+  - `stub`: simulated path
+  - `real`: actual subprocess path
+- **Testing**
+  - `Vitest`-based unit / integration / smoke tests
+  - `TypeScript` typecheck
+
+### Current status
+
+detoks currently has **CLI / REPL / state management / adapter boundaries / subprocess boundaries / test-backed UX stabilization** in place.
+
+Major areas still in progress:
+
+- real Prompt / Translate / Guardrails / LLM client wiring
+- end-to-end real execution path coverage
+- session / checkpoint UX improvements
+
+For more detail, see:
+
+- [`docs/PIPELINE.md`](./docs/PIPELINE.md)
+- [`docs/ROLES.md`](./docs/ROLES.md)
+- [`docs/PROJECT_STRUCTURE.md`](./docs/PROJECT_STRUCTURE.md)
+- [`docs/TESTING_GUIDE.md`](./docs/TESTING_GUIDE.md)
+
+### One-line structure
+
+```text
+User Input → detoks CLI → Task Graph / Context / State → Adapter / Subprocess → Output
 ```
 
-2. Node 의존성 최신화
+### Development commands
 
 ```bash
 npm install
+npm run build
+npm run typecheck
+npm test
+npm run cli -- --help
 ```
 
-3. Python 의존성 추가가 필요한 팀원은 `uv` 설치 확인
+REPL example:
 
 ```bash
-uv --version
+npm run cli -- repl --adapter codex --execution-mode stub
 ```
 
-4. 이후부터는 TypeScript와 Python을 아래 기준으로 사용
+One-shot example:
 
 ```bash
-npm install <package>
-npm install -D <package>
-npm run add:py -- <package>
-npm run add:py:dev -- <package>
+npm run cli -- "summarize the current repo status"
 ```
 
-### 사용 규칙
+### Documentation
 
-- TypeScript 일반 의존성 → `npm install ...`
-- TypeScript 개발 의존성 → `npm install -D ...`
-- Python 일반 의존성 → `npm run add:py -- ...`
-- Python 개발 의존성 → `npm run add:py:dev -- ...`
-- 하위 폴더에 별도 `package.json` 또는 `pyproject.toml`을 만들지 않음
+- [ARCHITECTURE.md](./docs/ARCHITECTURE.md)
+- [API_SPEC.md](./docs/API_SPEC.md)
+- [PIPELINE.md](./docs/PIPELINE.md)
+- [ROLES.md](./docs/ROLES.md)
+- [PROJECT_STRUCTURE.md](./docs/PROJECT_STRUCTURE.md)
+- [TESTING_GUIDE.md](./docs/TESTING_GUIDE.md)
+- [DEPENDENCY_WORKFLOW.md](./docs/DEPENDENCY_WORKFLOW.md)
+- [ENGINEERING_GUIDELINES.md](./docs/ENGINEERING_GUIDELINES.md)
+- [SCHEMAS.md](./docs/SCHEMAS.md)
+- [STACK_VERSIONS.md](./docs/STACK_VERSIONS.md)
 
-### 참고
+### Dependency management
 
-- 위 명령은 **프로젝트 루트에서 실행하는 것**을 기준으로 합니다.
-- Python 의존성 추가는 `uv`가 설치되어 있어야 합니다.
-- TypeScript 팀원은 기존 `npm i`, `npm install -D`, `npm install`을 그대로 사용합니다.
-- Python 팀원만 `npm run add:py*` 또는 `uv add` 계열을 사용합니다.
+From the project root:
+
+- TypeScript dependencies: `npm install`, `npm install -D`
+- Python dependencies: `npm run add:py -- ...`, `npm run add:py:dev -- ...`
+
+Examples:
+
+```bash
+npm install chalk
+npm install -D vitest
+npm run add:py -- pydantic
+npm run add:py:dev -- pytest
+```
