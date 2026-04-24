@@ -10,9 +10,9 @@ import { z } from "zod";
  *
  * 역할별 스키마 소유 범위:
  * - Role 1 (AI Prompt Engineer):
- *   UserRequestSchema, CompiledPromptSchema, AnalyzedRequestSchema
+ *   UserRequestSchema, CompiledPromptSchema, Role2PromptInputSchema
  * - Role 2.1 (Task Graph Engineer):
- *   TaskSchema, TaskGraphSchema
+ *   AnalyzedRequestSchema, TaskSchema, TaskGraphSchema
  * - Role 2.2 (State & Context Engineer):
  *   ExecutionContextSchema, SessionStateSchema
  * - Role 3 (CLI / System Engineer):
@@ -65,12 +65,45 @@ export const UserRequestSchema = z.object({
   timestamp: z.string().optional(),
 });
 
+export const PromptCompressionProviderValues = [
+  "nlp_adapter",
+  "llm",
+  "small_model",
+] as const;
+
+export const PromptCompressionProviderSchema = z.enum(
+  PromptCompressionProviderValues,
+);
+
 export const CompiledPromptSchema = z.object({
   raw_input: z.string(),
   normalized_input: z.string(),
   compressed_prompt: z.string(),
   language: z.enum(["ko", "en", "mixed"]),
-  preserved_constraints: z.array(z.string()).default([]),
+  compression_provider: z.literal("nlp_adapter"),
+  validation_errors: z.array(z.string()).optional(),
+  repair_actions: z.array(z.string()).optional(),
+});
+
+export const Role2PromptInputSchema = z.object({
+  compiled_prompt: z.string().min(1),
+});
+
+export const PromptCompileRequestSchema = z.object({
+  raw_input: z.string().min(1),
+  shared_context: z.record(z.string(), z.unknown()).optional(),
+  compression_provider: PromptCompressionProviderSchema.optional(),
+  max_translation_attempts: z.number().int().positive().optional(),
+});
+
+export const PromptCompileResponseSchema = z.object({
+  raw_input: z.string(),
+  normalized_input: z.string(),
+  compressed_prompt: z.string(),
+  language: z.enum(["ko", "en", "mixed"]),
+  compression_provider: z.literal("nlp_adapter"),
+  validation_errors: z.array(z.string()).optional(),
+  repair_actions: z.array(z.string()).optional(),
 });
 
 export const TaskStatusSchema = z.enum([
@@ -146,7 +179,8 @@ export const SessionStateSchema = z.object({
   updated_at: z.string().datetime().optional(),
 });
 
-// Role 1 output: 한국어 → 영어 변환 후 문장 단위로 분리한 결과
+// Legacy internal helper for Role 2.1 sentence splitting.
+// 공식 Role 1 → Role 2.1 handoff는 Role2PromptInputSchema를 사용한다.
 export const CompiledSentencesSchema = z.object({
   sentences: z.array(z.string().min(1)),
 });
@@ -155,7 +189,13 @@ export type CompiledSentences = z.infer<typeof CompiledSentencesSchema>;
 
 export type UserRequest = z.infer<typeof UserRequestSchema>;
 export type RequestCategory = z.infer<typeof RequestCategorySchema>;
+export type PromptCompressionProvider = z.infer<
+  typeof PromptCompressionProviderSchema
+>;
 export type CompiledPrompt = z.infer<typeof CompiledPromptSchema>;
+export type Role2PromptInput = z.infer<typeof Role2PromptInputSchema>;
+export type PromptCompileRequest = z.infer<typeof PromptCompileRequestSchema>;
+export type PromptCompileResponse = z.infer<typeof PromptCompileResponseSchema>;
 export type TaskStatus = z.infer<typeof TaskStatusSchema>;
 export type Task = z.infer<typeof TaskSchema>;
 export type AnalyzedRequest = z.infer<typeof AnalyzedRequestSchema>;

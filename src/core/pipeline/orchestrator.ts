@@ -4,6 +4,7 @@ import { DependencyResolver } from "../task-graph/DependencyResolver.js";
 import { ParallelClassifier } from "../task-graph/ParallelClassifier.js";
 import { TaskGraphProcessor } from "../task-graph/TaskGraphProcessor.js";
 import { TaskSentenceSplitter } from "../task-graph/TaskSentenceSplitter.js";
+import { compilePrompt, createRole2PromptInput } from "../prompt/compiler.js";
 import { ContextBuilder } from "../context/ContextBuilder.js";
 import { SessionStateManager } from "../state/SessionStateManager.js";
 import { executeWithAdapter } from "../executor/execute.js";
@@ -50,7 +51,7 @@ function markTaskCompleted(
 function buildPipelineStages(ok: boolean): PipelineStageStatus[] {
   const resultStatus = ok ? "completed" : "failed";
   return [
-    { name: "Prompt Compiler",   owner: "role1",   status: "stubbed"      },
+    { name: "Prompt Compiler",   owner: "role1",   status: resultStatus   },
     { name: "Task Graph Builder", owner: "role2.1", status: resultStatus   },
     { name: "Context Optimizer",  owner: "role2.2", status: resultStatus   },
     { name: "Executor",           owner: "role3",   status: "ready"        },
@@ -76,12 +77,17 @@ export const orchestratePipeline = async (
 ): Promise<PipelineExecutionResult> => {
   const sessionId = request.userRequest.session_id ?? generateSessionId();
 
-  // ── Step 1: TaskGraph 생성 (Role 2.1) ────────────────────────────────────
-  // Role 1이 아직 stub이므로 raw_input을 단일 sentence로 취급
-  const compiledSentences = TaskSentenceSplitter.split(request.userRequest.raw_input);
+  // ── Step 1: Prompt compile + Role 2.1 handoff 생성 (Role 1) ──────────────
+  const compiledPrompt = await compilePrompt({
+    raw_input: request.userRequest.raw_input,
+  });
+  const role2PromptInput = createRole2PromptInput(compiledPrompt);
+
+  // ── Step 2: TaskGraph 생성 (Role 2.1) ────────────────────────────────────
+  const compiledSentences = TaskSentenceSplitter.split(role2PromptInput.compiled_prompt);
   const graph = TaskGraphProcessor.process(compiledSentences);
 
-  // ── Step 2: DAG 검증 (Role 2.1 — 1차 검증) ───────────────────────────────
+  // ── Step 3: DAG 검증 (Role 2.1 — 1차 검증) ───────────────────────────────
   const validation = DAGValidator.validate(graph);
   if (!validation.valid) {
     logger.error(`DAG validation failed: ${validation.reason} — ${validation.detail}`);
@@ -98,14 +104,14 @@ export const orchestratePipeline = async (
     };
   }
 
-  // ── Step 3: 의존성 해결 + stage 분류 (Role 2.1) ───────────────────────────
+  // ── Step 4: 의존성 해결 + stage 분류 (Role 2.1) ───────────────────────────
   const resolution = DependencyResolver.resolve(graph, validation);
   const { stages } = ParallelClassifier.classify(resolution);
 
-  // ── Step 4: 세션 상태 초기화 (Role 2.2) ──────────────────────────────────
+  // ── Step 5: 세션 상태 초기화 (Role 2.2) ──────────────────────────────────
   let state = initSessionState(sessionId);
 
-  // ── Step 5: 실행 루프 ────────────────────────────────────────────────────
+  // ── Step 6: 실행 루프 ────────────────────────────────────────────────────
   const taskRecords: TaskExecutionRecord[] = [];
   const failedTaskIds = new Set<string>();
 
@@ -157,7 +163,7 @@ export const orchestratePipeline = async (
     }
   }
 
-  // ── Step 6: 결과 반환 ────────────────────────────────────────────────────
+  // ── Step 7: 결과 반환 ────────────────────────────────────────────────────
   const allOk = failedTaskIds.size === 0;
   const completedCount = taskRecords.filter((r) => r.status === "completed").length;
   const totalCount = graph.tasks.length;
