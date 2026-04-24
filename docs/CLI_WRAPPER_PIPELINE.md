@@ -19,6 +19,7 @@ CLI Input
 → Command Parsing
 → Session / Mode Resolution
 → Prompt Compiler
+→ Translation Guardrails
 → Request Analyzer
 → Task Graph Builder
 → Context Optimizer
@@ -28,7 +29,7 @@ CLI Input
 → CLI Output
 ```
 
-<!-- 한국어 설명: wrapper CLI는 입력을 받은 뒤 명령 파싱, 세션 판단, 프롬프트 정제, 번역 검증/보정, 작업 그래프 구성, 문맥 최적화, 실행, 결과 후처리, 상태 저장 순서로 연결되어야 합니다. -->
+<!-- 한국어 설명: wrapper CLI는 입력을 받은 뒤 명령 파싱, 세션 판단, 프롬프트 정제, 번역 검증/보정, 요청 분석, 작업 그래프 구성, 문맥 최적화, 실행, 결과 후처리, 상태 저장 순서로 연결되어야 합니다. -->
 
 ---
 
@@ -40,11 +41,12 @@ The wrapper CLI may call all stages, but each stage still has its own owner.
 
 - Prompt Compiler
 - Korean-to-English translation
-- Sentence-level output
+- Compressed English prompt handoff
 
 ### Role 2.1: Task Graph Engineer
 
 - Request classification
+- Request Analyzer
 - Task Graph Builder
 - Dependency ordering
 
@@ -64,7 +66,7 @@ The wrapper CLI may call all stages, but each stage still has its own owner.
 - pipeline orchestration
 - user-facing output routing
 
-<!-- 한국어 설명: Role 3는 전체 흐름을 연결하는 역할이지, Prompt Compiler / Request Analyzer / Task Graph / Context Optimizer의 세부 구현 소유권까지 가져가는 역할은 아닙니다. -->
+<!-- 한국어 설명: Role 3는 전체 흐름을 연결하는 역할이지, Prompt Compiler / Translation Guardrails / Request Analyzer / Task Graph / Context Optimizer의 세부 구현 소유권까지 가져가는 역할은 아닙니다. -->
 
 ---
 
@@ -105,23 +107,29 @@ The wrapper CLI may call all stages, but each stage still has its own owner.
 
 <!-- 한국어 설명: 번역 결과가 보호 구간과 구조를 유지하는지 검증하고, 의미를 바꾸지 않는 범위에서 보정합니다. -->
 
-### 6. Task Graph Builder
+### 6. Request Analyzer
 
 - classify request category
 - extract keywords and candidate tasks
+- use `docs/TYPE_DEFINITION.md` as the semantic source of truth for the eight top-level task types
+
+<!-- 한국어 설명: 상위 분류(explore/create/modify/analyze/validate/execute/document/plan)는 Request Analyzer에서 결정됩니다. 이 단계는 Role 2.1 책임이며, 입력은 Role 1이 넘긴 `compiled_prompt` 문자열입니다. -->
+
+### 7. Task Graph Builder
+
 - split multi-step requests
 - define execution order
 
-<!-- 한국어 설명: 상위 분류(explore/create/modify/analyze/validate/execute/document/plan), 작업 추출, 실행 순서 정의는 Task Graph Builder에서 처리됩니다. -->
+<!-- 한국어 설명: 여러 단계가 필요한 요청은 작업 그래프로 변환되어야 합니다. -->
 
-### 7. Context Optimizer
+### 8. Context Optimizer
 
 - select only relevant state and files
 - remove duplicate context
 
 <!-- 한국어 설명: wrapper CLI의 핵심 가치는 불필요한 문맥을 줄이고 필요한 문맥만 전달하는 데 있습니다. -->
 
-### 8. Executor
+### 9. Executor
 
 - invoke target adapter
 - run subprocess safely
@@ -129,14 +137,14 @@ The wrapper CLI may call all stages, but each stage still has its own owner.
 
 <!-- 한국어 설명: 실제 실행 계층은 adapter와 subprocess 경계 안에서 처리되어야 합니다. -->
 
-### 9. Output Processor
+### 10. Output Processor
 
 - summarize long outputs
 - normalize result payloads
 
 <!-- 한국어 설명: 긴 결과를 그대로 출력하지 말고 구조화와 요약을 거쳐야 합니다. -->
 
-### 10. State Manager
+### 11. State Manager
 
 - persist reusable state
 - update summaries, tasks, checkpoints
@@ -232,7 +240,7 @@ The wrapper CLI may call all stages, but each stage still has its own owner.
 - `src/core/llm-client/*`
   - llama.cpp client boundary
 - `src/core/task-graph/*`
-  - Role 2.1
+  - Role 2.1 request analysis, task graph generation, and dependency ordering
 - `src/core/context/*`
   - Role 2.2
 - `src/core/state/*`

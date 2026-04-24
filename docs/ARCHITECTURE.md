@@ -14,7 +14,9 @@ User Input
 ↓  
 Prompt Compiler  
 ↓  
-Request Analyzer  
+Translation Guardrails
+↓
+Request Analyzer
 ↓  
 Task Graph Builder  
 ↓  
@@ -28,7 +30,7 @@ State Manager
 ↓  
 User Output
 
-<!-- 한국어 설명: 입력은 프롬프트 정제, 번역 검증/보정, 작업 그래프 생성, 컨텍스트 최적화 단계를 거쳐 LLM CLI로 전달되고, 이후 결과 후처리와 상태 저장을 거쳐 사용자에게 반환됩니다. -->
+<!-- 한국어 설명: 입력은 프롬프트 정제, 번역 검증/보정, 요청 분석, 작업 그래프 생성, 컨텍스트 최적화 단계를 거쳐 LLM CLI로 전달되고, 이후 결과 후처리와 상태 저장을 거쳐 사용자에게 반환됩니다. -->
 
 ---
 
@@ -47,6 +49,7 @@ User Output
 - Pipeline orchestration
 - Prompt processing
 - Translation guardrails
+- Request analysis
 - LLM client boundary
 - State management
 <!-- 한국어 설명: Core Layer는 전체 실행 순서를 조율하고, 세션 상태를 일관되게 관리하는 중심 계층입니다. -->

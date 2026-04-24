@@ -1,6 +1,6 @@
 # 📁 Project Structure
 
-This scaffold separates **Role 1 (Python)** from the rest of the system, which is implemented in **TypeScript**.
+This scaffold limits **Python** to the llama.cpp inference server and keeps application logic in **TypeScript**.
 
 ## Tree
 
@@ -37,6 +37,9 @@ detoks/
 │   ├── types/
 │   └── utils/
 └── tests/
+    ├── python/
+    │   ├── integration/
+    │   └── unit/
     └── ts/
         ├── integration/
         └── unit/
@@ -45,17 +48,18 @@ detoks/
 ## Ownership
 
 - `python/llama-server/*`: LLM inference server (llama.cpp runtime only)
-- `src/*`: TypeScript implementation for Roles 2.1, 2.2, and 3
+- `src/core/translate`, `src/core/prompt`, `src/core/guardrails`: TypeScript implementation for Role 1
+- `src/*`: TypeScript implementation for Roles 1, 2.1, 2.2, and 3
 - `src/integrations/*`: External tool integrations (Codex, Gemini, subprocess handling)
-- `tests/python/*`: Python tests for Role 1 modules
-- `tests/ts/*`: TypeScript tests for the rest of the system
+- `tests/python/*`: Python tests for llama-server only
+- `tests/ts/*`: TypeScript tests for application logic, including Role 1 modules
 
 ## Mapping
 
 - `python/llama-server`: Model loading, inference endpoint, server configuration
 - `src/cli`: CLI layer, REPL, and user-facing commands
 - `src/core/pipeline`: pipeline orchestration
-- `src/core/task-graph`: task graph generation and dependency ordering
+- `src/core/task-graph`: request analysis, task graph generation, and dependency ordering
 - `src/core/context`: context compression and optimization
 - `src/core/output`: output summarization and result structuring
 - `src/core/state`: session state management
@@ -65,7 +69,6 @@ detoks/
 - `src/core/guardrails`: validate and repair translated output
 - `src/core/llm-client`: handles communication with llama.cpp
 - `src/integrations/adapters/*`: target CLI integrations such as Codex and Gemini
-- `src/integrations/role1-python`: invocation and I/O contracts for Python Role 1 modules
 - `src/integrations/subprocess`: process spawning and I/O bridging
 - `src/schemas`: TypeScript-side runtime schemas and validation definitions
 - `src/types`: shared TypeScript types

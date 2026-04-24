@@ -1,6 +1,6 @@
 # 📦 Schemas
 
-7단계 변환 흐름에서 사용하는 모든 데이터 스키마를 정의합니다.
+8단계 변환 흐름에서 사용하는 모든 데이터 스키마를 정의합니다.
 
 ---
 
@@ -8,8 +8,8 @@
 
 ```ts
 type UserRequest = {
-  raw_input: string;
-  session_id?: string;
+	raw_input: string;
+	session_id?: string;
 };
 ```
 
@@ -21,10 +21,10 @@ type UserRequest = {
 
 ```ts
 type CompiledPrompt = {
-  raw_input: string;
-  normalized_input: string;
-  compressed_prompt: string;
-  language: "ko" | "en" | "mixed";
+	raw_input: string;
+	normalized_input: string;
+	compressed_prompt: string;
+	language: "ko" | "en" | "mixed";
 };
 ```
 
@@ -33,40 +33,65 @@ type CompiledPrompt = {
 
 ---
 
-## 3. CompiledSentences
+## 3. Role2PromptInput
 
 ```ts
-type CompiledSentences = {
-  sentences: string[];
+type Role2PromptInput = {
+	compiled_prompt: string;
 };
 ```
 
 **책임:** Role 1 (AI Prompt Engineer)  
-**설명:** 한국어 입력을 영어로 변환한 뒤 문장 단위로 분리한 결과. task 분해 / id / depends_on 생성은 Role 2.1 담당.
+**설명:** Role 1이 Role 2.1로 넘기는 handoff schema. 값은 `CompiledPrompt.compressed_prompt`와 동일한 압축 영문 프롬프트 전문이다. task 분해 / id / depends_on 생성은 Role 2.1 담당.
 
 ---
 
-## 4. Task & TaskGraph
+## 4. AnalyzedRequest
+
+```ts
+type RequestCategory =
+	| "explore"
+	| "create"
+	| "modify"
+	| "analyze"
+	| "validate"
+	| "execute"
+	| "document"
+	| "plan";
+
+type AnalyzedRequest = {
+	category: RequestCategory;
+	keywords: string[];
+	tasks: Task[];
+};
+```
+
+**책임:** Role 2.1 (Task Graph Engineer)
+**설명:** 요청을 분류하고 키워드와 후보 task를 추출한 결과. `RequestCategory`의 의미 기준은 `docs/TYPE_DEFINITION.md`를 따른다.
+
+---
+
+## 5. Task & TaskGraph
 
 ```ts
 type TaskStatus = "pending" | "running" | "completed" | "failed";
-type TaskType = "explore" | "create" | "modify" | "analyze" | "validate" | "execute" | "document" | "plan";
+type TaskType = RequestCategory;
 
 type Task = {
-  id: string;
-  type: TaskType;
-  status: TaskStatus;
-  title: string;
-  description?: string;
-  input_hash: string;
-  output_summary?: string;
-  depends_on: string[];
-  priority?: number;
-  owner_role?: "role1" | "role2.1" | "role2.2" | "role3";
+	id: string;
+	type: TaskType;
+	status: TaskStatus;
+	title: string;
+	description?: string;
+	input_hash: string;
+	output_summary?: string;
+	depends_on: string[];
+	priority?: number;
+	owner_role?: "role1" | "role2.1" | "role2.2" | "role3";
 };
 
 type TaskGraph = {
-  tasks: Task[];
+	tasks: Task[];
 };
 ```
 
@@ -75,15 +100,15 @@ type TaskGraph = {
 
 ---
 
-## 5. ExecutionContext
+## 6. ExecutionContext
 
 ```ts
 type ExecutionContext = {
-  session_id: string;
-  active_task_id: string;
-  shared_context: Record<string, unknown>;
-  selected_context: Record<string, unknown>;
-  context_summary?: string;
+	session_id: string;
+	active_task_id: string;
+	shared_context: Record<string, unknown>;
+	selected_context: Record<string, unknown>;
+	context_summary?: string;
 };
 ```
 
@@ -92,28 +117,28 @@ type ExecutionContext = {
 
 ---
 
-## 6. ExecutionRequest & ExecutionResult
+## 7. ExecutionRequest & ExecutionResult
 
 ```ts
 type ExecutionRequest = {
-  task_id: string;
-  prompt: string;
-  target: "codex" | "gemini";
-  context: ExecutionContext;
-  timeout_ms?: number;
+	task_id: string;
+	prompt: string;
+	target: "codex" | "gemini";
+	context: ExecutionContext;
+	timeout_ms?: number;
 };
 
 type ExecutionError = {
-  code: string;
-  message: string;
+	code: string;
+	message: string;
 };
 
 type ExecutionResult = {
-  task_id: string;
-  success: boolean;
-  raw_output: string;
-  structured_output?: Record<string, unknown>;
-  error?: ExecutionError;
+	task_id: string;
+	success: boolean;
+	raw_output: string;
+	structured_output?: Record<string, unknown>;
+	error?: ExecutionError;
 };
 ```
 
@@ -122,40 +147,40 @@ type ExecutionResult = {
 
 ---
 
-## 7. SessionState & Checkpoint
+## 8. SessionState & Checkpoint
 
 ```ts
 type Checkpoint = {
-  id: string;
-  title: string;
-  task_id: string;
-  summary: string;
-  changed_files: string[];
-  next_action: string;
-  created_at: string;
+	id: string;
+	title: string;
+	task_id: string;
+	summary: string;
+	changed_files: string[];
+	next_action: string;
+	created_at: string;
 };
 
 type SessionState = {
-  session_id: string;
-  version: string;
-  goal: string;
-  current_task: string | null;
-  completed_tasks: string[];
-  key_decisions: string[];
-  active_files: string[];
-  tasks: Task[];
-  summaries: {
-    rolling: string;
-    latest_checkpoint: string | null;
-  };
-  artifacts: {
-    task_results: Record<string, unknown>;
-    errors: string[];
-  };
-  metadata: Record<string, unknown>;
-  last_summary?: string;
-  next_action?: string;
-  updated_at: string;
+	session_id: string;
+	version: string;
+	goal: string;
+	current_task: string | null;
+	completed_tasks: string[];
+	key_decisions: string[];
+	active_files: string[];
+	tasks: Task[];
+	summaries: {
+		rolling: string;
+		latest_checkpoint: string | null;
+	};
+	artifacts: {
+		task_results: Record<string, unknown>;
+		errors: string[];
+	};
+	metadata: Record<string, unknown>;
+	last_summary?: string;
+	next_action?: string;
+	updated_at: string;
 };
 ```
 

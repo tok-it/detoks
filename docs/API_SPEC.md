@@ -33,7 +33,7 @@ Instead, its primary APIs are the contracts between:
 This specification covers:
 
 1. CLI input and output contracts
-2. core prompt, translation, guardrails, and LLM client contracts
+2. core prompt, translation, guardrails, request analysis, and LLM client contracts
 3. pipeline stage input/output contracts
 4. adapter execution contracts
 5. state persistence contracts
@@ -49,6 +49,14 @@ This specification does **not** yet define:
 ---
 
 ## Canonical Data Types
+
+### RequestCategory
+
+```ts
+type RequestCategory = "explore" | "create" | "modify" | "analyze" | "validate" | "execute" | "document" | "plan";
+```
+
+Semantic meaning is defined in `docs/TYPE_DEFINITION.md`.
 
 ### Task
 
@@ -77,7 +85,7 @@ type SessionState = {
 };
 ```
 
-<!-- 한국어 설명: Task, TaskGraph, SessionState는 docs/SCHEMAS.md에 정의된 핵심 구조이며, 이후 API 계약의 기본 타입으로 사용됩니다. -->
+<!-- 한국어 설명: RequestCategory, Task, TaskGraph, SessionState는 docs/SCHEMAS.md에 정의된 핵심 구조이며, 이후 API 계약의 기본 타입으로 사용됩니다. RequestCategory의 의미 기준은 docs/TYPE_DEFINITION.md를 따릅니다. -->
 
 ---
 
@@ -161,8 +169,18 @@ The Prompt Compiler compresses Korean user input into concise English prompts wh
 type PromptCompileRequest = {
   raw_input: string;
   shared_context?: Record<string, unknown>;
+  compression_provider?: PromptCompressionProvider;
+  max_translation_attempts?: number;
 };
 ```
+
+### Provider Types
+
+```ts
+type PromptCompressionProvider = "nlp_adapter" | "llm" | "small_model";
+```
+
+`nlp_adapter` is the only supported v1 provider. `llm` and `small_model` are reserved extension values and must return an unsupported-provider error if selected in v1.
 
 ### Response
 
@@ -172,7 +190,7 @@ type PromptCompileResponse = {
   normalized_input: string;
   compressed_prompt: string;
   language: "ko" | "en" | "mixed";
-  compiled_sentences: string[];
+  compression_provider: "nlp_adapter";
   validation_errors?: string[];
   repair_actions?: string[];
 };
@@ -183,9 +201,43 @@ type PromptCompileResponse = {
 - input text may be Korean, English, or mixed
 - output must remain semantically aligned with the original request
 - output must be shorter and cleaner than the source input when possible
+- `max_translation_attempts` defaults to `5` and counts the primary request plus fallback requests
+- Role 2.1 handoff uses `Role2PromptInput { compiled_prompt: string }`
 - task decomposition, `id`, and `depends_on` generation are not part of this API
 
 <!-- 한국어 설명: Prompt Compiler는 한국어 중심 입력을 더 짧고 명확한 영어 프롬프트로 바꾸되, 원래 의도와 제약 조건을 유지해야 합니다. -->
+
+### Prompt Compression Strategy
+
+v1 prompt compression is based on code-unit preservation and an external NLP adapter. It does not use LLM-based prompt engineering or a small language model for compression.
+
+Flow:
+
+1. mask protected segments
+2. translate Korean input to English
+3. preserve code, paths, commands, JSON keys, API names, model names, and Markdown units
+4. analyze translated English text through the NLP adapter
+5. remove duplicate sentences, verbose background, and low-information phrases
+6. produce `compressed_prompt`
+7. validate the compressed output through guardrails
+
+NLP adapter minimum capabilities:
+
+- sentence splitting
+- tokenization
+- keyword or noun phrase extraction
+- sentence importance scoring
+- redundancy detection
+
+Compression rules:
+
+- code blocks, inline code, shell commands, paths, URLs, JSON keys, API names, and model names must not be compressed
+- Markdown headings, bullets, and numbered lists should be preserved as much as possible
+- filenames, paths, commands, options, numeric constraints, error messages, forbidden conditions, completion criteria, and test requirements must be preserved
+- if NLP compression fails guardrails validation, the pipeline must fall back to the translated text or a more conservative rule-compressed result
+- `llm` and `small_model` providers are extension points only and must not be used by v1 compression
+
+<!-- 한국어 설명: v1 압축은 번역 후 영어 텍스트를 대상으로 하며, 코드 단위 보호와 NLP adapter 기반 분석만 사용합니다. LLM 및 소형 모델 압축은 추후 확장 지점으로만 남깁니다. -->
 
 ---
 
@@ -197,9 +249,11 @@ Translation Guardrails validate and repair translated prompt output without chan
 
 ```ts
 type TranslationGuardrailsRequest = {
+  source_text: string;
   compressed_prompt: string;
   placeholders?: string[];
   protected_terms?: string[];
+  required_terms?: string[];
 };
 ```
 
@@ -217,23 +271,69 @@ type TranslationGuardrailsResponse = {
 
 - validation lives under `src/core/guardrails`
 - repair must be structural only and must not modify semantic meaning
-- failed spans may be retried through the current LLM model via `src/core/llm-client`
+- failed translation spans may be retried through the current LLM model via `src/core/llm-client`
+- Korean source text copied unchanged into translated output is a validation failure and a fallback trigger
+- compression validation must provide `source_text` and compare source and compressed output for protected terms, placeholders, numeric constraints, filenames, commands, and completion criteria
+- compression validation must not invoke `llm` or `small_model` providers in v1
 
 <!-- 한국어 설명: Translation Guardrails는 번역 결과의 구조와 보호 구간을 검증하고, 의미를 바꾸지 않는 범위에서만 보정합니다. -->
 
 ---
 
-## 4. Task Graph Builder API
+## 4. Request Analyzer API
 
-The Task Graph Builder converts compiled prompt output into a dependency-aware graph.
+The Request Analyzer classifies the compiled request and extracts candidate executable tasks. It is a Role 2.1 responsibility, not a Role 1 responsibility.
+
+### Handoff Schema
+
+```ts
+type Role2PromptInput = {
+  compiled_prompt: string;
+};
+```
+
+`compiled_prompt` must be copied from `CompiledPrompt.compressed_prompt`.
+
+### Request
+
+```ts
+type RequestAnalyzeRequest = Role2PromptInput & {
+  session_state?: SessionState;
+};
+```
+
+### Response
+
+```ts
+type RequestAnalyzeResponse = {
+  category: RequestCategory;
+  keywords: string[];
+  tasks: Task[];
+};
+```
+
+### Notes
+
+- category is a routing and orchestration label
+- semantic meaning of the eight task categories is defined in `docs/TYPE_DEFINITION.md`
+- keywords are used for context selection and later retrieval
+- tasks must be decomposed into executable units
+- Role 2.1 receives `Role2PromptInput`
+- task classification, task type assignment, task ID generation, and `depends_on` generation are outside Role 1
+
+<!-- 한국어 설명: Request Analyzer는 요청을 분류하고, 키워드와 작업 목록을 추출해 이후 파이프라인 단계가 실행 가능한 형태로 바꿉니다. 이 책임은 Role 2.1에 속하며 Role 1은 수행하지 않습니다. -->
+
+---
+
+## 5. Task Graph Builder API
+
+The Task Graph Builder converts analyzed tasks into a dependency-aware graph.
 
 ### Request
 
 ```ts
 type TaskGraphBuildRequest = {
-  compiled_prompt: string;
-  compiled_sentences: string[];
-  session_state?: SessionState;
+  tasks: Task[];
 };
 ```
 
@@ -256,7 +356,7 @@ type TaskGraphBuildResponse = {
 
 ---
 
-## 5. Context Optimizer API
+## 6. Context Optimizer API
 
 The Context Optimizer selects only the context needed for the current execution step.
 
@@ -292,7 +392,7 @@ type ContextOptimizeResponse = {
 
 ---
 
-## 6. LLM Client API
+## 7. LLM Client API
 
 All LLM interaction must go through `src/core/llm-client`.
 
@@ -336,7 +436,7 @@ type LlmCompletionResponse = {
 
 ---
 
-## 7. Executor API
+## 8. Executor API
 
 The Executor triggers the target LLM CLI or a system adapter.
 
@@ -372,7 +472,7 @@ type ExecuteResponse = {
 
 ---
 
-## 8. Output Processor API
+## 9. Output Processor API
 
 The Output Processor converts raw execution output into a compact reusable result.
 
@@ -405,7 +505,7 @@ type OutputProcessResponse = {
 
 ---
 
-## 9. State Manager API
+## 10. State Manager API
 
 The State Manager persists reusable session state between turns.
 
@@ -445,7 +545,7 @@ type StateLoadResponse = {
 
 ---
 
-## 10. Adapter API
+## 11. Adapter API
 
 Adapters abstract differences between target CLIs.
 
@@ -471,7 +571,7 @@ type CliAdapter = {
 
 ---
 
-## 11. Error Codes
+## 12. Error Codes
 
 Recommended internal error codes:
 
@@ -488,7 +588,7 @@ Recommended internal error codes:
 
 ---
 
-## 12. Non-Goals
+## 13. Non-Goals
 
 The following are explicitly outside the scope of the current API surface:
 
@@ -501,7 +601,7 @@ The following are explicitly outside the scope of the current API surface:
 
 ---
 
-## 13. Future Extensions
+## 14. Future Extensions
 
 Potential future API additions:
 
