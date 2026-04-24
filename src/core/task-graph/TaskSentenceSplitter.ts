@@ -26,6 +26,7 @@ const ACTION_STARTERS = [
   "generate",
   "scaffold",
   "implement",
+  "add",
   "make",
   "draft",
   "set up",
@@ -153,7 +154,7 @@ export class TaskSentenceSplitter {
   private static protectLiterals(text: string): { text: string; tokens: Map<string, string> } {
     const tokens = new Map<string, string>();
     let index = 0;
-    const protectedText = text.replace(/`[^`]*`|"[^"]*"|'[^']*'/g, (match) => {
+    const protectedText = text.replace(/`[^`]*`|"[^"]*"|(?<!\w)'[^']*'(?!\w)/g, (match) => {
       const token = `${PROTECTED_TOKEN_PREFIX}${index++}__`;
       tokens.set(token, match);
       return token;
