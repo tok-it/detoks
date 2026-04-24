@@ -125,8 +125,8 @@ export const orchestratePipeline = async (
       // 현재 실행 중인 Task 기록 (Role 2.2)
       state = { ...state, current_task_id: task.id };
 
-      // ExecutionContext 생성 (Role 2.2 — ContextBuilder)
-      const context = ContextBuilder.build(state, task.id);
+      // ExecutionContext 생성 (Role 2.2 — ContextCompressor → ContextSelector → ContextBuilder)
+      const context = ContextBuilder.build(state, task);
 
       // Task 실행 (Role 3)
       const prompt = `[${task.type.toUpperCase()}] ${task.title}\n\nContext: ${context.context_summary}`;
