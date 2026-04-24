@@ -115,6 +115,7 @@ const FOLLOW_UP_STARTERS = [
   "analyze",
   "inspect",
   "review",
+  "add",
 ].sort((a, b) => b.length - a.length);
 
 const ACTION_STARTER_REGEX = new RegExp(
@@ -207,7 +208,8 @@ export class TaskSentenceSplitter {
     for (let index = 1; index < parts.length; index += 1) {
       const next = parts[index] ?? "";
       const normalized = this.stripLeadingConnector(next);
-      if (this.startsWithAction(normalized)) {
+      const isConditionalClause = /^(?:if|unless|when|until|provided|assuming)\b/i.test(current.trim());
+      if (this.startsWithAction(normalized) && !isConditionalClause) {
         results.push(current);
         current = normalized;
       } else {
