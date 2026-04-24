@@ -2,14 +2,15 @@
 
 ## Overview
 
-detoks should share data between roles as **structured artifacts**, not as raw prompt strings only.
+detoks should share data between roles as **validated artifacts and explicitly defined handoff fields**.
 
 The recommended flow is:
 
 ```text
 UserRequest
 → CompiledPrompt
-→ CompiledSentences
+→ Role2PromptInput
+→ AnalyzedRequest
 → TaskGraph
 → ExecutionContext
 → ExecutionResult
@@ -23,49 +24,67 @@ UserRequest
 ## Role Ownership
 
 ### Role 1: AI Prompt Engineer
+
 - produces `CompiledPrompt`
-- produces `CompiledSentences`
+- produces `Role2PromptInput`
 
 ### Role 2.1: Task Graph Engineer
+
+- produces `AnalyzedRequest`
 - produces `TaskGraph`
 
 ### Role 2.2: State & Context Engineer
+
 - produces `ExecutionContext`
 - updates `SessionState`
 
 ### Role 3: CLI / System Engineer
+
 - consumes `ExecutionContext`
 - produces `ExecutionResult`
 
-<!-- 한국어 설명: Role 1은 의미 해석 결과를 만들고, Role 2는 이를 실행 가능한 구조와 상태로 바꾸며, Role 3는 실제 실행 결과를 생성합니다. -->
+<!-- 한국어 설명: Role 1은 번역/압축 결과를 만들고, Role 2.1은 이를 요청 분석 결과와 실행 가능한 작업 구조로 바꾸며, Role 3는 실제 실행 결과를 생성합니다. -->
 
 ---
 
 ## Recommended Shared Schemas
 
 ### 1. UserRequest
+
 Raw user input entering the system.
 
 ### 2. CompiledPrompt
+
 Compressed and normalized prompt output from the Prompt Compiler.
 
-### 3. CompiledSentences
-Korean input translated to English and split into individual sentences.
+### 3. Role2PromptInput
+
+The handoff schema from Role 1 to Role 2.1.
+`Role2PromptInput.compiled_prompt` must contain the same full compressed English prompt as `CompiledPrompt.compressed_prompt`.
 Task decomposition, id generation, and depends_on assignment are handled by Role 2.1.
 
-### 4. TaskGraph
+### 4. AnalyzedRequest
+
+Request category, keywords, and candidate tasks produced by Request Analyzer.
+Task category semantics are defined in `docs/TYPE_DEFINITION.md`.
+
+### 5. TaskGraph
+
 Executable task structure with dependency order.
 
-### 5. ExecutionContext
+### 6. ExecutionContext
+
 Filtered context required for the current execution step only.
 
-### 6. ExecutionResult
+### 7. ExecutionResult
+
 Normalized result returned from CLI execution.
 
-### 7. SessionState
+### 8. SessionState
+
 Reusable state persisted for the next turn.
 
-<!-- 한국어 설명: 공유 스키마는 사용자 입력, 압축 프롬프트, 분석 결과, 작업 그래프, 실행 문맥, 실행 결과, 세션 상태의 7단계로 나누는 것이 가장 적절합니다. -->
+<!-- 한국어 설명: 공유 스키마는 사용자 입력, 압축 프롬프트, Role 2 전달용 문자열, 분석 결과, 작업 그래프, 실행 문맥, 실행 결과, 세션 상태의 8단계로 나누는 것이 가장 적절합니다. -->
 
 ---
 
@@ -101,7 +120,7 @@ This file contains the shared Zod schemas for:
 - `UserRequest`
 - `RequestCategory`
 - `CompiledPrompt`
-- `CompiledSentences`
+- `AnalyzedRequest`
 - `Task`
 - `TaskGraph`
 - `ExecutionContext`

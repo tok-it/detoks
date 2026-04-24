@@ -26,6 +26,7 @@ const ACTION_STARTERS = [
   "generate",
   "scaffold",
   "implement",
+  "add",
   "make",
   "draft",
   "set up",
@@ -114,6 +115,7 @@ const FOLLOW_UP_STARTERS = [
   "analyze",
   "inspect",
   "review",
+  "add",
 ].sort((a, b) => b.length - a.length);
 
 const ACTION_STARTER_REGEX = new RegExp(
@@ -153,7 +155,7 @@ export class TaskSentenceSplitter {
   private static protectLiterals(text: string): { text: string; tokens: Map<string, string> } {
     const tokens = new Map<string, string>();
     let index = 0;
-    const protectedText = text.replace(/`[^`]*`|"[^"]*"|'[^']*'/g, (match) => {
+    const protectedText = text.replace(/`[^`]*`|"[^"]*"|(?<!\w)'[^']*'(?!\w)/g, (match) => {
       const token = `${PROTECTED_TOKEN_PREFIX}${index++}__`;
       tokens.set(token, match);
       return token;
@@ -172,7 +174,7 @@ export class TaskSentenceSplitter {
 
   private static splitLines(text: string): string[] {
     const expanded = text
-      .replace(/(^|\n)\s*[-*]\s+/g, "$1")
+      .replace(/(^|\n)\s*[-*•◦]\s+/g, "$1")
       .replace(/(^|\n)\s*\d+[.)]\s+/g, "$1")
       .replace(/\s+(?=\d+[.)]\s+)/g, "\n");
 
@@ -206,7 +208,8 @@ export class TaskSentenceSplitter {
     for (let index = 1; index < parts.length; index += 1) {
       const next = parts[index] ?? "";
       const normalized = this.stripLeadingConnector(next);
-      if (this.startsWithAction(normalized)) {
+      const isConditionalClause = /^(?:if|unless|when|until|provided|assuming)\b/i.test(current.trim());
+      if (this.startsWithAction(normalized) && !isConditionalClause) {
         results.push(current);
         current = normalized;
       } else {
@@ -262,6 +265,8 @@ export class TaskSentenceSplitter {
     if (!left || !right) return [this.cleanClause(segment)].filter(Boolean);
     if (!this.startsWithAction(left)) return [this.cleanClause(segment)].filter(Boolean);
     if (!this.startsWithFollowUpAction(right)) return [this.cleanClause(segment)].filter(Boolean);
+    // "find and add" 같은 compound verb 방지: left에 object(동사 외 단어)가 있어야 분리
+    if (left.trim().split(/\s+/).length < 2) return [this.cleanClause(segment)].filter(Boolean);
 
     return [left, ...this.splitFollowUp(right)];
   }

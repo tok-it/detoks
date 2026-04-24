@@ -60,7 +60,7 @@ export class TaskGraphProcessor {
       patterns: [
         /\b(create|build|generate|scaffold|implement)\s+(a|an|the)?\s*(new\s+)?(module|service|component|endpoint|api|worker|function|class|file)\b/,
         /\bset\s+up\b.*\b(project|service|worker|pipeline|job)\b/,
-        /\b(create|implement|write|add|generate|make|draft|scaffold|introduce)\b/,
+        /\b(create|implement|write|add|generate|make|draft|scaffold|introduce)\b(?!\s+(the\s+)?(tests?|specs?|test\s+cases?))/,
         /\bset\s+up\b/,
         /\bspin\s+up\b/,
         /\bbootstrap\b/,

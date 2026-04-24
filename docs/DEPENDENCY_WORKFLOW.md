@@ -56,9 +56,9 @@ npm run add:py:dev -- pytest
 ## Rules
 
 - Do not create extra `package.json` files under `src/*`.
-- Do not create extra `pyproject.toml` files under `python/role1/*`.
+- Do not create extra `pyproject.toml` files under `python/llama-server/*`.
 - If a dependency is shared by multiple TypeScript modules, add it once at the root.
-- If a dependency is needed only for Role 1 Python work, still add it to the root `pyproject.toml`.
+- If a dependency is needed only for llama-server Python work, still add it to the root `pyproject.toml`.
 
 <!-- 한국어 설명: 언어별 의존성은 루트에서만 선언하고, 역할별 하위 폴더에는 별도 패키지 기준 파일을 만들지 않는 것이 팀 규칙입니다. -->
 

@@ -106,11 +106,103 @@ describe("TaskSentenceSplitter", () => {
     expect(result.sentences).toEqual(["find and replace all usages"]);
   });
 
-  it("feeds split output into TaskGraphProcessor with sequential dependencies", () => {
-    const compiled = TaskSentenceSplitter.split("Create a new endpoint and test it");
-    const graph = TaskGraphProcessor.process(compiled);
+  it("splits comma-separated add step as separate task", () => {
+    const result = TaskSentenceSplitter.split("Create a module, add routes, and test it");
 
-    expect(graph.tasks.map((task) => task.type)).toEqual(["create", "validate"]);
-    expect(graph.tasks[1]!.depends_on).toEqual(["t1"]);
+    expect(result.sentences).toEqual([
+      "Create a module",
+      "add routes",
+      "test it",
+    ]);
+  });
+
+  it("does not let contraction swallow adjacent quoted string", () => {
+    const result = TaskSentenceSplitter.split("don't run 'npm test && npm run build'");
+
+    expect(result.sentences).toEqual(["don't run 'npm test && npm run build'"]);
+  });
+
+  it("keeps negation sentences intact without splitting", () => {
+    const result = TaskSentenceSplitter.split("Do not deploy, just run tests");
+
+    expect(result.sentences).toEqual(["Do not deploy, just run tests"]);
+  });
+
+  it("keeps conditional sentences intact without splitting", () => {
+    const result = TaskSentenceSplitter.split("If tests fail, fix the config");
+
+    expect(result.sentences).toEqual(["If tests fail, fix the config"]);
+  });
+
+  it("splits create-and-add follow-up into two tasks", () => {
+    const result = TaskSentenceSplitter.split("Create a new endpoint and add tests");
+
+    expect(result.sentences).toEqual([
+      "Create a new endpoint",
+      "add tests",
+    ]);
+  });
+
+  it("does not split and-as-compound-verb with no object on left", () => {
+    const result = TaskSentenceSplitter.split("find and add all usages");
+
+    expect(result.sentences).toEqual(["find and add all usages"]);
+  });
+
+  it("splits unicode bullet list into individual task sentences", () => {
+    const result = TaskSentenceSplitter.split(
+      "• Find the module\n• Analyze the flow\n• Fix the bug",
+    );
+
+    expect(result.sentences).toEqual([
+      "Find the module",
+      "Analyze the flow",
+      "Fix the bug",
+    ]);
+  });
+
+  describe("integration with TaskGraphProcessor", () => {
+    it("create → validate: sequential dependency", () => {
+      const compiled = TaskSentenceSplitter.split("Create a new endpoint and test it");
+      const graph = TaskGraphProcessor.process(compiled);
+
+      expect(graph.tasks.map((t) => t.type)).toEqual(["create", "validate"]);
+      expect(graph.tasks[1]!.depends_on).toEqual(["t1"]);
+    });
+
+    it("create → document: sequential dependency", () => {
+      const compiled = TaskSentenceSplitter.split("Implement auth flow and document it");
+      const graph = TaskGraphProcessor.process(compiled);
+
+      expect(graph.tasks.map((t) => t.type)).toEqual(["create", "document"]);
+      expect(graph.tasks[1]!.depends_on).toEqual(["t1"]);
+    });
+
+    it("analyze → plan: two sentences produced", () => {
+      const compiled = TaskSentenceSplitter.split("Analyze the issue and propose a plan");
+
+      expect(compiled.sentences).toEqual(["Analyze the issue", "propose a plan"]);
+      const graph = TaskGraphProcessor.process(compiled);
+      expect(graph.tasks.map((t) => t.type)).toEqual(["analyze", "plan"]);
+    });
+
+    it("add tests → validate type, not create", () => {
+      const compiled = TaskSentenceSplitter.split("Create a new endpoint and add tests");
+      const graph = TaskGraphProcessor.process(compiled);
+
+      expect(graph.tasks.map((t) => t.type)).toEqual(["create", "validate"]);
+      expect(graph.tasks[1]!.depends_on).toEqual(["t1"]);
+    });
+
+    it("explore → analyze → modify: three-step sequential chain", () => {
+      const compiled = TaskSentenceSplitter.split(
+        "Find the module, inspect the flow, and patch the bug",
+      );
+      const graph = TaskGraphProcessor.process(compiled);
+
+      expect(graph.tasks.map((t) => t.type)).toEqual(["explore", "analyze", "modify"]);
+      expect(graph.tasks[1]!.depends_on).toEqual(["t1"]);
+      expect(graph.tasks[2]!.depends_on).toEqual(["t2"]);
+    });
   });
 });

@@ -70,7 +70,16 @@ yarn.lock
 # Project-specific
 .devlogs/
 daily-reports/
+test_data_role2/*
+!test_data_role2/*.test.ts
+!test_data_role2/*.md
+.state/
+etc_doc/
+docs/role1/
+stress-sessions/
 
 # OS
 .DS_Store
 Thumbs.db
+tests/ts/integration/
+tests/integration/
