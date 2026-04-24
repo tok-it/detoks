@@ -4,6 +4,8 @@ import { ZodError } from 'zod';
 import type { SessionState, Checkpoint } from '../../schemas/pipeline.js';
 import { SessionStateSchema, CheckpointSchema } from '../../schemas/pipeline.js';
 import { StateValidator } from './StateValidator.js';
+import { ExecutionResultNormalizer } from './ExecutionResultNormalizer.js';
+import { ContextCompressor } from '../context/ContextCompressor.js';
 import { StateIOError, StateValidationError } from '../errors/StateErrors.js';
 import { logger } from '../utils/logger.js';
 
@@ -29,7 +31,16 @@ export class SessionStateManager {
     try {
       await this.ensureDirectories();
 
-      // 자동 실패 트래킹: task_results를 분석하여 실패한 Task ID를 shared_context에 동기화
+      // 1. 자동 정규화: task_results의 원시 데이터를 표준 스키마로 보정
+      for (const [taskId, result] of Object.entries(state.task_results)) {
+        const res = result as any;
+        // 이미 정규화된 데이터가 아니라면(예: summary가 없거나 raw_output만 있다면) 보정 시도
+        if (!res.task_id || !res.summary) {
+          state.task_results[taskId] = ExecutionResultNormalizer.normalize(taskId, res);
+        }
+      }
+
+      // 2. 자동 실패 트래킹: shared_context.failed_task_ids 동기화
       const failedIds = new Set((state.shared_context?.failed_task_ids as string[]) || []);
       for (const [taskId, result] of Object.entries(state.task_results)) {
         const res = result as any;
@@ -39,8 +50,12 @@ export class SessionStateManager {
       }
       state.shared_context.failed_task_ids = Array.from(failedIds);
 
-      // StateValidator를 사용하여 비즈니스 규칙 및 구조 검증
-      const validated = StateValidator.validate(state);
+      // 3. 자동 압축: 토큰 임계 초과 시 오래된 결과 압축
+      const compressedState = ContextCompressor.compress(state);
+
+      // 4. 최종 무결성 검증
+      const validated = StateValidator.validate(compressedState);
+      
       const filePath = join(SESSIONS_DIR, `${sessionId}.json`);
       await fs.writeFile(filePath, JSON.stringify(validated, null, 2));
     } catch (error: any) {
