@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseCliArgs } from "../../../../src/cli/parse.js";
+import { getCliUsage, parseCliArgs } from "../../../../src/cli/parse.js";
 
 describe("parseCliArgs", () => {
   it("parses one-shot mode with defaults", () => {
@@ -11,6 +11,7 @@ describe("parseCliArgs", () => {
       executionMode: "stub",
       verbose: false,
       showHelp: false,
+      helpTopic: "main",
     });
   });
 
@@ -29,6 +30,7 @@ describe("parseCliArgs", () => {
       executionMode: "real",
       verbose: true,
       showHelp: false,
+      helpTopic: "repl",
     });
   });
 
@@ -40,6 +42,7 @@ describe("parseCliArgs", () => {
       executionMode: "stub",
       verbose: false,
       showHelp: true,
+      helpTopic: "main",
     });
   });
 
@@ -47,6 +50,7 @@ describe("parseCliArgs", () => {
     const parsed = parseCliArgs(["-h"]);
     expect(parsed).toMatchObject({
       showHelp: true,
+      helpTopic: "main",
     });
   });
 
@@ -56,7 +60,33 @@ describe("parseCliArgs", () => {
       showHelp: true,
       adapter: "codex",
       executionMode: "stub",
+      helpTopic: "main",
     });
+  });
+
+  it("parses repl help as a topic-specific help request", () => {
+    const parsed = parseCliArgs(["repl", "--help"]);
+    expect(parsed).toMatchObject({
+      mode: "run",
+      showHelp: true,
+      helpTopic: "repl",
+    });
+  });
+
+  it("documents execution mode differences in main help", () => {
+    const usage = getCliUsage("main");
+    expect(usage).toContain("Execution mode:");
+    expect(usage).toContain("stub = simulated output for fast, safe CLI testing");
+    expect(usage).toContain("real = runs the adapter's real execution path");
+    expect(usage).toContain("Show full success JSON and error stacks");
+  });
+
+  it("documents execution mode differences in repl help", () => {
+    const usage = getCliUsage("repl");
+    expect(usage).toContain("execution-mode controls whether prompts use simulated or real execution");
+    expect(usage).toContain("stub = simulated output for fast, safe CLI testing");
+    expect(usage).toContain("real = runs the adapter's real execution path");
+    expect(usage).toContain("Show full success JSON and error stacks");
   });
 
   it("adds actionable guidance to parse errors", () => {

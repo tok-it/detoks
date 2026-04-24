@@ -26,6 +26,110 @@ import type { Task, TaskGraph, RequestCategory } from "../../schemas/pipeline.js
  *     → ParallelClassifier.classify()
  */
 export class TaskGraphProcessor {
+  // Dependency transitions should stay aligned with docs/TYPE_DEFINITION.md.
+  // In particular, explore means discovery, analyze means interpretation,
+  // and document is typically treated as a terminal stage.
+  private static readonly TYPE_PATTERNS: ReadonlyArray<{
+    type: RequestCategory;
+    patterns: readonly RegExp[];
+  }> = [
+    {
+      type: "explore",
+      patterns: [
+        /\b(show|tell)\s+me\s+(where|which|what)\b/,
+        /\b(find|show|list)\s+(all\s+)?(references|usages|occurrences|call\s+sites)\b/,
+        /\b(trace|track|follow)\b.*\b(from|to|through)\b/,
+        /\bwhere\b.*\b(defined|implemented|used|referenced|located)\b/,
+        /\bwhich\s+(file|module|function|class|component|service)\b/,
+        /\bwhat\s+(file|module|function|class|component|service)\b/,
+        /\b(read|find|look(?:\s+for)?|search|explore|browse|locate|discover|lookup|query|grep)\b/,
+        /\b(trace|track|follow|walk\s+through|scan|survey|map\s+out|list)\b/,
+      ],
+    },
+    {
+      type: "document",
+      patterns: [
+        /\b(write|update|add)\s+(the\s+)?(documentation|docs|readme|guide|docstring|comment[s]?)\b/,
+        /\b(write|prepare)\s+(a\s+)?(summary|overview|note[s]?|guide)\b/,
+        /\bdocument\b.*\b(api|module|system|workflow|changes?)\b/,
+        /\b(document|docs|summari[sz]e|describe|explain\s+in\s+docs)\b/,
+      ],
+    },
+    {
+      type: "create",
+      patterns: [
+        /\b(create|build|generate|scaffold|implement)\s+(a|an|the)?\s*(new\s+)?(module|service|component|endpoint|api|worker|function|class|file)\b/,
+        /\bset\s+up\b.*\b(project|service|worker|pipeline|job)\b/,
+        /\b(create|implement|write|add|generate|make|draft|scaffold|introduce)\b/,
+        /\bset\s+up\b/,
+        /\bspin\s+up\b/,
+        /\bbootstrap\b/,
+      ],
+    },
+    {
+      type: "modify",
+      patterns: [
+        /\b(fix|patch|update|change|edit|refactor|rewrite|rename)\b.*\b(bug|issue|config|logic|function|module|file|implementation)\b/,
+        /\bremove\b.*\b(dead\s+code|unused\s+code|legacy\s+code)\b/,
+        /\b(modify|update|change|fix|edit|refactor|revise|adjust|patch|rewrite|rename|clean\s+up)\b/,
+        /\bremove\b/,
+        /\breplace\b/,
+        /\bimprove\b/,
+        /\boptimi[sz]e\b/,
+        /\btune\b/,
+        /\bcorrect\b/,
+      ],
+    },
+    {
+      type: "analyze",
+      patterns: [
+        /\b(explain|analyze|investigate|diagnose|understand)\b.*\b(why|how|behavior|flow|issue|problem|failure)\b/,
+        /\b(root\s+cause|impact|trade[\s-]?off)\b/,
+        /\bcompare\b.*\b(vs|with|against)\b/,
+        /\b(analyze|review|inspect|investigate|understand|explain|diagnose|profile)\b/,
+        /\b(compare|assess|evaluate|reason\s+about)\b/,
+        /\bhow\b.*\b(work|works|behaves|behave|flows|flow)\b/,
+        /\bwhy\b/,
+      ],
+    },
+    {
+      type: "validate",
+      patterns: [
+        /\b(run|execute)\s+(the\s+)?(tests?|checks?|validation|verifications?)\b/,
+        /\b(run|execute)\s+(the\s+)?(lint|linter|typecheck|type-check|qa|smoke\s+tests?)\b/,
+        /\b(make\s+sure|ensure|verify|confirm)\b/,
+        /\b(test|tests|validate|verify|assert|confirm|ensure|check\s+if)\b/,
+        /\b(lint|typecheck|smoke\s+test|qa)\b/,
+        /\b(pass|passes|passing|fail|fails|failing)\b/,
+      ],
+    },
+    {
+      type: "execute",
+      patterns: [
+        /\b(run|start|launch|restart|stop)\s+(the\s+)?(server|app|application|service|worker|job)\b/,
+        /\b(run|execute)\s+(the\s+)?(build|migration|migrations|deploy|deployment|seed)\b/,
+        /\binstall\b.*\b(dependencies|packages|requirements)\b/,
+        /\b(run|execute|deploy|start|launch|trigger|invoke)\b/,
+        /\binstall\b/,
+        /\b(migrate|seed|compile|build|serve|restart|stop)\b/,
+      ],
+    },
+    {
+      type: "plan",
+      patterns: [
+        /\b(plan|outline|design|organize)\b.*\b(steps?|strategy|approach|roadmap|rollout|migration)\b/,
+        /\bbreak\s+down\b.*\b(steps?|tasks?|work)\b/,
+        /\bstep[\s-]?by[\s-]?step\b.*\b(plan|approach|guide)\b/,
+        /\b(plan|design|organize|outline|strategize)\b/,
+        /\bbreak\s+down\b/,
+        /\bsequence\b/,
+        /\broadmap\b/,
+        /\bstep[\s-]?by[\s-]?step\b/,
+        /\bapproach\b/,
+        /\bgame\s+plan\b/,
+      ],
+    },
+  ];
   /**
    * type A → type B 전환이 "자연스러운 실행 흐름"인 조합을 정의한 테이블입니다.
    *
@@ -148,18 +252,19 @@ export class TaskGraphProcessor {
    * 예시:
    *   "Find all usages of X"    → "read|find|..." 매칭  → "explore"
    *   "Create a new component"  → "create|implement|..." 매칭 → "create"
-   *   "Run the tests"           → "run|execute|..." 매칭 → "execute"
+   *   "Run the tests"           → "test|validate|..." 매칭 → "validate"
    */
+  // Semantic category meaning is defined in docs/TYPE_DEFINITION.md.
+  // This method is still a first-match keyword classifier, not a full semantic parser.
+  // Example: "Run the tests" currently resolves to "validate" because /test/ matches
+  // before the execute keywords are evaluated.
   private static classifyType(sentence: string): RequestCategory {
     const s = sentence.toLowerCase();
-    if (/read|find|look|search|explore|browse|check/.test(s)) return "explore";
-    if (/create|implement|build|write|add|generate/.test(s))  return "create";
-    if (/modify|update|change|fix|edit|refactor/.test(s))     return "modify";
-    if (/analyze|review|inspect|investigate/.test(s))          return "analyze";
-    if (/test|validate|verify|assert/.test(s))                 return "validate";
-    if (/run|execute|deploy|start|launch/.test(s))             return "execute";
-    if (/document|docs|summarize|describe/.test(s))            return "document";
-    if (/plan|design|organize|structure|outline/.test(s))      return "plan";
+    for (const entry of this.TYPE_PATTERNS) {
+      if (entry.patterns.some((pattern) => pattern.test(s))) {
+        return entry.type;
+      }
+    }
     return "execute"; // 기본값: 어떤 키워드도 매칭되지 않으면 일반 실행 작업으로 분류
   }
 
