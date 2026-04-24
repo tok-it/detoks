@@ -78,7 +78,7 @@ export const orchestratePipeline = async (
   const sessionId = request.userRequest.session_id ?? generateSessionId();
 
   // ── Step 1: Prompt compile + Role 2.1 handoff 생성 (Role 1) ──────────────
-  const compiledPrompt = compilePrompt({
+  const compiledPrompt = await compilePrompt({
     raw_input: request.userRequest.raw_input,
   });
   const role2PromptInput = createRole2PromptInput(compiledPrompt);

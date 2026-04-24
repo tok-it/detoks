@@ -7,6 +7,7 @@ import {
   type Role2PromptInput,
 } from "../../schemas/pipeline.js";
 import { loadRole1Policies, loadRole1RuntimeConfig } from "./config.js";
+import { translate_to_english } from "../translate/translate.js";
 
 const SUPPORTED_COMPRESSION_PROVIDER = "nlp_adapter";
 
@@ -39,12 +40,24 @@ function compressPrompt(normalizedInput: string): string {
   return normalizedInput;
 }
 
-export function compilePrompt(
+export interface CompilePromptOptions {
+  cwd?: string;
+  env?: NodeJS.ProcessEnv;
+  fetchImplementation?: typeof fetch;
+}
+
+export async function compilePrompt(
   input: PromptCompileRequest,
-): PromptCompileResponse {
+  options: CompilePromptOptions = {},
+): Promise<PromptCompileResponse> {
   const request = PromptCompileRequestSchema.parse(input);
-  loadRole1RuntimeConfig();
-  loadRole1Policies();
+  const runtimeConfig = loadRole1RuntimeConfig({
+    ...(options.cwd ? { cwd: options.cwd } : {}),
+    ...(options.env ? { env: options.env } : {}),
+  });
+  const policies = loadRole1Policies({
+    ...(options.cwd ? { cwd: options.cwd } : {}),
+  });
   const provider = request.compression_provider ?? SUPPORTED_COMPRESSION_PROVIDER;
 
   if (provider !== SUPPORTED_COMPRESSION_PROVIDER) {
@@ -52,13 +65,26 @@ export function compilePrompt(
   }
 
   const normalizedInput = normalizeInput(request.raw_input);
-  const compressedPrompt = compressPrompt(normalizedInput);
+  const language = detectLanguage(request.raw_input);
+  const translatedInput =
+    language === "en"
+      ? normalizedInput
+      : (
+          await translate_to_english(normalizedInput, {
+            config: runtimeConfig,
+            policies,
+            ...(options.fetchImplementation
+              ? { fetchImplementation: options.fetchImplementation }
+              : {}),
+          })
+        ).text;
+  const compressedPrompt = compressPrompt(translatedInput);
 
   return PromptCompileResponseSchema.parse({
     raw_input: request.raw_input,
-    normalized_input: normalizedInput,
+    normalized_input: translatedInput,
     compressed_prompt: compressedPrompt,
-    language: detectLanguage(request.raw_input),
+    language,
     compression_provider: SUPPORTED_COMPRESSION_PROVIDER,
   });
 }
