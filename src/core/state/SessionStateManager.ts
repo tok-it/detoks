@@ -28,6 +28,17 @@ export class SessionStateManager {
     const sessionId = state.shared_context?.session_id as string || 'default';
     try {
       await this.ensureDirectories();
+
+      // 자동 실패 트래킹: task_results를 분석하여 실패한 Task ID를 shared_context에 동기화
+      const failedIds = new Set((state.shared_context?.failed_task_ids as string[]) || []);
+      for (const [taskId, result] of Object.entries(state.task_results)) {
+        const res = result as any;
+        if (res.success === false) {
+          failedIds.add(taskId);
+        }
+      }
+      state.shared_context.failed_task_ids = Array.from(failedIds);
+
       // StateValidator를 사용하여 비즈니스 규칙 및 구조 검증
       const validated = StateValidator.validate(state);
       const filePath = join(SESSIONS_DIR, `${sessionId}.json`);

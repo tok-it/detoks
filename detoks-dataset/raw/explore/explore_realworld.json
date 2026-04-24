@@ -1,0 +1,352 @@
+[
+  {
+    "id": "explore_0001",
+    "category": "explore",
+    "task_type": "realworld_complex",
+    "input": "테스트 코드가 자꾸 깨져 API 엔드포인트 흐름을 따라가봐줄래? 이게 뭐하는 짓인데. 다른 팀원들도 쉽게 사용할 수 있게한 다이어그램도 그려줄 수 있어?",
+    "output": "Explore and document structure"
+  },
+  {
+    "id": "explore_0002",
+    "category": "explore",
+    "task_type": "realworld_complex",
+    "input": "보안 이슈 떴거든?ㅇㅇ 데이터베이스 구조의 구조를 파악해줄 수 있어? 개열받음. 자동으로 롤백할 수 있게로 정리해줄래?",
+    "output": "Explore and document structure"
+  },
+  {
+    "id": "explore_0003",
+    "category": "explore",
+    "task_type": "realworld_complex",
+    "input": "트래픽이 갑자기 늘어나서ㅇㅇ 요청 흐름의 구조를 파악해줄 수 있어? 개열받음. 결과를 대시보드에 띄워서로 정리해줄래?",
+    "output": "Explore and document structure"
+  },
+  {
+    "id": "explore_0004",
+    "category": "explore",
+    "task_type": "realworld_complex",
+    "input": "보안 이슈 떴거든?ㅇㅇ 요청 흐름의 구조를 파악해줄 수 있어? 진짜 답답해. 타임아웃 설정해서로 정리해줄래?",
+    "output": "Explore and document structure"
+  },
+  {
+    "id": "explore_0005",
+    "category": "explore",
+    "task_type": "realworld_complex",
+    "input": "크로스 브라우징 이슈ㅇㅇ API 엔드포인트 어디 있는지 찾아줄래? 헬게이트. {detail}도 같이 설명해줄래?",
+    "output": "Explore and document structure"
+  },
+  {
+    "id": "explore_0006",
+    "category": "explore",
+    "task_type": "realworld_complex",
+    "input": "테스트 코드가 자꾸 깨져 인증 메커니즘 흐름을 따라가봐줄래? 진짜 열받아. 결과를 대시보드에 띄워서한 다이어그램도 그려줄 수 있어?",
+    "output": "Explore and document structure"
+  },
+  {
+    "id": "explore_0007",
+    "category": "explore",
+    "task_type": "realworld_complex",
+    "input": "마이그레이션 진행 중이거든 코드 의존성 흐름을 따라가봐줄래? 진짜 열받아. 자동으로 롤백할 수 있게한 다이어그램도 그려줄 수 있어?",
+    "output": "Explore and document structure"
+  },
+  {
+    "id": "explore_0008",
+    "category": "explore",
+    "task_type": "realworld_complex",
+    "input": "최근 API 변경수정했거든?ㅇㅇ 캐시 전략 어디 있는지 찾아줄래? 멘붕. {detail}도 같이 설명해줄래?",
+    "output": "Explore and document structure"
+  },
+  {
+    "id": "explore_0009",
+    "category": "explore",
+    "task_type": "realworld_complex",
+    "input": "테스트 코드가 자꾸 깨져ㅇㅇ 인증 메커니즘 어디 있는지 찾아줄래? 레전드임. {detail}도 같이 설명해줄래?",
+    "output": "Explore and document structure"
+  },
+  {
+    "id": "explore_0010",
+    "category": "explore",
+    "task_type": "realworld_complex",
+    "input": "마이그레이션 진행 중이거든ㅇㅇ 캐시 전략의 구조를 파악해줄 수 있어? 진짜 미침. 실제 환경에서 테스트해서로 정리해줄래?",
+    "output": "Explore and document structure"
+  },
+  {
+    "id": "explore_0011",
+    "category": "explore",
+    "task_type": "realworld_complex",
+    "input": "클라이언트가 요청해서ㅇㅇ 요청 흐름 어디 있는지 찾아줄래? 멘붕. {detail}도 같이 설명해줄래?",
+    "output": "Explore and document structure"
+  },
+  {
+    "id": "explore_0012",
+    "category": "explore",
+    "task_type": "realworld_complex",
+    "input": "클라이언트가 요청해서ㅇㅇ 인증 메커니즘 코드베이스 탐색해줄 수 있어? 개좌절. 모니터링도 포함해서해서.",
+    "output": "Explore and document structure"
+  },
+  {
+    "id": "explore_0013",
+    "category": "explore",
+    "task_type": "realworld_complex",
+    "input": "트래픽이 갑자기 늘어나서 에러 핸들링가 어디서 문제를 일으키는지 찾아줄래? 헬게이트... 로그도 자세하게 남겨서까지 확인.",
+    "output": "Explore and document structure"
+  },
+  {
+    "id": "explore_0014",
+    "category": "explore",
+    "task_type": "realworld_complex",
+    "input": "클라이언트가 요청해서ㅇㅇ 인증 메커니즘 어디 있는지 찾아줄래? 정신없어. {detail}도 같이 설명해줄래?",
+    "output": "Explore and document structure"
+  },
+  {
+    "id": "explore_0015",
+    "category": "explore",
+    "task_type": "realworld_complex",
+    "input": "트래픽이 갑자기 늘어나서ㅇㅇ 인증 메커니즘 어디 있는지 찾아줄래? 미칠 노릇이야. {detail}도 같이 설명해줄래?",
+    "output": "Explore and document structure"
+  },
+  {
+    "id": "explore_0016",
+    "category": "explore",
+    "task_type": "realworld_complex",
+    "input": "메모리 누수가 있는지 확인해ㅇㅇ 코드 의존성의 구조를 파악해줄 수 있어? 진짜 답답해. 다른 팀원들도 쉽게 사용할 수 있게로 정리해줄래?",
+    "output": "Explore and document structure"
+  },
+  {
+    "id": "explore_0017",
+    "category": "explore",
+    "task_type": "realworld_complex",
+    "input": "최근 API 변경수정했거든? 인증 메커니즘가 어디서 문제를 일으키는지 찾아줄래? 으악... 여러 환경에서 테스트해서까지 확인.",
+    "output": "Explore and document structure"
+  },
+  {
+    "id": "explore_0018",
+    "category": "explore",
+    "task_type": "realworld_complex",
+    "input": "동료가 망쳤어 코드 의존성 흐름을 따라가봐줄래? 한숨.... 자동으로 롤백할 수 있게한 다이어그램도 그려줄 수 있어?",
+    "output": "Explore and document structure"
+  },
+  {
+    "id": "explore_0019",
+    "category": "explore",
+    "task_type": "realworld_complex",
+    "input": "의존성 버전 올렸는데ㅇㅇ API 엔드포인트의 구조를 파악해줄 수 있어? 한숨.... 로그도 자세하게 남겨서로 정리해줄래?",
+    "output": "Explore and document structure"
+  },
+  {
+    "id": "explore_0020",
+    "category": "explore",
+    "task_type": "realworld_complex",
+    "input": "동시성 문제가 있을 수 있어 에러 핸들링가 어디서 문제를 일으키는지 찾아줄래? 개좌절... 성능 기준을 정해서까지 확인.",
+    "output": "Explore and document structure"
+  },
+  {
+    "id": "explore_0021",
+    "category": "explore",
+    "task_type": "realworld_complex",
+    "input": "동시성 문제가 있을 수 있어ㅇㅇ 캐시 전략의 구조를 파악해줄 수 있어? 진짜 미침. 문제 발생 시 알림까지로 정리해줄래?",
+    "output": "Explore and document structure"
+  },
+  {
+    "id": "explore_0022",
+    "category": "explore",
+    "task_type": "realworld_complex",
+    "input": "메모리 누수가 있는지 확인해ㅇㅇ 에러 핸들링 어디 있는지 찾아줄래? 진짜 미침. {detail}도 같이 설명해줄래?",
+    "output": "Explore and document structure"
+  },
+  {
+    "id": "explore_0023",
+    "category": "explore",
+    "task_type": "realworld_complex",
+    "input": "동료가 망쳤어ㅇㅇ API 엔드포인트 어디 있는지 찾아줄래? 정신없어. {detail}도 같이 설명해줄래?",
+    "output": "Explore and document structure"
+  },
+  {
+    "id": "explore_0024",
+    "category": "explore",
+    "task_type": "realworld_complex",
+    "input": "동시성 문제가 있을 수 있어 코드 의존성 흐름을 따라가봐줄래? 완전 피곤해. 여러 환경에서 테스트해서한 다이어그램도 그려줄 수 있어?",
+    "output": "Explore and document structure"
+  },
+  {
+    "id": "explore_0025",
+    "category": "explore",
+    "task_type": "realworld_complex",
+    "input": "마이그레이션 진행 중이거든 요청 흐름 흐름을 따라가봐줄래? 한숨.... 실제 환경에서 테스트해서한 다이어그램도 그려줄 수 있어?",
+    "output": "Explore and document structure"
+  },
+  {
+    "id": "explore_0026",
+    "category": "explore",
+    "task_type": "realworld_complex",
+    "input": "DB가 느려지기 시작했어ㅇㅇ 에러 핸들링의 구조를 파악해줄 수 있어? 레전드임. 여러 환경에서 테스트해서로 정리해줄래?",
+    "output": "Explore and document structure"
+  },
+  {
+    "id": "explore_0027",
+    "category": "explore",
+    "task_type": "realworld_complex",
+    "input": "마이그레이션 진행 중이거든 API 엔드포인트가 어디서 문제를 일으키는지 찾아줄래? 개좌절... 여러 환경에서 테스트해서까지 확인.",
+    "output": "Explore and document structure"
+  },
+  {
+    "id": "explore_0028",
+    "category": "explore",
+    "task_type": "realworld_complex",
+    "input": "클라이언트가 요청해서 인증 메커니즘 흐름을 따라가봐줄래? ㅠㅠ. CI/CD와 통합해서한 다이어그램도 그려줄 수 있어?",
+    "output": "Explore and document structure"
+  },
+  {
+    "id": "explore_0029",
+    "category": "explore",
+    "task_type": "realworld_complex",
+    "input": "클라이언트가 요청해서 데이터베이스 구조가 어디서 문제를 일으키는지 찾아줄래? 완전 피곤해... 로그도 자세하게 남겨서까지 확인.",
+    "output": "Explore and document structure"
+  },
+  {
+    "id": "explore_0030",
+    "category": "explore",
+    "task_type": "realworld_complex",
+    "input": "동료가 망쳤어ㅇㅇ 인증 메커니즘 어디 있는지 찾아줄래? 뭐하는 고것들. {detail}도 같이 설명해줄래?",
+    "output": "Explore and document structure"
+  },
+  {
+    "id": "explore_0031",
+    "category": "explore",
+    "task_type": "realworld_complex",
+    "input": "최근 API 변경수정했거든? 코드 의존성가 어디서 문제를 일으키는지 찾아줄래? 멘붕... 실제 환경에서 테스트해서까지 확인.",
+    "output": "Explore and document structure"
+  },
+  {
+    "id": "explore_0032",
+    "category": "explore",
+    "task_type": "realworld_complex",
+    "input": "메모리 누수가 있는지 확인해ㅇㅇ API 엔드포인트의 구조를 파악해줄 수 있어? 진짜 열받아. 성공할 때까지 무한 루프로 돌려로 정리해줄래?",
+    "output": "Explore and document structure"
+  },
+  {
+    "id": "explore_0033",
+    "category": "explore",
+    "task_type": "realworld_complex",
+    "input": "크로스 브라우징 이슈ㅇㅇ 인증 메커니즘 어디 있는지 찾아줄래? 레전드임. {detail}도 같이 설명해줄래?",
+    "output": "Explore and document structure"
+  },
+  {
+    "id": "explore_0034",
+    "category": "explore",
+    "task_type": "realworld_complex",
+    "input": "레거시 코드 때문에 코드 의존성 흐름을 따라가봐줄래? 한숨.... 모니터링도 포함해서한 다이어그램도 그려줄 수 있어?",
+    "output": "Explore and document structure"
+  },
+  {
+    "id": "explore_0035",
+    "category": "explore",
+    "task_type": "realworld_complex",
+    "input": "배포 후에 문제 생겼어ㅇㅇ 모듈 관계 어디 있는지 찾아줄래? 완전 피곤해. {detail}도 같이 설명해줄래?",
+    "output": "Explore and document structure"
+  },
+  {
+    "id": "explore_0036",
+    "category": "explore",
+    "task_type": "realworld_complex",
+    "input": "동료가 망쳤어ㅇㅇ 모듈 관계 어디 있는지 찾아줄래? 한숨.... {detail}도 같이 설명해줄래?",
+    "output": "Explore and document structure"
+  },
+  {
+    "id": "explore_0037",
+    "category": "explore",
+    "task_type": "realworld_complex",
+    "input": "보안 이슈 떴거든?ㅇㅇ 데이터베이스 구조 코드베이스 탐색해줄 수 있어? 완전 피곤해. 여러 환경에서 테스트해서해서.",
+    "output": "Explore and document structure"
+  },
+  {
+    "id": "explore_0038",
+    "category": "explore",
+    "task_type": "realworld_complex",
+    "input": "메모리 누수가 있는지 확인해ㅇㅇ 인증 메커니즘 어디 있는지 찾아줄래? 진짜 미침. {detail}도 같이 설명해줄래?",
+    "output": "Explore and document structure"
+  },
+  {
+    "id": "explore_0039",
+    "category": "explore",
+    "task_type": "realworld_complex",
+    "input": "클라이언트가 요청해서ㅇㅇ 모듈 관계의 구조를 파악해줄 수 있어? 완전 피곤해. 문제 발생 시 알림까지로 정리해줄래?",
+    "output": "Explore and document structure"
+  },
+  {
+    "id": "explore_0040",
+    "category": "explore",
+    "task_type": "realworld_complex",
+    "input": "최근 API 변경수정했거든? 요청 흐름가 어디서 문제를 일으키는지 찾아줄래? 미칠 노릇이야... 정기적으로 실행되게까지 확인.",
+    "output": "Explore and document structure"
+  },
+  {
+    "id": "explore_0041",
+    "category": "explore",
+    "task_type": "realworld_complex",
+    "input": "배포 후에 문제 생겼어ㅇㅇ 요청 흐름의 구조를 파악해줄 수 있어? ㅠㅠ. 실패하면 재시도하고로 정리해줄래?",
+    "output": "Explore and document structure"
+  },
+  {
+    "id": "explore_0042",
+    "category": "explore",
+    "task_type": "realworld_complex",
+    "input": "보안 이슈 떴거든?ㅇㅇ 코드 의존성의 구조를 파악해줄 수 있어? 멘붕. 실제 환경에서 테스트해서로 정리해줄래?",
+    "output": "Explore and document structure"
+  },
+  {
+    "id": "explore_0043",
+    "category": "explore",
+    "task_type": "realworld_complex",
+    "input": "보안 이슈 떴거든? 캐시 전략가 어디서 문제를 일으키는지 찾아줄래? 멘붕... 성공할 때까지 무한 루프로 돌려까지 확인.",
+    "output": "Explore and document structure"
+  },
+  {
+    "id": "explore_0044",
+    "category": "explore",
+    "task_type": "realworld_complex",
+    "input": "보안 이슈 떴거든?ㅇㅇ 코드 의존성의 구조를 파악해줄 수 있어? 진짜 열받아. 실패하면 재시도하고로 정리해줄래?",
+    "output": "Explore and document structure"
+  },
+  {
+    "id": "explore_0045",
+    "category": "explore",
+    "task_type": "realworld_complex",
+    "input": "트래픽이 갑자기 늘어나서ㅇㅇ API 엔드포인트 코드베이스 탐색해줄 수 있어? ㅠㅠ. 여러 환경에서 테스트해서해서.",
+    "output": "Explore and document structure"
+  },
+  {
+    "id": "explore_0046",
+    "category": "explore",
+    "task_type": "realworld_complex",
+    "input": "동시성 문제가 있을 수 있어ㅇㅇ 모듈 관계의 구조를 파악해줄 수 있어? 살려줘. 실제 환경에서 테스트해서로 정리해줄래?",
+    "output": "Explore and document structure"
+  },
+  {
+    "id": "explore_0047",
+    "category": "explore",
+    "task_type": "realworld_complex",
+    "input": "보안 이슈 떴거든?ㅇㅇ 에러 핸들링 코드베이스 탐색해줄 수 있어? 레전드임. 모니터링도 포함해서해서.",
+    "output": "Explore and document structure"
+  },
+  {
+    "id": "explore_0048",
+    "category": "explore",
+    "task_type": "realworld_complex",
+    "input": "레거시 코드 때문에 캐시 전략 흐름을 따라가봐줄래? 미칠 노릇이야. 모니터링도 포함해서한 다이어그램도 그려줄 수 있어?",
+    "output": "Explore and document structure"
+  },
+  {
+    "id": "explore_0049",
+    "category": "explore",
+    "task_type": "realworld_complex",
+    "input": "마이그레이션 진행 중이거든ㅇㅇ 인증 메커니즘 코드베이스 탐색해줄 수 있어? 한숨.... 자동으로 롤백할 수 있게해서.",
+    "output": "Explore and document structure"
+  },
+  {
+    "id": "explore_0050",
+    "category": "explore",
+    "task_type": "realworld_complex",
+    "input": "마이그레이션 진행 중이거든 데이터베이스 구조가 어디서 문제를 일으키는지 찾아줄래? 레전드임... CI/CD와 통합해서까지 확인.",
+    "output": "Explore and document structure"
+  }
+]

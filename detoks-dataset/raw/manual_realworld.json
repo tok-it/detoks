@@ -1,0 +1,128 @@
+[
+  {
+    "id": "manual_create_001",
+    "category": "create",
+    "input": "최근 API 변경수정했거든? ㅇㅇ 그건 니가 로그 알아서 열어보고 암튼 그거때매 E2E 테스트가 무너지기 쉬워. 레전드임 개열받음..;; Cypress를 사용해서, API Mocking부터 실제 통합 흐름까지 검증하는 테스트 케이스 md파일로 작성해 ㅇㅋ? 그리고, GitHub Actions에 붙여넣는 스크립트까지 구현해줘. 성공할 때까지 무한 루프로 돌려 안그럼 사형",
+    "output": "Create E2E test suite with Cypress API mocking, integration validation, documentation, and GitHub Actions CI script with retry logic."
+  },
+  {
+    "id": "manual_create_002",
+    "category": "create",
+    "input": "웹훅 처리 시스템 만들어야 하는데... 비동기 큐를 어떤 걸로 해야 할지 감이 안 와. 요청 실패하면 자동으로 재시도되어야 하고, 최대 3번까지만. 그리고 여기저기서 웹훅 날라올 텐데 Rate Limiting은 어떻게 할지? 메시지 큐는 RabbitMQ 아니면 Redis Streams? 개답답해. 이해하기 쉽게 예제랑 함께 설계 문서 작성해줄래?",
+    "output": "Design webhook system with async queue, retry logic, rate limiting, message queue selection guide, and implementation examples."
+  },
+  {
+    "id": "manual_create_003",
+    "category": "create",
+    "input": "데이터 수집 배치 작업이 필요한데... 매일 자정에 실행되고, 실패하면 메일로 알림 받아야 해. 그리고 진행 상황도 모니터링할 수 있어야 함. APScheduler 쓸까 Celery 쓸까? 공부할 게 너무 많아. 그냥 둘 다 예제로 구현해줄래? 그리고 뭐가 더 나은지 비교 문서도 함께.",
+    "output": "Implement batch data collection with APScheduler and Celery examples, monitoring, email alerts, and comparison documentation."
+  },
+  {
+    "id": "manual_create_004",
+    "category": "create",
+    "input": "결제 시스템 통합해야 하는데... Stripe인가 토스인가? 국내결제를 생각하면 토스가 맞을 것 같은데 해본 게 없어서. PG사 연동 보안도 걱정되고... 웹훅도 처리해야 하고... 환불 처리는 어떻게? 테스트 카드 번호도 안내해줄 수 있어? 진짜 답답해. 최소 필요한 구현부터 하나씩 해주고 설명까지 붙여줄래?",
+    "output": "Integrate Toss payment gateway with webhooks, refund handling, test card examples, security considerations, and step-by-step implementation guide."
+  },
+  {
+    "id": "manual_create_005",
+    "category": "create",
+    "input": "실시간 알림 시스템을 만들어야 하는데... WebSocket? Server-Sent Events? 뭐가 나음? 클라이언트가 여러 개인데 모든 클라이언트에게 브로드캐스트하려면? 그리고 오프라인 상태였던 사용자는 오면서 놓친 메시지를 다 받아야 하고... 메시지 영속성도 필요하고... 개열받음. 최적의 구조로 설계해줄래?",
+    "output": "Design real-time notification system comparing WebSocket vs SSE, implement broadcasting, offline message handling, persistence layer, and architecture diagram."
+  },
+  {
+    "id": "manual_create_006",
+    "category": "create",
+    "input": "마이크로프론트엔드 아키텍처 도입하려고 하는데... Module Federation? iframe? 뭐가 정답임? 팀이 여러 개인데 각 팀이 독립적으로 배포되어야 하고... 스타일 충돌도 없어야 하고... 공유 라이브러리 관리는? 진짜 미칠 노릇. 각 방식의 장단점이랑 예제코드 보여줄래?",
+    "output": "Compare Module Federation vs iframe approaches, implement micro-frontend architecture with independent deployments, shared libraries, style isolation, and trade-off analysis."
+  },
+  {
+    "id": "manual_create_007",
+    "category": "create",
+    "input": "Dark Mode 구현할 건데 단순히 CSS만 바꾸는 거 아니고... 저장된 사용자 설정도 있어야 하고, OS 설정도 감지해야 하고, 미디어 쿼리도 고려하고... 이미지도 어떤 건 다른 버전이 필요하고... 완전 복잡해. 깔끔한 아키텍처로 구현해줄 수 있어? 모든 컴포넌트에 적용되게.",
+    "output": "Implement Dark Mode with user preferences storage, OS detection, media queries, image variants, and scalable component-level application."
+  },
+  {
+    "id": "manual_create_008",
+    "category": "create",
+    "input": "다국어 지원을 추가해야 하는데... i18n 라이브러리 선택부터 안 돼. next-i18next? react-i18next? 어떤 거 써? 그리고 번역 파일 관리는 뭘로? 자동 번역 API는 비용이 얼마나? 팀원들이 번역할 수 있는 CMS는 있나? 정말 피곤해. 처음부터 끝까지 가이드해줄래?",
+    "output": "Set up multi-language support with i18n framework selection, translation file management, CMS integration, auto-translation API evaluation, and implementation guide."
+  },
+  {
+    "id": "manual_create_009",
+    "category": "create",
+    "input": "SEO 최적화를 해야 하는데... 메타 태그, Open Graph, 스키마 마크업, 사이트맵, robots.txt... 뭐가 뭐하는 건지 복잡해 죽겠네. 동적 콘텐츠는 어떻게 대응할 거고? Pre-rendering? SSR? 헷갈려. 검색 엔진이 제대로 크롤링하게 하려면? 측정은 어떻게? 구글 서치 콘솔? 다 알려줄 수 있어?",
+    "output": "Optimize SEO with meta tags, Open Graph, schema markup, sitemap, robots.txt, dynamic content handling, SSR strategy, and Google Search Console integration."
+  },
+  {
+    "id": "manual_create_010",
+    "category": "create",
+    "input": "점진적 마이그레이션 계획을 세워야 해. 레거시 시스템에서 새로운 아키텍처로. 근데 중간에 서비스가 끊기면 안 되고... 데이터도 일관성 있게 옮겨야 하고... 롤백도 가능해야 하고... 팀원들도 혼란스러워할 텐데... 단계별 로드맵이랑 위험 요소, 체크리스트 만들어줄 수 있어? 진짜 지금 고민이 많아.",
+    "output": "Create gradual migration plan from legacy to new architecture with zero-downtime strategy, data consistency approach, rollback procedures, team guidelines, and risk checklist."
+  },
+  {
+    "id": "manual_modify_001",
+    "category": "modify",
+    "input": "이전 버전에서 만든 API가 있는데... 지금 보니까 설계가 완전 엉망이야. 엔드포인트 구조가 일관성 없고, 에러 응답도 제멋대로고... 그런데 이미 클라이언트들이 쓰고 있어서 무작정 바꿀 수가 없어. 어떻게 하면서 깨지지 않게 마이그레이션할 수 있을까? 버전 관리? 호환성 레이어? 정말 막혀. 해결책 제시해줄래?",
+    "output": "Refactor API design while maintaining backward compatibility using versioning, deprecation strategy, compatibility layer, migration guide, and zero-downtime rollout."
+  },
+  {
+    "id": "manual_modify_002",
+    "category": "modify",
+    "input": "데이터베이스가 계속 느려지고 있어... 쿼리 개수도 많고... N+1 문제도 있는 것 같고... 인덱스는 뭐가 필요한지 모르겠고... 테이블도 정규화가 제대로 안 된 것 같아. 쿼리 최적화, 인덱스 전략, 캐싱 레이어... 다 분석해줄 수 있어? 그리고 현재 상태의 병목이 정확히 뭔지 알고 싶어. 프로파일링 결과도 분석해줄래?",
+    "output": "Optimize database performance with query profiling, N+1 problem detection, indexing strategy, normalization review, caching layer design, and performance improvement roadmap."
+  },
+  {
+    "id": "manual_modify_003",
+    "category": "modify",
+    "input": "프론트엔드 번들 사이즈가 2MB를 넘어버렸어. 뭐가 이렇게 커? 라이브러리 분석, 코드 스플리팅, Tree shaking... 다 이미 했는데도. 미사용 CSS도 있을 거고... 이미지 최적화도 필요하고... 폰트도 뭔가 비효율적일 거고... 전부 분석해서 최적화 계획 세워줄래? 그리고 성능 개선 확인 방법도.",
+    "output": "Reduce bundle size through dependency analysis, code splitting optimization, tree shaking, CSS purging, image optimization, font optimization, and performance monitoring setup."
+  },
+  {
+    "id": "manual_modify_004",
+    "category": "modify",
+    "input": "레거시 JavaScript 코드가 천 줄을 넘어서... 읽기도 힘들고 유지보수도 어렵고... TypeScript로 마이그레이션할 생각인데... 한 번에 다 할 수도 없고... 점진적으로 어떻게 하지? 유틸 함수부터? 컴포넌트부터? 우선순위는? 그리고 기존 코드도 작동하면서 타입도 추가하는 법? 복잡해 죽겠어.",
+    "output": "Gradually migrate JavaScript to TypeScript with incremental typing strategy, prioritization guide, type definitions, backward compatibility, tooling setup, and team guidelines."
+  },
+  {
+    "id": "manual_modify_005",
+    "category": "modify",
+    "input": "권한 시스템이 복잡해졌어. 처음엔 admin, user 정도였는데... 이제 역할이 늘어나고, 각 역할마다 권한이 다르고, 조직 구조까지 고려해야 하고... RBAC? ABAC? 뭘 써야 해? 기존 코드도 많은데... 어떻게 리팩토링하면서 기능은 안 깨지게 할 수 있을까? 설계부터 구현까지 도와줄래?",
+    "output": "Redesign permission system from simple to role-based/attribute-based access control, implement granular permissions, organizational hierarchy, and refactor existing code safely."
+  },
+  {
+    "id": "manual_analyze_001",
+    "category": "analyze",
+    "input": "사이트 속도가 갑자기 느려졌어. 근데 뭐가 문제인지 모르겠어. 백엔드 응답? 프론트엔드 렌더링? 네트워크? 다 측정해줄 수 있어? 성능 지표 (LCP, FID, CLS) 분석, 병목 지점 찾기, 개선 우선순위... 한번에 정리해줄 수 있어? 그리고 앞으로 계속 모니터링할 수 있는 방법까지.",
+    "output": "Analyze site performance using Core Web Vitals metrics, identify bottlenecks across backend/frontend/network, prioritize improvements, and establish continuous monitoring."
+  },
+  {
+    "id": "manual_analyze_002",
+    "category": "analyze",
+    "input": "메모리 누수가 의심돼... 자산을 며칠 돌려놓으면 메모리가 계속 증가해. 어디서 새는지 알 수 없어. 힙 덤프 분석, 객체 추적, 이벤트 리스너... 모든 방법 다 써줄 수 있어? 그리고 어떤 부분에서 누수가 있는지 정확히 지적해줄래? 실제 코드까지 보면서.",
+    "output": "Diagnose memory leaks using heap dumps, object tracking, listener analysis, identify leak sources in code, provide fixes, and memory profiling recommendations."
+  },
+  {
+    "id": "manual_validate_001",
+    "category": "validate",
+    "input": "보안 테스트를 해야 하는데... SQL injection, XSS, CSRF, CORS... 어떤 공격이 가능한지 직접 시뮬레이션해줄 수 있어? 그리고 우리 코드의 방어는 제대로 되어있는지? 취약점 리포트 만들어주고, 각각 어떻게 수정해야 하는지까지 구체적으로. 진짜 긴장돼.",
+    "output": "Conduct security testing for injection, XSS, CSRF, CORS vulnerabilities, simulate attacks, identify weaknesses, provide detailed fixes, and security recommendations."
+  },
+  {
+    "id": "manual_plan_001",
+    "category": "plan",
+    "input": "다음 분기에 뭘 해야 할지 감이 안 와. 기술 부채도 있고, 새 기능도 요청이 있고, 버그도 쌓여있고... 우선순위를 어떻게 정할지? 영향도, 난이도, 위험도 고려해서 로드맵을 만들어줄 수 있어? 그리고 팀 용량도 고려해서. 정말 답답해.",
+    "output": "Create quarterly roadmap with prioritized feature backlog, technical debt management, bug fixes, resource allocation, risk assessment, and team capacity planning."
+  },
+  {
+    "id": "manual_explore_001",
+    "category": "explore",
+    "input": "우리 코드베이스가 너무 크다... 지금 어떤 구조로 되어있는지, 어떤 의존성이 있는지... 뭐부터 봐야 할지 모르겠어. 아키텍처 다이어그램 그려주고, 모듈 간 관계도 보여주고, 순환 참조가 있는지도 확인해줄래? 그리고 개선할 부분도 제시해줄 수 있어? 진짜 답답해.",
+    "output": "Map codebase architecture with dependency diagrams, module relationships, identify circular dependencies, architectural issues, and provide improvement recommendations."
+  },
+  {
+    "id": "manual_document_001",
+    "category": "document",
+    "input": "API 문서가 없어. 엔드포인트도 많고, 변경도 자주 되니까 자동으로 생성되는 게 좋을 텐데... Swagger는 알겠는데, 실제로 어떻게 연동하지? 코드에서 자동 추출? 환경별로 다른 문서도 필요하고... 팀원들도 쉽게 사용할 수 있게 설명까지 붙여줄 수 있어?",
+    "output": "Set up automated API documentation with Swagger/OpenAPI, code annotations, environment-specific docs, examples, and team guidelines for maintenance."
+  }
+]

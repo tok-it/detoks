@@ -25,6 +25,17 @@ export class ContextSelector {
     try {
       const selected: Record<string, any> = {};
 
+      // 0. Strict Mode 체크: 의존성 중 실패한 Task가 있는지 확인
+      const failedTaskIds = (state.shared_context?.failed_task_ids as string[]) || [];
+      const failedDependencies = targetTask.depends_on.filter(depId => failedTaskIds.includes(depId));
+
+      if (failedDependencies.length > 0) {
+        throw new ContextProcessingError(`Strict Mode Violation: Cannot execute task [${targetTask.id}] because its dependencies [${failedDependencies.join(', ')}] have failed.`, {
+          taskId: targetTask.id,
+          failedDependencies
+        });
+      }
+
       // 1. 필수 의존성 결과 선택 (Depends On)
       const dependencyResults = this.getDependencyResults(state, targetTask);
       Object.assign(selected, dependencyResults);
@@ -111,10 +122,18 @@ export class ContextSelector {
       const res = result as any;
 
       // Minimal Information 규칙: 무조건 요약본(summary/structured_output)을 우선 사용
+      // 이때 _compressed 플래그 등 메타데이터는 보존해야 함
       if (res.structured_output) {
-        optimized[id] = { summary: res.summary, ...res.structured_output };
+        optimized[id] = { 
+          summary: res.summary, 
+          ...res.structured_output,
+          _compressed: res._compressed 
+        };
       } else {
-        optimized[id] = { summary: res.summary || "Summary not available" };
+        optimized[id] = { 
+          summary: res.summary || "Summary not available",
+          _compressed: res._compressed
+        };
       }
     }
 

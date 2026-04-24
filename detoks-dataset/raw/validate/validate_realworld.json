@@ -1,0 +1,352 @@
+[
+  {
+    "id": "validate_0001",
+    "category": "validate",
+    "task_type": "realworld_complex",
+    "input": "DB가 느려지기 시작했어 통합 흐름 통합 테스트를 작성해줄 수 있어? 진짜 열받아. 모니터링도 포함해서까지.",
+    "output": "Validate and test thoroughly"
+  },
+  {
+    "id": "validate_0002",
+    "category": "validate",
+    "task_type": "realworld_complex",
+    "input": "마이그레이션 진행 중이거든ㅇㅇ 통합 흐름 검증해줄 수 있어? 이게 뭐하는 짓인데. 결과를 대시보드에 띄워서까지 확인해줄래?",
+    "output": "Validate and test thoroughly"
+  },
+  {
+    "id": "validate_0003",
+    "category": "validate",
+    "task_type": "realworld_complex",
+    "input": "트래픽이 갑자기 늘어나서ㅇㅇ 안정성 신뢰도를 높여줄 수 있어? ㅠㅠ. 여러 환경에서 테스트해서하게 구현해줄래?",
+    "output": "Validate and test thoroughly"
+  },
+  {
+    "id": "validate_0004",
+    "category": "validate",
+    "task_type": "realworld_complex",
+    "input": "마이그레이션 진행 중이거든ㅇㅇ API 응답 검증해줄 수 있어? 진짜 열받아. 여러 환경에서 테스트해서까지 확인해줄래?",
+    "output": "Validate and test thoroughly"
+  },
+  {
+    "id": "validate_0005",
+    "category": "validate",
+    "task_type": "realworld_complex",
+    "input": "크로스 브라우징 이슈 API 응답가 제대로 작동하는지 테스트해줄래? 미칠 노릇이야... 문제 발생 시 알림까지한 검증.",
+    "output": "Validate and test thoroughly"
+  },
+  {
+    "id": "validate_0006",
+    "category": "validate",
+    "task_type": "realworld_complex",
+    "input": "최근 API 변경수정했거든? 데이터 무결성가 제대로 작동하는지 테스트해줄래? ㅠㅠ... 다른 팀원들도 쉽게 사용할 수 있게한 검증.",
+    "output": "Validate and test thoroughly"
+  },
+  {
+    "id": "validate_0007",
+    "category": "validate",
+    "task_type": "realworld_complex",
+    "input": "테스트 코드가 자꾸 깨져ㅇㅇ 보안 검증 검증해줄 수 있어? 정신없어. CI/CD와 통합해서까지 확인해줄래?",
+    "output": "Validate and test thoroughly"
+  },
+  {
+    "id": "validate_0008",
+    "category": "validate",
+    "task_type": "realworld_complex",
+    "input": "DB가 느려지기 시작했어ㅇㅇ 성능 기준 검증해줄 수 있어? 정신차려. 결과를 대시보드에 띄워서까지 확인해줄래?",
+    "output": "Validate and test thoroughly"
+  },
+  {
+    "id": "validate_0009",
+    "category": "validate",
+    "task_type": "realworld_complex",
+    "input": "최근 API 변경수정했거든?ㅇㅇ 보안 검증의 안정성을 확인해주고... 아 진짜 {detail}도 고려해줘.",
+    "output": "Validate and test thoroughly"
+  },
+  {
+    "id": "validate_0010",
+    "category": "validate",
+    "task_type": "realworld_complex",
+    "input": "새로 추가된 기능 때문에ㅇㅇ 통합 흐름 검증해줄 수 있어? 완전 피곤해. 모니터링도 포함해서까지 확인해줄래?",
+    "output": "Validate and test thoroughly"
+  },
+  {
+    "id": "validate_0011",
+    "category": "validate",
+    "task_type": "realworld_complex",
+    "input": "새로 추가된 기능 때문에ㅇㅇ 성능 기준의 안정성을 확인해주고... 정신차려 {detail}도 고려해줘.",
+    "output": "Validate and test thoroughly"
+  },
+  {
+    "id": "validate_0012",
+    "category": "validate",
+    "task_type": "realworld_complex",
+    "input": "트래픽이 갑자기 늘어나서 호환성 통합 테스트를 작성해줄 수 있어? 개열받음. CI/CD와 통합해서까지.",
+    "output": "Validate and test thoroughly"
+  },
+  {
+    "id": "validate_0013",
+    "category": "validate",
+    "task_type": "realworld_complex",
+    "input": "의존성 버전 올렸는데ㅇㅇ 호환성의 안정성을 확인해주고... 으악 {detail}도 고려해줘.",
+    "output": "Validate and test thoroughly"
+  },
+  {
+    "id": "validate_0014",
+    "category": "validate",
+    "task_type": "realworld_complex",
+    "input": "동시성 문제가 있을 수 있어 통합 흐름가 제대로 작동하는지 테스트해줄래? 개열받음... 성능 기준을 정해서한 검증.",
+    "output": "Validate and test thoroughly"
+  },
+  {
+    "id": "validate_0015",
+    "category": "validate",
+    "task_type": "realworld_complex",
+    "input": "크로스 브라우징 이슈ㅇㅇ 성능 기준의 안정성을 확인해주고... 헬게이트 {detail}도 고려해줘.",
+    "output": "Validate and test thoroughly"
+  },
+  {
+    "id": "validate_0016",
+    "category": "validate",
+    "task_type": "realworld_complex",
+    "input": "크로스 브라우징 이슈ㅇㅇ API 응답 검증해줄 수 있어? 으악. 실패하면 재시도하고까지 확인해줄래?",
+    "output": "Validate and test thoroughly"
+  },
+  {
+    "id": "validate_0017",
+    "category": "validate",
+    "task_type": "realworld_complex",
+    "input": "새로 추가된 기능 때문에ㅇㅇ 호환성 신뢰도를 높여줄 수 있어? 진짜 열받아. 로그도 자세하게 남겨서하게 구현해줄래?",
+    "output": "Validate and test thoroughly"
+  },
+  {
+    "id": "validate_0018",
+    "category": "validate",
+    "task_type": "realworld_complex",
+    "input": "마이그레이션 진행 중이거든ㅇㅇ 데이터 무결성 신뢰도를 높여줄 수 있어? 레전드임. 타임아웃 설정해서하게 구현해줄래?",
+    "output": "Validate and test thoroughly"
+  },
+  {
+    "id": "validate_0019",
+    "category": "validate",
+    "task_type": "realworld_complex",
+    "input": "크로스 브라우징 이슈ㅇㅇ API 응답 신뢰도를 높여줄 수 있어? 개좌절. 다른 팀원들도 쉽게 사용할 수 있게하게 구현해줄래?",
+    "output": "Validate and test thoroughly"
+  },
+  {
+    "id": "validate_0020",
+    "category": "validate",
+    "task_type": "realworld_complex",
+    "input": "테스트 코드가 자꾸 깨져ㅇㅇ 입력 검증의 안정성을 확인해주고... 으악 {detail}도 고려해줘.",
+    "output": "Validate and test thoroughly"
+  },
+  {
+    "id": "validate_0021",
+    "category": "validate",
+    "task_type": "realworld_complex",
+    "input": "테스트 코드가 자꾸 깨져 안정성가 제대로 작동하는지 테스트해줄래? 정신차려... 문제 발생 시 알림까지한 검증.",
+    "output": "Validate and test thoroughly"
+  },
+  {
+    "id": "validate_0022",
+    "category": "validate",
+    "task_type": "realworld_complex",
+    "input": "보안 이슈 떴거든?ㅇㅇ API 응답 검증해줄 수 있어? 정신차려. 다른 팀원들도 쉽게 사용할 수 있게까지 확인해줄래?",
+    "output": "Validate and test thoroughly"
+  },
+  {
+    "id": "validate_0023",
+    "category": "validate",
+    "task_type": "realworld_complex",
+    "input": "동료가 망쳤어ㅇㅇ 데이터 무결성의 안정성을 확인해주고... 으악 {detail}도 고려해줘.",
+    "output": "Validate and test thoroughly"
+  },
+  {
+    "id": "validate_0024",
+    "category": "validate",
+    "task_type": "realworld_complex",
+    "input": "동료가 망쳤어 입력 검증가 제대로 작동하는지 테스트해줄래? 정신차려... 다른 팀원들도 쉽게 사용할 수 있게한 검증.",
+    "output": "Validate and test thoroughly"
+  },
+  {
+    "id": "validate_0025",
+    "category": "validate",
+    "task_type": "realworld_complex",
+    "input": "레거시 코드 때문에ㅇㅇ 입력 검증 신뢰도를 높여줄 수 있어? 진짜 미침. 다른 팀원들도 쉽게 사용할 수 있게하게 구현해줄래?",
+    "output": "Validate and test thoroughly"
+  },
+  {
+    "id": "validate_0026",
+    "category": "validate",
+    "task_type": "realworld_complex",
+    "input": "레거시 코드 때문에 통합 흐름가 제대로 작동하는지 테스트해줄래? 한숨...... 자동으로 롤백할 수 있게한 검증.",
+    "output": "Validate and test thoroughly"
+  },
+  {
+    "id": "validate_0027",
+    "category": "validate",
+    "task_type": "realworld_complex",
+    "input": "동료가 망쳤어 데이터 무결성가 제대로 작동하는지 테스트해줄래? ㅠㅠ... 여러 환경에서 테스트해서한 검증.",
+    "output": "Validate and test thoroughly"
+  },
+  {
+    "id": "validate_0028",
+    "category": "validate",
+    "task_type": "realworld_complex",
+    "input": "배포 후에 문제 생겼어ㅇㅇ 데이터 무결성 신뢰도를 높여줄 수 있어? 으악. 실제 환경에서 테스트해서하게 구현해줄래?",
+    "output": "Validate and test thoroughly"
+  },
+  {
+    "id": "validate_0029",
+    "category": "validate",
+    "task_type": "realworld_complex",
+    "input": "최근 API 변경수정했거든? 입력 검증 통합 테스트를 작성해줄 수 있어? 미칠 노릇이야. 타임아웃 설정해서까지.",
+    "output": "Validate and test thoroughly"
+  },
+  {
+    "id": "validate_0030",
+    "category": "validate",
+    "task_type": "realworld_complex",
+    "input": "테스트 코드가 자꾸 깨져ㅇㅇ 안정성의 안정성을 확인해주고... 살려줘 {detail}도 고려해줘.",
+    "output": "Validate and test thoroughly"
+  },
+  {
+    "id": "validate_0031",
+    "category": "validate",
+    "task_type": "realworld_complex",
+    "input": "동료가 망쳤어 성능 기준 통합 테스트를 작성해줄 수 있어? 완전 피곤해. 로그도 자세하게 남겨서까지.",
+    "output": "Validate and test thoroughly"
+  },
+  {
+    "id": "validate_0032",
+    "category": "validate",
+    "task_type": "realworld_complex",
+    "input": "DB가 느려지기 시작했어 보안 검증가 제대로 작동하는지 테스트해줄래? 레전드임... 문제 발생 시 알림까지한 검증.",
+    "output": "Validate and test thoroughly"
+  },
+  {
+    "id": "validate_0033",
+    "category": "validate",
+    "task_type": "realworld_complex",
+    "input": "의존성 버전 올렸는데ㅇㅇ 호환성 신뢰도를 높여줄 수 있어? 뭐하는 고것들. 정기적으로 실행되게하게 구현해줄래?",
+    "output": "Validate and test thoroughly"
+  },
+  {
+    "id": "validate_0034",
+    "category": "validate",
+    "task_type": "realworld_complex",
+    "input": "크로스 브라우징 이슈 성능 기준 통합 테스트를 작성해줄 수 있어? 아 진짜. 문제 발생 시 알림까지까지.",
+    "output": "Validate and test thoroughly"
+  },
+  {
+    "id": "validate_0035",
+    "category": "validate",
+    "task_type": "realworld_complex",
+    "input": "크로스 브라우징 이슈ㅇㅇ 데이터 무결성 검증해줄 수 있어? 뭐하는 고것들. GitHub Actions에 붙여넣을 수 있게까지 확인해줄래?",
+    "output": "Validate and test thoroughly"
+  },
+  {
+    "id": "validate_0036",
+    "category": "validate",
+    "task_type": "realworld_complex",
+    "input": "테스트 코드가 자꾸 깨져ㅇㅇ 호환성의 안정성을 확인해주고... 레전드임 {detail}도 고려해줘.",
+    "output": "Validate and test thoroughly"
+  },
+  {
+    "id": "validate_0037",
+    "category": "validate",
+    "task_type": "realworld_complex",
+    "input": "새로 추가된 기능 때문에ㅇㅇ 안정성 신뢰도를 높여줄 수 있어? 진짜 답답해. 결과를 대시보드에 띄워서하게 구현해줄래?",
+    "output": "Validate and test thoroughly"
+  },
+  {
+    "id": "validate_0038",
+    "category": "validate",
+    "task_type": "realworld_complex",
+    "input": "동료가 망쳤어 보안 검증 통합 테스트를 작성해줄 수 있어? 으악. 모니터링도 포함해서까지.",
+    "output": "Validate and test thoroughly"
+  },
+  {
+    "id": "validate_0039",
+    "category": "validate",
+    "task_type": "realworld_complex",
+    "input": "새로 추가된 기능 때문에ㅇㅇ 성능 기준 검증해줄 수 있어? 완전 피곤해. 모니터링도 포함해서까지 확인해줄래?",
+    "output": "Validate and test thoroughly"
+  },
+  {
+    "id": "validate_0040",
+    "category": "validate",
+    "task_type": "realworld_complex",
+    "input": "마이그레이션 진행 중이거든ㅇㅇ API 응답의 안정성을 확인해주고... 헬게이트 {detail}도 고려해줘.",
+    "output": "Validate and test thoroughly"
+  },
+  {
+    "id": "validate_0041",
+    "category": "validate",
+    "task_type": "realworld_complex",
+    "input": "DB가 느려지기 시작했어 보안 검증 통합 테스트를 작성해줄 수 있어? 진짜 답답해. 자동으로 롤백할 수 있게까지.",
+    "output": "Validate and test thoroughly"
+  },
+  {
+    "id": "validate_0042",
+    "category": "validate",
+    "task_type": "realworld_complex",
+    "input": "트래픽이 갑자기 늘어나서ㅇㅇ 안정성의 안정성을 확인해주고... ㅠㅠ {detail}도 고려해줘.",
+    "output": "Validate and test thoroughly"
+  },
+  {
+    "id": "validate_0043",
+    "category": "validate",
+    "task_type": "realworld_complex",
+    "input": "클라이언트가 요청해서ㅇㅇ 데이터 무결성 신뢰도를 높여줄 수 있어? 이게 뭐하는 짓인데. 정기적으로 실행되게하게 구현해줄래?",
+    "output": "Validate and test thoroughly"
+  },
+  {
+    "id": "validate_0044",
+    "category": "validate",
+    "task_type": "realworld_complex",
+    "input": "배포 후에 문제 생겼어 통합 흐름 통합 테스트를 작성해줄 수 있어? 뭐지 이게. 결과를 대시보드에 띄워서까지.",
+    "output": "Validate and test thoroughly"
+  },
+  {
+    "id": "validate_0045",
+    "category": "validate",
+    "task_type": "realworld_complex",
+    "input": "메모리 누수가 있는지 확인해ㅇㅇ 보안 검증 검증해줄 수 있어? 헬게이트. 결과를 대시보드에 띄워서까지 확인해줄래?",
+    "output": "Validate and test thoroughly"
+  },
+  {
+    "id": "validate_0046",
+    "category": "validate",
+    "task_type": "realworld_complex",
+    "input": "의존성 버전 올렸는데 API 응답 통합 테스트를 작성해줄 수 있어? 한숨.... 자동으로 롤백할 수 있게까지.",
+    "output": "Validate and test thoroughly"
+  },
+  {
+    "id": "validate_0047",
+    "category": "validate",
+    "task_type": "realworld_complex",
+    "input": "트래픽이 갑자기 늘어나서ㅇㅇ 안정성 검증해줄 수 있어? 으악. 로그도 자세하게 남겨서까지 확인해줄래?",
+    "output": "Validate and test thoroughly"
+  },
+  {
+    "id": "validate_0048",
+    "category": "validate",
+    "task_type": "realworld_complex",
+    "input": "최근 API 변경수정했거든?ㅇㅇ 입력 검증 신뢰도를 높여줄 수 있어? 미칠 노릇이야. 모니터링도 포함해서하게 구현해줄래?",
+    "output": "Validate and test thoroughly"
+  },
+  {
+    "id": "validate_0049",
+    "category": "validate",
+    "task_type": "realworld_complex",
+    "input": "DB가 느려지기 시작했어 입력 검증 통합 테스트를 작성해줄 수 있어? 살려줘. 여러 환경에서 테스트해서까지.",
+    "output": "Validate and test thoroughly"
+  },
+  {
+    "id": "validate_0050",
+    "category": "validate",
+    "task_type": "realworld_complex",
+    "input": "의존성 버전 올렸는데ㅇㅇ 성능 기준 검증해줄 수 있어? 이게 뭐하는 짓인데. 여러 환경에서 테스트해서까지 확인해줄래?",
+    "output": "Validate and test thoroughly"
+  }
+]

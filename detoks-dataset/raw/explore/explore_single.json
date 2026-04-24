@@ -1,0 +1,877 @@
+[
+  {
+    "id": "explore_0001",
+    "category": "explore",
+    "task_type": "single",
+    "input": "파이썬으로 버블정렬 함수 만들어줄래?",
+    "output": "Can you create bubble sort function in Python."
+  },
+  {
+    "id": "explore_0002",
+    "category": "explore",
+    "task_type": "single",
+    "input": "Node.js로 CRUD API 짜줄래?",
+    "output": "Write CRUD API in Node.js for me."
+  },
+  {
+    "id": "explore_0003",
+    "category": "explore",
+    "task_type": "single",
+    "input": "로그인 폼을 Go로 구현해줄래?",
+    "output": "Implement login form in Go."
+  },
+  {
+    "id": "explore_0004",
+    "category": "explore",
+    "task_type": "single",
+    "input": "TypeScript으로 데코레이터 만들어줘",
+    "output": "Create decorator in TypeScript."
+  },
+  {
+    "id": "explore_0005",
+    "category": "explore",
+    "task_type": "single",
+    "input": "리액트로 인터페이스 짜줘",
+    "output": "Write interface in React."
+  },
+  {
+    "id": "explore_0006",
+    "category": "explore",
+    "task_type": "single",
+    "input": "미들웨어 Vue.js로 구현해줘",
+    "output": "Implement middleware in Vue.js."
+  },
+  {
+    "id": "explore_0007",
+    "category": "explore",
+    "task_type": "single",
+    "input": "Django으로 컴포넌트 만들어",
+    "output": "Create component in Django."
+  },
+  {
+    "id": "explore_0008",
+    "category": "explore",
+    "task_type": "single",
+    "input": "설정 파일을 FastAPI로 작성해",
+    "output": "Write configuration file in FastAPI."
+  },
+  {
+    "id": "explore_0009",
+    "category": "explore",
+    "task_type": "single",
+    "input": "Express에서 유효성 검사 구현해",
+    "output": "Implement validation in Express."
+  },
+  {
+    "id": "explore_0010",
+    "category": "explore",
+    "task_type": "single",
+    "input": "캐싱을 Next.js로 해야 해",
+    "output": "Need caching in Next.js."
+  },
+  {
+    "id": "explore_0011",
+    "category": "explore",
+    "task_type": "single",
+    "input": "Java으로 에러 처리 작성해야 해",
+    "output": "Need to write error handling in Java."
+  },
+  {
+    "id": "explore_0012",
+    "category": "explore",
+    "task_type": "single",
+    "input": "성능 최적화 C++로 구현해야 하는데",
+    "output": "performance optimization implementation needed in C++."
+  },
+  {
+    "id": "explore_0013",
+    "category": "explore",
+    "task_type": "single",
+    "input": "Rust으로 보안 한 번 만들어봐",
+    "output": "Try creating security in Rust."
+  },
+  {
+    "id": "explore_0014",
+    "category": "explore",
+    "task_type": "single",
+    "input": "모니터링을 Angular로 구현해봐",
+    "output": "Try implementing monitoring in Angular."
+  },
+  {
+    "id": "explore_0015",
+    "category": "explore",
+    "task_type": "single",
+    "input": "Spring Boot로 배포 작성해 봐",
+    "output": "Write deployment in Spring Boot and see."
+  },
+  {
+    "id": "explore_0016",
+    "category": "explore",
+    "task_type": "single",
+    "input": "GraphQL으로 마이그레이션 할 수 있어?",
+    "output": "Can you do migration in GraphQL."
+  },
+  {
+    "id": "explore_0017",
+    "category": "explore",
+    "task_type": "single",
+    "input": "동기화을 REST로 구현할 수 있어?",
+    "output": "Can synchronization be implemented in REST."
+  },
+  {
+    "id": "explore_0018",
+    "category": "explore",
+    "task_type": "single",
+    "input": "WebSocket에서 압축 가능해?",
+    "output": "Is compression possible in WebSocket."
+  },
+  {
+    "id": "explore_0019",
+    "category": "explore",
+    "task_type": "single",
+    "input": "Docker으로 암호화 만들어주세요",
+    "output": "Please create encryption in Docker."
+  },
+  {
+    "id": "explore_0020",
+    "category": "explore",
+    "task_type": "single",
+    "input": "직렬화을 Kubernetes로 구현해주세요",
+    "output": "Please implement serialization in Kubernetes."
+  },
+  {
+    "id": "explore_0021",
+    "category": "explore",
+    "task_type": "single",
+    "input": "Flask로 인증 작성해주세요",
+    "output": "Please write authentication in Flask."
+  },
+  {
+    "id": "explore_0022",
+    "category": "explore",
+    "task_type": "single",
+    "input": "NestJS으로 로깅 좀 만들어",
+    "output": "Make logging in NestJS for me."
+  },
+  {
+    "id": "explore_0023",
+    "category": "explore",
+    "task_type": "single",
+    "input": "데이터 변환 Fastify로 짜줄래",
+    "output": "Code data transformation in Fastify."
+  },
+  {
+    "id": "explore_0024",
+    "category": "explore",
+    "task_type": "single",
+    "input": "파이썬에 파일 관리 있으면 좋겠는데",
+    "output": "I need file management in Python."
+  },
+  {
+    "id": "explore_0025",
+    "category": "explore",
+    "task_type": "single",
+    "input": "네트워크 요청을 Node.js로 구현했으면 좋겠어",
+    "output": "I wish network request was implemented in Node.js."
+  },
+  {
+    "id": "explore_0026",
+    "category": "explore",
+    "task_type": "single",
+    "input": "Go으로 이미지 처리 하면 좋을 것 같아",
+    "output": "image processing in Go would be nice."
+  },
+  {
+    "id": "explore_0027",
+    "category": "explore",
+    "task_type": "single",
+    "input": "테스트을 TypeScript로 만들어줬으면",
+    "output": "Hope you can create testing in TypeScript."
+  },
+  {
+    "id": "explore_0028",
+    "category": "explore",
+    "task_type": "single",
+    "input": "리액트으로 문서화가 필요한데",
+    "output": "Need documentation in React."
+  },
+  {
+    "id": "explore_0029",
+    "category": "explore",
+    "task_type": "single",
+    "input": "계획 수립을 Vue.js로 작업해야 하는데",
+    "output": "Need to work on planning in Vue.js."
+  },
+  {
+    "id": "explore_0030",
+    "category": "explore",
+    "task_type": "single",
+    "input": "Django에서 구조 설계 해야 한다",
+    "output": "Have to do architecture design in Django."
+  },
+  {
+    "id": "explore_0031",
+    "category": "explore",
+    "task_type": "single",
+    "input": "FastAPI로 아키텍처 어떻게 해?",
+    "output": "How to do architecture in FastAPI."
+  },
+  {
+    "id": "explore_0032",
+    "category": "explore",
+    "task_type": "single",
+    "input": "리팩토링을 Express로 어떻게 구현해?",
+    "output": "How to implement refactoring in Express."
+  },
+  {
+    "id": "explore_0033",
+    "category": "explore",
+    "task_type": "single",
+    "input": "Next.js에서 성능 분석 가능한가?",
+    "output": "Is performance analysis possible in Next.js."
+  },
+  {
+    "id": "explore_0034",
+    "category": "explore",
+    "task_type": "single",
+    "input": "Java으로 메모리 관리 만들어줄래?",
+    "output": "Can you create memory management in Java."
+  },
+  {
+    "id": "explore_0035",
+    "category": "explore",
+    "task_type": "single",
+    "input": "C++로 병렬 처리 짜줄래?",
+    "output": "Write parallel processing in C++ for me."
+  },
+  {
+    "id": "explore_0036",
+    "category": "explore",
+    "task_type": "single",
+    "input": "비동기 처리을 Rust로 구현해줄래?",
+    "output": "Implement asynchronous processing in Rust."
+  },
+  {
+    "id": "explore_0037",
+    "category": "explore",
+    "task_type": "single",
+    "input": "Angular으로 주입 만들어줘",
+    "output": "Create injection in Angular."
+  },
+  {
+    "id": "explore_0038",
+    "category": "explore",
+    "task_type": "single",
+    "input": "Spring Boot로 패턴 짜줘",
+    "output": "Write pattern in Spring Boot."
+  },
+  {
+    "id": "explore_0039",
+    "category": "explore",
+    "task_type": "single",
+    "input": "모듈 GraphQL로 구현해줘",
+    "output": "Implement module in GraphQL."
+  },
+  {
+    "id": "explore_0040",
+    "category": "explore",
+    "task_type": "single",
+    "input": "REST으로 라우팅 만들어",
+    "output": "Create routing in REST."
+  },
+  {
+    "id": "explore_0041",
+    "category": "explore",
+    "task_type": "single",
+    "input": "필터링을 WebSocket로 작성해",
+    "output": "Write filtering in WebSocket."
+  },
+  {
+    "id": "explore_0042",
+    "category": "explore",
+    "task_type": "single",
+    "input": "Docker에서 정렬 구현해",
+    "output": "Implement sorting in Docker."
+  },
+  {
+    "id": "explore_0043",
+    "category": "explore",
+    "task_type": "single",
+    "input": "변환을 Kubernetes로 해야 해",
+    "output": "Need transformation in Kubernetes."
+  },
+  {
+    "id": "explore_0044",
+    "category": "explore",
+    "task_type": "single",
+    "input": "Flask으로 검증 작성해야 해",
+    "output": "Need to write validation in Flask."
+  },
+  {
+    "id": "explore_0045",
+    "category": "explore",
+    "task_type": "single",
+    "input": "추상화 NestJS로 구현해야 하는데",
+    "output": "abstraction implementation needed in NestJS."
+  },
+  {
+    "id": "explore_0046",
+    "category": "explore",
+    "task_type": "single",
+    "input": "Fastify으로 버블정렬 함수 한 번 만들어봐",
+    "output": "Try creating bubble sort function in Fastify."
+  },
+  {
+    "id": "explore_0047",
+    "category": "explore",
+    "task_type": "single",
+    "input": "CRUD API을 파이썬로 구현해봐",
+    "output": "Try implementing CRUD API in Python."
+  },
+  {
+    "id": "explore_0048",
+    "category": "explore",
+    "task_type": "single",
+    "input": "Node.js로 로그인 폼 작성해 봐",
+    "output": "Write login form in Node.js and see."
+  },
+  {
+    "id": "explore_0049",
+    "category": "explore",
+    "task_type": "single",
+    "input": "Go으로 데코레이터 할 수 있어?",
+    "output": "Can you do decorator in Go."
+  },
+  {
+    "id": "explore_0050",
+    "category": "explore",
+    "task_type": "single",
+    "input": "인터페이스을 TypeScript로 구현할 수 있어?",
+    "output": "Can interface be implemented in TypeScript."
+  },
+  {
+    "id": "explore_0051",
+    "category": "explore",
+    "task_type": "single",
+    "input": "리액트에서 미들웨어 가능해?",
+    "output": "Is middleware possible in React."
+  },
+  {
+    "id": "explore_0052",
+    "category": "explore",
+    "task_type": "single",
+    "input": "Vue.js으로 컴포넌트 만들어주세요",
+    "output": "Please create component in Vue.js."
+  },
+  {
+    "id": "explore_0053",
+    "category": "explore",
+    "task_type": "single",
+    "input": "설정 파일을 Django로 구현해주세요",
+    "output": "Please implement configuration file in Django."
+  },
+  {
+    "id": "explore_0054",
+    "category": "explore",
+    "task_type": "single",
+    "input": "FastAPI로 유효성 검사 작성해주세요",
+    "output": "Please write validation in FastAPI."
+  },
+  {
+    "id": "explore_0055",
+    "category": "explore",
+    "task_type": "single",
+    "input": "Express으로 캐싱 좀 만들어",
+    "output": "Make caching in Express for me."
+  },
+  {
+    "id": "explore_0056",
+    "category": "explore",
+    "task_type": "single",
+    "input": "에러 처리 Next.js로 짜줄래",
+    "output": "Code error handling in Next.js."
+  },
+  {
+    "id": "explore_0057",
+    "category": "explore",
+    "task_type": "single",
+    "input": "Java에 성능 최적화 있으면 좋겠는데",
+    "output": "I need performance optimization in Java."
+  },
+  {
+    "id": "explore_0058",
+    "category": "explore",
+    "task_type": "single",
+    "input": "보안을 C++로 구현했으면 좋겠어",
+    "output": "I wish security was implemented in C++."
+  },
+  {
+    "id": "explore_0059",
+    "category": "explore",
+    "task_type": "single",
+    "input": "Rust으로 모니터링 하면 좋을 것 같아",
+    "output": "monitoring in Rust would be nice."
+  },
+  {
+    "id": "explore_0060",
+    "category": "explore",
+    "task_type": "single",
+    "input": "배포을 Angular로 만들어줬으면",
+    "output": "Hope you can create deployment in Angular."
+  },
+  {
+    "id": "explore_0061",
+    "category": "explore",
+    "task_type": "single",
+    "input": "Spring Boot으로 마이그레이션가 필요한데",
+    "output": "Need migration in Spring Boot."
+  },
+  {
+    "id": "explore_0062",
+    "category": "explore",
+    "task_type": "single",
+    "input": "동기화을 GraphQL로 작업해야 하는데",
+    "output": "Need to work on synchronization in GraphQL."
+  },
+  {
+    "id": "explore_0063",
+    "category": "explore",
+    "task_type": "single",
+    "input": "REST에서 압축 해야 한다",
+    "output": "Have to do compression in REST."
+  },
+  {
+    "id": "explore_0064",
+    "category": "explore",
+    "task_type": "single",
+    "input": "WebSocket로 암호화 어떻게 해?",
+    "output": "How to do encryption in WebSocket."
+  },
+  {
+    "id": "explore_0065",
+    "category": "explore",
+    "task_type": "single",
+    "input": "직렬화을 Docker로 어떻게 구현해?",
+    "output": "How to implement serialization in Docker."
+  },
+  {
+    "id": "explore_0066",
+    "category": "explore",
+    "task_type": "single",
+    "input": "Kubernetes에서 인증 가능한가?",
+    "output": "Is authentication possible in Kubernetes."
+  },
+  {
+    "id": "explore_0067",
+    "category": "explore",
+    "task_type": "single",
+    "input": "Flask으로 로깅 만들어줄래?",
+    "output": "Can you create logging in Flask."
+  },
+  {
+    "id": "explore_0068",
+    "category": "explore",
+    "task_type": "single",
+    "input": "NestJS로 데이터 변환 짜줄래?",
+    "output": "Write data transformation in NestJS for me."
+  },
+  {
+    "id": "explore_0069",
+    "category": "explore",
+    "task_type": "single",
+    "input": "파일 관리을 Fastify로 구현해줄래?",
+    "output": "Implement file management in Fastify."
+  },
+  {
+    "id": "explore_0070",
+    "category": "explore",
+    "task_type": "single",
+    "input": "파이썬으로 네트워크 요청 만들어줘",
+    "output": "Create network request in Python."
+  },
+  {
+    "id": "explore_0071",
+    "category": "explore",
+    "task_type": "single",
+    "input": "Node.js로 이미지 처리 짜줘",
+    "output": "Write image processing in Node.js."
+  },
+  {
+    "id": "explore_0072",
+    "category": "explore",
+    "task_type": "single",
+    "input": "테스트 Go로 구현해줘",
+    "output": "Implement testing in Go."
+  },
+  {
+    "id": "explore_0073",
+    "category": "explore",
+    "task_type": "single",
+    "input": "TypeScript으로 문서화 만들어",
+    "output": "Create documentation in TypeScript."
+  },
+  {
+    "id": "explore_0074",
+    "category": "explore",
+    "task_type": "single",
+    "input": "계획 수립을 리액트로 작성해",
+    "output": "Write planning in React."
+  },
+  {
+    "id": "explore_0075",
+    "category": "explore",
+    "task_type": "single",
+    "input": "Vue.js에서 구조 설계 구현해",
+    "output": "Implement architecture design in Vue.js."
+  },
+  {
+    "id": "explore_0076",
+    "category": "explore",
+    "task_type": "single",
+    "input": "아키텍처을 Django로 해야 해",
+    "output": "Need architecture in Django."
+  },
+  {
+    "id": "explore_0077",
+    "category": "explore",
+    "task_type": "single",
+    "input": "FastAPI으로 리팩토링 작성해야 해",
+    "output": "Need to write refactoring in FastAPI."
+  },
+  {
+    "id": "explore_0078",
+    "category": "explore",
+    "task_type": "single",
+    "input": "성능 분석 Express로 구현해야 하는데",
+    "output": "performance analysis implementation needed in Express."
+  },
+  {
+    "id": "explore_0079",
+    "category": "explore",
+    "task_type": "single",
+    "input": "Next.js으로 메모리 관리 한 번 만들어봐",
+    "output": "Try creating memory management in Next.js."
+  },
+  {
+    "id": "explore_0080",
+    "category": "explore",
+    "task_type": "single",
+    "input": "병렬 처리을 Java로 구현해봐",
+    "output": "Try implementing parallel processing in Java."
+  },
+  {
+    "id": "explore_0081",
+    "category": "explore",
+    "task_type": "single",
+    "input": "C++로 비동기 처리 작성해 봐",
+    "output": "Write asynchronous processing in C++ and see."
+  },
+  {
+    "id": "explore_0082",
+    "category": "explore",
+    "task_type": "single",
+    "input": "Rust으로 주입 할 수 있어?",
+    "output": "Can you do injection in Rust."
+  },
+  {
+    "id": "explore_0083",
+    "category": "explore",
+    "task_type": "single",
+    "input": "패턴을 Angular로 구현할 수 있어?",
+    "output": "Can pattern be implemented in Angular."
+  },
+  {
+    "id": "explore_0084",
+    "category": "explore",
+    "task_type": "single",
+    "input": "Spring Boot에서 모듈 가능해?",
+    "output": "Is module possible in Spring Boot."
+  },
+  {
+    "id": "explore_0085",
+    "category": "explore",
+    "task_type": "single",
+    "input": "GraphQL으로 라우팅 만들어주세요",
+    "output": "Please create routing in GraphQL."
+  },
+  {
+    "id": "explore_0086",
+    "category": "explore",
+    "task_type": "single",
+    "input": "필터링을 REST로 구현해주세요",
+    "output": "Please implement filtering in REST."
+  },
+  {
+    "id": "explore_0087",
+    "category": "explore",
+    "task_type": "single",
+    "input": "WebSocket로 정렬 작성해주세요",
+    "output": "Please write sorting in WebSocket."
+  },
+  {
+    "id": "explore_0088",
+    "category": "explore",
+    "task_type": "single",
+    "input": "Docker으로 변환 좀 만들어",
+    "output": "Make transformation in Docker for me."
+  },
+  {
+    "id": "explore_0089",
+    "category": "explore",
+    "task_type": "single",
+    "input": "검증 Kubernetes로 짜줄래",
+    "output": "Code validation in Kubernetes."
+  },
+  {
+    "id": "explore_0090",
+    "category": "explore",
+    "task_type": "single",
+    "input": "Flask에 추상화 있으면 좋겠는데",
+    "output": "I need abstraction in Flask."
+  },
+  {
+    "id": "explore_0091",
+    "category": "explore",
+    "task_type": "single",
+    "input": "버블정렬 함수을 NestJS로 구현했으면 좋겠어",
+    "output": "I wish bubble sort function was implemented in NestJS."
+  },
+  {
+    "id": "explore_0092",
+    "category": "explore",
+    "task_type": "single",
+    "input": "Fastify으로 CRUD API 하면 좋을 것 같아",
+    "output": "CRUD API in Fastify would be nice."
+  },
+  {
+    "id": "explore_0093",
+    "category": "explore",
+    "task_type": "single",
+    "input": "로그인 폼을 파이썬로 만들어줬으면",
+    "output": "Hope you can create login form in Python."
+  },
+  {
+    "id": "explore_0094",
+    "category": "explore",
+    "task_type": "single",
+    "input": "Node.js으로 데코레이터가 필요한데",
+    "output": "Need decorator in Node.js."
+  },
+  {
+    "id": "explore_0095",
+    "category": "explore",
+    "task_type": "single",
+    "input": "인터페이스을 Go로 작업해야 하는데",
+    "output": "Need to work on interface in Go."
+  },
+  {
+    "id": "explore_0096",
+    "category": "explore",
+    "task_type": "single",
+    "input": "TypeScript에서 미들웨어 해야 한다",
+    "output": "Have to do middleware in TypeScript."
+  },
+  {
+    "id": "explore_0097",
+    "category": "explore",
+    "task_type": "single",
+    "input": "리액트로 컴포넌트 어떻게 해?",
+    "output": "How to do component in React."
+  },
+  {
+    "id": "explore_0098",
+    "category": "explore",
+    "task_type": "single",
+    "input": "설정 파일을 Vue.js로 어떻게 구현해?",
+    "output": "How to implement configuration file in Vue.js."
+  },
+  {
+    "id": "explore_0099",
+    "category": "explore",
+    "task_type": "single",
+    "input": "Django에서 유효성 검사 가능한가?",
+    "output": "Is validation possible in Django."
+  },
+  {
+    "id": "explore_0100",
+    "category": "explore",
+    "task_type": "single",
+    "input": "FastAPI으로 캐싱 만들어줄래?",
+    "output": "Can you create caching in FastAPI."
+  },
+  {
+    "id": "explore_0101",
+    "category": "explore",
+    "task_type": "single",
+    "input": "Express로 에러 처리 짜줄래?",
+    "output": "Write error handling in Express for me."
+  },
+  {
+    "id": "explore_0102",
+    "category": "explore",
+    "task_type": "single",
+    "input": "성능 최적화을 Next.js로 구현해줄래?",
+    "output": "Implement performance optimization in Next.js."
+  },
+  {
+    "id": "explore_0103",
+    "category": "explore",
+    "task_type": "single",
+    "input": "Java으로 보안 만들어줘",
+    "output": "Create security in Java."
+  },
+  {
+    "id": "explore_0104",
+    "category": "explore",
+    "task_type": "single",
+    "input": "C++로 모니터링 짜줘",
+    "output": "Write monitoring in C++."
+  },
+  {
+    "id": "explore_0105",
+    "category": "explore",
+    "task_type": "single",
+    "input": "배포 Rust로 구현해줘",
+    "output": "Implement deployment in Rust."
+  },
+  {
+    "id": "explore_0106",
+    "category": "explore",
+    "task_type": "single",
+    "input": "Angular으로 마이그레이션 만들어",
+    "output": "Create migration in Angular."
+  },
+  {
+    "id": "explore_0107",
+    "category": "explore",
+    "task_type": "single",
+    "input": "동기화을 Spring Boot로 작성해",
+    "output": "Write synchronization in Spring Boot."
+  },
+  {
+    "id": "explore_0108",
+    "category": "explore",
+    "task_type": "single",
+    "input": "GraphQL에서 압축 구현해",
+    "output": "Implement compression in GraphQL."
+  },
+  {
+    "id": "explore_0109",
+    "category": "explore",
+    "task_type": "single",
+    "input": "암호화을 REST로 해야 해",
+    "output": "Need encryption in REST."
+  },
+  {
+    "id": "explore_0110",
+    "category": "explore",
+    "task_type": "single",
+    "input": "WebSocket으로 직렬화 작성해야 해",
+    "output": "Need to write serialization in WebSocket."
+  },
+  {
+    "id": "explore_0111",
+    "category": "explore",
+    "task_type": "single",
+    "input": "인증 Docker로 구현해야 하는데",
+    "output": "authentication implementation needed in Docker."
+  },
+  {
+    "id": "explore_0112",
+    "category": "explore",
+    "task_type": "single",
+    "input": "Kubernetes으로 로깅 한 번 만들어봐",
+    "output": "Try creating logging in Kubernetes."
+  },
+  {
+    "id": "explore_0113",
+    "category": "explore",
+    "task_type": "single",
+    "input": "데이터 변환을 Flask로 구현해봐",
+    "output": "Try implementing data transformation in Flask."
+  },
+  {
+    "id": "explore_0114",
+    "category": "explore",
+    "task_type": "single",
+    "input": "NestJS로 파일 관리 작성해 봐",
+    "output": "Write file management in NestJS and see."
+  },
+  {
+    "id": "explore_0115",
+    "category": "explore",
+    "task_type": "single",
+    "input": "Fastify으로 네트워크 요청 할 수 있어?",
+    "output": "Can you do network request in Fastify."
+  },
+  {
+    "id": "explore_0116",
+    "category": "explore",
+    "task_type": "single",
+    "input": "이미지 처리을 파이썬로 구현할 수 있어?",
+    "output": "Can image processing be implemented in Python."
+  },
+  {
+    "id": "explore_0117",
+    "category": "explore",
+    "task_type": "single",
+    "input": "Node.js에서 테스트 가능해?",
+    "output": "Is testing possible in Node.js."
+  },
+  {
+    "id": "explore_0118",
+    "category": "explore",
+    "task_type": "single",
+    "input": "Go으로 문서화 만들어주세요",
+    "output": "Please create documentation in Go."
+  },
+  {
+    "id": "explore_0119",
+    "category": "explore",
+    "task_type": "single",
+    "input": "계획 수립을 TypeScript로 구현해주세요",
+    "output": "Please implement planning in TypeScript."
+  },
+  {
+    "id": "explore_0120",
+    "category": "explore",
+    "task_type": "single",
+    "input": "리액트로 구조 설계 작성해주세요",
+    "output": "Please write architecture design in React."
+  },
+  {
+    "id": "explore_0121",
+    "category": "explore",
+    "task_type": "single",
+    "input": "Vue.js으로 아키텍처 좀 만들어",
+    "output": "Make architecture in Vue.js for me."
+  },
+  {
+    "id": "explore_0122",
+    "category": "explore",
+    "task_type": "single",
+    "input": "리팩토링 Django로 짜줄래",
+    "output": "Code refactoring in Django."
+  },
+  {
+    "id": "explore_0123",
+    "category": "explore",
+    "task_type": "single",
+    "input": "FastAPI에 성능 분석 있으면 좋겠는데",
+    "output": "I need performance analysis in FastAPI."
+  },
+  {
+    "id": "explore_0124",
+    "category": "explore",
+    "task_type": "single",
+    "input": "메모리 관리을 Express로 구현했으면 좋겠어",
+    "output": "I wish memory management was implemented in Express."
+  },
+  {
+    "id": "explore_0125",
+    "category": "explore",
+    "task_type": "single",
+    "input": "Next.js으로 병렬 처리 하면 좋을 것 같아",
+    "output": "parallel processing in Next.js would be nice."
+  }
+]
