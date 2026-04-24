@@ -4,6 +4,7 @@
 
 detoks operates as a **stage-based pipeline** from input to output.
 
+
 <!-- 한국어 설명: detoks는 입력부터 결과 반환까지 여러 단계를 순차적으로 거치는 파이프라인 구조로 동작합니다. -->
 
 ---
@@ -46,6 +47,7 @@ detoks operates as a **stage-based pipeline** from input to output.
 
 - Decompose the work
 - Define dependencies
+<!-- 한국어 설명: Task Graph Builder는 요청을 작업으로 분류·세분화하고 작업 간 의존 관계를 정의합니다. -->
 <!-- 한국어 설명: Task Graph Builder는 요청을 작업으로 분류·세분화하고 작업 간 의존 관계를 정의합니다. -->
 
 ---

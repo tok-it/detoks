@@ -1,5 +1,4 @@
 import type { SessionState, ExecutionContext, Task } from '../../schemas/pipeline.js';
-import { ContextSelector } from './ContextSelector.js';
 import { ContextCompressor } from './ContextCompressor.js';
 import { ContextProcessingError } from '../errors/StateErrors.js';
 
@@ -21,7 +20,7 @@ export class ContextBuilder {
       const compressedState = ContextCompressor.compress(state);
 
       // 2. 의존성 결과 선택 — task.depends_on 기반으로 관련 결과만 선택
-      const selectedContext = ContextSelector.select(compressedState, task);
+      const selectedContext = this.selectDependencyResults(compressedState, task);
 
       // 3. 요약 생성
       const summary = this.generateContextSummary(
@@ -43,6 +42,32 @@ export class ContextBuilder {
         originalError: error.message,
       });
     }
+  }
+
+  private static selectDependencyResults(
+    state: SessionState,
+    targetTask: Task,
+  ): Record<string, unknown> {
+    const selected: Record<string, unknown> = {};
+    const taskResults = state.task_results || {};
+
+    for (const depId of targetTask.depends_on || []) {
+      if (!state.completed_task_ids.includes(depId)) {
+        continue;
+      }
+
+      const result = taskResults[depId];
+      if (!result) {
+        continue;
+      }
+
+      const res = result as any;
+      selected[depId] = res.structured_output
+        ? { summary: res.summary, ...res.structured_output }
+        : { summary: res.summary || 'Summary not available' };
+    }
+
+    return selected;
   }
 
   private static generateContextSummary(

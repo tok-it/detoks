@@ -20,6 +20,14 @@ detoks는 LLM CLI(codex, gemini 등) 앞단에서 동작하는 **interactive wra
 
 ---
 
+## 🖼 Preview
+
+<p align="center">
+  <img src="./content.png" alt="detoks content preview" width="720" />
+</p>
+
+---
+
 ## 📌 문제
 
 - 반복되는 컨텍스트 전달
@@ -54,6 +62,7 @@ User → detoks → LLM CLI → detoks → Output
 - [ROLES.md](./docs/ROLES.md)
 - [PROJECT_STRUCTURE.md](./docs/PROJECT_STRUCTURE.md)
 - [STACK_VERSIONS.md](./docs/STACK_VERSIONS.md)
+- [TMUX_WORKFLOW.md](./docs/my docs/TMUX_WORKFLOW.md)
 
 ---
 
