@@ -13,6 +13,9 @@ import {
   reassemble_spans,
   type TranslatableSpan,
 } from "./spans.js";
+import { clean_translation } from "./clean.js";
+import { repair_translation } from "../guardrails/repair.js";
+import { validate_translation } from "../guardrails/validator.js";
 
 export interface TranslateToEnglishOptions {
   config: Role1RuntimeConfig;
@@ -27,6 +30,17 @@ export interface TranslateToEnglishResult {
   spans: TranslatableSpan[];
   raw_responses: Record<string, unknown>[];
   inference_time_sec: number;
+  fallback_span_count: number;
+  span_results: TranslationSpanResult[];
+}
+
+export interface TranslationSpanResult {
+  source_text: string;
+  output_text: string;
+  status: "skipped" | "translated" | "fallback_succeeded" | "failed";
+  attempts: number;
+  validation_errors: string[];
+  repair_actions: string[];
 }
 
 const TRANSLATION_SYSTEM_PROMPT = [
@@ -40,40 +54,10 @@ function containsKorean(text: string): boolean {
   return /[가-힣]/.test(text);
 }
 
-export function clean_translation(
-  source_text: string,
-  translated_text: string,
-): string {
-  let cleaned = translated_text.trim();
-
-  const codeFenceMatch = cleaned.match(/^```[A-Za-z0-9_-]*\n([\s\S]*?)\n```$/);
-  if (codeFenceMatch) {
-    cleaned = codeFenceMatch[1]!.trim();
-  }
-
-  cleaned = cleaned.replace(
-    /^(?:translation|translated text|english translation|english)\s*:\s*/i,
-    "",
-  );
-
-  if (
-    !/^["'].*["']$/s.test(source_text.trim()) &&
-    ((cleaned.startsWith('"') && cleaned.endsWith('"')) ||
-      (cleaned.startsWith("'") && cleaned.endsWith("'")))
-  ) {
-    cleaned = cleaned.slice(1, -1).trim();
-  }
-
-  if (!/^\s*\d+[.)]\s+/.test(source_text)) {
-    cleaned = cleaned.replace(/^\s*\d+[.)]\s+/, "");
-  }
-
-  return cleaned.trim();
-}
-
 async function translate_span(
   span: TranslatableSpan,
   options: TranslateToEnglishOptions,
+  promptType: "primary" | "fallback" = "primary",
 ): Promise<LlmCompletionResponse | null> {
   if (!span.translate || !containsKorean(span.text)) {
     return null;
@@ -84,7 +68,10 @@ async function translate_span(
       messages: [
         {
           role: "system",
-          content: TRANSLATION_SYSTEM_PROMPT,
+          content:
+            promptType === "fallback"
+              ? `${TRANSLATION_SYSTEM_PROMPT} Return only the corrected English translation. Preserve placeholder count and order exactly.`
+              : TRANSLATION_SYSTEM_PROMPT,
         },
         {
           role: "user",
@@ -124,23 +111,117 @@ export async function translate_to_english(
   const translatedSpans: TranslatableSpan[] = [];
   const rawResponses: Record<string, unknown>[] = [];
   let inferenceTimeSec = 0;
+  let fallbackSpanCount = 0;
+  const spanResults: TranslationSpanResult[] = [];
 
   for (const span of spans) {
     const llmResponse = await translate_span(span, options);
     if (!llmResponse) {
       translatedSpans.push(span);
+      spanResults.push({
+        source_text: span.text,
+        output_text: span.text,
+        status: "skipped",
+        attempts: 0,
+        validation_errors: [],
+        repair_actions: [],
+      });
       continue;
     }
 
-    translatedSpans.push({
-      ...span,
-      text: clean_translation(span.text, llmResponse.content),
-    });
-
+    const cleaned = clean_translation(span.text, llmResponse.content);
     if (llmResponse.raw_response) {
       rawResponses.push(llmResponse.raw_response);
     }
     inferenceTimeSec += llmResponse.inference_time_sec ?? 0;
+
+    const placeholderTokens = masked.placeholders
+      .filter((entry) => span.text.includes(entry.placeholder))
+      .map((entry) => entry.placeholder);
+    const requiredTerms = Object.keys(options.policies.preferredTranslations)
+      .filter((term) => span.text.includes(term))
+      .map((term) => options.policies.preferredTranslations[term]!)
+      .filter(Boolean);
+    const initialValidation = validate_translation({
+      source_text: span.text,
+      compressed_prompt: cleaned,
+      placeholders: placeholderTokens,
+      protected_terms: options.policies.protectedTerms,
+      required_terms: requiredTerms,
+      forbidden_patterns: options.policies.forbiddenPatterns,
+    });
+    const repaired = repair_translation({
+      source_text: span.text,
+      compressed_prompt: initialValidation.output,
+      placeholders: placeholderTokens,
+      protected_terms: options.policies.protectedTerms,
+      required_terms: requiredTerms,
+      forbidden_patterns: options.policies.forbiddenPatterns,
+    });
+    const repairedValidation = validate_translation({
+      source_text: span.text,
+      compressed_prompt: repaired.output,
+      placeholders: placeholderTokens,
+      protected_terms: options.policies.protectedTerms,
+      required_terms: requiredTerms,
+      forbidden_patterns: options.policies.forbiddenPatterns,
+    });
+
+    let finalText = repaired.output;
+    let status: TranslationSpanResult["status"] = "translated";
+    let attempts = 1;
+    let validationErrors = repairedValidation.validation_errors;
+    const repairActions = repaired.repair_actions;
+
+    if (validationErrors.length > 0 && attempts < options.config.translationMaxAttempts) {
+      const fallbackResponse = await translate_span(span, options, "fallback");
+      attempts += 1;
+
+      if (fallbackResponse) {
+        fallbackSpanCount += 1;
+        const fallbackCleaned = clean_translation(span.text, fallbackResponse.content);
+        if (fallbackResponse.raw_response) {
+          rawResponses.push(fallbackResponse.raw_response);
+        }
+        inferenceTimeSec += fallbackResponse.inference_time_sec ?? 0;
+
+        const fallbackValidation = validate_translation({
+          source_text: span.text,
+          compressed_prompt: fallbackCleaned,
+          placeholders: placeholderTokens,
+          protected_terms: options.policies.protectedTerms,
+          required_terms: requiredTerms,
+          forbidden_patterns: options.policies.forbiddenPatterns,
+        });
+
+        if (fallbackValidation.validation_errors.length === 0) {
+          finalText = fallbackCleaned;
+          validationErrors = [];
+          status = "fallback_succeeded";
+        } else {
+          status = "failed";
+          validationErrors = fallbackValidation.validation_errors;
+          finalText = repaired.output;
+        }
+      } else {
+        status = "failed";
+      }
+    } else if (validationErrors.length > 0) {
+      status = "failed";
+    }
+
+    translatedSpans.push({
+      ...span,
+      text: finalText,
+    });
+    spanResults.push({
+      source_text: span.text,
+      output_text: finalText,
+      status,
+      attempts,
+      validation_errors: validationErrors,
+      repair_actions: repairActions,
+    });
   }
 
   const restoredText = restore_placeholders(
@@ -155,5 +236,7 @@ export async function translate_to_english(
     spans: translatedSpans,
     raw_responses: rawResponses,
     inference_time_sec: inferenceTimeSec,
+    fallback_span_count: fallbackSpanCount,
+    span_results: spanResults,
   };
 }
