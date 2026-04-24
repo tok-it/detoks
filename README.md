@@ -23,7 +23,7 @@ detoks는 LLM CLI(codex, gemini 등) 앞단에서 동작하는 **interactive wra
 ## 🖼 Preview
 
 <p align="center">
-  <img src="./content.png" alt="detoks content preview" width="512" height="512" />
+  <img src="./content.png" alt="detoks content preview" width="512" height="512" padding="20px" />
 </p>
 
 ## 📌 문제
