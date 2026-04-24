@@ -1,0 +1,16 @@
+{
+  "shared_context": {
+    "session_id": "f3c503ece9a1"
+  },
+  "task_results": {
+    "t1": {
+      "summary": "[stub:subprocess] codex",
+      "raw_output": "[stub:subprocess] codex"
+    }
+  },
+  "current_task_id": null,
+  "completed_task_ids": [
+    "t1"
+  ],
+  "updated_at": "2026-04-24T08:27:43.087Z"
+}

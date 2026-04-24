@@ -106,6 +106,22 @@ describe("TaskSentenceSplitter", () => {
     expect(result.sentences).toEqual(["find and replace all usages"]);
   });
 
+  it("splits comma-separated add step as separate task", () => {
+    const result = TaskSentenceSplitter.split("Create a module, add routes, and test it");
+
+    expect(result.sentences).toEqual([
+      "Create a module",
+      "add routes",
+      "test it",
+    ]);
+  });
+
+  it("does not let contraction swallow adjacent quoted string", () => {
+    const result = TaskSentenceSplitter.split("don't run 'npm test && npm run build'");
+
+    expect(result.sentences).toEqual(["don't run 'npm test && npm run build'"]);
+  });
+
   it("feeds split output into TaskGraphProcessor with sequential dependencies", () => {
     const compiled = TaskSentenceSplitter.split("Create a new endpoint and test it");
     const graph = TaskGraphProcessor.process(compiled);
