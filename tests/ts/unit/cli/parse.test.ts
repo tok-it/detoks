@@ -75,6 +75,9 @@ describe("parseCliArgs", () => {
 
   it("documents execution mode differences in main help", () => {
     const usage = getCliUsage("main");
+    expect(usage).toContain("Examples:");
+    expect(usage).toContain('detoks "summarize the current repo status"');
+    expect(usage).toContain("detoks repl --adapter codex --execution-mode stub");
     expect(usage).toContain("Execution mode:");
     expect(usage).toContain("stub = simulated output for fast, safe CLI testing");
     expect(usage).toContain("real = runs the adapter's real execution path");
@@ -83,6 +86,8 @@ describe("parseCliArgs", () => {
 
   it("documents execution mode differences in repl help", () => {
     const usage = getCliUsage("repl");
+    expect(usage).toContain("Example:");
+    expect(usage).toContain("detoks repl --adapter codex --execution-mode stub");
     expect(usage).toContain("execution-mode controls whether prompts use simulated or real execution");
     expect(usage).toContain("stub = simulated output for fast, safe CLI testing");
     expect(usage).toContain("real = runs the adapter's real execution path");
