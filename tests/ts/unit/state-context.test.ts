@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { StateValidator } from '../../../src/core/state/StateValidator.js';
 import { ContextSelector } from '../../../src/core/context/ContextSelector.js';
+import { ContextBuilder } from '../../../src/core/context/ContextBuilder.js';
 import { ContextCompressor } from '../../../src/core/context/ContextCompressor.js';
 import { StateValidationError } from '../../../src/core/errors/StateErrors.js';
 import type { SessionState, Task } from '../../../src/schemas/pipeline.js';
@@ -54,6 +55,28 @@ describe('State & Context Engine Unit Tests', () => {
 
       expect(selected['task-1']).toBeDefined();
       // task-2는 의존성에는 없지만 '최근 작업' 로직에 의해 포함될 수 있음 (ContextSelector 구현 참고)
+    });
+  });
+
+  describe('ContextBuilder', () => {
+    it('should build execution context from direct task dependencies only', () => {
+      const targetTask: Task = {
+        id: 'task-3',
+        type: 'modify',
+        status: 'pending',
+        title: 'Task 3',
+        input_hash: 'hash-3',
+        depends_on: ['task-1']
+      };
+
+      const context = ContextBuilder.build(mockState, targetTask);
+
+      expect(context.active_task_id).toBe('task-3');
+      expect(context.session_id).toBe('test-session');
+      expect(context.selected_context['task-1']).toBeDefined();
+      expect(context.selected_context['task-2']).toBeUndefined();
+      expect(context.context_summary).toContain('Project: DeToks Project');
+      expect(context.context_summary).toContain('Task [task-1]');
     });
   });
 

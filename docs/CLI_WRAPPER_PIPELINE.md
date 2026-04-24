@@ -39,6 +39,7 @@ The wrapper CLI may call all stages, but each stage still has its own owner.
 
 ### Role 1: AI Prompt Engineer
 
+
 - Prompt Compiler
 - Korean-to-English translation
 - Compressed English prompt handoff
@@ -52,11 +53,13 @@ The wrapper CLI may call all stages, but each stage still has its own owner.
 
 ### Role 2.2: State & Context Engineer
 
+
 - Context Optimizer
 - Output structuring support
 - State Manager logic
 
 ### Role 3: CLI / System Engineer
+
 
 - CLI entrypoint
 - REPL
@@ -74,12 +77,14 @@ The wrapper CLI may call all stages, but each stage still has its own owner.
 
 ### 1. CLI Input
 
+
 - receive raw text or command arguments
 - support interactive REPL and one-shot mode
 
 <!-- 한국어 설명: CLI는 대화형 REPL과 단발성 명령 실행을 모두 지원할 수 있어야 합니다. -->
 
 ### 2. Command Parsing
+
 
 - detect natural language input vs direct command mode
 - parse flags, adapter target, and output mode
@@ -88,12 +93,14 @@ The wrapper CLI may call all stages, but each stage still has its own owner.
 
 ### 3. Session / Mode Resolution
 
+
 - resolve current session
 - decide continue / reset / fork behavior
 
 <!-- 한국어 설명: 세션을 이어갈지, 초기화할지, 분기할지를 명확히 판단해야 합니다. -->
 
 ### 4. Prompt Compiler
+
 
 - normalize and compress intent
 - preserve constraints
@@ -120,7 +127,7 @@ The wrapper CLI may call all stages, but each stage still has its own owner.
 - split multi-step requests
 - define execution order
 
-<!-- 한국어 설명: 여러 단계가 필요한 요청은 작업 그래프로 변환되어야 합니다. -->
+<!-- 한국어 설명: 상위 분류(explore/create/modify/analyze/validate/execute/document/plan), 작업 추출, 실행 순서 정의는 Task Graph Builder에서 처리됩니다. -->
 
 ### 8. Context Optimizer
 
@@ -157,28 +164,34 @@ The wrapper CLI may call all stages, but each stage still has its own owner.
 
 ### Keep the CLI Thin
 
+
 - do not duplicate core logic inside `src/cli`
 - call `src/core/*` and `src/integrations/*` through explicit boundaries
 
 ### Do Not Collapse Ownership
 
+
 - Role 3 should orchestrate, not re-implement Role 1 / Role 2 responsibilities
 
 ### Preserve Stable Schema Contracts
+
 
 - use shared Zod schemas between layers
 - validate data at boundaries
 
 ### Design for Multi-Turn Sessions
 
+
 - support continue, reset, and fork clearly
 
 ### Keep Default Output Short
+
 
 - default to summarized output
 - allow verbose mode explicitly
 
 ### Handle Cross-Platform Execution
+
 
 - consider macOS / Windows path handling
 - consider shell quoting and subprocess behavior
@@ -191,32 +204,38 @@ The wrapper CLI may call all stages, but each stage still has its own owner.
 
 ### Phase 1
 
+
 - CLI entrypoint
 - REPL shell
 - one-shot command mode
 
 ### Phase 2
 
+
 - pipeline invocation wiring
 - structured request / response handling
 
 ### Phase 3
+
 
 - adapter execution
 - subprocess wrapper
 
 ### Phase 4
 
+
 - session persistence
 - checkpoint management
 
 ### Phase 5
+
 
 - error handling
 - verbose mode
 - UX polishing
 
 ### Phase 6
+
 
 - unit tests
 - integration tests
@@ -239,6 +258,14 @@ The wrapper CLI may call all stages, but each stage still has its own owner.
   - Role 1 validation and repair support
 - `src/core/llm-client/*`
   - llama.cpp client boundary
+- `src/core/translate/*`
+  - Role 1 translation pipeline
+- `src/core/prompt/*`
+  - Role 1 prompt compression
+- `src/core/guardrails/*`
+  - Role 1 validation and repair support
+- `src/core/llm-client/*`
+  - llama.cpp client boundary
 - `src/core/task-graph/*`
   - Role 2.1 request analysis, task graph generation, and dependency ordering
 - `src/core/context/*`
@@ -253,5 +280,8 @@ The wrapper CLI may call all stages, but each stage still has its own owner.
   - Role 3
 - `python/llama-server/*`
   - llama.cpp inference server only
+- `python/llama-server/*`
+  - llama.cpp inference server only
 
+<!-- 한국어 설명: 각 폴더의 책임을 유지해야 팀원 작업 영역이 겹치지 않고, CLI 계층이 다른 역할의 구현을 흡수하는 문제를 막을 수 있습니다. Python은 추론 서버에만 한정합니다. -->
 <!-- 한국어 설명: 각 폴더의 책임을 유지해야 팀원 작업 영역이 겹치지 않고, CLI 계층이 다른 역할의 구현을 흡수하는 문제를 막을 수 있습니다. Python은 추론 서버에만 한정합니다. -->

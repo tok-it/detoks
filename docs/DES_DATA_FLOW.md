@@ -1,4 +1,5 @@
 > Role 1이 입력을 “번역/압축된 프롬프트”로 만들고, Role 2.1이 그것을 “실행 가능한 작업 그래프”로 바꾸고, Role 3이 “실제 실행”으로 연결한다는 흐름입니다.
+> Role 1이 입력을 “번역/압축된 프롬프트”로 만들고, Role 2.1이 그것을 “실행 가능한 작업 그래프”로 바꾸고, Role 3이 “실제 실행”으로 연결한다는 흐름입니다.
 
 ## 가장 먼저 결론
 
@@ -18,6 +19,7 @@
 순서입니다.
 
 ---
+---
 
 # 역할 기준으로 보면
 
@@ -35,7 +37,12 @@
 사용자 자연어를 압축/정제한 결과
 
 ```ts
+```ts
 type CompiledPrompt = {
+	raw_input: string;
+	normalized_input: string;
+	compressed_prompt: string;
+	language: "ko" | "en" | "mixed";
 	raw_input: string;
 	normalized_input: string;
 	compressed_prompt: string;
@@ -58,6 +65,7 @@ type Role2PromptInput = {
 ### 의미
 
 Role 1은 task 분해, id 생성, type 지정, depends_on 생성을 하지 않습니다.
+Role 1은 task 분해, id 생성, type 지정, depends_on 생성을 하지 않습니다.
 
 - 입력을 보존하고
 - 한국어를 영어로 변환하고
@@ -65,11 +73,13 @@ Role 1은 task 분해, id 생성, type 지정, depends_on 생성을 하지 않�
 - 압축된 영문 프롬프트 전문을 `Role2PromptInput`으로 넘깁니다.
 
 ---
+---
 
 ## Role 2.1: Task Graph Engineer
 
 역할:
 
+- Request classification
 - Request classification
 - Task decomposition
 - Dependency management
@@ -100,7 +110,19 @@ type Task = {
 	depends_on: string[];
 	priority?: number;
 	owner_role?: "role1" | "role2.1" | "role2.2" | "role3";
+	id: string;
+	type: string;
+	title: string;
+	description?: string;
+	depends_on: string[];
+	priority?: number;
+	owner_role?: "role1" | "role2.1" | "role2.2" | "role3";
 };
+
+type TaskGraph = {
+	tasks: Task[];
+};
+```
 
 type TaskGraph = {
 	tasks: Task[];
@@ -113,11 +135,14 @@ Role 2.1의 책임은:
 
 - 요청을 작업 유형으로 분류하고
 - 작업을 실행 단위로 쪼개고
+- 요청을 작업 유형으로 분류하고
+- 작업을 실행 단위로 쪼개고
 - 순서를 정하고
 - 선행 작업을 명확히 하는 것
 
 입니다.
 
+---
 ---
 
 ## Role 2.2: State & Context Engineer
@@ -129,9 +154,11 @@ Role 2.1의 책임은:
 - Result structuring
 
 Role 2.2는 TaskGraph와 이전 결과를 받아서 지금 실행에 필요한 문맥만 남깁니다.
+Role 2.2는 TaskGraph와 이전 결과를 받아서 지금 실행에 필요한 문맥만 남깁니다.
 
 ### 공유해야 하는 데이터 5: ExecutionContext
 
+```ts
 ```ts
 type ExecutionContext = {
 	session_id: string;
@@ -139,11 +166,18 @@ type ExecutionContext = {
 	shared_context: Record<string, unknown>;
 	selected_context: Record<string, unknown>;
 	context_summary?: string;
+	session_id: string;
+	active_task_id: string;
+	shared_context: Record<string, unknown>;
+	selected_context: Record<string, unknown>;
+	context_summary?: string;
 };
+```
 ```
 
 ### 공유해야 하는 데이터 6: SessionState
 
+```ts
 ```ts
 type SessionState = {
 	shared_context: Record<string, unknown>;
@@ -152,17 +186,26 @@ type SessionState = {
 	completed_task_ids: string[];
 	last_summary?: string;
 	next_action?: string;
+	shared_context: Record<string, unknown>;
+	task_results: Record<string, unknown>;
+	current_task_id?: string;
+	completed_task_ids: string[];
+	last_summary?: string;
+	next_action?: string;
 };
+```
 ```
 
 ### 의미
 
+Role 2.2는:
 Role 2.2는:
 
 - 전체 세션을 계속 다 들고 가지 않고
 - 현재 필요한 문맥만 압축해서
 - 다음 턴에서도 재사용 가능하게 정리해야 합니다.
 
+---
 ---
 
 ## Role 3: CLI / System Engineer
@@ -174,9 +217,11 @@ Role 2.2는:
 - Adapter management
 
 Role 3는 앞 단계에서 정리된 구조를 받아 실제 Codex/Gemini/subprocess 실행으로 연결합니다.
+Role 3는 앞 단계에서 정리된 구조를 받아 실제 Codex/Gemini/subprocess 실행으로 연결합니다.
 
 ### 공유해야 하는 데이터 7: ExecutionRequest
 
+```ts
 ```ts
 type ExecutionRequest = {
 	task_id: string;
@@ -184,11 +229,18 @@ type ExecutionRequest = {
 	target: "codex" | "gemini";
 	context: ExecutionContext;
 	timeout_ms?: number;
+	task_id: string;
+	prompt: string;
+	target: "codex" | "gemini";
+	context: ExecutionContext;
+	timeout_ms?: number;
 };
+```
 ```
 
 ### 공유해야 하는 데이터 8: ExecutionResult
 
+```ts
 ```ts
 type ExecutionResult = {
 	task_id: string;
@@ -199,17 +251,28 @@ type ExecutionResult = {
 		code: string;
 		message: string;
 	};
+	task_id: string;
+	success: boolean;
+	raw_output: string;
+	structured_output?: Record<string, unknown>;
+	error?: {
+		code: string;
+		message: string;
+	};
 };
+```
 ```
 
 ### 의미
 
+Role 3는 의미 해석을 거의 하지 않고:
 Role 3는 의미 해석을 거의 하지 않고:
 
 - 입력을 실행기로 넘기고
 - 결과를 받아서
 - 다시 구조화된 결과로 반환하는 역할입니다.
 
+---
 ---
 
 # 결국 어떤 순서로 바뀌어야 하나
@@ -219,14 +282,19 @@ Role 3는 의미 해석을 거의 하지 않고:
 ### 1. 사용자 입력
 
 ```ts
+```ts
 type UserRequest = {
+	raw_input: string;
+	session_id?: string;
 	raw_input: string;
 	session_id?: string;
 };
 ```
+```
 
 ### 2. Prompt Compiler 결과
 
+UserRequest → CompiledPrompt
 UserRequest → CompiledPrompt
 
 ### 3. Sentence Compiler 결과
@@ -244,15 +312,19 @@ AnalyzedRequest → TaskGraph
 ### 6. Context Optimizer 결과
 
 TaskGraph + SessionState → ExecutionContext
+TaskGraph + SessionState → ExecutionContext
 
 ### 7. Executor 결과
 
+ExecutionContext + CompiledPrompt → ExecutionResult
 ExecutionContext + CompiledPrompt → ExecutionResult
 
 ### 8. Output Processor / State Manager 결과
 
 ExecutionResult → SessionState
+ExecutionResult → SessionState
 
+---
 ---
 
 # 가장 추천하는 Zod 구조 묶음
@@ -269,11 +341,13 @@ ExecutionResult → SessionState
 - SessionStateSchema
 
 ---
+---
 
 # 왜 이렇게 나눠야 하나
 
 ## 1. Role별 책임이 다름
 
+- Role 1: 번역/압축
 - Role 1: 번역/압축
 - Role 2.1: 작업화
 - Role 2.2: 상태/문맥화
@@ -281,6 +355,7 @@ ExecutionResult → SessionState
 
 ## 2. 중간 결과를 재사용 가능
 
+한 번 분석한 결과를:
 한 번 분석한 결과를:
 
 - 다시 실행할 수도 있고
@@ -291,6 +366,7 @@ ExecutionResult → SessionState
 
 - Prompt compile 문제인지
 - Translation guardrails 문제인지
+- Translation guardrails 문제인지
 - Task graph 문제인지
 - Context 문제인지
 - Executor 문제인지
@@ -298,11 +374,13 @@ ExecutionResult → SessionState
 분리되어야 바로 보입니다.
 
 ---
+---
 
 # 최종 추천
 
 이 프로젝트에서는 공유 구조를 아래처럼 가져가면 됩니다.
 
+```text
 ```text
 UserRequest
   -> CompiledPrompt
@@ -312,6 +390,7 @@ UserRequest
   -> ExecutionContext
   -> ExecutionResult
   -> SessionState
+```
 ```
 
 그리고 역할별 ownership은:

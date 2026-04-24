@@ -25,6 +25,7 @@ UserRequest
 
 ### Role 1: AI Prompt Engineer
 
+
 - produces `CompiledPrompt`
 - produces `Role2PromptInput`
 
@@ -35,10 +36,12 @@ UserRequest
 
 ### Role 2.2: State & Context Engineer
 
+
 - produces `ExecutionContext`
 - updates `SessionState`
 
 ### Role 3: CLI / System Engineer
+
 
 - consumes `ExecutionContext`
 - produces `ExecutionResult`
@@ -51,9 +54,11 @@ UserRequest
 
 ### 1. UserRequest
 
+
 Raw user input entering the system.
 
 ### 2. CompiledPrompt
+
 
 Compressed and normalized prompt output from the Prompt Compiler.
 
