@@ -1,6 +1,6 @@
 # 📊 Schema Flow
 
-detoks의 7단계 데이터 변환 흐름과 역할별 책임을 정의합니다.
+detoks의 8단계 데이터 변환 흐름과 역할별 책임을 정의합니다.
 
 > **정책**: [SHARED_DATA_FLOW.md](./SHARED_DATA_FLOW.md)에서 역할 간 데이터 공유 원칙을 참조하세요.
 
@@ -12,8 +12,10 @@ detoks의 7단계 데이터 변환 흐름과 역할별 책임을 정의합니다
 사용자 입력
   ↓ (Role 1)
 CompiledPrompt
-  ↓ (Role 1)
-CompiledSentences
+  ↓ (Role 1 → Role 2.1)
+Role2PromptInput
+  ↓ (Role 2.1)
+AnalyzedRequest
   ↓ (Role 2.1)
 TaskGraph
   ↓ (Role 2.2)
@@ -32,7 +34,6 @@ SessionState
 
 **책임:**
 - 한국어 → 영어 변환
-- 문장 단위 분리
 - 불필요한 정보 제거 (압축)
 
 **생성 데이터:**
@@ -48,28 +49,42 @@ type CompiledPrompt = {
 };
 ```
 
-#### 2. CompiledSentences
+#### 2. Role2PromptInput
 
 ```ts
-type CompiledSentences = {
-  sentences: string[];
+type Role2PromptInput = {
+  compiled_prompt: string;
 };
 ```
 
-**의미:** task 분해 / id / depends_on 생성은 Role 2.1 전담. Role 1은 전처리만 담당.
+**의미:** Role 1은 문장 단위 배열을 만들지 않고, `CompiledPrompt.compressed_prompt`를 `Role2PromptInput.compiled_prompt`로 Role 2.1에 전달한다. task 분해 / id / depends_on 생성은 Role 2.1 전담이다.
 
 ---
 
 ### Role 2.1: Task Graph Engineer
 
 **책임:**
+- 요청 분류
+- 키워드 추출
 - Task 세분화
 - 의존성 정의
 - 실행 순서 결정
 
 **생성 데이터:**
 
-#### 3. TaskGraph
+#### 3. AnalyzedRequest
+
+```ts
+type AnalyzedRequest = {
+  category: "explore" | "create" | "modify" | "analyze" | "validate" | "execute" | "document" | "plan";
+  keywords: string[];
+  tasks: Task[];
+};
+```
+
+`category`의 의미 기준은 `docs/TYPE_DEFINITION.md`를 따릅니다.
+
+#### 4. TaskGraph
 
 ```ts
 type Task = {
@@ -87,7 +102,9 @@ type TaskGraph = {
 };
 ```
 
-**의미:** 실행 가능한 그래프로 변환
+**입력:** `Role2PromptInput`
+
+**의미:** 압축된 영문 프롬프트 전문을 바탕으로 실행 가능한 그래프로 변환
 
 ---
 
@@ -100,7 +117,7 @@ type TaskGraph = {
 
 **생성 데이터:**
 
-#### 4. ExecutionContext
+#### 5. ExecutionContext
 
 ```ts
 type ExecutionContext = {
@@ -112,7 +129,7 @@ type ExecutionContext = {
 };
 ```
 
-#### 5. SessionState
+#### 6. SessionState
 
 ```ts
 type SessionState = {
@@ -138,7 +155,7 @@ type SessionState = {
 
 **생성 데이터:**
 
-#### 6. ExecutionRequest
+#### 7. ExecutionRequest
 
 ```ts
 type ExecutionRequest = {
@@ -150,7 +167,7 @@ type ExecutionRequest = {
 };
 ```
 
-#### 7. ExecutionResult
+#### 8. ExecutionResult
 
 ```ts
 type ExecutionResult = {
@@ -175,7 +192,8 @@ type ExecutionResult = {
 |--------|------|------|
 | UserRequest | User | 입력 |
 | CompiledPrompt | Role 1 | 생성 |
-| CompiledSentences | Role 1 | 생성 |
+| Role2PromptInput | Role 1 → Role 2.1 | 전달 |
+| AnalyzedRequest | Role 2.1 | 생성 |
 | TaskGraph | Role 2.1 | 생성 |
 | ExecutionContext | Role 2.2 | 생성 |
 | ExecutionRequest | Role 3 | 생성 |
@@ -188,7 +206,7 @@ type ExecutionResult = {
 
 ### 1. Role별 책임이 명확
 
-- **Role 1:** 해석만 담당
+- **Role 1:** 번역/압축만 담당
 - **Role 2.1:** 작업화만 담당
 - **Role 2.2:** 상태/문맥 관리
 - **Role 3:** 실행만 담당
@@ -216,7 +234,7 @@ type ExecutionResult = {
 ```ts
 UserRequestSchema
 CompiledPromptSchema
-CompiledSentencesSchema
+AnalyzedRequestSchema
 TaskSchema
 TaskGraphSchema
 ExecutionContextSchema

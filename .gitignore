@@ -73,6 +73,7 @@ daily-reports/
 test_data_role2/
 .state/
 etc_doc/
+docs/role1/
 
 # OS
 .DS_Store
