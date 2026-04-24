@@ -7,6 +7,7 @@ import {
   type Role2PromptInput,
 } from "../../schemas/pipeline.js";
 import { loadRole1Policies, loadRole1RuntimeConfig } from "./config.js";
+import { compress_prompt } from "./compression.js";
 import { translate_to_english } from "../translate/translate.js";
 
 const SUPPORTED_COMPRESSION_PROVIDER = "nlp_adapter";
@@ -34,10 +35,6 @@ function normalizeInput(rawInput: string): string {
     .replace(/[ \t]*\n[ \t]*/g, "\n")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
-}
-
-function compressPrompt(normalizedInput: string): string {
-  return normalizedInput;
 }
 
 export interface CompilePromptOptions {
@@ -77,20 +74,29 @@ export async function compilePrompt(
             : {}),
         });
   const translatedOutput = translationResult?.text ?? normalizedInput;
-  const compressedPrompt = compressPrompt(translatedOutput);
+  const compressionResult = compress_prompt(translatedOutput, {
+    policies,
+    ...(runtimeConfig.modelName
+      ? { modelName: runtimeConfig.modelName }
+      : {}),
+  });
+  const repairActions = [
+    ...(translationResult?.repair_actions ?? []),
+    ...compressionResult.repair_actions,
+  ];
 
   return PromptCompileResponseSchema.parse({
     raw_input: request.raw_input,
     normalized_input: translatedOutput,
-    compressed_prompt: compressedPrompt,
+    compressed_prompt: compressionResult.compressed_prompt,
     language,
     compression_provider: SUPPORTED_COMPRESSION_PROVIDER,
     ...(translationResult
       ? {
           validation_errors: translationResult.validation_errors,
-          repair_actions: translationResult.repair_actions,
         }
       : {}),
+    ...(repairActions.length > 0 ? { repair_actions: repairActions } : {}),
   });
 }
 

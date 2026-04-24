@@ -101,6 +101,8 @@ export const orchestratePipeline = async (
       rawOutput: "",
       sessionId,
       taskRecords: [],
+      compiledPrompt: compiledPrompt.compressed_prompt,
+      role2Handoff: role2PromptInput.compiled_prompt,
     };
   }
 
@@ -180,5 +182,7 @@ export const orchestratePipeline = async (
     rawOutput: taskRecords.map((r) => r.rawOutput).filter(Boolean).join("\n---\n"),
     sessionId,
     taskRecords,
+    compiledPrompt: compiledPrompt.compressed_prompt,
+    role2Handoff: role2PromptInput.compiled_prompt,
   };
 };
