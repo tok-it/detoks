@@ -69,6 +69,7 @@ yarn.lock
 
 # Project-specific
 .devlogs/
+daily-reports/
 
 # OS
 .DS_Store
