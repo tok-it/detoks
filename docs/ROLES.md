@@ -2,6 +2,7 @@
 
 ## Role 1: AI Prompt Engineer
 
+
 - Prompt compiler
 - Korean-to-English translation
 - Compressed English prompt handoff
@@ -21,6 +22,7 @@
 
 ## Role 2.2: State & Context Engineer
 
+
 - State management
 - Context compression
 - Result structuring
@@ -29,6 +31,7 @@
 ---
 
 ## Role 3: CLI / System Engineer
+
 
 - CLI implementation
 - Subprocess execution

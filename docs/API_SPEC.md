@@ -10,9 +10,11 @@ Instead, its primary APIs are the contracts between:
 - CLI layer
 - TypeScript core pipeline
 - llama.cpp inference client
+- llama.cpp inference client
 - CLI adapter integrations
 - state persistence layer
 
+<!-- 한국어 설명: 이 문서는 detoks의 현재 내부 API 계약을 정의합니다. 아직 외부 공개용 HTTP API는 없고, CLI·코어 파이프라인·llama.cpp 클라이언트·어댑터·상태 저장 계층 간의 인터페이스를 명세하는 문서입니다. -->
 <!-- 한국어 설명: 이 문서는 detoks의 현재 내부 API 계약을 정의합니다. 아직 외부 공개용 HTTP API는 없고, CLI·코어 파이프라인·llama.cpp 클라이언트·어댑터·상태 저장 계층 간의 인터페이스를 명세하는 문서입니다. -->
 
 ---
@@ -162,6 +164,7 @@ type CliOutput = {
 ## 2. Prompt Compiler API
 
 The Prompt Compiler compresses Korean user input into concise English prompts while preserving intent. It is implemented as TypeScript core logic under `src/core/prompt` and `src/core/translate`.
+The Prompt Compiler compresses Korean user input into concise English prompts while preserving intent. It is implemented as TypeScript core logic under `src/core/prompt` and `src/core/translate`.
 
 ### Request
 
@@ -186,6 +189,8 @@ type PromptCompressionProvider = "nlp_adapter" | "llm" | "small_model";
 
 ```ts
 type PromptCompileResponse = {
+  raw_input: string;
+  normalized_input: string;
   raw_input: string;
   normalized_input: string;
   compressed_prompt: string;
@@ -315,7 +320,6 @@ type RequestAnalyzeResponse = {
 ### Notes
 
 - category is a routing and orchestration label
-- semantic meaning of the eight task categories is defined in `docs/TYPE_DEFINITION.md`
 - keywords are used for context selection and later retrieval
 - tasks must be decomposed into executable units
 - Role 2.1 receives `Role2PromptInput`
@@ -333,7 +337,9 @@ The Task Graph Builder converts analyzed tasks into a dependency-aware graph.
 
 ```ts
 type TaskGraphBuildRequest = {
-  tasks: Task[];
+  compiled_prompt: string;
+  compiled_sentences: string[];
+  session_state?: SessionState;
 };
 ```
 
@@ -350,6 +356,7 @@ type TaskGraphBuildResponse = {
 - each task must have a unique `id`
 - `depends_on` must always exist
 - graph must be topologically executable
+- request classification and task extraction happen in this stage
 - request classification and task extraction happen in this stage
 
 <!-- 한국어 설명: Task Graph Builder는 작업 간 선후관계를 명확히 정의해 실제 실행 순서를 만들 수 있는 그래프로 변환해야 합니다. -->
@@ -400,12 +407,23 @@ All LLM interaction must go through `src/core/llm-client`.
 
 Core modules must not call llama.cpp or Python server implementation details directly.
 They must invoke model inference through `src/core/llm-client`.
+Core modules must not call llama.cpp or Python server implementation details directly.
+They must invoke model inference through `src/core/llm-client`.
 
+<!-- 한국어 설명: TypeScript core 모듈은 Python 서버 내부 구현을 직접 참조하지 않고, 정해진 llm-client 계층을 통해서만 모델 추론을 호출해야 합니다. -->
 <!-- 한국어 설명: TypeScript core 모듈은 Python 서버 내부 구현을 직접 참조하지 않고, 정해진 llm-client 계층을 통해서만 모델 추론을 호출해야 합니다. -->
 
 ### LLM Completion Request
+### LLM Completion Request
 
 ```ts
+type LlmCompletionRequest = {
+  messages: {
+    role: "system" | "user" | "assistant";
+    content: string;
+  }[];
+  temperature?: number;
+  timeout_ms?: number;
 type LlmCompletionRequest = {
   messages: {
     role: "system" | "user" | "assistant";
@@ -417,8 +435,13 @@ type LlmCompletionRequest = {
 ```
 
 ### LLM Completion Response
+### LLM Completion Response
 
 ```ts
+type LlmCompletionResponse = {
+  content: string;
+  raw_response?: Record<string, unknown>;
+  inference_time_sec?: number;
 type LlmCompletionResponse = {
   content: string;
   raw_response?: Record<string, unknown>;
@@ -431,7 +454,11 @@ type LlmCompletionResponse = {
 - OpenAI-compatible JSON request/response shape
 - explicit timeout handling
 - no direct dependency on Python modules from TypeScript
+- OpenAI-compatible JSON request/response shape
+- explicit timeout handling
+- no direct dependency on Python modules from TypeScript
 
+<!-- 한국어 설명: LLM client는 OpenAI-compatible JSON 요청/응답 형태를 사용하고, timeout과 오류를 명시적으로 처리해야 합니다. -->
 <!-- 한국어 설명: LLM client는 OpenAI-compatible JSON 요청/응답 형태를 사용하고, timeout과 오류를 명시적으로 처리해야 합니다. -->
 
 ---
@@ -577,6 +604,7 @@ Recommended internal error codes:
 
 - `INVALID_INPUT`
 - `VALIDATION_FAILED`
+- `LLM_CLIENT_FAILED`
 - `LLM_CLIENT_FAILED`
 - `ADAPTER_EXECUTION_FAILED`
 - `TIMEOUT`

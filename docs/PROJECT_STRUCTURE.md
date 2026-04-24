@@ -13,6 +13,10 @@ detoks/
 │       ├── models/
 │       ├── config/
 │       └── run.py
+│   └── llama-server/
+│       ├── models/
+│       ├── config/
+│       └── run.py
 ├── src/
 │   ├── cli/
 │   │   ├── commands/
@@ -28,6 +32,11 @@ detoks/
 │   │   ├── prompt/
 │   │   ├── guardrails/
 │   │   └── llm-client/
+│   │   ├── task-graph/
+│   │   ├── translate/
+│   │   ├── prompt/
+│   │   ├── guardrails/
+│   │   └── llm-client/
 │   ├── integrations/
 │   │   ├── adapters/
 │   │   │   ├── codex/
@@ -37,9 +46,6 @@ detoks/
 │   ├── types/
 │   └── utils/
 └── tests/
-    ├── python/
-    │   ├── integration/
-    │   └── unit/
     └── ts/
         ├── integration/
         └── unit/
@@ -57,6 +63,7 @@ detoks/
 ## Mapping
 
 - `python/llama-server`: Model loading, inference endpoint, server configuration
+- `python/llama-server`: Model loading, inference endpoint, server configuration
 - `src/cli`: CLI layer, REPL, and user-facing commands
 - `src/core/pipeline`: pipeline orchestration
 - `src/core/task-graph`: request analysis, task graph generation, and dependency ordering
@@ -64,6 +71,10 @@ detoks/
 - `src/core/output`: output summarization and result structuring
 - `src/core/state`: session state management
 - `src/core/executor`: execution flow coordination
+- `src/core/translate`: Korean-to-English translation pipeline
+- `src/core/prompt`: prompt compression
+- `src/core/guardrails`: validate and repair translated output
+- `src/core/llm-client`: handles communication with llama.cpp
 - `src/core/translate`: Korean-to-English translation pipeline
 - `src/core/prompt`: prompt compression
 - `src/core/guardrails`: validate and repair translated output
@@ -77,6 +88,12 @@ detoks/
 
 ## Design Rule
 
+- Core logic must reside under src/core
+- Translation, prompt processing, and LLM interaction are treated as core pipeline responsibilities
+- Python is limited to running the LLM server and must not contain application logic
+- All LLM interaction must go through src/core/llm-client
+- No direct dependency on Python modules from TypeScript
+- External integrations must remain isolated under src/integrations
 - Core logic must reside under src/core
 - Translation, prompt processing, and LLM interaction are treated as core pipeline responsibilities
 - Python is limited to running the LLM server and must not contain application logic

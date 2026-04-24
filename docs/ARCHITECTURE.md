@@ -4,6 +4,7 @@
 
 detoks is a **wrapper system** that operates in front of an LLM CLI.
 
+
 <!-- 한국어 설명: detoks는 LLM CLI 앞단에서 동작하며, 사용자 요청을 정리하고 실행 흐름을 통제하는 래퍼 시스템입니다. -->
 
 ---
@@ -50,6 +51,9 @@ User Output
 - Prompt processing
 - Translation guardrails
 - Request analysis
+- LLM client boundary
+- Prompt processing
+- Translation guardrails
 - LLM client boundary
 - State management
 <!-- 한국어 설명: Core Layer는 전체 실행 순서를 조율하고, 세션 상태를 일관되게 관리하는 중심 계층입니다. -->
