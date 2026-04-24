@@ -8,6 +8,8 @@ describe("formatSuccess", () => {
     adapter: "codex" as const,
     summary: "stub executor accepted prompt (12 chars)",
     nextAction: "connect core pipeline modules behind this boundary",
+    sessionId: "test-session",
+    taskRecords: [],
     stages: [
       { name: "Prompt Compiler", owner: "role1" as const, status: "stubbed" as const },
     ],

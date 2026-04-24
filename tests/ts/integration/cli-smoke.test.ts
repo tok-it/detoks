@@ -30,8 +30,8 @@ describe("detoks CLI smoke", () => {
       ok: true,
       mode: "run",
       adapter: "codex",
-      summary: "stub executor accepted prompt (12 chars)",
-      nextAction: "connect core pipeline modules behind this boundary",
+      summary: "All 1 task(s) completed",
+      nextAction: "Pipeline complete",
     });
     expect(defaultJson).not.toHaveProperty("stages");
     expect(defaultJson).not.toHaveProperty("rawOutput");
@@ -40,11 +40,12 @@ describe("detoks CLI smoke", () => {
       ok: true,
       mode: "run",
       adapter: "codex",
-      summary: "stub executor accepted prompt (12 chars)",
-      nextAction: "connect core pipeline modules behind this boundary",
-      rawOutput: "[stub:codex] hello detoks",
+      summary: "All 1 task(s) completed",
+      nextAction: "Pipeline complete",
+      rawOutput:
+        "[stub:codex] [EXECUTE] hello detoks\n\nContext: No previous task context available.",
     });
-    expect(verboseJson.stages).toHaveLength(6);
+    expect(verboseJson.stages).toHaveLength(5);
     expect(verboseJson).toHaveProperty("rawOutput");
     expect(verboseRun.stdout).not.toBe(defaultRun.stdout);
   });
