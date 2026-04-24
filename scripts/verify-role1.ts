@@ -2,7 +2,7 @@
 
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, join, resolve } from "node:path";
-import { compilePrompt, createRole2PromptInput } from "../src/core/prompt/compiler.js";
+import { runBatchPromptPipeline } from "../src/core/pipeline/batch.js";
 import { loadRole1RuntimeConfig } from "../src/core/prompt/config.js";
 
 interface VerifyOptions {
@@ -191,32 +191,26 @@ async function main(): Promise<void> {
     ),
   );
 
-  const results: VerificationItem[] = [];
+  const batchResult = await runBatchPromptPipeline(inputs, {
+    env: {
+      ...process.env,
+      ...(options.debug ? { PIPELINE_MODE: "debug" } : {}),
+    },
+  });
 
-  for (const [index, raw_input] of inputs.entries()) {
-    const compiled = await compilePrompt(
-      { raw_input },
-      {
-        env: {
-          ...process.env,
-          ...(options.debug ? { PIPELINE_MODE: "debug" } : {}),
-        },
-      },
-    );
-    const handoff = createRole2PromptInput(compiled);
-
-    const item: VerificationItem = {
+  const results: VerificationItem[] = batchResult.results.map((item, index) => {
+    return {
       index: options.index !== undefined ? options.index : index,
-      raw_input,
-      compiled_prompt: compiled.compressed_prompt,
-      role2_handoff: handoff.compiled_prompt,
-      language: compiled.language,
-      validation_errors: compiled.validation_errors ?? [],
-      repair_actions: compiled.repair_actions ?? [],
+      raw_input: item.raw_input,
+      compiled_prompt: item.compiled_prompt ?? "",
+      role2_handoff: item.role2_handoff ?? "",
+      language: item.language ?? "en",
+      validation_errors: item.validation_errors,
+      repair_actions: item.repair_actions,
     };
+  });
 
-    results.push(item);
-
+  for (const item of results) {
     console.log(
       JSON.stringify(
         {
@@ -230,6 +224,7 @@ async function main(): Promise<void> {
         null,
         2,
       ),
+      ),
     );
   }
 
@@ -241,12 +236,7 @@ async function main(): Promise<void> {
     writeFileSync(
       absoluteOutputPath,
       JSON.stringify(
-        {
-          generated_at: new Date().toISOString(),
-          pipeline_mode: options.debug ? "debug" : runtimeConfig.pipelineMode,
-          input_count: results.length,
-          results,
-        },
+        batchResult,
         null,
         2,
       ),

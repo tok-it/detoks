@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 
-import { formatError, formatSuccess } from "./format.js";
+import { formatBatchSuccess, formatError, formatSuccess } from "./format.js";
 import { getCliUsage, parseCliArgs, toNormalizedRequest } from "./parse.js";
+import { runBatchCommand } from "./commands/run-batch.js";
 import { runCommand } from "./commands/run.js";
 import { startRepl } from "./repl/index.js";
 
@@ -15,6 +16,12 @@ const main = async (): Promise<void> => {
 
   if (args.mode === "repl") {
     await startRepl(args);
+    return;
+  }
+
+  if (args.inputFile) {
+    const result = await runBatchCommand(args);
+    console.log(formatBatchSuccess(result, args.verbose));
     return;
   }
 

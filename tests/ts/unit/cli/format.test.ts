@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { formatError, formatSuccess } from "../../../../src/cli/format.js";
+import {
+  formatBatchSuccess,
+  formatError,
+  formatSuccess,
+} from "../../../../src/cli/format.js";
 
 describe("formatSuccess", () => {
   const result = {
@@ -53,5 +57,35 @@ describe("formatError", () => {
     expect(formatted.ok).toBe(false);
     expect(formatted.error).toBe("boom");
     expect(formatted.stack).toContain("Error: boom");
+  });
+});
+
+describe("formatBatchSuccess", () => {
+  const result = {
+    run_metadata: {
+      generated_at: "2026-04-24T00:00:00.000Z",
+      pipeline_mode: "safe" as const,
+      input_count: 2,
+    },
+    results: [
+      { index: 0, raw_input: "a", status: "completed" as const, validation_errors: [], repair_actions: [] },
+      { index: 1, raw_input: "b", status: "failed" as const, validation_errors: ["x"], repair_actions: [] },
+    ],
+  };
+
+  it("returns a concise batch payload by default", () => {
+    const formatted = JSON.parse(formatBatchSuccess(result, false));
+
+    expect(formatted).toEqual({
+      ok: false,
+      mode: "batch",
+      inputCount: 2,
+      completedCount: 1,
+      failedCount: 1,
+    });
+  });
+
+  it("returns the full batch payload in verbose mode", () => {
+    expect(JSON.parse(formatBatchSuccess(result, true))).toEqual(result);
   });
 });

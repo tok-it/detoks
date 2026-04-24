@@ -93,10 +93,18 @@ export async function compilePrompt(
     compression_provider: SUPPORTED_COMPRESSION_PROVIDER,
     ...(translationResult
       ? {
+          inference_time_sec: translationResult.inference_time_sec,
+        }
+      : {
+          inference_time_sec: 0,
+        }),
+    ...(translationResult
+      ? {
           validation_errors: translationResult.validation_errors,
         }
       : {}),
     ...(repairActions.length > 0 ? { repair_actions: repairActions } : {}),
+    ...(translationResult?.debug ? { debug: translationResult.debug } : {}),
   });
 }
 

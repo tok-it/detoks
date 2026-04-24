@@ -75,14 +75,35 @@ export const PromptCompressionProviderSchema = z.enum(
   PromptCompressionProviderValues,
 );
 
+const PromptCompileDebugSchema = z.object({
+  masked_text: z.string(),
+  placeholders: z.array(
+    z.object({
+      placeholder: z.string(),
+      original: z.string(),
+      kind: z.string(),
+    }),
+  ),
+  spans: z.array(
+    z.object({
+      kind: z.string(),
+      text: z.string(),
+      translate: z.boolean(),
+    }),
+  ),
+  fallback_span_count: z.number().int().min(0),
+});
+
 export const CompiledPromptSchema = z.object({
   raw_input: z.string(),
   normalized_input: z.string(),
   compressed_prompt: z.string(),
   language: z.enum(["ko", "en", "mixed"]),
   compression_provider: z.literal("nlp_adapter"),
+  inference_time_sec: z.number().min(0).optional(),
   validation_errors: z.array(z.string()).optional(),
   repair_actions: z.array(z.string()).optional(),
+  debug: PromptCompileDebugSchema.optional(),
 });
 
 export const Role2PromptInputSchema = z.object({
@@ -102,8 +123,36 @@ export const PromptCompileResponseSchema = z.object({
   compressed_prompt: z.string(),
   language: z.enum(["ko", "en", "mixed"]),
   compression_provider: z.literal("nlp_adapter"),
+  inference_time_sec: z.number().min(0).optional(),
   validation_errors: z.array(z.string()).optional(),
   repair_actions: z.array(z.string()).optional(),
+  debug: PromptCompileDebugSchema.optional(),
+});
+
+export const BatchRunMetadataSchema = z.object({
+  generated_at: z.string().datetime(),
+  pipeline_mode: z.enum(["safe", "debug"]),
+  input_count: z.number().int().nonnegative(),
+});
+
+export const BatchPipelineItemResultSchema = z.object({
+  index: z.number().int().nonnegative(),
+  raw_input: z.string(),
+  normalized_input: z.string().optional(),
+  compiled_prompt: z.string().optional(),
+  role2_handoff: z.string().optional(),
+  language: z.enum(["ko", "en", "mixed"]).optional(),
+  inference_time_sec: z.number().min(0).optional(),
+  status: z.enum(["completed", "failed"]),
+  validation_errors: z.array(z.string()).default([]),
+  repair_actions: z.array(z.string()).default([]),
+  error: z.string().optional(),
+  debug: PromptCompileDebugSchema.optional(),
+});
+
+export const BatchPipelineResultSchema = z.object({
+  run_metadata: BatchRunMetadataSchema,
+  results: z.array(BatchPipelineItemResultSchema),
 });
 
 export const TaskStatusSchema = z.enum([
@@ -196,6 +245,11 @@ export type CompiledPrompt = z.infer<typeof CompiledPromptSchema>;
 export type Role2PromptInput = z.infer<typeof Role2PromptInputSchema>;
 export type PromptCompileRequest = z.infer<typeof PromptCompileRequestSchema>;
 export type PromptCompileResponse = z.infer<typeof PromptCompileResponseSchema>;
+export type BatchRunMetadata = z.infer<typeof BatchRunMetadataSchema>;
+export type BatchPipelineItemResult = z.infer<
+  typeof BatchPipelineItemResultSchema
+>;
+export type BatchPipelineResult = z.infer<typeof BatchPipelineResultSchema>;
 export type TaskStatus = z.infer<typeof TaskStatusSchema>;
 export type Task = z.infer<typeof TaskSchema>;
 export type AnalyzedRequest = z.infer<typeof AnalyzedRequestSchema>;
