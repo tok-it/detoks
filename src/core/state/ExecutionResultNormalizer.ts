@@ -23,11 +23,16 @@ export class ExecutionResultNormalizer {
       };
 
       // 0. Summary 자동 추출 (없을 경우)
-      if (!normalized.summary && normalized.raw_output) {
-        // 첫 번째 줄 전체를 요약으로 활용 (너무 길지 않게 제한)
-        const lines = normalized.raw_output.split('\n');
-        const firstLine = lines[0]?.trim() || '';
-        normalized.summary = firstLine.length > 100 ? firstLine.substring(0, 97) + '...' : firstLine;
+      if (!normalized.summary) {
+        if (normalized.raw_output) {
+          // 첫 번째 줄 전체를 요약으로 활용 (너무 길지 않게 제한)
+          const lines = normalized.raw_output.split('\n');
+          const firstLine = lines[0]?.trim() || '';
+          normalized.summary = firstLine.length > 100 ? firstLine.substring(0, 97) + '...' : firstLine;
+        } else {
+          // raw_output가 없으면 상태 기반 기본 요약 제공
+          normalized.summary = normalized.success ? 'Task completed successfully' : 'Task execution failed';
+        }
       }
 
       // 1. 에러 정보 정규화 (exitCode나 stderr가 있을 경우)
