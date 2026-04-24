@@ -153,7 +153,7 @@ export class TaskSentenceSplitter {
   private static protectLiterals(text: string): { text: string; tokens: Map<string, string> } {
     const tokens = new Map<string, string>();
     let index = 0;
-    const protectedText = text.replace(/`[^`]*`|"[^"]*"/g, (match) => {
+    const protectedText = text.replace(/`[^`]*`|"[^"]*"|'[^']*'/g, (match) => {
       const token = `${PROTECTED_TOKEN_PREFIX}${index++}__`;
       tokens.set(token, match);
       return token;
@@ -227,7 +227,7 @@ export class TaskSentenceSplitter {
   }
 
   private static splitBeforeAfter(segment: string): string[] | null {
-    const match = /^(.*)\b(before|after)\b(.*)$/i.exec(segment);
+    const match = /^(.*?)\b(before|after)\b(.*)$/i.exec(segment);
     if (!match) return null;
 
     const left = this.cleanClause(match[1] ?? "");
@@ -263,7 +263,7 @@ export class TaskSentenceSplitter {
     if (!this.startsWithAction(left)) return [this.cleanClause(segment)].filter(Boolean);
     if (!this.startsWithFollowUpAction(right)) return [this.cleanClause(segment)].filter(Boolean);
 
-    return [left, right];
+    return [left, ...this.splitFollowUp(right)];
   }
 
   private static stripLeadingConnector(text: string): string {

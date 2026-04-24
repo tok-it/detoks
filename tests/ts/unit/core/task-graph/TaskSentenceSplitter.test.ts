@@ -82,6 +82,30 @@ describe("TaskSentenceSplitter", () => {
     ]);
   });
 
+  it("splits three-part and-chain into three sentences", () => {
+    const result = TaskSentenceSplitter.split(
+      "Implement auth flow and test it and document it",
+    );
+
+    expect(result.sentences).toEqual([
+      "Implement auth flow",
+      "test it",
+      "document it",
+    ]);
+  });
+
+  it("preserves single-quoted command content as one sentence", () => {
+    const result = TaskSentenceSplitter.split("Run 'npm test && npm run build'");
+
+    expect(result.sentences).toEqual(["Run 'npm test && npm run build'"]);
+  });
+
+  it("does not split and-as-compound-action phrases", () => {
+    const result = TaskSentenceSplitter.split("find and replace all usages");
+
+    expect(result.sentences).toEqual(["find and replace all usages"]);
+  });
+
   it("feeds split output into TaskGraphProcessor with sequential dependencies", () => {
     const compiled = TaskSentenceSplitter.split("Create a new endpoint and test it");
     const graph = TaskGraphProcessor.process(compiled);
