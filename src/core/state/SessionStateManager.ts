@@ -1,8 +1,11 @@
 import { promises as fs } from 'fs';
 import { join } from 'path';
+import { ZodError } from 'zod';
 import type { SessionState, Checkpoint } from '../../schemas/pipeline.js';
 import { SessionStateSchema, CheckpointSchema } from '../../schemas/pipeline.js';
 import { StateValidator } from './StateValidator.js';
+import { StateIOError, StateValidationError } from '../errors/StateErrors.js';
+import { logger } from '../utils/logger.js';
 
 const STATE_DIR = '.state';
 const SESSIONS_DIR = join(STATE_DIR, 'sessions');
@@ -13,32 +16,58 @@ export class SessionStateManager {
     try {
       await fs.mkdir(SESSIONS_DIR, { recursive: true });
       await fs.mkdir(CHECKPOINTS_DIR, { recursive: true });
-    } catch (error) {
-      throw new Error(`Failed to create state directories: ${error}`);
+    } catch (error: any) {
+      throw new StateIOError(`Failed to create state directories`, {
+        path: STATE_DIR,
+        originalError: error.message
+      });
     }
   };
 
   static async saveSession(state: SessionState): Promise<void> {
+    const sessionId = state.shared_context?.session_id as string || 'default';
     try {
       await this.ensureDirectories();
       // StateValidator를 사용하여 비즈니스 규칙 및 구조 검증
       const validated = StateValidator.validate(state);
-      const filePath = join(SESSIONS_DIR, `${validated.shared_context.session_id || 'default'}.json`);
+      const filePath = join(SESSIONS_DIR, `${sessionId}.json`);
       await fs.writeFile(filePath, JSON.stringify(validated, null, 2));
-    } catch (error) {
-      throw new Error(`Failed to save session: ${error}`);
+    } catch (error: any) {
+      if (error instanceof StateValidationError) throw error;
+      throw new StateIOError(`Failed to save session [${sessionId}]`, {
+        sessionId,
+        originalError: error.message
+      });
     }
   }
 
   static async loadSession(sessionId: string): Promise<SessionState> {
+    const filePath = join(SESSIONS_DIR, `${sessionId}.json`);
     try {
-      const filePath = join(SESSIONS_DIR, `${sessionId}.json`);
       const data = await fs.readFile(filePath, 'utf-8');
       const parsed = JSON.parse(data);
-      // 로드 시에도 검증 수행
       return StateValidator.validate(parsed);
-    } catch (error) {
-      throw new Error(`Failed to load session ${sessionId}: ${error}`);
+    } catch (error: unknown) {
+      if (error instanceof StateValidationError) throw error;
+      if (error instanceof SyntaxError) {
+        throw new StateIOError(`Session file [${sessionId}] is corrupted`, {
+          sessionId, path: filePath, originalError: error.message
+        });
+      }
+      const nodeError = error as NodeJS.ErrnoException;
+      if (nodeError.code === 'ENOENT') {
+        throw new StateIOError(`Session file not found [${sessionId}]`, {
+          sessionId, path: filePath, errorCode: 'ENOENT'
+        });
+      }
+      if (nodeError.code === 'EACCES') {
+        throw new StateIOError(`Permission denied reading session [${sessionId}]`, {
+          sessionId, path: filePath, errorCode: 'EACCES'
+        });
+      }
+      throw new StateIOError(`Failed to load session [${sessionId}]`, {
+        sessionId, path: filePath, originalError: error instanceof Error ? error.message : String(error)
+      });
     }
   }
 
@@ -59,19 +88,42 @@ export class SessionStateManager {
       const validated = CheckpointSchema.parse(checkpoint);
       const filePath = join(CHECKPOINTS_DIR, `${validated.id}.json`);
       await fs.writeFile(filePath, JSON.stringify(validated, null, 2));
-    } catch (error) {
-      throw new Error(`Failed to create checkpoint: ${error}`);
+    } catch (error: unknown) {
+      if (error instanceof ZodError) {
+        throw new StateValidationError(`Checkpoint validation failed`, {
+          checkpointId: checkpoint.id,
+          zodErrors: error.issues
+        });
+      }
+      throw new StateIOError(`Failed to create checkpoint [${checkpoint.id}]`, {
+        checkpointId: checkpoint.id,
+        originalError: error instanceof Error ? error.message : String(error)
+      });
     }
   }
 
   static async loadCheckpoint(checkpointId: string): Promise<Checkpoint> {
+    const filePath = join(CHECKPOINTS_DIR, `${checkpointId}.json`);
     try {
-      const filePath = join(CHECKPOINTS_DIR, `${checkpointId}.json`);
       const data = await fs.readFile(filePath, 'utf-8');
       const parsed = JSON.parse(data);
       return CheckpointSchema.parse(parsed);
-    } catch (error) {
-      throw new Error(`Failed to load checkpoint ${checkpointId}: ${error}`);
+    } catch (error: unknown) {
+      if (error instanceof ZodError) {
+        throw new StateValidationError(`Checkpoint [${checkpointId}] data is invalid`, {
+          checkpointId,
+          zodErrors: error.issues
+        });
+      }
+      const nodeError = error as NodeJS.ErrnoException;
+      if (nodeError.code === 'ENOENT') {
+        throw new StateIOError(`Checkpoint file not found [${checkpointId}]`, {
+          checkpointId, path: filePath, errorCode: 'ENOENT'
+        });
+      }
+      throw new StateIOError(`Failed to load checkpoint [${checkpointId}]`, {
+        checkpointId, path: filePath, originalError: error instanceof Error ? error.message : String(error)
+      });
     }
   }
 
@@ -83,11 +135,16 @@ export class SessionStateManager {
 
       for (const file of files) {
         if (file.endsWith('.json')) {
-          const data = await fs.readFile(join(CHECKPOINTS_DIR, file), 'utf-8');
-          const parsed = JSON.parse(data);
-          const checkpoint = CheckpointSchema.parse(parsed);
-          if (checkpoint.id.startsWith(sessionId)) {
-            checkpoints.push(checkpoint);
+          try {
+            const data = await fs.readFile(join(CHECKPOINTS_DIR, file), 'utf-8');
+            const parsed = JSON.parse(data);
+            const checkpoint = CheckpointSchema.parse(parsed);
+            if (checkpoint.id.startsWith(sessionId)) {
+              checkpoints.push(checkpoint);
+            }
+          } catch (e) {
+            logger.warn(`Failed to load checkpoint file [${file}], skipping.`, e);
+            continue;
           }
         }
       }
@@ -95,8 +152,11 @@ export class SessionStateManager {
       return checkpoints.sort((a, b) =>
         new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
       );
-    } catch (error) {
-      throw new Error(`Failed to list checkpoints: ${error}`);
+    } catch (error: any) {
+      throw new StateIOError(`Failed to list checkpoints for session [${sessionId}]`, {
+        sessionId,
+        originalError: error.message
+      });
     }
   }
 
@@ -104,8 +164,11 @@ export class SessionStateManager {
     try {
       const filePath = join(SESSIONS_DIR, `${sessionId}.json`);
       await fs.unlink(filePath);
-    } catch (error) {
-      throw new Error(`Failed to delete session ${sessionId}: ${error}`);
+    } catch (error: any) {
+      throw new StateIOError(`Failed to delete session [${sessionId}]`, {
+        sessionId,
+        originalError: error.message
+      });
     }
   }
 
@@ -113,8 +176,12 @@ export class SessionStateManager {
     try {
       const checkpoints = await this.listCheckpoints(sessionId);
       return checkpoints.length > 0 ? checkpoints[checkpoints.length - 1] : undefined;
-    } catch (error) {
-      throw new Error(`Failed to get latest checkpoint: ${error}`);
+    } catch (error: any) {
+      if (error instanceof StateIOError) throw error;
+      throw new StateIOError(`Failed to get latest checkpoint for [${sessionId}]`, {
+        sessionId,
+        originalError: error.message
+      });
     }
   }
 }
