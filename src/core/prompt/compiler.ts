@@ -6,6 +6,7 @@ import {
   type PromptCompileResponse,
   type Role2PromptInput,
 } from "../../schemas/pipeline.js";
+import { loadRole1Policies, loadRole1RuntimeConfig } from "./config.js";
 
 const SUPPORTED_COMPRESSION_PROVIDER = "nlp_adapter";
 
@@ -42,6 +43,8 @@ export function compilePrompt(
   input: PromptCompileRequest,
 ): PromptCompileResponse {
   const request = PromptCompileRequestSchema.parse(input);
+  loadRole1RuntimeConfig();
+  loadRole1Policies();
   const provider = request.compression_provider ?? SUPPORTED_COMPRESSION_PROVIDER;
 
   if (provider !== SUPPORTED_COMPRESSION_PROVIDER) {
