@@ -1,0 +1,352 @@
+[
+  {
+    "id": "execute_0001",
+    "category": "execute",
+    "task_type": "realworld_complex",
+    "input": "레거시 코드 때문에ㅇㅇ 배포 파이프라인 배포해줄 수 있어? 헬게이트. 자동으로 롤백할 수 있게하면서.",
+    "output": "Execute and automate process"
+  },
+  {
+    "id": "execute_0002",
+    "category": "execute",
+    "task_type": "realworld_complex",
+    "input": "최근 API 변경수정했거든?ㅇㅇ 배포 파이프라인 프로세스 자동화해줄래? 완전 피곤해. 다른 팀원들도 쉽게 사용할 수 있게하게.",
+    "output": "Execute and automate process"
+  },
+  {
+    "id": "execute_0003",
+    "category": "execute",
+    "task_type": "realworld_complex",
+    "input": "레거시 코드 때문에ㅇㅇ 마이그레이션 프로세스 자동화해줄래? 진짜 미침. 여러 환경에서 테스트해서하게.",
+    "output": "Execute and automate process"
+  },
+  {
+    "id": "execute_0004",
+    "category": "execute",
+    "task_type": "realworld_complex",
+    "input": "메모리 누수가 있는지 확인해ㅇㅇ 데이터 동기화 배포해줄 수 있어? 진짜 열받아. 문제 발생 시 알림까지하면서.",
+    "output": "Execute and automate process"
+  },
+  {
+    "id": "execute_0005",
+    "category": "execute",
+    "task_type": "realworld_complex",
+    "input": "동시성 문제가 있을 수 있어ㅇㅇ 로그 분석 프로세스 자동화해줄래? 이게 뭐하는 짓인데. 모니터링도 포함해서하게.",
+    "output": "Execute and automate process"
+  },
+  {
+    "id": "execute_0006",
+    "category": "execute",
+    "task_type": "realworld_complex",
+    "input": "DB가 느려지기 시작했어 캐시 갱신가 실패해도 CI/CD와 통합해서하게 처리해줄 수 있어? 살려줘.",
+    "output": "Execute and automate process"
+  },
+  {
+    "id": "execute_0007",
+    "category": "execute",
+    "task_type": "realworld_complex",
+    "input": "보안 이슈 떴거든? 복구가 실패해도 정기적으로 실행되게하게 처리해줄 수 있어? 뭐지 이게.",
+    "output": "Execute and automate process"
+  },
+  {
+    "id": "execute_0008",
+    "category": "execute",
+    "task_type": "realworld_complex",
+    "input": "배포 후에 문제 생겼어ㅇㅇ 캐시 갱신 작업을 병렬로 처리할 수 있게 해줄래? 으악. {detail}로.",
+    "output": "Execute and automate process"
+  },
+  {
+    "id": "execute_0009",
+    "category": "execute",
+    "task_type": "realworld_complex",
+    "input": "클라이언트가 요청해서 테스트 실행를 실행시켜줄 수 있어? 한숨...... 실제 환경에서 테스트해서까지 자동화해줄래?",
+    "output": "Execute and automate process"
+  },
+  {
+    "id": "execute_0010",
+    "category": "execute",
+    "task_type": "realworld_complex",
+    "input": "마이그레이션 진행 중이거든 데이터 동기화를 실행시켜줄 수 있어? 개좌절... 여러 환경에서 테스트해서까지 자동화해줄래?",
+    "output": "Execute and automate process"
+  },
+  {
+    "id": "execute_0011",
+    "category": "execute",
+    "task_type": "realworld_complex",
+    "input": "새로 추가된 기능 때문에ㅇㅇ 배포 파이프라인 프로세스 자동화해줄래? 개열받음. 여러 환경에서 테스트해서하게.",
+    "output": "Execute and automate process"
+  },
+  {
+    "id": "execute_0012",
+    "category": "execute",
+    "task_type": "realworld_complex",
+    "input": "메모리 누수가 있는지 확인해ㅇㅇ 복구 배포해줄 수 있어? 정신없어. 실패하면 재시도하고하면서.",
+    "output": "Execute and automate process"
+  },
+  {
+    "id": "execute_0013",
+    "category": "execute",
+    "task_type": "realworld_complex",
+    "input": "의존성 버전 올렸는데 데이터 동기화를 실행시켜줄 수 있어? 살려줘... 성능 기준을 정해서까지 자동화해줄래?",
+    "output": "Execute and automate process"
+  },
+  {
+    "id": "execute_0014",
+    "category": "execute",
+    "task_type": "realworld_complex",
+    "input": "테스트 코드가 자꾸 깨져 로그 분석를 실행시켜줄 수 있어? 완전 피곤해... 로그도 자세하게 남겨서까지 자동화해줄래?",
+    "output": "Execute and automate process"
+  },
+  {
+    "id": "execute_0015",
+    "category": "execute",
+    "task_type": "realworld_complex",
+    "input": "동료가 망쳤어 복구가 실패해도 자동으로 롤백할 수 있게하게 처리해줄 수 있어? 레전드임.",
+    "output": "Execute and automate process"
+  },
+  {
+    "id": "execute_0016",
+    "category": "execute",
+    "task_type": "realworld_complex",
+    "input": "트래픽이 갑자기 늘어나서ㅇㅇ 로그 분석 작업을 병렬로 처리할 수 있게 해줄래? 정신차려. {detail}로.",
+    "output": "Execute and automate process"
+  },
+  {
+    "id": "execute_0017",
+    "category": "execute",
+    "task_type": "realworld_complex",
+    "input": "동료가 망쳤어 캐시 갱신를 실행시켜줄 수 있어? 정신없어... 타임아웃 설정해서까지 자동화해줄래?",
+    "output": "Execute and automate process"
+  },
+  {
+    "id": "execute_0018",
+    "category": "execute",
+    "task_type": "realworld_complex",
+    "input": "메모리 누수가 있는지 확인해 테스트 실행를 실행시켜줄 수 있어? 헬게이트... 성공할 때까지 무한 루프로 돌려까지 자동화해줄래?",
+    "output": "Execute and automate process"
+  },
+  {
+    "id": "execute_0019",
+    "category": "execute",
+    "task_type": "realworld_complex",
+    "input": "클라이언트가 요청해서ㅇㅇ 데이터 동기화 작업을 병렬로 처리할 수 있게 해줄래? 정신차려. {detail}로.",
+    "output": "Execute and automate process"
+  },
+  {
+    "id": "execute_0020",
+    "category": "execute",
+    "task_type": "realworld_complex",
+    "input": "새로 추가된 기능 때문에 캐시 갱신를 실행시켜줄 수 있어? 개열받음... 다른 팀원들도 쉽게 사용할 수 있게까지 자동화해줄래?",
+    "output": "Execute and automate process"
+  },
+  {
+    "id": "execute_0021",
+    "category": "execute",
+    "task_type": "realworld_complex",
+    "input": "크로스 브라우징 이슈ㅇㅇ 배포 파이프라인 작업을 병렬로 처리할 수 있게 해줄래? 레전드임. {detail}로.",
+    "output": "Execute and automate process"
+  },
+  {
+    "id": "execute_0022",
+    "category": "execute",
+    "task_type": "realworld_complex",
+    "input": "최근 API 변경수정했거든?ㅇㅇ 캐시 갱신 작업을 병렬로 처리할 수 있게 해줄래? 살려줘. {detail}로.",
+    "output": "Execute and automate process"
+  },
+  {
+    "id": "execute_0023",
+    "category": "execute",
+    "task_type": "realworld_complex",
+    "input": "레거시 코드 때문에ㅇㅇ 캐시 갱신 배포해줄 수 있어? 완전 피곤해. 성공할 때까지 무한 루프로 돌려하면서.",
+    "output": "Execute and automate process"
+  },
+  {
+    "id": "execute_0024",
+    "category": "execute",
+    "task_type": "realworld_complex",
+    "input": "트래픽이 갑자기 늘어나서 백업를 실행시켜줄 수 있어? 뭐하는 고것들... 성공할 때까지 무한 루프로 돌려까지 자동화해줄래?",
+    "output": "Execute and automate process"
+  },
+  {
+    "id": "execute_0025",
+    "category": "execute",
+    "task_type": "realworld_complex",
+    "input": "새로 추가된 기능 때문에 복구가 실패해도 타임아웃 설정해서하게 처리해줄 수 있어? 정신없어.",
+    "output": "Execute and automate process"
+  },
+  {
+    "id": "execute_0026",
+    "category": "execute",
+    "task_type": "realworld_complex",
+    "input": "트래픽이 갑자기 늘어나서ㅇㅇ 로그 분석 작업을 병렬로 처리할 수 있게 해줄래? ㅠㅠ. {detail}로.",
+    "output": "Execute and automate process"
+  },
+  {
+    "id": "execute_0027",
+    "category": "execute",
+    "task_type": "realworld_complex",
+    "input": "최근 API 변경수정했거든? 백업를 실행시켜줄 수 있어? 헬게이트... 다른 팀원들도 쉽게 사용할 수 있게까지 자동화해줄래?",
+    "output": "Execute and automate process"
+  },
+  {
+    "id": "execute_0028",
+    "category": "execute",
+    "task_type": "realworld_complex",
+    "input": "의존성 버전 올렸는데 테스트 실행를 실행시켜줄 수 있어? 개열받음... 실패하면 재시도하고까지 자동화해줄래?",
+    "output": "Execute and automate process"
+  },
+  {
+    "id": "execute_0029",
+    "category": "execute",
+    "task_type": "realworld_complex",
+    "input": "최근 API 변경수정했거든? 로그 분석를 실행시켜줄 수 있어? 진짜 답답해... 모니터링도 포함해서까지 자동화해줄래?",
+    "output": "Execute and automate process"
+  },
+  {
+    "id": "execute_0030",
+    "category": "execute",
+    "task_type": "realworld_complex",
+    "input": "동료가 망쳤어 캐시 갱신를 실행시켜줄 수 있어? 정신없어... 실패하면 재시도하고까지 자동화해줄래?",
+    "output": "Execute and automate process"
+  },
+  {
+    "id": "execute_0031",
+    "category": "execute",
+    "task_type": "realworld_complex",
+    "input": "마이그레이션 진행 중이거든ㅇㅇ 배포 파이프라인 프로세스 자동화해줄래? 정신없어. 실패하면 재시도하고하게.",
+    "output": "Execute and automate process"
+  },
+  {
+    "id": "execute_0032",
+    "category": "execute",
+    "task_type": "realworld_complex",
+    "input": "메모리 누수가 있는지 확인해 복구를 실행시켜줄 수 있어? ㅠㅠ... 여러 환경에서 테스트해서까지 자동화해줄래?",
+    "output": "Execute and automate process"
+  },
+  {
+    "id": "execute_0033",
+    "category": "execute",
+    "task_type": "realworld_complex",
+    "input": "배포 후에 문제 생겼어ㅇㅇ 복구 작업을 병렬로 처리할 수 있게 해줄래? 완전 피곤해. {detail}로.",
+    "output": "Execute and automate process"
+  },
+  {
+    "id": "execute_0034",
+    "category": "execute",
+    "task_type": "realworld_complex",
+    "input": "의존성 버전 올렸는데 로그 분석가 실패해도 여러 환경에서 테스트해서하게 처리해줄 수 있어? 개열받음.",
+    "output": "Execute and automate process"
+  },
+  {
+    "id": "execute_0035",
+    "category": "execute",
+    "task_type": "realworld_complex",
+    "input": "의존성 버전 올렸는데ㅇㅇ 백업 배포해줄 수 있어? 한숨.... GitHub Actions에 붙여넣을 수 있게하면서.",
+    "output": "Execute and automate process"
+  },
+  {
+    "id": "execute_0036",
+    "category": "execute",
+    "task_type": "realworld_complex",
+    "input": "DB가 느려지기 시작했어 데이터 동기화를 실행시켜줄 수 있어? 헬게이트... 정기적으로 실행되게까지 자동화해줄래?",
+    "output": "Execute and automate process"
+  },
+  {
+    "id": "execute_0037",
+    "category": "execute",
+    "task_type": "realworld_complex",
+    "input": "트래픽이 갑자기 늘어나서ㅇㅇ 백업 프로세스 자동화해줄래? 진짜 열받아. 자동으로 롤백할 수 있게하게.",
+    "output": "Execute and automate process"
+  },
+  {
+    "id": "execute_0038",
+    "category": "execute",
+    "task_type": "realworld_complex",
+    "input": "클라이언트가 요청해서 캐시 갱신가 실패해도 GitHub Actions에 붙여넣을 수 있게하게 처리해줄 수 있어? 뭐지 이게.",
+    "output": "Execute and automate process"
+  },
+  {
+    "id": "execute_0039",
+    "category": "execute",
+    "task_type": "realworld_complex",
+    "input": "새로 추가된 기능 때문에ㅇㅇ 데이터 동기화 배포해줄 수 있어? 완전 피곤해. 타임아웃 설정해서하면서.",
+    "output": "Execute and automate process"
+  },
+  {
+    "id": "execute_0040",
+    "category": "execute",
+    "task_type": "realworld_complex",
+    "input": "새로 추가된 기능 때문에ㅇㅇ 테스트 실행 프로세스 자동화해줄래? 정신없어. 실패하면 재시도하고하게.",
+    "output": "Execute and automate process"
+  },
+  {
+    "id": "execute_0041",
+    "category": "execute",
+    "task_type": "realworld_complex",
+    "input": "메모리 누수가 있는지 확인해 캐시 갱신를 실행시켜줄 수 있어? 멘붕... 성공할 때까지 무한 루프로 돌려까지 자동화해줄래?",
+    "output": "Execute and automate process"
+  },
+  {
+    "id": "execute_0042",
+    "category": "execute",
+    "task_type": "realworld_complex",
+    "input": "마이그레이션 진행 중이거든 복구를 실행시켜줄 수 있어? 레전드임... 성능 기준을 정해서까지 자동화해줄래?",
+    "output": "Execute and automate process"
+  },
+  {
+    "id": "execute_0043",
+    "category": "execute",
+    "task_type": "realworld_complex",
+    "input": "크로스 브라우징 이슈ㅇㅇ 데이터 동기화 프로세스 자동화해줄래? 정신없어. 성공할 때까지 무한 루프로 돌려하게.",
+    "output": "Execute and automate process"
+  },
+  {
+    "id": "execute_0044",
+    "category": "execute",
+    "task_type": "realworld_complex",
+    "input": "동시성 문제가 있을 수 있어ㅇㅇ 마이그레이션 배포해줄 수 있어? ㅠㅠ. 결과를 대시보드에 띄워서하면서.",
+    "output": "Execute and automate process"
+  },
+  {
+    "id": "execute_0045",
+    "category": "execute",
+    "task_type": "realworld_complex",
+    "input": "테스트 코드가 자꾸 깨져ㅇㅇ 배포 파이프라인 프로세스 자동화해줄래? 진짜 열받아. 결과를 대시보드에 띄워서하게.",
+    "output": "Execute and automate process"
+  },
+  {
+    "id": "execute_0046",
+    "category": "execute",
+    "task_type": "realworld_complex",
+    "input": "동료가 망쳤어ㅇㅇ 캐시 갱신 작업을 병렬로 처리할 수 있게 해줄래? 살려줘. {detail}로.",
+    "output": "Execute and automate process"
+  },
+  {
+    "id": "execute_0047",
+    "category": "execute",
+    "task_type": "realworld_complex",
+    "input": "DB가 느려지기 시작했어 데이터 동기화를 실행시켜줄 수 있어? 레전드임... 성능 기준을 정해서까지 자동화해줄래?",
+    "output": "Execute and automate process"
+  },
+  {
+    "id": "execute_0048",
+    "category": "execute",
+    "task_type": "realworld_complex",
+    "input": "DB가 느려지기 시작했어ㅇㅇ 백업 프로세스 자동화해줄래? 진짜 열받아. CI/CD와 통합해서하게.",
+    "output": "Execute and automate process"
+  },
+  {
+    "id": "execute_0049",
+    "category": "execute",
+    "task_type": "realworld_complex",
+    "input": "배포 후에 문제 생겼어ㅇㅇ 로그 분석 프로세스 자동화해줄래? 으악. 성능 기준을 정해서하게.",
+    "output": "Execute and automate process"
+  },
+  {
+    "id": "execute_0050",
+    "category": "execute",
+    "task_type": "realworld_complex",
+    "input": "마이그레이션 진행 중이거든 복구를 실행시켜줄 수 있어? 진짜 답답해... 결과를 대시보드에 띄워서까지 자동화해줄래?",
+    "output": "Execute and automate process"
+  }
+]

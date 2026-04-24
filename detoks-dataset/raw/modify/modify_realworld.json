@@ -1,0 +1,352 @@
+[
+  {
+    "id": "modify_0001",
+    "category": "modify",
+    "task_type": "realworld_complex",
+    "input": "의존성 버전 올렸는데ㅇㅇ 메모리 누수 제거가 병목이네. 한숨..... 정기적으로 실행되게하면서 최적화해줄래?",
+    "output": "Refactor and optimize code"
+  },
+  {
+    "id": "modify_0002",
+    "category": "modify",
+    "task_type": "realworld_complex",
+    "input": "새로 추가된 기능 때문에ㅇㅇ 보안 강화가 병목이네. 개열받음.. 다른 팀원들도 쉽게 사용할 수 있게하면서 최적화해줄래?",
+    "output": "Refactor and optimize code"
+  },
+  {
+    "id": "modify_0003",
+    "category": "modify",
+    "task_type": "realworld_complex",
+    "input": "메모리 누수가 있는지 확인해ㅇㅇ 데이터베이스 인덱싱가 병목이네. 진짜 답답해.. 정기적으로 실행되게하면서 최적화해줄래?",
+    "output": "Refactor and optimize code"
+  },
+  {
+    "id": "modify_0004",
+    "category": "modify",
+    "task_type": "realworld_complex",
+    "input": "마이그레이션 진행 중이거든ㅇㅇ 성능 최적화가 병목이네. 미칠 노릇이야.. 결과를 대시보드에 띄워서하면서 최적화해줄래?",
+    "output": "Refactor and optimize code"
+  },
+  {
+    "id": "modify_0005",
+    "category": "modify",
+    "task_type": "realworld_complex",
+    "input": "의존성 버전 올렸는데 암튼 코드 리팩토링를 성공할 때까지 무한 루프로 돌려로 리팩토링해줄 수 있어? 진짜 열받아. 빨리.",
+    "output": "Refactor and optimize code"
+  },
+  {
+    "id": "modify_0006",
+    "category": "modify",
+    "task_type": "realworld_complex",
+    "input": "최근 API 변경수정했거든? 암튼 보안 강화를 자동으로 롤백할 수 있게로 리팩토링해줄 수 있어? 미칠 노릇이야. 빨리.",
+    "output": "Refactor and optimize code"
+  },
+  {
+    "id": "modify_0007",
+    "category": "modify",
+    "task_type": "realworld_complex",
+    "input": "새로 추가된 기능 때문에 메모리 누수 제거를 개선해야 하는데... 진짜 미침 성공할 때까지 무한 루프로 돌려 방식으로 해줄 수 있어?",
+    "output": "Refactor and optimize code"
+  },
+  {
+    "id": "modify_0008",
+    "category": "modify",
+    "task_type": "realworld_complex",
+    "input": "마이그레이션 진행 중이거든ㅇㅇ 알고리즘 개선가 병목이네. 완전 피곤해.. 문제 발생 시 알림까지하면서 최적화해줄래?",
+    "output": "Refactor and optimize code"
+  },
+  {
+    "id": "modify_0009",
+    "category": "modify",
+    "task_type": "realworld_complex",
+    "input": "동료가 망쳤어 캐시 전략를 개선해야 하는데... 헬게이트 CI/CD와 통합해서 방식으로 해줄 수 있어?",
+    "output": "Refactor and optimize code"
+  },
+  {
+    "id": "modify_0010",
+    "category": "modify",
+    "task_type": "realworld_complex",
+    "input": "레거시 코드 때문에ㅇㅇ 성능 최적화가 문제야. 완전 피곤해. 지금 구현된 거 CI/CD와 통합해서에서 개선해줄 수 있어?",
+    "output": "Refactor and optimize code"
+  },
+  {
+    "id": "modify_0011",
+    "category": "modify",
+    "task_type": "realworld_complex",
+    "input": "트래픽이 갑자기 늘어나서 그래서 렌더링 개선 코드를 수정해야 해. 진짜 답답해... 타임아웃 설정해서까지 고려해줄래?",
+    "output": "Refactor and optimize code"
+  },
+  {
+    "id": "modify_0012",
+    "category": "modify",
+    "task_type": "realworld_complex",
+    "input": "새로 추가된 기능 때문에 그래서 데이터베이스 인덱싱 코드를 수정해야 해. 레전드임... 자동으로 롤백할 수 있게까지 고려해줄래?",
+    "output": "Refactor and optimize code"
+  },
+  {
+    "id": "modify_0013",
+    "category": "modify",
+    "task_type": "realworld_complex",
+    "input": "테스트 코드가 자꾸 깨져 보안 강화를 개선해야 하는데... 뭐지 이게 CI/CD와 통합해서 방식으로 해줄 수 있어?",
+    "output": "Refactor and optimize code"
+  },
+  {
+    "id": "modify_0014",
+    "category": "modify",
+    "task_type": "realworld_complex",
+    "input": "동료가 망쳤어ㅇㅇ 코드 리팩토링가 병목이네. 진짜 미침.. 문제 발생 시 알림까지하면서 최적화해줄래?",
+    "output": "Refactor and optimize code"
+  },
+  {
+    "id": "modify_0015",
+    "category": "modify",
+    "task_type": "realworld_complex",
+    "input": "클라이언트가 요청해서ㅇㅇ 렌더링 개선가 병목이네. 진짜 열받아.. 정기적으로 실행되게하면서 최적화해줄래?",
+    "output": "Refactor and optimize code"
+  },
+  {
+    "id": "modify_0016",
+    "category": "modify",
+    "task_type": "realworld_complex",
+    "input": "동시성 문제가 있을 수 있어 암튼 캐시 전략를 GitHub Actions에 붙여넣을 수 있게로 리팩토링해줄 수 있어? 미칠 노릇이야. 빨리.",
+    "output": "Refactor and optimize code"
+  },
+  {
+    "id": "modify_0017",
+    "category": "modify",
+    "task_type": "realworld_complex",
+    "input": "마이그레이션 진행 중이거든 암튼 알고리즘 개선를 정기적으로 실행되게로 리팩토링해줄 수 있어? 완전 피곤해. 빨리.",
+    "output": "Refactor and optimize code"
+  },
+  {
+    "id": "modify_0018",
+    "category": "modify",
+    "task_type": "realworld_complex",
+    "input": "새로 추가된 기능 때문에 그래서 메모리 누수 제거 코드를 수정해야 해. ㅠㅠ... 로그도 자세하게 남겨서까지 고려해줄래?",
+    "output": "Refactor and optimize code"
+  },
+  {
+    "id": "modify_0019",
+    "category": "modify",
+    "task_type": "realworld_complex",
+    "input": "동시성 문제가 있을 수 있어 암튼 코드 리팩토링를 성공할 때까지 무한 루프로 돌려로 리팩토링해줄 수 있어? 멘붕. 빨리.",
+    "output": "Refactor and optimize code"
+  },
+  {
+    "id": "modify_0020",
+    "category": "modify",
+    "task_type": "realworld_complex",
+    "input": "테스트 코드가 자꾸 깨져ㅇㅇ 캐시 전략가 병목이네. 레전드임.. 실패하면 재시도하고하면서 최적화해줄래?",
+    "output": "Refactor and optimize code"
+  },
+  {
+    "id": "modify_0021",
+    "category": "modify",
+    "task_type": "realworld_complex",
+    "input": "마이그레이션 진행 중이거든 암튼 렌더링 개선를 로그도 자세하게 남겨서로 리팩토링해줄 수 있어? 미칠 노릇이야. 빨리.",
+    "output": "Refactor and optimize code"
+  },
+  {
+    "id": "modify_0022",
+    "category": "modify",
+    "task_type": "realworld_complex",
+    "input": "마이그레이션 진행 중이거든 그래서 데이터베이스 인덱싱 코드를 수정해야 해. 으악... 다른 팀원들도 쉽게 사용할 수 있게까지 고려해줄래?",
+    "output": "Refactor and optimize code"
+  },
+  {
+    "id": "modify_0023",
+    "category": "modify",
+    "task_type": "realworld_complex",
+    "input": "보안 이슈 떴거든? 캐시 전략를 개선해야 하는데... 으악 CI/CD와 통합해서 방식으로 해줄 수 있어?",
+    "output": "Refactor and optimize code"
+  },
+  {
+    "id": "modify_0024",
+    "category": "modify",
+    "task_type": "realworld_complex",
+    "input": "마이그레이션 진행 중이거든ㅇㅇ 렌더링 개선가 문제야. 정신차려. 지금 구현된 거 GitHub Actions에 붙여넣을 수 있게에서 개선해줄 수 있어?",
+    "output": "Refactor and optimize code"
+  },
+  {
+    "id": "modify_0025",
+    "category": "modify",
+    "task_type": "realworld_complex",
+    "input": "클라이언트가 요청해서ㅇㅇ 성능 최적화가 문제야. 정신없어. 지금 구현된 거 결과를 대시보드에 띄워서에서 개선해줄 수 있어?",
+    "output": "Refactor and optimize code"
+  },
+  {
+    "id": "modify_0026",
+    "category": "modify",
+    "task_type": "realworld_complex",
+    "input": "동시성 문제가 있을 수 있어 그래서 메모리 누수 제거 코드를 수정해야 해. ㅠㅠ... 로그도 자세하게 남겨서까지 고려해줄래?",
+    "output": "Refactor and optimize code"
+  },
+  {
+    "id": "modify_0027",
+    "category": "modify",
+    "task_type": "realworld_complex",
+    "input": "레거시 코드 때문에 보안 강화를 개선해야 하는데... 뭐하는 고것들 GitHub Actions에 붙여넣을 수 있게 방식으로 해줄 수 있어?",
+    "output": "Refactor and optimize code"
+  },
+  {
+    "id": "modify_0028",
+    "category": "modify",
+    "task_type": "realworld_complex",
+    "input": "레거시 코드 때문에 암튼 보안 강화를 다른 팀원들도 쉽게 사용할 수 있게로 리팩토링해줄 수 있어? 살려줘. 빨리.",
+    "output": "Refactor and optimize code"
+  },
+  {
+    "id": "modify_0029",
+    "category": "modify",
+    "task_type": "realworld_complex",
+    "input": "동료가 망쳤어 코드 리팩토링를 개선해야 하는데... 멘붕 타임아웃 설정해서 방식으로 해줄 수 있어?",
+    "output": "Refactor and optimize code"
+  },
+  {
+    "id": "modify_0030",
+    "category": "modify",
+    "task_type": "realworld_complex",
+    "input": "트래픽이 갑자기 늘어나서 그래서 렌더링 개선 코드를 수정해야 해. 개열받음... 실패하면 재시도하고까지 고려해줄래?",
+    "output": "Refactor and optimize code"
+  },
+  {
+    "id": "modify_0031",
+    "category": "modify",
+    "task_type": "realworld_complex",
+    "input": "최근 API 변경수정했거든? 암튼 성능 최적화를 모니터링도 포함해서로 리팩토링해줄 수 있어? 진짜 답답해. 빨리.",
+    "output": "Refactor and optimize code"
+  },
+  {
+    "id": "modify_0032",
+    "category": "modify",
+    "task_type": "realworld_complex",
+    "input": "보안 이슈 떴거든?ㅇㅇ 성능 최적화가 문제야. 미칠 노릇이야. 지금 구현된 거 정기적으로 실행되게에서 개선해줄 수 있어?",
+    "output": "Refactor and optimize code"
+  },
+  {
+    "id": "modify_0033",
+    "category": "modify",
+    "task_type": "realworld_complex",
+    "input": "보안 이슈 떴거든?ㅇㅇ 보안 강화가 문제야. 완전 피곤해. 지금 구현된 거 CI/CD와 통합해서에서 개선해줄 수 있어?",
+    "output": "Refactor and optimize code"
+  },
+  {
+    "id": "modify_0034",
+    "category": "modify",
+    "task_type": "realworld_complex",
+    "input": "보안 이슈 떴거든? 그래서 성능 최적화 코드를 수정해야 해. 한숨...... 실패하면 재시도하고까지 고려해줄래?",
+    "output": "Refactor and optimize code"
+  },
+  {
+    "id": "modify_0035",
+    "category": "modify",
+    "task_type": "realworld_complex",
+    "input": "마이그레이션 진행 중이거든ㅇㅇ 성능 최적화가 문제야. 완전 피곤해. 지금 구현된 거 실제 환경에서 테스트해서에서 개선해줄 수 있어?",
+    "output": "Refactor and optimize code"
+  },
+  {
+    "id": "modify_0036",
+    "category": "modify",
+    "task_type": "realworld_complex",
+    "input": "메모리 누수가 있는지 확인해 그래서 캐시 전략 코드를 수정해야 해. 레전드임... GitHub Actions에 붙여넣을 수 있게까지 고려해줄래?",
+    "output": "Refactor and optimize code"
+  },
+  {
+    "id": "modify_0037",
+    "category": "modify",
+    "task_type": "realworld_complex",
+    "input": "클라이언트가 요청해서ㅇㅇ 알고리즘 개선가 문제야. 진짜 미침. 지금 구현된 거 CI/CD와 통합해서에서 개선해줄 수 있어?",
+    "output": "Refactor and optimize code"
+  },
+  {
+    "id": "modify_0038",
+    "category": "modify",
+    "task_type": "realworld_complex",
+    "input": "마이그레이션 진행 중이거든 암튼 캐시 전략를 여러 환경에서 테스트해서로 리팩토링해줄 수 있어? 이게 뭐하는 짓인데. 빨리.",
+    "output": "Refactor and optimize code"
+  },
+  {
+    "id": "modify_0039",
+    "category": "modify",
+    "task_type": "realworld_complex",
+    "input": "클라이언트가 요청해서ㅇㅇ 보안 강화가 병목이네. 완전 피곤해.. 자동으로 롤백할 수 있게하면서 최적화해줄래?",
+    "output": "Refactor and optimize code"
+  },
+  {
+    "id": "modify_0040",
+    "category": "modify",
+    "task_type": "realworld_complex",
+    "input": "최근 API 변경수정했거든? 암튼 보안 강화를 문제 발생 시 알림까지로 리팩토링해줄 수 있어? 개열받음. 빨리.",
+    "output": "Refactor and optimize code"
+  },
+  {
+    "id": "modify_0041",
+    "category": "modify",
+    "task_type": "realworld_complex",
+    "input": "동시성 문제가 있을 수 있어 그래서 캐시 전략 코드를 수정해야 해. 개좌절... 문제 발생 시 알림까지까지 고려해줄래?",
+    "output": "Refactor and optimize code"
+  },
+  {
+    "id": "modify_0042",
+    "category": "modify",
+    "task_type": "realworld_complex",
+    "input": "배포 후에 문제 생겼어 그래서 데이터베이스 인덱싱 코드를 수정해야 해. 정신없어... 여러 환경에서 테스트해서까지 고려해줄래?",
+    "output": "Refactor and optimize code"
+  },
+  {
+    "id": "modify_0043",
+    "category": "modify",
+    "task_type": "realworld_complex",
+    "input": "클라이언트가 요청해서 그래서 캐시 전략 코드를 수정해야 해. 진짜 답답해... 문제 발생 시 알림까지까지 고려해줄래?",
+    "output": "Refactor and optimize code"
+  },
+  {
+    "id": "modify_0044",
+    "category": "modify",
+    "task_type": "realworld_complex",
+    "input": "보안 이슈 떴거든?ㅇㅇ 보안 강화가 문제야. 이게 뭐하는 짓인데. 지금 구현된 거 CI/CD와 통합해서에서 개선해줄 수 있어?",
+    "output": "Refactor and optimize code"
+  },
+  {
+    "id": "modify_0045",
+    "category": "modify",
+    "task_type": "realworld_complex",
+    "input": "테스트 코드가 자꾸 깨져 그래서 성능 최적화 코드를 수정해야 해. 으악... 문제 발생 시 알림까지까지 고려해줄래?",
+    "output": "Refactor and optimize code"
+  },
+  {
+    "id": "modify_0046",
+    "category": "modify",
+    "task_type": "realworld_complex",
+    "input": "테스트 코드가 자꾸 깨져ㅇㅇ 메모리 누수 제거가 문제야. 뭐하는 고것들. 지금 구현된 거 자동으로 롤백할 수 있게에서 개선해줄 수 있어?",
+    "output": "Refactor and optimize code"
+  },
+  {
+    "id": "modify_0047",
+    "category": "modify",
+    "task_type": "realworld_complex",
+    "input": "크로스 브라우징 이슈 데이터베이스 인덱싱를 개선해야 하는데... 개열받음 자동으로 롤백할 수 있게 방식으로 해줄 수 있어?",
+    "output": "Refactor and optimize code"
+  },
+  {
+    "id": "modify_0048",
+    "category": "modify",
+    "task_type": "realworld_complex",
+    "input": "트래픽이 갑자기 늘어나서ㅇㅇ 데이터베이스 인덱싱가 병목이네. 진짜 열받아.. 실패하면 재시도하고하면서 최적화해줄래?",
+    "output": "Refactor and optimize code"
+  },
+  {
+    "id": "modify_0049",
+    "category": "modify",
+    "task_type": "realworld_complex",
+    "input": "테스트 코드가 자꾸 깨져ㅇㅇ 메모리 누수 제거가 병목이네. 진짜 답답해.. 로그도 자세하게 남겨서하면서 최적화해줄래?",
+    "output": "Refactor and optimize code"
+  },
+  {
+    "id": "modify_0050",
+    "category": "modify",
+    "task_type": "realworld_complex",
+    "input": "마이그레이션 진행 중이거든 렌더링 개선를 개선해야 하는데... 진짜 답답해 타임아웃 설정해서 방식으로 해줄 수 있어?",
+    "output": "Refactor and optimize code"
+  }
+]

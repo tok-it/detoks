@@ -115,6 +115,7 @@ export const ExecutionResultSchema = z.object({
   task_id: z.string(),
   success: z.boolean(),
   raw_output: z.string(),
+  summary: z.string().optional(),
   structured_output: z.record(z.string(), z.unknown()).optional(),
   error: z
     .object({
