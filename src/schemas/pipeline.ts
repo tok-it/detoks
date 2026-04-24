@@ -29,6 +29,8 @@ import { z } from "zod";
  * - plan: 작업을 분해하고 순서를 오케스트레이션하는 작업
  */
 
+// Canonical semantic definitions live in docs/TYPE_DEFINITION.md.
+// Keep enum meanings and dependency logic aligned with that document.
 export const RequestCategoryValues = [
   "explore",
   "create",
@@ -53,6 +55,7 @@ export const RequestCategoryValues = [
  * - document -> 정리/문서화
  * - plan     -> 계획/오케스트레이션
  */
+// Shared top-level task categories used by request analysis and task graph building.
 export const RequestCategorySchema = z.enum(RequestCategoryValues);
 
 export const UserRequestSchema = z.object({

@@ -26,6 +26,9 @@ import type { Task, TaskGraph, RequestCategory } from "../../schemas/pipeline.js
  *     → ParallelClassifier.classify()
  */
 export class TaskGraphProcessor {
+  // Dependency transitions should stay aligned with docs/TYPE_DEFINITION.md.
+  // In particular, explore means discovery, analyze means interpretation,
+  // and document is typically treated as a terminal stage.
   /**
    * type A → type B 전환이 "자연스러운 실행 흐름"인 조합을 정의한 테이블입니다.
    *
@@ -148,8 +151,12 @@ export class TaskGraphProcessor {
    * 예시:
    *   "Find all usages of X"    → "read|find|..." 매칭  → "explore"
    *   "Create a new component"  → "create|implement|..." 매칭 → "create"
-   *   "Run the tests"           → "run|execute|..." 매칭 → "execute"
+   *   "Run the tests"           → "test|validate|..." 매칭 → "validate"
    */
+  // Semantic category meaning is defined in docs/TYPE_DEFINITION.md.
+  // This method is still a first-match keyword classifier, not a full semantic parser.
+  // Example: "Run the tests" currently resolves to "validate" because /test/ matches
+  // before the execute keywords are evaluated.
   private static classifyType(sentence: string): RequestCategory {
     const s = sentence.toLowerCase();
     if (/read|find|look|search|explore|browse|check/.test(s)) return "explore";

@@ -108,4 +108,6 @@ This file contains the shared Zod schemas for:
 - `ExecutionResult`
 - `SessionState`
 
+The semantic meaning of `RequestCategory` is defined canonically in `docs/TYPE_DEFINITION.md`.
+
 <!-- 한국어 설명: 이 문서의 공유 데이터 흐름은 실제 코드에서 `src/schemas/pipeline.ts`로 매핑되며, 여기에 역할 간에 주고받는 공용 Zod 스키마가 정의됩니다. -->
