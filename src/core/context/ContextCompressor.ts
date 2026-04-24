@@ -1,4 +1,5 @@
 import type { SessionState } from '../../schemas/pipeline.js';
+import { ContextProcessingError } from '../errors/StateErrors.js';
 
 /**
  * ContextCompressor
@@ -12,20 +13,34 @@ export class ContextCompressor {
    * 세션 상태의 컨텍스트를 분석하고 필요시 압축을 수행합니다.
    */
   static compress(state: SessionState): SessionState {
-    const currentStateSize = this.estimateTokenUsage(state);
-
-    if (currentStateSize <= this.TOKEN_THRESHOLD) {
-      return state;
+    if (!state) {
+      throw new ContextProcessingError('Invalid state provided to ContextCompressor.compress');
     }
 
-    // 압축 로직 수행
-    const compressedState = { ...state };
-    compressedState.task_results = this.compressTaskResults(state.task_results, state.completed_task_ids);
-    
-    // 마지막 요약(last_summary) 업데이트 (선택 사항)
-    compressedState.last_summary = `[Compressed] ${state.last_summary || ''}`;
+    try {
+      const currentStateSize = this.estimateTokenUsage(state);
 
-    return compressedState;
+      if (currentStateSize <= this.TOKEN_THRESHOLD) {
+        return state;
+      }
+
+      // 압축 로직 수행
+      const compressedState = { ...state };
+      compressedState.task_results = this.compressTaskResults(
+        state.task_results || {}, 
+        state.completed_task_ids || []
+      );
+      
+      // 마지막 요약(last_summary) 업데이트 (선택 사항)
+      compressedState.last_summary = `[Compressed] ${state.last_summary || ''}`;
+
+      return compressedState;
+    } catch (error: any) {
+      if (error instanceof ContextProcessingError) throw error;
+      throw new ContextProcessingError('Unexpected failure during context compression', {
+        originalError: error.message
+      });
+    }
   }
 
   /**
@@ -41,6 +56,8 @@ export class ContextCompressor {
 
     // 전체 결과에 대해 루프를 돌며 압축 여부 결정
     for (const [id, result] of Object.entries(results)) {
+      if (!result) continue;
+
       const completionIndex = completedIds.indexOf(id);
       const isRecent = completionIndex >= 0 && completionIndex >= completedIds.length - keepDetailCount;
 
@@ -66,28 +83,45 @@ export class ContextCompressor {
    * (실제 토큰 계산기 라이브러리 연동 전 임시 글자 수 기반 계산)
    */
   private static estimateTokenUsage(state: SessionState): number {
-    const content = JSON.stringify(state);
-    return Math.ceil(content.length / 4); // 대략적인 글자당 토큰 비율
+    try {
+      const content = JSON.stringify(state);
+      return Math.ceil(content.length / 4); // 대략적인 글자당 토큰 비율
+    } catch (error: any) {
+      throw new ContextProcessingError('Failed to estimate token usage - Serialization error', {
+        originalError: error.message
+      });
+    }
   }
 
   /**
    * 강제 압축: 모든 Task 결과를 오래된 것으로 간주하여 요약본으로 전환합니다.
    */
   static forceCompress(state: SessionState): SessionState {
-    const compressed: Record<string, any> = {};
-    
-    for (const [id, result] of Object.entries(state.task_results)) {
-      const res = result as any;
-      compressed[id] = {
-        summary: res.summary || 'Summary preserved after compression',
-        status: res.status || (res.success ? 'completed' : 'failed'),
-        _compressed: true
-      };
+    if (!state || !state.task_results) {
+      return state;
     }
 
-    return {
-      ...state,
-      task_results: compressed
-    };
+    try {
+      const compressed: Record<string, any> = {};
+      
+      for (const [id, result] of Object.entries(state.task_results)) {
+        if (!result) continue;
+        const res = result as any;
+        compressed[id] = {
+          summary: res.summary || 'Summary preserved after compression',
+          status: res.status || (res.success ? 'completed' : 'failed'),
+          _compressed: true
+        };
+      }
+
+      return {
+        ...state,
+        task_results: compressed
+      };
+    } catch (error: any) {
+      throw new ContextProcessingError('Failed to force compress state', {
+        originalError: error.message
+      });
+    }
   }
 }
