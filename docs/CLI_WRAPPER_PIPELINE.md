@@ -28,7 +28,7 @@ CLI Input
 → CLI Output
 ```
 
-<!-- 한국어 설명: wrapper CLI는 입력을 받은 뒤 명령 파싱, 세션 판단, 프롬프트 정제, 요청 분석, 작업 그래프 구성, 문맥 최적화, 실행, 결과 후처리, 상태 저장 순서로 연결되어야 합니다. -->
+<!-- 한국어 설명: wrapper CLI는 입력을 받은 뒤 명령 파싱, 세션 판단, 프롬프트 정제, 번역 검증/보정, 작업 그래프 구성, 문맥 최적화, 실행, 결과 후처리, 상태 저장 순서로 연결되어야 합니다. -->
 
 ---
 
@@ -37,19 +37,25 @@ CLI Input
 The wrapper CLI may call all stages, but each stage still has its own owner.
 
 ### Role 1: AI Prompt Engineer
+
 - Prompt Compiler
-- Request Analyzer
+- Korean-to-English translation
+- Sentence-level output
 
 ### Role 2.1: Task Graph Engineer
+
+- Request classification
 - Task Graph Builder
 - Dependency ordering
 
 ### Role 2.2: State & Context Engineer
+
 - Context Optimizer
 - Output structuring support
 - State Manager logic
 
 ### Role 3: CLI / System Engineer
+
 - CLI entrypoint
 - REPL
 - command parsing
@@ -65,48 +71,58 @@ The wrapper CLI may call all stages, but each stage still has its own owner.
 ## Step-by-Step Responsibilities
 
 ### 1. CLI Input
+
 - receive raw text or command arguments
 - support interactive REPL and one-shot mode
 
 <!-- 한국어 설명: CLI는 대화형 REPL과 단발성 명령 실행을 모두 지원할 수 있어야 합니다. -->
 
 ### 2. Command Parsing
+
 - detect natural language input vs direct command mode
 - parse flags, adapter target, and output mode
 
 <!-- 한국어 설명: 입력이 자연어 요청인지 명령 실행인지 먼저 구분하고, 옵션도 함께 해석해야 합니다. -->
 
 ### 3. Session / Mode Resolution
+
 - resolve current session
 - decide continue / reset / fork behavior
 
 <!-- 한국어 설명: 세션을 이어갈지, 초기화할지, 분기할지를 명확히 판단해야 합니다. -->
 
 ### 4. Prompt Compiler
+
 - normalize and compress intent
 - preserve constraints
 
 <!-- 한국어 설명: 이 단계의 실제 로직 소유는 Role 1이며, CLI는 이를 호출하는 진입점 역할을 합니다. -->
 
-### 5. Request Analyzer
-- classify request category
-- extract keywords and candidate tasks
+### 5. Translation Guardrails
 
-<!-- 한국어 설명: 상위 분류(explore/create/modify/analyze/validate/execute/document/plan)는 여기서 결정됩니다. -->
+- validate protected terms and placeholders
+- repair translated output within structural limits
+
+<!-- 한국어 설명: 번역 결과가 보호 구간과 구조를 유지하는지 검증하고, 의미를 바꾸지 않는 범위에서 보정합니다. -->
 
 ### 6. Task Graph Builder
+
+- classify request category
+- extract keywords and candidate tasks
 - split multi-step requests
 - define execution order
 
-<!-- 한국어 설명: 여러 단계가 필요한 요청은 작업 그래프로 변환되어야 합니다. -->
+<!-- 한국어 설명: 상위 분류(explore/create/modify/analyze/validate/execute/document/plan), 작업 추출, 실행 순서 정의는 Task Graph Builder에서 처리됩니다. -->
 
 ### 7. Context Optimizer
+
 - select only relevant state and files
 - remove duplicate context
 
 <!-- 한국어 설명: wrapper CLI의 핵심 가치는 불필요한 문맥을 줄이고 필요한 문맥만 전달하는 데 있습니다. -->
 
 ### 8. Executor
+
 - invoke target adapter
 - run subprocess safely
 - capture stdout / stderr / exit status
@@ -114,12 +130,14 @@ The wrapper CLI may call all stages, but each stage still has its own owner.
 <!-- 한국어 설명: 실제 실행 계층은 adapter와 subprocess 경계 안에서 처리되어야 합니다. -->
 
 ### 9. Output Processor
+
 - summarize long outputs
 - normalize result payloads
 
 <!-- 한국어 설명: 긴 결과를 그대로 출력하지 말고 구조화와 요약을 거쳐야 합니다. -->
 
 ### 10. State Manager
+
 - persist reusable state
 - update summaries, tasks, checkpoints
 
@@ -130,24 +148,30 @@ The wrapper CLI may call all stages, but each stage still has its own owner.
 ## Key Considerations
 
 ### Keep the CLI Thin
+
 - do not duplicate core logic inside `src/cli`
 - call `src/core/*` and `src/integrations/*` through explicit boundaries
 
 ### Do Not Collapse Ownership
+
 - Role 3 should orchestrate, not re-implement Role 1 / Role 2 responsibilities
 
 ### Preserve Stable Schema Contracts
+
 - use shared Zod schemas between layers
 - validate data at boundaries
 
 ### Design for Multi-Turn Sessions
+
 - support continue, reset, and fork clearly
 
 ### Keep Default Output Short
+
 - default to summarized output
 - allow verbose mode explicitly
 
 ### Handle Cross-Platform Execution
+
 - consider macOS / Windows path handling
 - consider shell quoting and subprocess behavior
 
@@ -158,28 +182,34 @@ The wrapper CLI may call all stages, but each stage still has its own owner.
 ## Recommended Implementation Order
 
 ### Phase 1
+
 - CLI entrypoint
 - REPL shell
 - one-shot command mode
 
 ### Phase 2
+
 - pipeline invocation wiring
 - structured request / response handling
 
 ### Phase 3
+
 - adapter execution
 - subprocess wrapper
 
 ### Phase 4
+
 - session persistence
 - checkpoint management
 
 ### Phase 5
+
 - error handling
 - verbose mode
 - UX polishing
 
 ### Phase 6
+
 - unit tests
 - integration tests
 
@@ -193,6 +223,14 @@ The wrapper CLI may call all stages, but each stage still has its own owner.
   - Role 3
 - `src/core/pipeline/*`
   - orchestration support for Role 2 / Role 3 boundary
+- `src/core/translate/*`
+  - Role 1 translation pipeline
+- `src/core/prompt/*`
+  - Role 1 prompt compression
+- `src/core/guardrails/*`
+  - Role 1 validation and repair support
+- `src/core/llm-client/*`
+  - llama.cpp client boundary
 - `src/core/task-graph/*`
   - Role 2.1
 - `src/core/context/*`
@@ -205,7 +243,7 @@ The wrapper CLI may call all stages, but each stage still has its own owner.
   - Role 3
 - `src/integrations/subprocess/*`
   - Role 3
-- `python/role1/*`
-  - Role 1
+- `python/llama-server/*`
+  - llama.cpp inference server only
 
-<!-- 한국어 설명: 각 폴더의 책임을 유지해야 팀원 작업 영역이 겹치지 않고, CLI 계층이 다른 역할의 구현을 흡수하는 문제를 막을 수 있습니다. -->
+<!-- 한국어 설명: 각 폴더의 책임을 유지해야 팀원 작업 영역이 겹치지 않고, CLI 계층이 다른 역할의 구현을 흡수하는 문제를 막을 수 있습니다. Python은 추론 서버에만 한정합니다. -->

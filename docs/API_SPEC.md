@@ -9,11 +9,11 @@ Instead, its primary APIs are the contracts between:
 
 - CLI layer
 - TypeScript core pipeline
-- Python Role 1 modules
+- llama.cpp inference client
 - CLI adapter integrations
 - state persistence layer
 
-<!-- 한국어 설명: 이 문서는 detoks의 현재 내부 API 계약을 정의합니다. 아직 외부 공개용 HTTP API는 없고, CLI·코어 파이프라인·Python Role 1·어댑터·상태 저장 계층 간의 인터페이스를 명세하는 문서입니다. -->
+<!-- 한국어 설명: 이 문서는 detoks의 현재 내부 API 계약을 정의합니다. 아직 외부 공개용 HTTP API는 없고, CLI·코어 파이프라인·llama.cpp 클라이언트·어댑터·상태 저장 계층 간의 인터페이스를 명세하는 문서입니다. -->
 
 ---
 
@@ -33,7 +33,7 @@ Instead, its primary APIs are the contracts between:
 This specification covers:
 
 1. CLI input and output contracts
-2. Role 1 Python integration contracts
+2. core prompt, translation, guardrails, and LLM client contracts
 3. pipeline stage input/output contracts
 4. adapter execution contracts
 5. state persistence contracts
@@ -153,7 +153,7 @@ type CliOutput = {
 
 ## 2. Prompt Compiler API
 
-The Prompt Compiler compresses Korean user input into concise English prompts while preserving intent.
+The Prompt Compiler compresses Korean user input into concise English prompts while preserving intent. It is implemented as TypeScript core logic under `src/core/prompt` and `src/core/translate`.
 
 ### Request
 
@@ -168,9 +168,13 @@ type PromptCompileRequest = {
 
 ```ts
 type PromptCompileResponse = {
+  raw_input: string;
+  normalized_input: string;
   compressed_prompt: string;
   language: "ko" | "en" | "mixed";
-  preserved_constraints?: string[];
+  compiled_sentences: string[];
+  validation_errors?: string[];
+  repair_actions?: string[];
 };
 ```
 
@@ -179,53 +183,57 @@ type PromptCompileResponse = {
 - input text may be Korean, English, or mixed
 - output must remain semantically aligned with the original request
 - output must be shorter and cleaner than the source input when possible
+- task decomposition, `id`, and `depends_on` generation are not part of this API
 
 <!-- 한국어 설명: Prompt Compiler는 한국어 중심 입력을 더 짧고 명확한 영어 프롬프트로 바꾸되, 원래 의도와 제약 조건을 유지해야 합니다. -->
 
 ---
 
-## 3. Request Analyzer API
+## 3. Translation Guardrails API
 
-The Request Analyzer classifies the request and extracts executable tasks.
+Translation Guardrails validate and repair translated prompt output without changing semantic meaning.
 
 ### Request
 
 ```ts
-type RequestAnalyzeRequest = {
+type TranslationGuardrailsRequest = {
   compressed_prompt: string;
-  session_state?: SessionState;
+  placeholders?: string[];
+  protected_terms?: string[];
 };
 ```
 
 ### Response
 
 ```ts
-type RequestAnalyzeResponse = {
-  category: string;
-  keywords: string[];
-  tasks: Task[];
+type TranslationGuardrailsResponse = {
+  output: string;
+  validation_errors: string[];
+  repair_actions: string[];
 };
 ```
 
 ### Notes
 
-- category is a routing and orchestration label
-- keywords are used for context selection and later retrieval
-- tasks must be decomposed into executable units
+- validation lives under `src/core/guardrails`
+- repair must be structural only and must not modify semantic meaning
+- failed spans may be retried through the current LLM model via `src/core/llm-client`
 
-<!-- 한국어 설명: Request Analyzer는 요청을 분류하고, 키워드와 작업 목록을 추출해 이후 파이프라인 단계가 실행 가능한 형태로 바꾸는 역할을 합니다. -->
+<!-- 한국어 설명: Translation Guardrails는 번역 결과의 구조와 보호 구간을 검증하고, 의미를 바꾸지 않는 범위에서만 보정합니다. -->
 
 ---
 
 ## 4. Task Graph Builder API
 
-The Task Graph Builder converts extracted tasks into a dependency-aware graph.
+The Task Graph Builder converts compiled prompt output into a dependency-aware graph.
 
 ### Request
 
 ```ts
 type TaskGraphBuildRequest = {
-  tasks: Task[];
+  compiled_prompt: string;
+  compiled_sentences: string[];
+  session_state?: SessionState;
 };
 ```
 
@@ -242,6 +250,7 @@ type TaskGraphBuildResponse = {
 - each task must have a unique `id`
 - `depends_on` must always exist
 - graph must be topologically executable
+- request classification and task extraction happen in this stage
 
 <!-- 한국어 설명: Task Graph Builder는 작업 간 선후관계를 명확히 정의해 실제 실행 순서를 만들 수 있는 그래프로 변환해야 합니다. -->
 
@@ -283,43 +292,47 @@ type ContextOptimizeResponse = {
 
 ---
 
-## 6. Role 1 Python Integration API
+## 6. LLM Client API
 
-Role 1 Python modules are consumed through an explicit integration boundary.
+All LLM interaction must go through `src/core/llm-client`.
 
 ### Boundary Rule
 
-TypeScript must not import Python implementation details directly.  
-It must invoke Role 1 functionality through `src/integrations/role1-python`.
+Core modules must not call llama.cpp or Python server implementation details directly.
+They must invoke model inference through `src/core/llm-client`.
 
-<!-- 한국어 설명: TypeScript는 Python 내부 구현을 직접 참조하지 않고, 정해진 integration 계층을 통해서만 Role 1 기능을 호출해야 합니다. -->
+<!-- 한국어 설명: TypeScript core 모듈은 Python 서버 내부 구현을 직접 참조하지 않고, 정해진 llm-client 계층을 통해서만 모델 추론을 호출해야 합니다. -->
 
-### Python Invocation Request
+### LLM Completion Request
 
 ```ts
-type Role1InvocationRequest = {
-  action: "prompt_compile" | "request_analyze";
-  payload: Record<string, unknown>;
+type LlmCompletionRequest = {
+  messages: {
+    role: "system" | "user" | "assistant";
+    content: string;
+  }[];
+  temperature?: number;
+  timeout_ms?: number;
 };
 ```
 
-### Python Invocation Response
+### LLM Completion Response
 
 ```ts
-type Role1InvocationResponse = {
-  action: string;
-  result: Record<string, unknown>;
+type LlmCompletionResponse = {
+  content: string;
+  raw_response?: Record<string, unknown>;
+  inference_time_sec?: number;
 };
 ```
 
 ### Transport Expectation
 
-- JSON in
-- JSON out
-- explicit exit code handling
-- separate stdout / stderr handling
+- OpenAI-compatible JSON request/response shape
+- explicit timeout handling
+- no direct dependency on Python modules from TypeScript
 
-<!-- 한국어 설명: Role 1 통합은 JSON 입력/출력과 명확한 exit code, stdout/stderr 분리 처리를 기본으로 해야 합니다. -->
+<!-- 한국어 설명: LLM client는 OpenAI-compatible JSON 요청/응답 형태를 사용하고, timeout과 오류를 명시적으로 처리해야 합니다. -->
 
 ---
 
@@ -464,7 +477,7 @@ Recommended internal error codes:
 
 - `INVALID_INPUT`
 - `VALIDATION_FAILED`
-- `ROLE1_EXECUTION_FAILED`
+- `LLM_CLIENT_FAILED`
 - `ADAPTER_EXECUTION_FAILED`
 - `TIMEOUT`
 - `STATE_LOAD_FAILED`

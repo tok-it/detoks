@@ -23,17 +23,21 @@ UserRequest
 ## Role Ownership
 
 ### Role 1: AI Prompt Engineer
+
 - produces `CompiledPrompt`
 - produces `CompiledSentences`
 
 ### Role 2.1: Task Graph Engineer
+
 - produces `TaskGraph`
 
 ### Role 2.2: State & Context Engineer
+
 - produces `ExecutionContext`
 - updates `SessionState`
 
 ### Role 3: CLI / System Engineer
+
 - consumes `ExecutionContext`
 - produces `ExecutionResult`
 
@@ -44,25 +48,32 @@ UserRequest
 ## Recommended Shared Schemas
 
 ### 1. UserRequest
+
 Raw user input entering the system.
 
 ### 2. CompiledPrompt
+
 Compressed and normalized prompt output from the Prompt Compiler.
 
 ### 3. CompiledSentences
+
 Korean input translated to English and split into individual sentences.
 Task decomposition, id generation, and depends_on assignment are handled by Role 2.1.
 
 ### 4. TaskGraph
+
 Executable task structure with dependency order.
 
 ### 5. ExecutionContext
+
 Filtered context required for the current execution step only.
 
 ### 6. ExecutionResult
+
 Normalized result returned from CLI execution.
 
 ### 7. SessionState
+
 Reusable state persisted for the next turn.
 
 <!-- 한국어 설명: 공유 스키마는 사용자 입력, 압축 프롬프트, 분석 결과, 작업 그래프, 실행 문맥, 실행 결과, 세션 상태의 7단계로 나누는 것이 가장 적절합니다. -->

@@ -14,18 +14,19 @@ This file defines the initial version baseline for **detoks**.
 | TS testing | vitest | `3.2.4` | Fast unit/integration testing for the TypeScript layers. |
 | TS Node types | `@types/node` | `24.3.1` | Matches the Node 24 runtime family used by this project. |
 | Python runtime | Python | `3.13.13` | Mature maintenance release with installers, safer for team standardization than Python 3.14.x. |
-| Python validation | pydantic | `2.13.3` | Current stable validation layer for Role 1 schemas and structured outputs. |
-| Python testing | pytest | `9.0.3` | Current stable test runner for Python 3.13-compatible Role 1 modules. |
-| Python linting | ruff | `0.15.9` | Fast lint/format gate for the Python-only Role 1 area. |
-| Python typing | mypy | `1.20.1` | Static typing checks for Role 1 modules and boundary contracts. |
-<!-- 한국어 설명: 위 표는 TypeScript 영역과 Python Role 1 영역이 함께 동작할 수 있도록 호환성을 고려해 정한 공통 버전 기준입니다. -->
+| Python validation | pydantic | `2.13.3` | Current stable validation layer for llama-server configuration and runtime payloads. |
+| Python testing | pytest | `9.0.3` | Current stable test runner for Python 3.13-compatible llama-server modules. |
+| Python linting | ruff | `0.15.9` | Fast lint/format gate for the Python-only llama-server area. |
+| Python typing | mypy | `1.20.1` | Static typing checks for llama-server modules and runtime contracts. |
+<!-- 한국어 설명: 위 표는 TypeScript 영역과 Python llama-server 영역이 함께 동작할 수 있도록 호환성을 고려해 정한 공통 버전 기준입니다. -->
 
 ## Language Boundary Rules
 
-- **Role 1 only** uses Python under `python/role1`.
+- Python is limited to the llama.cpp inference server under `python/llama-server`.
 - **Roles 2.1, 2.2, and 3** use TypeScript under `src`.
-- The TypeScript application must talk to Role 1 Python code through `src/integrations/role1-python`.
-<!-- 한국어 설명: Python은 Role 1에만 한정하고, 나머지 역할은 TypeScript를 사용하며, 두 언어는 명시적인 integration 경계를 통해 연결해야 합니다. -->
+- Translation, prompt processing, guardrails, and LLM client access live under `src/core`.
+- The TypeScript application must talk to llama.cpp through `src/core/llm-client`.
+<!-- 한국어 설명: Python은 llama.cpp 추론 서버에만 한정하고, 애플리케이션 로직은 TypeScript의 src/core 아래에 둡니다. -->
 
 ## Standard Library Versions
 

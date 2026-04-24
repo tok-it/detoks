@@ -9,10 +9,10 @@ detoks/
 ├── docs/
 ├── scripts/
 ├── python/
-│   └── role1/
-│       ├── prompt_compiler/
-│       ├── request_analyzer/
-│       └── schemas/
+│   └── llama-server/
+│       ├── models/
+│       ├── config/
+│       └── run.py
 ├── src/
 │   ├── cli/
 │   │   ├── commands/
@@ -23,20 +23,20 @@ detoks/
 │   │   ├── output/
 │   │   ├── pipeline/
 │   │   ├── state/
-│   │   └── task-graph/
+│   │   ├── task-graph/
+│   │   ├── translate/
+│   │   ├── prompt/
+│   │   ├── guardrails/
+│   │   └── llm-client/
 │   ├── integrations/
 │   │   ├── adapters/
 │   │   │   ├── codex/
 │   │   │   └── gemini/
-│   │   ├── role1-python/
 │   │   └── subprocess/
 │   ├── schemas/
 │   ├── types/
 │   └── utils/
 └── tests/
-    ├── python/
-    │   ├── integration/
-    │   └── unit/
     └── ts/
         ├── integration/
         └── unit/
@@ -44,17 +44,15 @@ detoks/
 
 ## Ownership
 
-- `python/role1/*`: Role 1 (AI Prompt Engineer) Python implementation
+- `python/llama-server/*`: LLM inference server (llama.cpp runtime only)
 - `src/*`: TypeScript implementation for Roles 2.1, 2.2, and 3
-- `src/integrations/role1-python`: TS ↔ Python boundary layer
+- `src/integrations/*`: External tool integrations (Codex, Gemini, subprocess handling)
 - `tests/python/*`: Python tests for Role 1 modules
 - `tests/ts/*`: TypeScript tests for the rest of the system
 
 ## Mapping
 
-- `python/role1/prompt_compiler`: Korean-to-English prompt compression
-- `python/role1/request_analyzer`: request classification and task extraction
-- `python/role1/schemas`: Python-side schemas and validation helpers for Role 1
+- `python/llama-server`: Model loading, inference endpoint, server configuration
 - `src/cli`: CLI layer, REPL, and user-facing commands
 - `src/core/pipeline`: pipeline orchestration
 - `src/core/task-graph`: task graph generation and dependency ordering
@@ -62,6 +60,10 @@ detoks/
 - `src/core/output`: output summarization and result structuring
 - `src/core/state`: session state management
 - `src/core/executor`: execution flow coordination
+- `src/core/translate`: Korean-to-English translation pipeline
+- `src/core/prompt`: prompt compression
+- `src/core/guardrails`: validate and repair translated output
+- `src/core/llm-client`: handles communication with llama.cpp
 - `src/integrations/adapters/*`: target CLI integrations such as Codex and Gemini
 - `src/integrations/role1-python`: invocation and I/O contracts for Python Role 1 modules
 - `src/integrations/subprocess`: process spawning and I/O bridging
@@ -72,4 +74,9 @@ detoks/
 
 ## Design Rule
 
-Role 1 logic must stay in `python/role1`, and the rest of the product must consume it through explicit integration boundaries rather than importing Python implementation details into TypeScript modules directly.
+- Core logic must reside under src/core
+- Translation, prompt processing, and LLM interaction are treated as core pipeline responsibilities
+- Python is limited to running the LLM server and must not contain application logic
+- All LLM interaction must go through src/core/llm-client
+- No direct dependency on Python modules from TypeScript
+- External integrations must remain isolated under src/integrations

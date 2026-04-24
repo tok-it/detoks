@@ -1,6 +1,7 @@
 # 👥 Roles
 
 ## Role 1: AI Prompt Engineer
+
 - Prompt compiler
 - Task extraction
 - JSON schema design
@@ -9,6 +10,7 @@
 ---
 
 ## Role 2.1: Task Graph Engineer
+
 - Task decomposition
 - Dependency management
 - Execution order definition
@@ -17,6 +19,7 @@
 ---
 
 ## Role 2.2: State & Context Engineer
+
 - State management
 - Context compression
 - Result structuring
@@ -25,6 +28,7 @@
 ---
 
 ## Role 3: CLI / System Engineer
+
 - CLI implementation
 - Subprocess execution
 - Adapter management
