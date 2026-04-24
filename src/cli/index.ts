@@ -1,12 +1,17 @@
 #!/usr/bin/env node
 
 import { formatError, formatSuccess } from "./format.js";
-import { parseCliArgs, toNormalizedRequest } from "./parse.js";
+import { getCliUsage, parseCliArgs, toNormalizedRequest } from "./parse.js";
 import { runCommand } from "./commands/run.js";
 import { startRepl } from "./repl/index.js";
 
 const main = async (): Promise<void> => {
   const args = parseCliArgs(process.argv.slice(2));
+
+  if (args.showHelp) {
+    console.log(getCliUsage());
+    return;
+  }
 
   if (args.mode === "repl") {
     await startRepl(args);

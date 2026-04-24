@@ -9,6 +9,18 @@ import {
 
 const DEFAULT_ADAPTER = "codex";
 const DEFAULT_EXECUTION_MODE = "stub";
+const CLI_USAGE = [
+  "Usage:",
+  '  detoks "<prompt>" [--adapter codex|gemini] [--execution-mode stub|real] [--verbose]',
+  "  detoks repl [--adapter codex|gemini] [--execution-mode stub|real] [--verbose]",
+  "  detoks --help",
+  "",
+  "Options:",
+  "  --adapter codex|gemini        Target adapter (default: codex)",
+  "  --execution-mode stub|real    Runtime execution mode (default: stub)",
+  "  --verbose                     Show full JSON output and error stacks",
+  "  -h, --help                    Show this help message",
+].join("\n");
 
 const isAdapter = (value: string): value is (typeof AdapterValues)[number] =>
   AdapterValues.includes(value as (typeof AdapterValues)[number]);
@@ -20,7 +32,7 @@ const assertPrompt = (prompt: string | undefined): string => {
   const normalized = prompt?.trim();
   if (!normalized) {
     throw new Error(
-      "Missing prompt. Usage: detoks \"<prompt>\" [--adapter codex|gemini] [--execution-mode stub|real] [--verbose] or detoks repl",
+      "Missing prompt. Run `detoks --help` for usage.",
     );
   }
   return normalized;
@@ -43,13 +55,23 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
       continue;
     }
 
+    if (current === "-h" || current === "--help") {
+      return {
+        mode: "run",
+        adapter,
+        executionMode,
+        verbose,
+        showHelp: true,
+      };
+    }
+
     if (current === "--adapter") {
       const next = argv[i + 1];
       if (!next) {
-        throw new Error("--adapter requires a value: codex|gemini");
+        throw new Error("--adapter requires a value: codex|gemini. Run `detoks --help` for usage.");
       }
       if (!isAdapter(next)) {
-        throw new Error(`Unsupported adapter: ${next}`);
+        throw new Error(`Unsupported adapter: ${next}. Use codex or gemini.`);
       }
       adapter = next;
       i += 1;
@@ -59,7 +81,7 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
     if (current.startsWith("--adapter=")) {
       const inline = current.split("=")[1] ?? "";
       if (!isAdapter(inline)) {
-        throw new Error(`Unsupported adapter: ${inline}`);
+        throw new Error(`Unsupported adapter: ${inline}. Use codex or gemini.`);
       }
       adapter = inline;
       continue;
@@ -68,10 +90,12 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
     if (current === "--execution-mode") {
       const next = argv[i + 1];
       if (!next) {
-        throw new Error("--execution-mode requires a value: stub|real");
+        throw new Error(
+          "--execution-mode requires a value: stub|real. Run `detoks --help` for usage.",
+        );
       }
       if (!isExecutionMode(next)) {
-        throw new Error(`Unsupported execution mode: ${next}`);
+        throw new Error(`Unsupported execution mode: ${next}. Use stub or real.`);
       }
       executionMode = next;
       i += 1;
@@ -81,14 +105,14 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
     if (current.startsWith("--execution-mode=")) {
       const inline = current.split("=")[1] ?? "";
       if (!isExecutionMode(inline)) {
-        throw new Error(`Unsupported execution mode: ${inline}`);
+        throw new Error(`Unsupported execution mode: ${inline}. Use stub or real.`);
       }
       executionMode = inline;
       continue;
     }
 
     if (current.startsWith("--")) {
-      throw new Error(`Unknown flag: ${current}`);
+      throw new Error(`Unknown flag: ${current}. Run \`detoks --help\` for usage.`);
     }
 
     positionals.push(current);
@@ -97,9 +121,11 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
   const first = positionals[0];
   if (first === "repl") {
     if (positionals.length > 1) {
-      throw new Error('REPL mode does not accept prompt arguments. Use: detoks repl');
+      throw new Error(
+        "REPL mode does not accept prompt arguments. Run `detoks repl --help` for usage.",
+      );
     }
-    return { mode: "repl", adapter, executionMode, verbose };
+    return { mode: "repl", adapter, executionMode, verbose, showHelp: false };
   }
 
   const prompt = assertPrompt(positionals.join(" "));
@@ -109,8 +135,11 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
     adapter,
     executionMode,
     verbose,
+    showHelp: false,
   };
 };
+
+export const getCliUsage = (): string => CLI_USAGE;
 
 export const toNormalizedRequest = (
   args: CliArgs,
