@@ -50,41 +50,46 @@ process.stdin.on("end", () => {
 
 const runAdapterRawOutputSmoke = (adapter: "codex" | "gemini", prompt: string) => {
   const tempDir = mkdtempSync(join(tmpdir(), "detoks-cli-real-"));
-  createFakeBinary(tempDir, adapter);
 
-  const stubRun = runCli([prompt, "--adapter", adapter, "--verbose"]);
-  const realRun = runCliWithEnv(
-    [prompt, "--adapter", adapter, "--execution-mode", "real", "--verbose"],
-    {
-      PATH: `${tempDir}:${process.env.PATH ?? ""}`,
-    },
-  );
+  try {
+    createFakeBinary(tempDir, adapter);
 
-  expect(stubRun.error).toBeUndefined();
-  expect(realRun.error).toBeUndefined();
-  expect(stubRun.status).toBe(0);
-  expect(realRun.status).toBe(0);
-  expect(stubRun.stderr).toBe("");
-  expect(realRun.stderr).toBe("");
+    const stubRun = runCli([prompt, "--adapter", adapter, "--verbose"]);
+    const realRun = runCliWithEnv(
+      [prompt, "--adapter", adapter, "--execution-mode", "real", "--verbose"],
+      {
+        PATH: `${tempDir}:${process.env.PATH ?? ""}`,
+      },
+    );
 
-  const stubJson = JSON.parse(stubRun.stdout.trim());
-  const realJson = JSON.parse(realRun.stdout.trim());
+    expect(stubRun.error).toBeUndefined();
+    expect(realRun.error).toBeUndefined();
+    expect(stubRun.status).toBe(0);
+    expect(realRun.status).toBe(0);
+    expect(stubRun.stderr).toBe("");
+    expect(realRun.stderr).toBe("");
 
-  expect(stubJson).toMatchObject({
-    ok: true,
-    mode: "run",
-    adapter,
-  });
-  expect(stubJson.rawOutput).toContain(`[stub:${adapter}] [EXECUTE] ${prompt}`);
-  expect(realJson).toMatchObject({
-    ok: true,
-    mode: "run",
-    adapter,
-  });
-  expect(realJson.rawOutput).toContain(`[fake:${adapter}] [EXECUTE] ${prompt}`);
-  expect(realJson.rawOutput).not.toBe(stubJson.rawOutput);
-  expect(realJson).toHaveProperty("rawOutput");
-  expect(realRun.stdout).not.toBe(stubRun.stdout);
+    const stubJson = JSON.parse(stubRun.stdout.trim());
+    const realJson = JSON.parse(realRun.stdout.trim());
+
+    expect(stubJson).toMatchObject({
+      ok: true,
+      mode: "run",
+      adapter,
+    });
+    expect(stubJson.rawOutput).toContain(`[stub:${adapter}] [EXECUTE] ${prompt}`);
+    expect(realJson).toMatchObject({
+      ok: true,
+      mode: "run",
+      adapter,
+    });
+    expect(realJson.rawOutput).toContain(`[fake:${adapter}] [EXECUTE] ${prompt}`);
+    expect(realJson.rawOutput).not.toBe(stubJson.rawOutput);
+    expect(realJson).toHaveProperty("rawOutput");
+    expect(realRun.stdout).not.toBe(stubRun.stdout);
+  } finally {
+    rmSync(tempDir, { force: true, recursive: true });
+  }
 };
 
 describe("detoks CLI smoke", () => {
