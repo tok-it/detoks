@@ -87,7 +87,7 @@ export class TaskGraphProcessor {
       patterns: [
         /\b(explain|analyze|investigate|diagnose|understand)\b.*\b(why|how|behavior|flow|issue|problem|failure)\b/,
         /\b(root\s+cause|impact|trade[\s-]?off)\b/,
-        /\b(propose|suggest|recommend)\b.*\b(fixes?|solutions?|mitigations?|approach|steps?)\b/,
+        /\b(propose|suggest|recommend)\b.*\b(fixes?|solutions?|remediation|approach|steps?|improvements?|optimizations?|settings?|ways?|options?|guidelines?|policy|strategy)\b/,
         /\bcompare\b.*\b(vs|with|against)\b/,
         /\b(analyze|review|inspect|investigate|understand|explain|diagnose|profile)\b/,
         /\b(compare|assess|evaluate|reason\s+about)\b/,
@@ -147,13 +147,13 @@ export class TaskGraphProcessor {
    * document는 보통 마지막 단계이므로 어떤 type도 뒤따르지 않음 → 빈 배열
    */
   private static readonly FLOWS_TO: Partial<Record<RequestCategory, RequestCategory[]>> = {
-    explore:  ["analyze", "modify", "create", "validate"],
-    plan:     ["explore", "create", "execute"],
-    analyze:  ["analyze", "modify", "validate", "document", "create"],
+    explore:  ["explore", "analyze", "modify", "create", "validate", "plan", "document"],
+    plan:     ["explore", "create", "execute", "document"],
+    analyze:  ["explore", "analyze", "modify", "validate", "document", "create", "plan"],
     create:   ["validate", "modify", "document", "execute"],
-    modify:   ["validate", "document", "execute"],
-    validate: ["document", "execute", "modify"],
-    execute:  ["analyze", "validate", "document"],
+    modify:   ["analyze", "validate", "document", "execute"],
+    validate: ["explore", "analyze", "document", "execute", "modify"],
+    execute:  ["explore", "analyze", "validate", "document", "plan", "create"],
     document: [],
   };
 
