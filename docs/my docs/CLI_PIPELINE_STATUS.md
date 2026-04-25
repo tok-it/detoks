@@ -141,6 +141,7 @@ CLI Input
 
 - codex / gemini adapter boundary 존재
 - `executionMode=stub|real` 분기 존재
+- smoke에서 codex/gemini real 경로의 `rawOutput` 계약을 fake binary로 고정함
 
 현재 특징:
 - adapter 구조는 있음
@@ -158,6 +159,7 @@ CLI Input
 
 - stub subprocess runner 존재
 - real subprocess runner 존재
+- CLI smoke에서 codex/gemini real 실행 시 stdout/rawOutput 일치 계약을 검증함
 
 한계:
 - real runner는 존재하지만, 실제 CLI binary 유무에 따라 runtime 결과가 달라질 수 있음
