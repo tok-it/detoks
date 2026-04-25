@@ -10,6 +10,7 @@ describe("parseCliArgs", () => {
       adapter: "codex",
       executionMode: "stub",
       verbose: false,
+      trace: false,
       showHelp: false,
       helpTopic: "main",
     });
@@ -29,6 +30,7 @@ describe("parseCliArgs", () => {
       adapter: "gemini",
       executionMode: "real",
       verbose: true,
+      trace: false,
       showHelp: false,
       helpTopic: "repl",
     });
@@ -42,6 +44,7 @@ describe("parseCliArgs", () => {
       adapter: "codex",
       executionMode: "stub",
       verbose: true,
+      trace: false,
       showHelp: false,
       helpTopic: "main",
     });

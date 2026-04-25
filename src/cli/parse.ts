@@ -16,9 +16,11 @@ const EXECUTION_MODE_HELP = [
 ].join("\n");
 const VERBOSE_HELP =
   "  --verbose                     Show full success JSON and error stacks (output only)";
+const TRACE_HELP =
+  "  --trace                       Record pipeline stage I/O and save to .trace/{sessionId}-trace.json";
 const CLI_USAGE_MAIN = [
   "Usage:",
-  '  detoks "<prompt>" [--adapter codex|gemini] [--execution-mode stub|real] [--verbose]',
+  '  detoks "<prompt>" [--adapter codex|gemini] [--execution-mode stub|real] [--verbose] [--trace]',
   "  detoks --file <path> [--verbose]",
   "  detoks repl [--adapter codex|gemini] [--execution-mode stub|real] [--verbose]",
   "  detoks repl --help",
@@ -26,6 +28,7 @@ const CLI_USAGE_MAIN = [
   "",
   "Examples:",
   '  detoks "summarize the current repo status"',
+  '  detoks "파이썬으로 버블 정렬 짜줘" --trace',
   "  detoks --file tests/data/row_data.json --verbose",
   "  detoks repl --adapter codex --execution-mode stub",
   "",
@@ -35,6 +38,7 @@ const CLI_USAGE_MAIN = [
   "  --file <path>                 Run batch prompt compilation from a JSON file",
   EXECUTION_MODE_HELP,
   VERBOSE_HELP,
+  TRACE_HELP,
   "  -h, --help                    Show this help message",
 ].join("\n");
 
@@ -82,6 +86,7 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
   let executionMode: CliArgs["executionMode"] = DEFAULT_EXECUTION_MODE;
   let inputFile: string | undefined;
   let verbose = false;
+  let trace = false;
 
   for (let i = 0; i < argv.length; i += 1) {
     const current = argv[i];
@@ -94,6 +99,11 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
       continue;
     }
 
+    if (current === "--trace") {
+      trace = true;
+      continue;
+    }
+
     if (current === "-h" || current === "--help") {
       const helpTopic = positionals[0] === "repl" ? "repl" : "main";
       return {
@@ -101,6 +111,7 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
         adapter,
         executionMode,
         verbose,
+        trace,
         showHelp: true,
         helpTopic,
       };
@@ -187,7 +198,7 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
         "REPL mode does not accept prompt arguments. Run `detoks repl --help` for usage.",
       );
     }
-    return { mode: "repl", adapter, executionMode, verbose, showHelp: false, helpTopic: "repl" };
+    return { mode: "repl", adapter, executionMode, verbose, trace, showHelp: false, helpTopic: "repl" };
   }
 
   if (inputFile) {
@@ -200,6 +211,7 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
       adapter,
       executionMode,
       verbose,
+      trace,
       showHelp: false,
       helpTopic: "main",
     };
@@ -212,6 +224,7 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
     adapter,
     executionMode,
     verbose,
+    trace,
     showHelp: false,
     helpTopic: "main",
   };
@@ -232,6 +245,7 @@ export const toNormalizedRequest = (
     adapter: args.adapter,
     executionMode: args.executionMode,
     verbose: args.verbose,
+    trace: args.trace,
     userRequest: UserRequestSchema.parse({
       raw_input: prompt,
       cwd: options?.cwd ?? process.cwd(),

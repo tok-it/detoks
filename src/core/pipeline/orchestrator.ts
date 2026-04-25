@@ -9,6 +9,7 @@ import { ContextBuilder } from "../context/ContextBuilder.js";
 import { SessionStateManager } from "../state/SessionStateManager.js";
 import { executeWithAdapter } from "../executor/execute.js";
 import { logger } from "../utils/logger.js";
+import { PipelineTracer } from "../utils/PipelineTracer.js";
 import type { SessionState } from "../../schemas/pipeline.js";
 import type {
   PipelineExecutionRequest,
@@ -76,16 +77,37 @@ export const orchestratePipeline = async (
   request: PipelineExecutionRequest,
 ): Promise<PipelineExecutionResult> => {
   const sessionId = request.userRequest.session_id ?? generateSessionId();
+  PipelineTracer.clear();
 
   // ── Step 1: Prompt compile + Role 2.1 handoff 생성 (Role 1) ──────────────
+  await PipelineTracer.trace({
+    sessionId, stage: "PromptCompiler", role: "role1", phase: "input",
+    dataType: "UserRequest", data: { raw_input: request.userRequest.raw_input },
+  });
+  PipelineTracer.startStage("PromptCompiler");
   const compiledPrompt = await compilePrompt({
     raw_input: request.userRequest.raw_input,
   });
   const role2PromptInput = createRole2PromptInput(compiledPrompt);
+  await PipelineTracer.trace({
+    sessionId, stage: "PromptCompiler", role: "role1", phase: "output",
+    dataType: "CompiledPrompt", data: compiledPrompt,
+    durationMs: PipelineTracer.endStage("PromptCompiler"),
+  });
 
   // ── Step 2: TaskGraph 생성 (Role 2.1) ────────────────────────────────────
+  await PipelineTracer.trace({
+    sessionId, stage: "TaskGraphBuilder", role: "role2.1", phase: "input",
+    dataType: "Role2PromptInput", data: role2PromptInput,
+  });
+  PipelineTracer.startStage("TaskGraphBuilder");
   const compiledSentences = TaskSentenceSplitter.split(role2PromptInput.compiled_prompt);
   const graph = TaskGraphProcessor.process(compiledSentences);
+  await PipelineTracer.trace({
+    sessionId, stage: "TaskGraphBuilder", role: "role2.1", phase: "output",
+    dataType: "TaskGraph", data: graph,
+    durationMs: PipelineTracer.endStage("TaskGraphBuilder"),
+  });
 
   // ── Step 3: DAG 검증 (Role 2.1 — 1차 검증) ───────────────────────────────
   const validation = DAGValidator.validate(graph);
@@ -134,12 +156,23 @@ export const orchestratePipeline = async (
       state = { ...state, current_task_id: task.id };
 
       // ExecutionContext 생성 (Role 2.2 — ContextCompressor → ContextSelector → ContextBuilder)
+      PipelineTracer.startStage(`ContextOptimizer:${task.id}`);
       const context = ContextBuilder.build(state, task);
+      await PipelineTracer.trace({
+        sessionId, stage: "ContextOptimizer", role: "role2.2", phase: "output",
+        dataType: "ExecutionContext", data: context,
+        durationMs: PipelineTracer.endStage(`ContextOptimizer:${task.id}`),
+      });
 
       // Task 실행 (Role 3)
       const prompt = `[${task.type.toUpperCase()}] ${task.title}\n\nContext: ${context.context_summary}`;
       logger.info(`Running task [${task.id}] type=${task.type}`);
+      await PipelineTracer.trace({
+        sessionId, stage: `Executor:${task.id}`, role: "role3", phase: "input",
+        dataType: "ExecutionRequest", data: { task_id: task.id, type: task.type, prompt },
+      });
 
+      PipelineTracer.startStage(`Executor:${task.id}`);
       const execResult = await executeWithAdapter({
         adapter: request.adapter,
         mode: request.mode,
@@ -154,9 +187,19 @@ export const orchestratePipeline = async (
         // 실패 — Strict 모드에 따라 후속 의존 Task도 차단됨
         failedTaskIds.add(task.id);
         taskRecords.push({ taskId: task.id, status: "failed", rawOutput: execResult.rawOutput });
+        await PipelineTracer.trace({
+          sessionId, stage: `Executor:${task.id}`, role: "role3", phase: "output",
+          dataType: "ExecutionResult", data: { task_id: task.id, success: false, raw_output: execResult.rawOutput },
+          durationMs: PipelineTracer.endStage(`Executor:${task.id}`),
+        });
         logger.error(`Task [${task.id}] failed (exit ${execResult.exitCode}) — dependent tasks will be skipped`);
       } else {
         // 성공 — 세션 상태 갱신 및 저장 (Role 2.2)
+        await PipelineTracer.trace({
+          sessionId, stage: `Executor:${task.id}`, role: "role3", phase: "output",
+          dataType: "ExecutionResult", data: { task_id: task.id, success: true, raw_output: execResult.rawOutput },
+          durationMs: PipelineTracer.endStage(`Executor:${task.id}`),
+        });
         state = markTaskCompleted(state, task.id, execResult.rawOutput);
         await SessionStateManager.saveSession(state);
         taskRecords.push({ taskId: task.id, status: "completed", rawOutput: execResult.rawOutput });
@@ -169,6 +212,12 @@ export const orchestratePipeline = async (
   const allOk = failedTaskIds.size === 0;
   const completedCount = taskRecords.filter((r) => r.status === "completed").length;
   const totalCount = graph.tasks.length;
+
+  // trace 저장 (DETOKS_TRACE=1 또는 request.trace 플래그)
+  let traceFilePath: string | undefined;
+  if (request.trace) {
+    traceFilePath = await PipelineTracer.saveTrace(sessionId);
+  }
 
   return {
     ok: allOk,
@@ -184,5 +233,7 @@ export const orchestratePipeline = async (
     taskRecords,
     compiledPrompt: compiledPrompt.compressed_prompt,
     role2Handoff: role2PromptInput.compiled_prompt,
+    ...(request.trace ? { traceLog: PipelineTracer.getTrace(sessionId) } : {}),
+    ...(traceFilePath ? { traceFilePath } : {}),
   };
 };
