@@ -17,7 +17,7 @@ const EXECUTION_MODE_HELP = [
 const VERBOSE_HELP =
   "  --verbose                     Show full success JSON and error stacks (output only)";
 const TRACE_HELP =
-  "  --trace                       Record pipeline stage I/O and save to .trace/{sessionId}-trace.json";
+  "  --trace                       Record pipeline stage I/O and save to local_config/trace/{sessionId}-trace.json";
 const CLI_USAGE_MAIN = [
   "Usage:",
   '  detoks "<prompt>" [--adapter codex|gemini] [--execution-mode stub|real] [--verbose] [--trace]',

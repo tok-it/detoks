@@ -148,11 +148,11 @@ export class TaskGraphProcessor {
   private static readonly FLOWS_TO: Partial<Record<RequestCategory, RequestCategory[]>> = {
     explore:  ["analyze", "modify", "create", "validate"],
     plan:     ["explore", "create", "execute"],
-    analyze:  ["modify", "validate", "document", "create"],
+    analyze:  ["analyze", "modify", "validate", "document", "create"],
     create:   ["validate", "modify", "document", "execute"],
     modify:   ["validate", "document", "execute"],
     validate: ["document", "execute", "modify"],
-    execute:  ["validate", "document"],
+    execute:  ["analyze", "validate", "document"],
     document: [],
   };
 

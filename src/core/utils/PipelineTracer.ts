@@ -26,7 +26,7 @@ export interface TraceLog {
   };
 }
 
-const TRACE_DIR = '.trace';
+const TRACE_DIR = 'local_config/trace';
 const traces = new Map<string, TraceEntry[]>();
 const stageTiming = new Map<string, { start: number; end?: number }>();
 
