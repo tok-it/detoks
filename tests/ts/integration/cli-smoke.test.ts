@@ -1,4 +1,4 @@
-import { chmodSync, mkdtempSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -183,40 +183,45 @@ describe("detoks CLI smoke", () => {
   });
 
   it("runs batch file input and keeps default stdout concise", () => {
-    const tempDir = mkdtempSync(join(repoRoot, "tmp-cli-batch-"));
+    const tempDir = mkdtempSync(join(tmpdir(), "detoks-cli-batch-"));
     const inputFile = join(tempDir, "input.json");
-    writeFileSync(
-      inputFile,
-      JSON.stringify({
-        data: ["Please create a new file", "Please run npm test"],
-      }),
-      "utf8",
-    );
 
-    const defaultRun = runCli(["--file", inputFile]);
-    const verboseRun = runCli(["--file", inputFile, "--verbose"]);
+    try {
+      writeFileSync(
+        inputFile,
+        JSON.stringify({
+          data: ["Please create a new file", "Please run npm test"],
+        }),
+        "utf8",
+      );
 
-    expect(defaultRun.error).toBeUndefined();
-    expect(verboseRun.error).toBeUndefined();
-    expect(defaultRun.status).toBe(0);
-    expect(verboseRun.status).toBe(0);
-    expect(defaultRun.stderr).toBe("");
-    expect(verboseRun.stderr).toBe("");
+      const defaultRun = runCli(["--file", inputFile]);
+      const verboseRun = runCli(["--file", inputFile, "--verbose"]);
 
-    const defaultJson = JSON.parse(defaultRun.stdout.trim());
-    const verboseJson = JSON.parse(verboseRun.stdout.trim());
+      expect(defaultRun.error).toBeUndefined();
+      expect(verboseRun.error).toBeUndefined();
+      expect(defaultRun.status).toBe(0);
+      expect(verboseRun.status).toBe(0);
+      expect(defaultRun.stderr).toBe("");
+      expect(verboseRun.stderr).toBe("");
 
-    expect(defaultJson).toEqual({
-      ok: true,
-      mode: "batch",
-      inputCount: 2,
-      completedCount: 2,
-      failedCount: 0,
-    });
-    expect(verboseJson.run_metadata.input_count).toBe(2);
-    expect(verboseJson.results).toHaveLength(2);
-    expect(verboseJson.results[0].compiled_prompt).toBe("Create a new file");
-    expect(verboseJson.results[1].compiled_prompt).toBe("Run npm test");
+      const defaultJson = JSON.parse(defaultRun.stdout.trim());
+      const verboseJson = JSON.parse(verboseRun.stdout.trim());
+
+      expect(defaultJson).toEqual({
+        ok: true,
+        mode: "batch",
+        inputCount: 2,
+        completedCount: 2,
+        failedCount: 0,
+      });
+      expect(verboseJson.run_metadata.input_count).toBe(2);
+      expect(verboseJson.results).toHaveLength(2);
+      expect(verboseJson.results[0].compiled_prompt).toBe("Create a new file");
+      expect(verboseJson.results[1].compiled_prompt).toBe("Run npm test");
+    } finally {
+      rmSync(tempDir, { force: true, recursive: true });
+    }
   });
 
   it("keeps codex real rawOutput distinct from stub rawOutput in smoke mode", () => {
