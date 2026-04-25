@@ -28,7 +28,11 @@ const runCliWithEnv = (args: string[], env: NodeJS.ProcessEnv) =>
     env: { ...process.env, ...env },
   });
 
-const createFakeBinary = (dir: string, command: "codex" | "gemini") => {
+const createFakeBinary = (
+  dir: string,
+  command: "codex" | "gemini",
+  options: { exitCode?: number; stderr?: string } = {},
+) => {
   const binaryPath = join(dir, command);
   writeFileSync(
     binaryPath,
@@ -39,7 +43,9 @@ process.stdin.on("data", (chunk) => {
   input += chunk;
 });
 process.stdin.on("end", () => {
+  ${options.stderr ? `process.stderr.write(${JSON.stringify(options.stderr)});` : ""}
   process.stdout.write(\`[fake:${command}] \${input}\`);
+  process.exit(${options.exitCode ?? 0});
 });
 `,
     "utf8",
@@ -235,6 +241,36 @@ describe("detoks CLI smoke", () => {
 
   it("keeps gemini real rawOutput distinct from stub rawOutput in smoke mode", () => {
     runAdapterRawOutputSmoke("gemini", "hello gemini");
+  });
+
+  it("prints real non-zero run results to stderr and exits 1", () => {
+    const tempDir = mkdtempSync(join(tmpdir(), "detoks-cli-real-fail-"));
+
+    try {
+      createFakeBinary(tempDir, "codex", {
+        exitCode: 42,
+        stderr: "[fake:codex] boom",
+      });
+
+      const failedRun = runCliWithEnv(
+        ["please fail", "--execution-mode", "real"],
+        {
+          PATH: `${tempDir}:${process.env.PATH ?? ""}`,
+        },
+      );
+
+      expect(failedRun.error).toBeUndefined();
+      expect(failedRun.status).toBe(1);
+      expect(failedRun.stdout).toBe("");
+
+      const failedJson = JSON.parse(failedRun.stderr.trim());
+      expect(failedJson).toEqual({
+        ok: false,
+        error: "0/1 task(s) completed — 1 failed",
+      });
+    } finally {
+      rmSync(tempDir, { force: true, recursive: true });
+    }
   });
 
   it("keeps codex real rawOutput distinct from stub rawOutput in smoke mode", () => {
