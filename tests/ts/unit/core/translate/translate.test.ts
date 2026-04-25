@@ -400,4 +400,52 @@ describe("translate_to_english", () => {
     expect(result.text).toBe("Create a file named `app.ts`");
     expect(result.validation_errors).toEqual([]);
   });
+
+  it("저신뢰 placeholder literal은 최종 validation에서 강제하지 않는다", async () => {
+    const fetchImplementation = vi.fn(async () => {
+      return new Response(
+        JSON.stringify({
+          choices: [
+            {
+              message: {
+                content: "The services behind the gateway are too slow.",
+              },
+            },
+          ],
+        }),
+        {
+          status: 200,
+          headers: {
+            "content-type": "application/json",
+          },
+        },
+      );
+    });
+
+    const result = await translate_to_english(
+      "API Gateway 뒤에서 돌아가는 서비스들이 너무 느려",
+      {
+        config: {
+          openaiApiBase: "http://127.0.0.1:1234/v1",
+          openaiApiKey: "test-key",
+          modelName: "local-model",
+          pipelineMode: "safe",
+          requestTimeout: 30000,
+          translationMaxAttempts: 1,
+          temperature: 0,
+        },
+        policies: {
+          protectedTerms: [],
+          preferredTranslations: {},
+          forbiddenPatterns: [],
+        },
+        fetchImplementation,
+      },
+    );
+
+    expect(result.text).toBe("The services behind the gateway are too slow.");
+    expect(result.validation_errors).not.toContain(
+      "required_literal_missing:API",
+    );
+  });
 });

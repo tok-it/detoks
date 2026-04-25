@@ -15,7 +15,10 @@ import {
 } from "./spans.js";
 import { clean_translation } from "./clean.js";
 import { repair_translation } from "../guardrails/repair.js";
-import { validate_translation } from "../guardrails/validator.js";
+import {
+  isHighConfidenceInferredLiteral,
+  validate_translation,
+} from "../guardrails/validator.js";
 
 export interface TranslateToEnglishOptions {
   config: Role1RuntimeConfig;
@@ -330,7 +333,9 @@ async function runTranslationPass(
       source_text,
       options.policies.preferredTranslations,
     ),
-    required_literals: masked.placeholders.map((entry) => entry.original),
+    required_literals: masked.placeholders
+      .map((entry) => entry.original)
+      .filter(isHighConfidenceInferredLiteral),
     model_names: options.config.modelName ? [options.config.modelName] : [],
     forbidden_patterns: options.policies.forbiddenPatterns,
   });

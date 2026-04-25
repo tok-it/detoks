@@ -93,6 +93,36 @@ function normalizeInlineWhitespace(text: string): string {
   return text.replace(/\s+/g, " ").trim();
 }
 
+export function isHighConfidenceInferredLiteral(literal: string): boolean {
+  const normalized = normalizeInlineWhitespace(literal);
+
+  if (!normalized || hasKorean(normalized)) {
+    return false;
+  }
+
+  if (/\b[A-Za-z_][\w]*(?:\.[A-Za-z_][\w]*)*\([^()\n]*\)/.test(normalized)) {
+    return true;
+  }
+
+  if (/\b[A-Za-z_][\w]*(?:\.[A-Za-z_][\w]*)+\b/.test(normalized)) {
+    return true;
+  }
+
+  if (/\b[A-Za-z]+_[A-Za-z0-9_]+\b/.test(normalized)) {
+    return true;
+  }
+
+  if (/[\\/]/.test(normalized)) {
+    return true;
+  }
+
+  if (/[`'"]/.test(normalized)) {
+    return true;
+  }
+
+  return false;
+}
+
 export function findMissingRequiredLiterals(
   outputText: string,
   requiredLiterals: readonly string[] = [],
@@ -141,7 +171,7 @@ export function validate_translation(
         ? { model_names: request.model_names }
         : {}),
     },
-  );
+  ).filter(isHighConfidenceInferredLiteral);
   const validationErrors = [
     ...validatePlaceholderSequence(
       request.source_text,
