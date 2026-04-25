@@ -1,5 +1,6 @@
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdtempSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -19,6 +20,72 @@ const runCliWithInput = (args: string[], input: string) =>
     encoding: "utf8",
     input,
   });
+
+const runCliWithEnv = (args: string[], env: NodeJS.ProcessEnv) =>
+  spawnSync(process.execPath, ["--import", "tsx", cliEntry, ...args], {
+    cwd: repoRoot,
+    encoding: "utf8",
+    env: { ...process.env, ...env },
+  });
+
+const createFakeBinary = (dir: string, command: "codex" | "gemini") => {
+  const binaryPath = join(dir, command);
+  writeFileSync(
+    binaryPath,
+    `#!/usr/bin/env node
+let input = "";
+process.stdin.setEncoding("utf8");
+process.stdin.on("data", (chunk) => {
+  input += chunk;
+});
+process.stdin.on("end", () => {
+  process.stdout.write(\`[fake:${command}] \${input}\`);
+});
+`,
+    "utf8",
+  );
+  chmodSync(binaryPath, 0o755);
+  return binaryPath;
+};
+
+const runAdapterRawOutputSmoke = (adapter: "codex" | "gemini", prompt: string) => {
+  const tempDir = mkdtempSync(join(tmpdir(), "detoks-cli-real-"));
+  createFakeBinary(tempDir, adapter);
+
+  const stubRun = runCli([prompt, "--adapter", adapter, "--verbose"]);
+  const realRun = runCliWithEnv(
+    [prompt, "--adapter", adapter, "--execution-mode", "real", "--verbose"],
+    {
+      PATH: `${tempDir}:${process.env.PATH ?? ""}`,
+    },
+  );
+
+  expect(stubRun.error).toBeUndefined();
+  expect(realRun.error).toBeUndefined();
+  expect(stubRun.status).toBe(0);
+  expect(realRun.status).toBe(0);
+  expect(stubRun.stderr).toBe("");
+  expect(realRun.stderr).toBe("");
+
+  const stubJson = JSON.parse(stubRun.stdout.trim());
+  const realJson = JSON.parse(realRun.stdout.trim());
+
+  expect(stubJson).toMatchObject({
+    ok: true,
+    mode: "run",
+    adapter,
+  });
+  expect(stubJson.rawOutput).toContain(`[stub:${adapter}] [EXECUTE] ${prompt}`);
+  expect(realJson).toMatchObject({
+    ok: true,
+    mode: "run",
+    adapter,
+  });
+  expect(realJson.rawOutput).toContain(`[fake:${adapter}] [EXECUTE] ${prompt}`);
+  expect(realJson.rawOutput).not.toBe(stubJson.rawOutput);
+  expect(realJson).toHaveProperty("rawOutput");
+  expect(realRun.stdout).not.toBe(stubRun.stdout);
+};
 
 describe("detoks CLI smoke", () => {
   it("keeps default stdout concise and verbose stdout full", () => {
@@ -150,5 +217,13 @@ describe("detoks CLI smoke", () => {
     expect(verboseJson.results).toHaveLength(2);
     expect(verboseJson.results[0].compiled_prompt).toBe("Create a new file");
     expect(verboseJson.results[1].compiled_prompt).toBe("Run npm test");
+  });
+
+  it("keeps codex real rawOutput distinct from stub rawOutput in smoke mode", () => {
+    runAdapterRawOutputSmoke("codex", "hello detoks");
+  });
+
+  it("keeps gemini real rawOutput distinct from stub rawOutput in smoke mode", () => {
+    runAdapterRawOutputSmoke("gemini", "hello gemini");
   });
 });
