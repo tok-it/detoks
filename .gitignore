@@ -100,3 +100,4 @@ tests/ts/integration/
 tests/integration/
 tests/data
 tmp
+graphify-out
