@@ -104,7 +104,9 @@ function shouldRetryWholeItem(
 
   return validationErrors.some((error) =>
     error.startsWith("required_literal_missing:") ||
-    error.startsWith("required_term_missing:")
+    error.startsWith("required_term_missing:") ||
+    error === "korean_text_remaining" ||
+    error === "source_korean_copied"
   );
 }
 

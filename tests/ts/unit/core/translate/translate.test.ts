@@ -195,7 +195,7 @@ describe("translate_to_english", () => {
       fetchImplementation,
     });
 
-    expect(fetchImplementation).toHaveBeenCalledOnce();
+    expect(fetchImplementation).toHaveBeenCalledTimes(2);
     expect(result.span_results[0]!.status).toBe("failed");
     expect(result.span_results[0]!.attempts).toBe(1);
     expect(result.span_results[0]!.validation_errors).toContain(
@@ -331,6 +331,7 @@ describe("translate_to_english", () => {
       fetchImplementation,
     });
 
+    expect(fetchImplementation).toHaveBeenCalledTimes(2);
     expect(result.text).toBe("Review 블루/그린 deployment first");
     expect(result.validation_errors).toContain("korean_text_remaining");
     expect(result.validation_errors).toContain("source_korean_copied");

@@ -42,6 +42,10 @@ interface MatchCandidate {
   priority: number;
 }
 
+function hasKorean(text: string): boolean {
+  return /[가-힣]/.test(text);
+}
+
 const PATTERN_SPECS: ReadonlyArray<{
   kind: Exclude<
     ProtectedSegmentKind,
@@ -152,6 +156,10 @@ function addRegexCandidates(
       continue;
     }
 
+    if (kind === "quoted_literal" && !isTechnicalQuotedLiteral(original)) {
+      continue;
+    }
+
     candidates.push({
       start,
       end: start + original.length,
@@ -160,6 +168,28 @@ function addRegexCandidates(
       priority,
     });
   }
+}
+
+function isTechnicalQuotedLiteral(literal: string): boolean {
+  const inner = literal.slice(1, -1).trim();
+
+  if (!inner || hasKorean(inner)) {
+    return false;
+  }
+
+  if (/[\\/._:-]/.test(inner) || /\d/.test(inner)) {
+    return true;
+  }
+
+  if (/\b[A-Z]{2,}\b/.test(inner)) {
+    return true;
+  }
+
+  if (/\b[A-Za-z]+_[A-Za-z0-9_]+\b/.test(inner)) {
+    return true;
+  }
+
+  return false;
 }
 
 function addLiteralCandidates(

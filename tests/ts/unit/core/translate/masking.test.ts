@@ -71,4 +71,14 @@ describe("mask_protected_segments", () => {
       sourceText,
     );
   });
+
+  it("일반 한국어 인용구는 보호하지 않는다", () => {
+    const sourceText = "사용자에게 '확인 버튼을 눌러 주세요'라고 안내해";
+    const masked = mask_protected_segments(sourceText);
+    const literals = collect_preservable_literals(sourceText);
+
+    expect(masked.placeholders).toHaveLength(0);
+    expect(literals).toEqual([]);
+    expect(masked.masked_text).toBe(sourceText);
+  });
 });
