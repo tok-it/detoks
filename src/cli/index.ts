@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { formatBatchSuccess, formatError, formatSuccess } from "./format.js";
+import { formatBatchSuccess, formatError, formatFailedResult, formatSuccess } from "./format.js";
 import { getCliUsage, parseCliArgs, toNormalizedRequest } from "./parse.js";
 import { runBatchCommand } from "./commands/run-batch.js";
 import { runCommand } from "./commands/run.js";
@@ -47,7 +47,7 @@ const main = async (): Promise<void> => {
   const request = toNormalizedRequest(args);
   const result = await runOneShotCommand(request);
   if (!result.ok) {
-    console.error(formatError(new Error(result.summary), args.verbose));
+    console.error(formatFailedResult(result, args.verbose));
     process.exitCode = 1;
     return;
   }

@@ -249,11 +249,17 @@ describe("detoks CLI smoke", () => {
     try {
       createFakeBinary(tempDir, "codex", {
         exitCode: 42,
-        stderr: "[fake:codex] boom",
+        stderr: "[fake:codex] boom\n",
       });
 
       const failedRun = runCliWithEnv(
         ["please fail", "--execution-mode", "real"],
+        {
+          PATH: `${tempDir}:${process.env.PATH ?? ""}`,
+        },
+      );
+      const failedVerboseRun = runCliWithEnv(
+        ["please fail", "--execution-mode", "real", "--verbose"],
         {
           PATH: `${tempDir}:${process.env.PATH ?? ""}`,
         },
@@ -264,10 +270,24 @@ describe("detoks CLI smoke", () => {
       expect(failedRun.stdout).toBe("");
 
       const failedJson = JSON.parse(failedRun.stderr.trim());
-      expect(failedJson).toEqual({
+      expect(failedJson).toMatchObject({
         ok: false,
         error: "0/1 task(s) completed — 1 failed",
       });
+      expect(failedJson).toHaveProperty("rawOutput");
+      expect(failedJson.rawOutput).toContain("[fake:codex] [VALIDATE] fail");
+
+      expect(failedVerboseRun.error).toBeUndefined();
+      expect(failedVerboseRun.status).toBe(1);
+      expect(failedVerboseRun.stdout).toBe("");
+      
+      const failedVerboseJson = JSON.parse(failedVerboseRun.stderr.trim());
+      expect(failedVerboseJson).toMatchObject({
+        ok: false,
+        summary: "0/1 task(s) completed — 1 failed",
+      });
+      expect(failedVerboseJson).toHaveProperty("rawOutput");
+      expect(failedVerboseJson.rawOutput).toContain("[fake:codex] [VALIDATE]");
     } finally {
       rmSync(tempDir, { force: true, recursive: true });
     }
