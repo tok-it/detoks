@@ -1,4 +1,5 @@
 import type { UserRequest } from "../../schemas/pipeline.js";
+import type { TraceLog } from "../utils/PipelineTracer.js";
 
 export const AdapterValues = ["codex", "gemini"] as const;
 export type Adapter = (typeof AdapterValues)[number];
@@ -11,6 +12,7 @@ export interface PipelineExecutionRequest {
   adapter: Adapter;
   executionMode: ExecutionMode;
   verbose: boolean;
+  trace?: boolean;
   userRequest: UserRequest;
 }
 
@@ -39,4 +41,6 @@ export interface PipelineExecutionResult {
   taskRecords: TaskExecutionRecord[];
   compiledPrompt?: string;
   role2Handoff?: string;
+  traceLog?: TraceLog;
+  traceFilePath?: string;
 }

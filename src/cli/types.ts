@@ -22,6 +22,7 @@ export interface CliArgs {
   adapter: Adapter;
   executionMode: ExecutionMode;
   verbose: boolean;
+  trace: boolean;
   showHelp: boolean;
   helpTopic?: "main" | "repl";
 }

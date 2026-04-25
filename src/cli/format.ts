@@ -1,20 +1,31 @@
+import { PipelineTracer } from "../core/utils/PipelineTracer.js";
 import type { CliBatchExecutionResult, CliExecutionResult } from "./types.js";
 
 export const formatSuccess = (result: CliExecutionResult, verbose: boolean): string => {
+  const traceSection = result.traceLog
+    ? "\n\n" + PipelineTracer.formatAsMarkdown(result.traceLog)
+    : result.traceFilePath
+      ? `\n\n[Trace saved → ${result.traceFilePath}]`
+      : "";
+
   if (verbose) {
-    return JSON.stringify(result, null, 2);
+    const { traceLog, ...rest } = result;
+    return JSON.stringify(rest, null, 2) + traceSection;
   }
 
-  return JSON.stringify(
-    {
-      ok: result.ok,
-      mode: result.mode,
-      adapter: result.adapter,
-      summary: result.summary,
-      nextAction: result.nextAction,
-    },
-    null,
-    2,
+  return (
+    JSON.stringify(
+      {
+        ok: result.ok,
+        mode: result.mode,
+        adapter: result.adapter,
+        summary: result.summary,
+        nextAction: result.nextAction,
+        ...(result.traceFilePath ? { traceFile: result.traceFilePath } : {}),
+      },
+      null,
+      2,
+    ) + traceSection
   );
 };
 
