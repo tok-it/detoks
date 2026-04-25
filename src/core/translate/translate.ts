@@ -79,6 +79,16 @@ function containsKorean(text: string): boolean {
   return /[가-힣]/.test(text);
 }
 
+function collectRequiredTerms(
+  sourceText: string,
+  preferredTranslations: Role1Policies["preferredTranslations"],
+): string[] {
+  return Object.keys(preferredTranslations)
+    .filter((term) => sourceText.includes(term))
+    .map((term) => preferredTranslations[term]!)
+    .filter(Boolean);
+}
+
 async function translate_span(
   span: TranslatableSpan,
   options: TranslateToEnglishOptions,
@@ -173,16 +183,17 @@ export async function translate_to_english(
     const placeholderTokens = masked.placeholders
       .filter((entry) => span.text.includes(entry.placeholder))
       .map((entry) => entry.placeholder);
-    const requiredTerms = Object.keys(options.policies.preferredTranslations)
-      .filter((term) => span.text.includes(term))
-      .map((term) => options.policies.preferredTranslations[term]!)
-      .filter(Boolean);
+    const requiredTerms = collectRequiredTerms(
+      span.text,
+      options.policies.preferredTranslations,
+    );
     const initialValidation = validate_translation({
       source_text: span.text,
       compressed_prompt: cleaned,
       placeholders: placeholderTokens,
       protected_terms: options.policies.protectedTerms,
       required_terms: requiredTerms,
+      model_names: options.config.modelName ? [options.config.modelName] : [],
       forbidden_patterns: options.policies.forbiddenPatterns,
     });
     const repaired = repair_translation({
@@ -199,6 +210,7 @@ export async function translate_to_english(
       placeholders: placeholderTokens,
       protected_terms: options.policies.protectedTerms,
       required_terms: requiredTerms,
+      model_names: options.config.modelName ? [options.config.modelName] : [],
       forbidden_patterns: options.policies.forbiddenPatterns,
     });
 
@@ -229,6 +241,7 @@ export async function translate_to_english(
           placeholders: placeholderTokens,
           protected_terms: options.policies.protectedTerms,
           required_terms: requiredTerms,
+          model_names: options.config.modelName ? [options.config.modelName] : [],
           forbidden_patterns: options.policies.forbiddenPatterns,
         });
 
@@ -246,6 +259,7 @@ export async function translate_to_english(
           placeholders: placeholderTokens,
           protected_terms: options.policies.protectedTerms,
           required_terms: requiredTerms,
+          model_names: options.config.modelName ? [options.config.modelName] : [],
           forbidden_patterns: options.policies.forbiddenPatterns,
         });
         repairActions.push(...fallbackRepaired.repair_actions);
@@ -284,9 +298,19 @@ export async function translate_to_english(
     reassemble_spans(translatedSpans),
     masked.placeholders,
   );
-  const finalValidationErrors = containsKorean(restoredText)
-    ? [...new Set(spanResults.flatMap((result) => result.validation_errors))]
-    : [];
+  const finalValidation = validate_translation({
+    source_text,
+    compressed_prompt: restoredText,
+    protected_terms: options.policies.protectedTerms,
+    required_terms: collectRequiredTerms(
+      source_text,
+      options.policies.preferredTranslations,
+    ),
+    required_literals: masked.placeholders.map((entry) => entry.original),
+    model_names: options.config.modelName ? [options.config.modelName] : [],
+    forbidden_patterns: options.policies.forbiddenPatterns,
+  });
+  const finalValidationErrors = finalValidation.validation_errors;
   const finalRepairActions = [
     ...new Set(spanResults.flatMap((result) => result.repair_actions)),
   ];

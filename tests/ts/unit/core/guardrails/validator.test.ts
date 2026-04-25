@@ -23,4 +23,19 @@ describe("validate_translation", () => {
     expect(result.validation_errors).toContain("source_korean_copied");
     expect(result.validation_errors).toContain("forbidden_pattern:^Translation:");
   });
+
+  it("핵심 기술 토큰이 누락되면 required literal 오류를 검출한다", () => {
+    const result = validate_translation({
+      source_text: "numpy.dot(A, B)으로 계산하고 unittest.mock.patch도 유지해",
+      compressed_prompt: "Calculate it and keep the mock patch.",
+      required_literals: ["numpy.dot(A, B)", "unittest.mock.patch"],
+    });
+
+    expect(result.validation_errors).toContain(
+      "required_literal_missing:numpy.dot(A, B)",
+    );
+    expect(result.validation_errors).toContain(
+      "required_literal_missing:unittest.mock.patch",
+    );
+  });
 });

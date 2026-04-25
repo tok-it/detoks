@@ -1,9 +1,13 @@
+import { collect_preservable_literals } from "../translate/masking.js";
+
 export interface TranslationGuardrailsRequest {
   source_text: string;
   compressed_prompt: string;
   placeholders?: string[];
   protected_terms?: string[];
   required_terms?: string[];
+  required_literals?: string[];
+  model_names?: string[];
   forbidden_patterns?: string[];
 }
 
@@ -85,6 +89,29 @@ function validateRequiredTerms(
     .map((term) => `required_term_missing:${term}`);
 }
 
+function normalizeInlineWhitespace(text: string): string {
+  return text.replace(/\s+/g, " ").trim();
+}
+
+export function findMissingRequiredLiterals(
+  outputText: string,
+  requiredLiterals: readonly string[] = [],
+): string[] {
+  const normalizedOutput = normalizeInlineWhitespace(outputText);
+
+  return [...new Set(requiredLiterals)]
+    .filter(Boolean)
+    .filter((literal) => !normalizedOutput.includes(normalizeInlineWhitespace(literal)));
+}
+
+function validateRequiredLiterals(
+  outputText: string,
+  requiredLiterals: readonly string[] = [],
+): string[] {
+  return findMissingRequiredLiterals(outputText, requiredLiterals)
+    .map((literal) => `required_literal_missing:${literal}`);
+}
+
 function validateLengthDelta(
   sourceText: string,
   outputText: string,
@@ -104,6 +131,17 @@ function validateLengthDelta(
 export function validate_translation(
   request: TranslationGuardrailsRequest,
 ): TranslationGuardrailsResponse {
+  const inferredRequiredLiterals = collect_preservable_literals(
+    request.source_text,
+    {
+      ...(request.protected_terms
+        ? { protected_terms: request.protected_terms }
+        : {}),
+      ...(request.model_names
+        ? { model_names: request.model_names }
+        : {}),
+    },
+  );
   const validationErrors = [
     ...validatePlaceholderSequence(
       request.source_text,
@@ -117,6 +155,10 @@ export function validate_translation(
     ...validateRequiredTerms(
       request.compressed_prompt,
       request.required_terms,
+    ),
+    ...validateRequiredLiterals(
+      request.compressed_prompt,
+      [...inferredRequiredLiterals, ...(request.required_literals ?? [])],
     ),
     ...validateLengthDelta(request.source_text, request.compressed_prompt),
   ];

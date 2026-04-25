@@ -291,4 +291,48 @@ describe("translate_to_english", () => {
     expect(result.span_results[0]!.output_text).toContain("__PH_0001__");
     expect(result.validation_errors).toEqual([]);
   });
+
+  it("복원 이후 한글이 다시 남으면 최종 validation 오류를 남긴다", async () => {
+    const fetchImplementation = vi.fn(async () => {
+      return new Response(
+        JSON.stringify({
+          choices: [
+            {
+              message: {
+                content: "Review __PH_0001__ deployment first",
+              },
+            },
+          ],
+        }),
+        {
+          status: 200,
+          headers: {
+            "content-type": "application/json",
+          },
+        },
+      );
+    });
+
+    const result = await translate_to_english("블루/그린 배포를 먼저 검토해", {
+      config: {
+        openaiApiBase: "http://127.0.0.1:1234/v1",
+        openaiApiKey: "test-key",
+        modelName: "local-model",
+        pipelineMode: "safe",
+        requestTimeout: 30000,
+        translationMaxAttempts: 1,
+        temperature: 0,
+      },
+      policies: {
+        protectedTerms: [],
+        preferredTranslations: {},
+        forbiddenPatterns: [],
+      },
+      fetchImplementation,
+    });
+
+    expect(result.text).toBe("Review 블루/그린 deployment first");
+    expect(result.validation_errors).toContain("korean_text_remaining");
+    expect(result.validation_errors).toContain("source_korean_copied");
+  });
 });

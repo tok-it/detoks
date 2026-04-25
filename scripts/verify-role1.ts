@@ -29,8 +29,11 @@ interface VerificationItem {
   status: "completed" | "failed";
   inference_time_sec: number;
   input_prompt_tokens: number;
+  normalized_input_tokens: number;
   compiled_prompt_tokens: number;
   token_reduction_rate: number | null;
+  translation_token_reduction_rate: number | null;
+  compression_token_reduction_rate: number | null;
   validation_errors: string[];
   repair_actions: string[];
   error?: string;
@@ -55,6 +58,11 @@ interface VerificationSummary {
   failed_count: number;
   average_inference_time_sec: number;
   average_token_reduction_rate: number;
+  average_translation_token_reduction_rate: number;
+  average_compression_token_reduction_rate: number;
+  compression_fallback_count: number;
+  repair_action_item_count: number;
+  validation_failed_count: number;
 }
 
 function getUsage(): string {
@@ -255,22 +263,33 @@ async function main(): Promise<void> {
   try {
     const results: VerificationItem[] = batchResult.results.map((item, index) => {
       const inputPromptTokens = encodeTokenCount(encoding, item.raw_input);
+      const normalizedInput = item.normalized_input ?? "";
+      const normalizedInputTokens = encodeTokenCount(encoding, normalizedInput);
       const compiledPrompt = item.compiled_prompt ?? "";
       const compiledPromptTokens = encodeTokenCount(encoding, compiledPrompt);
 
       return {
         index: options.index !== undefined ? options.index : index,
         raw_input: item.raw_input,
-        normalized_input: item.normalized_input ?? "",
+        normalized_input: normalizedInput,
         compiled_prompt: compiledPrompt,
         role2_handoff: item.role2_handoff ?? "",
         language: item.language ?? "en",
         status: item.status,
         inference_time_sec: item.inference_time_sec ?? 0,
         input_prompt_tokens: inputPromptTokens,
+        normalized_input_tokens: normalizedInputTokens,
         compiled_prompt_tokens: compiledPromptTokens,
         token_reduction_rate: calculateTokenReductionRate(
           inputPromptTokens,
+          compiledPromptTokens,
+        ),
+        translation_token_reduction_rate: calculateTokenReductionRate(
+          inputPromptTokens,
+          normalizedInputTokens,
+        ),
+        compression_token_reduction_rate: calculateTokenReductionRate(
+          normalizedInputTokens,
           compiledPromptTokens,
         ),
         validation_errors: item.validation_errors,
@@ -293,8 +312,13 @@ async function main(): Promise<void> {
             role2_handoff: item.role2_handoff,
             inference_time_sec: item.inference_time_sec,
             input_prompt_tokens: item.input_prompt_tokens,
+            normalized_input_tokens: item.normalized_input_tokens,
             compiled_prompt_tokens: item.compiled_prompt_tokens,
             token_reduction_rate: item.token_reduction_rate,
+            translation_token_reduction_rate:
+              item.translation_token_reduction_rate,
+            compression_token_reduction_rate:
+              item.compression_token_reduction_rate,
             validation_errors: item.validation_errors,
             repair_actions: item.repair_actions,
             ...(item.error ? { error: item.error } : {}),
@@ -323,6 +347,12 @@ async function main(): Promise<void> {
     const reductionSamples = results
       .map((item) => item.token_reduction_rate)
       .filter((value): value is number => value !== null);
+    const translationReductionSamples = results
+      .map((item) => item.translation_token_reduction_rate)
+      .filter((value): value is number => value !== null);
+    const compressionReductionSamples = results
+      .map((item) => item.compression_token_reduction_rate)
+      .filter((value): value is number => value !== null);
     const summary: VerificationSummary = {
       completed_count: completedCount,
       failed_count: failedCount,
@@ -340,6 +370,29 @@ async function main(): Promise<void> {
                 reductionSamples.length,
             )
           : 0,
+      average_translation_token_reduction_rate:
+        translationReductionSamples.length > 0
+          ? roundMetric(
+              translationReductionSamples.reduce((sum, value) => sum + value, 0) /
+                translationReductionSamples.length,
+            )
+          : 0,
+      average_compression_token_reduction_rate:
+        compressionReductionSamples.length > 0
+          ? roundMetric(
+              compressionReductionSamples.reduce((sum, value) => sum + value, 0) /
+                compressionReductionSamples.length,
+            )
+          : 0,
+      compression_fallback_count: results.filter((item) =>
+        item.repair_actions.includes("compression_fallback_to_normalized_input")
+      ).length,
+      repair_action_item_count: results.filter((item) =>
+        item.repair_actions.length > 0
+      ).length,
+      validation_failed_count: results.filter((item) =>
+        item.validation_errors.length > 0
+      ).length,
     };
 
     console.log(
