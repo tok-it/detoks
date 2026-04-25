@@ -111,8 +111,15 @@ export const orchestratePipeline = async (
 
   // ── Step 3: DAG 검증 (Role 2.1 — 1차 검증) ───────────────────────────────
   const validation = DAGValidator.validate(graph);
+  await PipelineTracer.trace({
+    sessionId, stage: "DAGValidator", role: "role2.1", phase: "output",
+    dataType: "DAGValidationResult", data: validation,
+  });
   if (!validation.valid) {
     logger.error(`DAG validation failed: ${validation.reason} — ${validation.detail}`);
+    const traceFilePath = request.trace
+      ? await PipelineTracer.saveTrace(sessionId)
+      : undefined;
     return {
       ok: false,
       mode: request.mode,
@@ -125,12 +132,44 @@ export const orchestratePipeline = async (
       taskRecords: [],
       compiledPrompt: compiledPrompt.compressed_prompt,
       role2Handoff: role2PromptInput.compiled_prompt,
+      ...(request.trace ? { traceLog: PipelineTracer.getTrace(sessionId) } : {}),
+      ...(traceFilePath ? { traceFilePath } : {}),
     };
   }
 
   // ── Step 4: 의존성 해결 + stage 분류 (Role 2.1) ───────────────────────────
   const resolution = DependencyResolver.resolve(graph, validation);
+  await PipelineTracer.trace({
+    sessionId, stage: "DependencyResolver", role: "role2.1", phase: "output",
+    dataType: "DependencyResolution", data: {
+      orderedTasks: resolution.orderedTasks.map(({ task, deps }) => ({
+        taskId: task.id,
+        type: task.type,
+        title: task.title,
+        dependsOn: task.depends_on,
+        resolvedDeps: deps.map((dep) => ({
+          taskId: dep.id,
+          type: dep.type,
+          title: dep.title,
+        })),
+      })),
+    },
+  });
   const { stages } = ParallelClassifier.classify(resolution);
+  await PipelineTracer.trace({
+    sessionId, stage: "ParallelClassifier", role: "role2.1", phase: "output",
+    dataType: "ParallelClassification", data: {
+      stages: stages.map(({ stage, tasks }) => ({
+        stage,
+        runnableInParallel: tasks.map((task) => ({
+          taskId: task.id,
+          type: task.type,
+          title: task.title,
+          dependsOn: task.depends_on,
+        })),
+      })),
+    },
+  });
 
   // ── Step 5: 세션 상태 초기화 (Role 2.2) ──────────────────────────────────
   let state = initSessionState(sessionId);
