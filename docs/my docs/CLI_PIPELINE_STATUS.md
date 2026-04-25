@@ -159,6 +159,7 @@ CLI Input
 - stub subprocess runner 존재
 - real subprocess runner 존재
 - codex/gemini 양쪽 adapter 경로의 subprocess boundary unit test가 대칭적으로 고정됨
+- CLI smoke에서 real execution-mode가 fake PATH binary stdout을 rawOutput으로 반영하는 계약도 고정됨
 
 한계:
 - real runner는 존재하지만, 실제 CLI binary 유무에 따라 runtime 결과가 달라질 수 있음
@@ -258,6 +259,7 @@ CLI Input
 
 - `execution-mode` help 보강
 - `verbose` 출력 정책 정리
+- real execution-mode rawOutput 계약을 CLI smoke로 추가 고정
 - one-shot smoke test 추가
 - REPL 시작/종료 smoke test 추가
 - help와 실제 출력 계약 점검 완료

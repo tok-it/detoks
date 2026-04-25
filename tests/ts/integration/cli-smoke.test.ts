@@ -1,22 +1,67 @@
+import { chmodSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
 import { resolve } from "node:path";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 
 const repoRoot = process.cwd();
 const cliEntry = resolve(repoRoot, "src/cli/index.ts");
+const tempDirs: string[] = [];
 
-const runCli = (args: string[]) =>
+const createTempDir = (): string => {
+  const dir = mkdtempSync(join(tmpdir(), "detoks-cli-smoke-"));
+  tempDirs.push(dir);
+  return dir;
+};
+
+afterEach(() => {
+  for (const dir of tempDirs.splice(0)) {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+const runCli = (args: string[], envOverrides: NodeJS.ProcessEnv = {}) =>
   spawnSync(process.execPath, ["--import", "tsx", cliEntry, ...args], {
     cwd: repoRoot,
     encoding: "utf8",
+    env: {
+      ...process.env,
+      ...envOverrides,
+    },
   });
 
-const runCliWithInput = (args: string[], input: string) =>
+const runCliWithInput = (
+  args: string[],
+  input: string,
+  envOverrides: NodeJS.ProcessEnv = {},
+) =>
   spawnSync(process.execPath, ["--import", "tsx", cliEntry, ...args], {
     cwd: repoRoot,
     encoding: "utf8",
     input,
+    env: {
+      ...process.env,
+      ...envOverrides,
+    },
   });
+
+const createFakeBinaryDir = (name: string, stdout: string): string => {
+  const dir = createTempDir();
+  const binaryPath = join(dir, name);
+    writeFileSync(
+      binaryPath,
+      [
+        "#!/bin/sh",
+        `printf '%s' ${JSON.stringify(stdout)}`,
+        "exit 0",
+        "",
+      ].join("\n"),
+      "utf8",
+  );
+  chmodSync(binaryPath, 0o755);
+  return dir;
+};
 
 describe("detoks CLI smoke", () => {
   it("keeps default stdout concise and verbose stdout full", () => {
@@ -111,5 +156,34 @@ describe("detoks CLI smoke", () => {
     expect(replRun.stdout).toContain('type "exit" to quit.');
     expect(replRun.stdout).toContain("detoks> ");
     expect(replRun.stdout.trimEnd()).toMatch(/detoks repl closed\.$/);
+  });
+
+  it("uses the real subprocess rawOutput contract when execution-mode=real", () => {
+    const fakeBinDir = createFakeBinaryDir("codex", "[fake:codex] hello detoks");
+    const env = {
+      PATH: `${fakeBinDir}:${process.env.PATH ?? ""}`,
+    };
+
+    const stubRun = runCli(["hello detoks", "--verbose"], env);
+    const realRun = runCli(
+      ["hello detoks", "--execution-mode", "real", "--verbose"],
+      env,
+    );
+
+    expect(stubRun.error).toBeUndefined();
+    expect(realRun.error).toBeUndefined();
+    expect(stubRun.status).toBe(0);
+    expect(realRun.status).toBe(0);
+    expect(stubRun.stderr).toBe("");
+    expect(realRun.stderr).toBe("");
+
+    const stubJson = JSON.parse(stubRun.stdout.trim());
+    const realJson = JSON.parse(realRun.stdout.trim());
+
+    expect(stubJson.rawOutput).toBe(
+      "[stub:codex] [EXECUTE] hello detoks\n\nContext: No previous task context available.",
+    );
+    expect(realJson.rawOutput).toBe("[fake:codex] hello detoks");
+    expect(realJson.rawOutput).not.toBe(stubJson.rawOutput);
   });
 });
