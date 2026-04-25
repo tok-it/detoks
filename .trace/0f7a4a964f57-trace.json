@@ -1,0 +1,118 @@
+{
+  "sessionId": "0f7a4a964f57",
+  "startTime": "2026-04-25T06:07:08.360Z",
+  "entries": [
+    {
+      "timestamp": "2026-04-25T06:07:08.351Z",
+      "stage": "PromptCompiler",
+      "phase": "input",
+      "role": "role1",
+      "dataType": "UserRequest",
+      "data": {
+        "raw_input": "Fetch last month's sales data from the database, compare it with the previous month, analyze the differences, and create a visualization chart."
+      },
+      "schemaValid": true,
+      "memoryMb": 13.72412109375
+    },
+    {
+      "timestamp": "2026-04-25T06:07:08.354Z",
+      "stage": "PromptCompiler",
+      "phase": "output",
+      "role": "role1",
+      "dataType": "CompiledPrompt",
+      "data": {
+        "raw_input": "Fetch last month's sales data from the database, compare it with the previous month, analyze the differences, and create a visualization chart.",
+        "normalized_input": "Fetch last month's sales data from the database, compare it with the previous month, analyze the differences, and create a visualization chart.",
+        "compressed_prompt": "Fetch last month's sales data from the database, compare it with the previous month, analyze the differences, and create a visualization chart.",
+        "language": "en",
+        "compression_provider": "nlp_adapter",
+        "inference_time_sec": 0
+      },
+      "schemaValid": true,
+      "durationMs": 3,
+      "memoryMb": 14.194580078125
+    },
+    {
+      "timestamp": "2026-04-25T06:07:08.354Z",
+      "stage": "TaskGraphBuilder",
+      "phase": "input",
+      "role": "role2.1",
+      "dataType": "Role2PromptInput",
+      "data": {
+        "compiled_prompt": "Fetch last month's sales data from the database, compare it with the previous month, analyze the differences, and create a visualization chart."
+      },
+      "schemaValid": true,
+      "memoryMb": 14.1966552734375
+    },
+    {
+      "timestamp": "2026-04-25T06:07:08.358Z",
+      "stage": "TaskGraphBuilder",
+      "phase": "output",
+      "role": "role2.1",
+      "dataType": "TaskGraph",
+      "data": {
+        "tasks": [
+          {
+            "id": "t1",
+            "type": "execute",
+            "status": "pending",
+            "title": "Fetch last month's sales data from the database",
+            "input_hash": "0fb204a3dcd5b595",
+            "depends_on": []
+          },
+          {
+            "id": "t2",
+            "type": "analyze",
+            "status": "pending",
+            "title": "compare it with the previous month",
+            "input_hash": "5ff60838761de561",
+            "depends_on": []
+          },
+          {
+            "id": "t3",
+            "type": "analyze",
+            "status": "pending",
+            "title": "analyze the differences",
+            "input_hash": "44f5a7d17e1d38ba",
+            "depends_on": []
+          },
+          {
+            "id": "t4",
+            "type": "create",
+            "status": "pending",
+            "title": "create a visualization chart.",
+            "input_hash": "2bde28cf92b82044",
+            "depends_on": [
+              "t3"
+            ]
+          }
+        ]
+      },
+      "schemaValid": true,
+      "durationMs": 4,
+      "memoryMb": 14.742050170898438
+    },
+    {
+      "timestamp": "2026-04-25T06:07:08.358Z",
+      "stage": "DAGValidator",
+      "phase": "output",
+      "role": "role2.1",
+      "dataType": "DAGValidationResult",
+      "data": {
+        "valid": false,
+        "reason": "DISCONNECTED_NODE",
+        "detail": "Task \"t1\" has no dependencies and no dependents — isolated from the graph"
+      },
+      "schemaValid": true,
+      "memoryMb": 14.76123046875
+    }
+  ],
+  "summary": {
+    "totalDurationMs": 7,
+    "stageTimings": {
+      "PromptCompiler": 3,
+      "TaskGraphBuilder": 4
+    },
+    "totalMemoryMb": 14.76123046875
+  }
+}

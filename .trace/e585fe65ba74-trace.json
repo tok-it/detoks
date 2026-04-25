@@ -1,0 +1,190 @@
+{
+  "sessionId": "e585fe65ba74",
+  "startTime": "2026-04-25T06:05:10.847Z",
+  "entries": [
+    {
+      "timestamp": "2026-04-25T06:05:10.833Z",
+      "stage": "PromptCompiler",
+      "phase": "input",
+      "role": "role1",
+      "dataType": "UserRequest",
+      "data": {
+        "raw_input": "Monitor website traffic in real time, detect anomalies, notify the responsible person, and back up the logs."
+      },
+      "schemaValid": true,
+      "memoryMb": 13.856803894042969
+    },
+    {
+      "timestamp": "2026-04-25T06:05:10.836Z",
+      "stage": "PromptCompiler",
+      "phase": "output",
+      "role": "role1",
+      "dataType": "CompiledPrompt",
+      "data": {
+        "raw_input": "Monitor website traffic in real time, detect anomalies, notify the responsible person, and back up the logs.",
+        "normalized_input": "Monitor website traffic in real time, detect anomalies, notify the responsible person, and back up the logs.",
+        "compressed_prompt": "Monitor website traffic in real time, detect anomalies, notify the responsible person, and back up the logs.",
+        "language": "en",
+        "compression_provider": "nlp_adapter",
+        "inference_time_sec": 0
+      },
+      "schemaValid": true,
+      "durationMs": 3,
+      "memoryMb": 14.30859375
+    },
+    {
+      "timestamp": "2026-04-25T06:05:10.836Z",
+      "stage": "TaskGraphBuilder",
+      "phase": "input",
+      "role": "role2.1",
+      "dataType": "Role2PromptInput",
+      "data": {
+        "compiled_prompt": "Monitor website traffic in real time, detect anomalies, notify the responsible person, and back up the logs."
+      },
+      "schemaValid": true,
+      "memoryMb": 14.310737609863281
+    },
+    {
+      "timestamp": "2026-04-25T06:05:10.840Z",
+      "stage": "TaskGraphBuilder",
+      "phase": "output",
+      "role": "role2.1",
+      "dataType": "TaskGraph",
+      "data": {
+        "tasks": [
+          {
+            "id": "t1",
+            "type": "execute",
+            "status": "pending",
+            "title": "Monitor website traffic in real time, detect anomalies, notify the responsible person, and back up the logs.",
+            "input_hash": "e3964263a6d00e19",
+            "depends_on": []
+          }
+        ]
+      },
+      "schemaValid": true,
+      "durationMs": 4,
+      "memoryMb": 14.963035583496094
+    },
+    {
+      "timestamp": "2026-04-25T06:05:10.840Z",
+      "stage": "DAGValidator",
+      "phase": "output",
+      "role": "role2.1",
+      "dataType": "DAGValidationResult",
+      "data": {
+        "valid": true,
+        "topologicalOrder": [
+          "t1"
+        ]
+      },
+      "schemaValid": true,
+      "memoryMb": 14.734481811523438
+    },
+    {
+      "timestamp": "2026-04-25T06:05:10.840Z",
+      "stage": "DependencyResolver",
+      "phase": "output",
+      "role": "role2.1",
+      "dataType": "DependencyResolution",
+      "data": {
+        "orderedTasks": [
+          {
+            "taskId": "t1",
+            "type": "execute",
+            "title": "Monitor website traffic in real time, detect anomalies, notify the responsible person, and back up the logs.",
+            "dependsOn": [],
+            "resolvedDeps": []
+          }
+        ]
+      },
+      "schemaValid": true,
+      "memoryMb": 14.741416931152344
+    },
+    {
+      "timestamp": "2026-04-25T06:05:10.840Z",
+      "stage": "ParallelClassifier",
+      "phase": "output",
+      "role": "role2.1",
+      "dataType": "ParallelClassification",
+      "data": {
+        "stages": [
+          {
+            "stage": 0,
+            "runnableInParallel": [
+              {
+                "taskId": "t1",
+                "type": "execute",
+                "title": "Monitor website traffic in real time, detect anomalies, notify the responsible person, and back up the logs.",
+                "dependsOn": []
+              }
+            ]
+          }
+        ]
+      },
+      "schemaValid": true,
+      "memoryMb": 14.748649597167969
+    },
+    {
+      "timestamp": "2026-04-25T06:05:10.841Z",
+      "stage": "ContextOptimizer",
+      "phase": "output",
+      "role": "role2.2",
+      "dataType": "ExecutionContext",
+      "data": {
+        "session_id": "e585fe65ba74",
+        "active_task_id": "t1",
+        "shared_context": {
+          "session_id": "e585fe65ba74",
+          "failed_task_ids": [
+            "t1"
+          ]
+        },
+        "selected_context": {},
+        "context_summary": "No previous task context available."
+      },
+      "schemaValid": true,
+      "durationMs": 1,
+      "memoryMb": 14.75823974609375
+    },
+    {
+      "timestamp": "2026-04-25T06:05:10.841Z",
+      "stage": "Executor:t1",
+      "phase": "input",
+      "role": "role3",
+      "dataType": "ExecutionRequest",
+      "data": {
+        "task_id": "t1",
+        "type": "execute",
+        "prompt": "[EXECUTE] Monitor website traffic in real time, detect anomalies, notify the responsible person, and back up the logs.\n\nContext: No previous task context available."
+      },
+      "schemaValid": true,
+      "memoryMb": 14.760177612304688
+    },
+    {
+      "timestamp": "2026-04-25T06:05:10.841Z",
+      "stage": "Executor:t1",
+      "phase": "output",
+      "role": "role3",
+      "dataType": "ExecutionResult",
+      "data": {
+        "task_id": "t1",
+        "success": true,
+        "raw_output": "[stub:codex] [EXECUTE] Monitor website traffic in real time, detect anomalies, notify the responsible pers..."
+      },
+      "schemaValid": true,
+      "durationMs": 0,
+      "memoryMb": 14.777725219726562
+    }
+  ],
+  "summary": {
+    "totalDurationMs": 8,
+    "stageTimings": {
+      "PromptCompiler": 3,
+      "TaskGraphBuilder": 4,
+      "ContextOptimizer:t1": 1,
+      "Executor:t1": 0
+    },
+    "totalMemoryMb": 14.963035583496094
+  }
+}
