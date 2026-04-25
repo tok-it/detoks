@@ -218,6 +218,39 @@ P2:
 - `src/core/guardrails/repair.ts`
 - `src/core/prompt/compression.ts`
 - `scripts/verify-role1.ts`
+
+## 2026-04-26 후속 반영 및 잔여 작업
+
+이번 반영에서 처리한 사항:
+
+- 일반 한국어 인용구가 `quoted_literal`로 과보호되지 않도록 필터를 추가했다.
+- 최종 결과에 `korean_text_remaining`, `source_korean_copied`가 남으면 item 단위 `final_retry`가 동작하도록 수정했다.
+- 관련 unit test를 추가해 일반 한국어 인용구 비마스킹과 한글 잔존 시 item 재시도를 회귀 테스트로 고정했다.
+
+같은 날짜 기준 `tests/data/row_data.json` 전체 106건 재검증 결과:
+
+- `completed_count: 104`
+- `failed_count: 2`
+- `average_inference_time_sec: 0.753`
+- `average_token_reduction_rate: 31.864`
+- `average_translation_token_reduction_rate: 30.776`
+- `average_compression_token_reduction_rate: 1.622`
+- `compression_fallback_count: 0`
+- `repair_action_item_count: 27`
+- `validation_failed_count: 2`
+
+이번 검증에서 남은 후속 작업:
+
+- `ROI(투자 대비 효과)`처럼 영문 토큰과 한글 설명이 섞인 괄호형 표현이 과보호되어 최종 복원 후 한글이 남는 케이스를 줄여야 한다.
+- `prometheus_exporter.collect()`처럼 필수 literal이 누락된 경우 fallback 이후에도 복구되지 않는 케이스를 줄여야 한다.
+- 이를 위해 retry prompt에 `required_literals`를 명시적으로 주입하거나, 혼합 괄호 표현을 high-confidence literal 후보에서 제외하는 추가 보정이 필요하다.
+
+대표 실패 케이스:
+
+- `index 36`
+  - `ROI(투자 대비 효과)`가 placeholder로 보호된 뒤 한글 설명이 최종 결과에 남아 `korean_text_remaining`, `source_korean_copied`로 실패
+- `index 84`
+  - `prometheus_exporter.collect()`가 번역 출력에서 누락되어 `required_literal_missing:prometheus_exporter.collect()`로 실패
 - `tests/ts/unit/core/guardrails`
 - `tests/ts/unit/core/prompt`
 - `tests/ts/integration`
