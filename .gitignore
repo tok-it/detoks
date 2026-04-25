@@ -85,9 +85,13 @@ scripts/build-agent-prompt.sh
 scripts/build-task-completion-prompt.sh
 scripts/codex-task.sh
 scripts/codex-task-complete.sh
+scripts/gemini-task.sh
 scripts/tmux-codex-workflow.sh
 scripts/tmux-codex-complete-workflow.sh
+scripts/tmux-gemini-workflow.sh
 scripts/create-kanban-card.sh
+scripts/daily-report
+scripts/generate-daily-reports.py
 
 # OS
 .DS_Store
