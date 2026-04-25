@@ -28,7 +28,11 @@ const runCliWithEnv = (args: string[], env: NodeJS.ProcessEnv) =>
     env: { ...process.env, ...env },
   });
 
-const createFakeBinary = (dir: string, command: "codex" | "gemini") => {
+const createFakeBinary = (
+  dir: string,
+  command: "codex" | "gemini",
+  options: { exitCode?: number; stderr?: string } = {},
+) => {
   const binaryPath = join(dir, command);
   writeFileSync(
     binaryPath,
@@ -39,7 +43,9 @@ process.stdin.on("data", (chunk) => {
   input += chunk;
 });
 process.stdin.on("end", () => {
+  ${options.stderr ? `process.stderr.write(${JSON.stringify(options.stderr)});` : ""}
   process.stdout.write(\`[fake:${command}] \${input}\`);
+  process.exit(${options.exitCode ?? 0});
 });
 `,
     "utf8",
@@ -50,41 +56,46 @@ process.stdin.on("end", () => {
 
 const runAdapterRawOutputSmoke = (adapter: "codex" | "gemini", prompt: string) => {
   const tempDir = mkdtempSync(join(tmpdir(), "detoks-cli-real-"));
-  createFakeBinary(tempDir, adapter);
 
-  const stubRun = runCli([prompt, "--adapter", adapter, "--verbose"]);
-  const realRun = runCliWithEnv(
-    [prompt, "--adapter", adapter, "--execution-mode", "real", "--verbose"],
-    {
-      PATH: `${tempDir}:${process.env.PATH ?? ""}`,
-    },
-  );
+  try {
+    createFakeBinary(tempDir, adapter);
 
-  expect(stubRun.error).toBeUndefined();
-  expect(realRun.error).toBeUndefined();
-  expect(stubRun.status).toBe(0);
-  expect(realRun.status).toBe(0);
-  expect(stubRun.stderr).toBe("");
-  expect(realRun.stderr).toBe("");
+    const stubRun = runCli([prompt, "--adapter", adapter, "--verbose"]);
+    const realRun = runCliWithEnv(
+      [prompt, "--adapter", adapter, "--execution-mode", "real", "--verbose"],
+      {
+        PATH: `${tempDir}:${process.env.PATH ?? ""}`,
+      },
+    );
 
-  const stubJson = JSON.parse(stubRun.stdout.trim());
-  const realJson = JSON.parse(realRun.stdout.trim());
+    expect(stubRun.error).toBeUndefined();
+    expect(realRun.error).toBeUndefined();
+    expect(stubRun.status).toBe(0);
+    expect(realRun.status).toBe(0);
+    expect(stubRun.stderr).toBe("");
+    expect(realRun.stderr).toBe("");
 
-  expect(stubJson).toMatchObject({
-    ok: true,
-    mode: "run",
-    adapter,
-  });
-  expect(stubJson.rawOutput).toContain(`[stub:${adapter}] [EXECUTE] ${prompt}`);
-  expect(realJson).toMatchObject({
-    ok: true,
-    mode: "run",
-    adapter,
-  });
-  expect(realJson.rawOutput).toContain(`[fake:${adapter}] [EXECUTE] ${prompt}`);
-  expect(realJson.rawOutput).not.toBe(stubJson.rawOutput);
-  expect(realJson).toHaveProperty("rawOutput");
-  expect(realRun.stdout).not.toBe(stubRun.stdout);
+    const stubJson = JSON.parse(stubRun.stdout.trim());
+    const realJson = JSON.parse(realRun.stdout.trim());
+
+    expect(stubJson).toMatchObject({
+      ok: true,
+      mode: "run",
+      adapter,
+    });
+    expect(stubJson.rawOutput).toContain(`[stub:${adapter}] [EXECUTE] ${prompt}`);
+    expect(realJson).toMatchObject({
+      ok: true,
+      mode: "run",
+      adapter,
+    });
+    expect(realJson.rawOutput).toContain(`[fake:${adapter}] [EXECUTE] ${prompt}`);
+    expect(realJson.rawOutput).not.toBe(stubJson.rawOutput);
+    expect(realJson).toHaveProperty("rawOutput");
+    expect(realRun.stdout).not.toBe(stubRun.stdout);
+  } finally {
+    rmSync(tempDir, { force: true, recursive: true });
+  }
 };
 
 describe("detoks CLI smoke", () => {
@@ -230,6 +241,56 @@ describe("detoks CLI smoke", () => {
 
   it("keeps gemini real rawOutput distinct from stub rawOutput in smoke mode", () => {
     runAdapterRawOutputSmoke("gemini", "hello gemini");
+  });
+
+  it("prints real non-zero run results to stderr and exits 1", () => {
+    const tempDir = mkdtempSync(join(tmpdir(), "detoks-cli-real-fail-"));
+
+    try {
+      createFakeBinary(tempDir, "codex", {
+        exitCode: 42,
+        stderr: "[fake:codex] boom\n",
+      });
+
+      const failedRun = runCliWithEnv(
+        ["please fail", "--execution-mode", "real"],
+        {
+          PATH: `${tempDir}:${process.env.PATH ?? ""}`,
+        },
+      );
+      const failedVerboseRun = runCliWithEnv(
+        ["please fail", "--execution-mode", "real", "--verbose"],
+        {
+          PATH: `${tempDir}:${process.env.PATH ?? ""}`,
+        },
+      );
+
+      expect(failedRun.error).toBeUndefined();
+      expect(failedRun.status).toBe(1);
+      expect(failedRun.stdout).toBe("");
+
+      const failedJson = JSON.parse(failedRun.stderr.trim());
+      expect(failedJson).toMatchObject({
+        ok: false,
+        error: "0/1 task(s) completed — 1 failed",
+      });
+      expect(failedJson).toHaveProperty("rawOutput");
+      expect(failedJson.rawOutput).toContain("[fake:codex] [VALIDATE] fail");
+
+      expect(failedVerboseRun.error).toBeUndefined();
+      expect(failedVerboseRun.status).toBe(1);
+      expect(failedVerboseRun.stdout).toBe("");
+      
+      const failedVerboseJson = JSON.parse(failedVerboseRun.stderr.trim());
+      expect(failedVerboseJson).toMatchObject({
+        ok: false,
+        summary: "0/1 task(s) completed — 1 failed",
+      });
+      expect(failedVerboseJson).toHaveProperty("rawOutput");
+      expect(failedVerboseJson.rawOutput).toContain("[fake:codex] [VALIDATE]");
+    } finally {
+      rmSync(tempDir, { force: true, recursive: true });
+    }
   });
 
   it("keeps codex real rawOutput distinct from stub rawOutput in smoke mode", () => {

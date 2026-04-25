@@ -29,6 +29,34 @@ export const formatSuccess = (result: CliExecutionResult, verbose: boolean): str
   );
 };
 
+export const formatFailedResult = (
+  result: CliExecutionResult,
+  verbose: boolean,
+): string => {
+  const traceSection = result.traceLog
+    ? "\n\n" + PipelineTracer.formatAsMarkdown(result.traceLog)
+    : result.traceFilePath
+      ? `\n\n[Trace saved → ${result.traceFilePath}]`
+      : "";
+
+  if (verbose) {
+    const { traceLog, ...rest } = result;
+    return JSON.stringify(rest, null, 2) + traceSection;
+  }
+
+  return (
+    JSON.stringify(
+      {
+        ok: result.ok,
+        error: result.summary,
+        ...(result.rawOutput ? { rawOutput: result.rawOutput } : {}),
+      },
+      null,
+      2,
+    ) + traceSection
+  );
+};
+
 export const formatBatchSuccess = (
   result: CliBatchExecutionResult,
   verbose: boolean,

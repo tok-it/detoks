@@ -177,6 +177,7 @@ CLI Input
 - 기본 출력: concise JSON
 - `--verbose`: full success JSON + error stack
 - smoke / unit test로 고정됨
+- one-shot `ok: false` 결과는 stdout 성공 포맷이 아니라 stderr 에러 포맷과 exit code 1로 처리됨
 
 관련 파일:
 - `src/cli/format.ts`
@@ -263,6 +264,7 @@ CLI Input
 - help와 실제 출력 계약 점검 완료
 - main help / repl help 예시 문구 보강
 - CLI smoke JSON parse를 깨는 info 로그 문제 해결
+- one-shot real non-zero 실행 결과를 stderr 에러 포맷 + exit code 1 smoke로 고정
 
 ---
 
