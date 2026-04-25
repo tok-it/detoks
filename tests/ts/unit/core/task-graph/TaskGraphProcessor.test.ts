@@ -64,6 +64,7 @@ describe("TaskGraphProcessor", () => {
       ["Investigate the memory issue",     "analyze",  "investigate"],
       ["Explain how auth flow works",      "analyze",  "how works"],
       ["Analyze why the login flow fails", "analyze",  "analyze why"],
+      ["Propose appropriate fixes",        "analyze",  "propose fixes"],
       ["Validate the output",              "validate", "validate"],
       ["Run the tests",                    "validate", "test over run"],
       ["Lint the project",                 "validate", "lint"],
@@ -156,6 +157,28 @@ describe("TaskGraphProcessor", () => {
           "Compare it with the previous month",              // analyze
           "Analyze the differences",                        // analyze
           "Create a visualization chart",                   // create
+        ],
+      });
+
+      expect(result.tasks.map((task) => task.type)).toEqual([
+        "execute",
+        "analyze",
+        "analyze",
+        "create",
+      ]);
+      expect(result.tasks[0]!.depends_on).toEqual([]);
+      expect(result.tasks[1]!.depends_on).toEqual(["t1"]);
+      expect(result.tasks[2]!.depends_on).toEqual(["t2"]);
+      expect(result.tasks[3]!.depends_on).toEqual(["t3"]);
+    });
+
+    it("execute → analyze → analyze → create 리포트 흐름은 sequential이다", () => {
+      const result = TaskGraphProcessor.process({
+        sentences: [
+          "Collect server logs",             // execute
+          "Analyze error patterns",          // analyze
+          "Propose appropriate fixes",       // analyze
+          "Generate the final report",       // create
         ],
       });
 

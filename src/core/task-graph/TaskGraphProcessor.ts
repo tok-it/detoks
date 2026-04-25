@@ -87,6 +87,7 @@ export class TaskGraphProcessor {
       patterns: [
         /\b(explain|analyze|investigate|diagnose|understand)\b.*\b(why|how|behavior|flow|issue|problem|failure)\b/,
         /\b(root\s+cause|impact|trade[\s-]?off)\b/,
+        /\b(propose|suggest|recommend)\b.*\b(fixes?|solutions?|mitigations?|approach|steps?)\b/,
         /\bcompare\b.*\b(vs|with|against)\b/,
         /\b(analyze|review|inspect|investigate|understand|explain|diagnose|profile)\b/,
         /\b(compare|assess|evaluate|reason\s+about)\b/,
