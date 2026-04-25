@@ -335,4 +335,69 @@ describe("translate_to_english", () => {
     expect(result.validation_errors).toContain("korean_text_remaining");
     expect(result.validation_errors).toContain("source_korean_copied");
   });
+
+  it("최종 validation에서 literal 누락이 나면 item 단위로 한 번 더 재호출한다", async () => {
+    const fetchImplementation = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            choices: [
+              {
+                message: {
+                  content: "Create a file",
+                },
+              },
+            ],
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json",
+            },
+          },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            choices: [
+              {
+                message: {
+                  content: "Create a file named __PH_0001__",
+                },
+              },
+            ],
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json",
+            },
+          },
+        ),
+      );
+
+    const result = await translate_to_english("`app.ts` 파일을 생성해", {
+      config: {
+        openaiApiBase: "http://127.0.0.1:1234/v1",
+        openaiApiKey: "test-key",
+        modelName: "local-model",
+        pipelineMode: "safe",
+        requestTimeout: 30000,
+        translationMaxAttempts: 1,
+        temperature: 0,
+      },
+      policies: {
+        protectedTerms: [],
+        preferredTranslations: {},
+        forbiddenPatterns: [],
+      },
+      fetchImplementation,
+    });
+
+    expect(fetchImplementation).toHaveBeenCalledTimes(2);
+    expect(result.text).toBe("Create a file named `app.ts`");
+    expect(result.validation_errors).toEqual([]);
+  });
 });

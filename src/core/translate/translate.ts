@@ -75,6 +75,8 @@ const TRANSLATION_SYSTEM_PROMPT = `You are a translator that translates Korean i
 const TRANSLATION_USER_PROMPT_PREFIX =
   "Translate the following text data into English.\n\n";
 
+type TranslationPassPromptType = "primary" | "fallback" | "final_retry";
+
 function containsKorean(text: string): boolean {
   return /[가-힣]/.test(text);
 }
@@ -89,10 +91,31 @@ function collectRequiredTerms(
     .filter(Boolean);
 }
 
+function shouldRetryWholeItem(
+  sourceText: string,
+  validationErrors: readonly string[],
+): boolean {
+  if (!containsKorean(sourceText) || validationErrors.length === 0) {
+    return false;
+  }
+
+  return validationErrors.some((error) =>
+    error.startsWith("required_literal_missing:") ||
+    error.startsWith("required_term_missing:")
+  );
+}
+
+function isBetterValidationResult(
+  currentErrors: readonly string[],
+  nextErrors: readonly string[],
+): boolean {
+  return nextErrors.length < currentErrors.length;
+}
+
 async function translate_span(
   span: TranslatableSpan,
   options: TranslateToEnglishOptions,
-  promptType: "primary" | "fallback" = "primary",
+  promptType: TranslationPassPromptType = "primary",
   fallbackContext?: {
     previous_output: string;
     validation_errors: string[];
@@ -108,14 +131,15 @@ async function translate_span(
         {
           role: "system",
           content:
-            promptType === "fallback"
+            promptType === "fallback" || promptType === "final_retry"
               ? `${TRANSLATION_SYSTEM_PROMPT}
 
 Return only the corrected English translation.
 Preserve placeholder count and order exactly.
 If placeholders were malformed, restore them exactly as in the source.
 The previous attempt failed validation for: ${fallbackContext?.validation_errors.join(", ") ?? "unknown_error"}.
-Previous invalid output: ${fallbackContext?.previous_output ?? ""}`
+Previous invalid output: ${fallbackContext?.previous_output ?? ""}
+Pay extra attention to missing technical literals and untranslated Korean text.`
               : TRANSLATION_SYSTEM_PROMPT,
         },
         {
@@ -143,9 +167,14 @@ Previous invalid output: ${fallbackContext?.previous_output ?? ""}`
   );
 }
 
-export async function translate_to_english(
+async function runTranslationPass(
   source_text: string,
   options: TranslateToEnglishOptions,
+  initialPromptType: Exclude<TranslationPassPromptType, "fallback"> = "primary",
+  finalRetryContext?: {
+    previous_output: string;
+    validation_errors: string[];
+  },
 ): Promise<TranslateToEnglishResult> {
   const masked = mask_protected_segments(source_text, {
     protected_terms: options.policies.protectedTerms,
@@ -160,7 +189,12 @@ export async function translate_to_english(
   const spanResults: TranslationSpanResult[] = [];
 
   for (const span of spans) {
-    const llmResponse = await translate_span(span, options);
+    const llmResponse = await translate_span(
+      span,
+      options,
+      initialPromptType,
+      finalRetryContext,
+    );
     if (!llmResponse) {
       translatedSpans.push(span);
       spanResults.push({
@@ -234,16 +268,6 @@ export async function translate_to_english(
           rawResponses.push(fallbackResponse.raw_response);
         }
         inferenceTimeSec += fallbackResponse.inference_time_sec ?? 0;
-
-        const fallbackValidation = validate_translation({
-          source_text: span.text,
-          compressed_prompt: fallbackCleaned,
-          placeholders: placeholderTokens,
-          protected_terms: options.policies.protectedTerms,
-          required_terms: requiredTerms,
-          model_names: options.config.modelName ? [options.config.modelName] : [],
-          forbidden_patterns: options.policies.forbiddenPatterns,
-        });
 
         const fallbackRepaired = repair_translation({
           source_text: span.text,
@@ -336,5 +360,51 @@ export async function translate_to_english(
           },
         }
       : {}),
+  };
+}
+
+export async function translate_to_english(
+  source_text: string,
+  options: TranslateToEnglishOptions,
+): Promise<TranslateToEnglishResult> {
+  const initialPass = await runTranslationPass(source_text, options);
+
+  if (!shouldRetryWholeItem(source_text, initialPass.validation_errors)) {
+    return initialPass;
+  }
+
+  const retriedPass = await runTranslationPass(
+    source_text,
+    options,
+    "final_retry",
+    {
+      previous_output: initialPass.text,
+      validation_errors: initialPass.validation_errors,
+    },
+  );
+
+  const preferredPass = isBetterValidationResult(
+    initialPass.validation_errors,
+    retriedPass.validation_errors,
+  )
+    ? retriedPass
+    : initialPass;
+
+  return {
+    ...preferredPass,
+    raw_responses: [
+      ...initialPass.raw_responses,
+      ...retriedPass.raw_responses,
+    ],
+    inference_time_sec:
+      initialPass.inference_time_sec + retriedPass.inference_time_sec,
+    fallback_span_count:
+      initialPass.fallback_span_count + retriedPass.fallback_span_count,
+    repair_actions: [
+      ...new Set([
+        ...initialPass.repair_actions,
+        ...retriedPass.repair_actions,
+      ]),
+    ],
   };
 }
