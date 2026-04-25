@@ -70,14 +70,24 @@ yarn.lock
 # Project-specific
 .devlogs/
 daily-reports/
+.prompts/
 test_data_role2/*
 !test_data_role2/*.test.ts
 !test_data_role2/*.md
 .state/
 etc_doc/
+docs/blog/
+docs/my docs/
 docs/role1/
 stress-sessions/
 detoks-dataset/
+scripts/build-agent-prompt.sh
+scripts/build-task-completion-prompt.sh
+scripts/codex-task.sh
+scripts/codex-task-complete.sh
+scripts/tmux-codex-workflow.sh
+scripts/tmux-codex-complete-workflow.sh
+scripts/create-kanban-card.sh
 
 # OS
 .DS_Store
