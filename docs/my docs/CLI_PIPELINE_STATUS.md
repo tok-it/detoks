@@ -158,6 +158,7 @@ CLI Input
 
 - stub subprocess runner 존재
 - real subprocess runner 존재
+- codex/gemini 양쪽 adapter 경로의 subprocess boundary unit test가 대칭적으로 고정됨
 
 한계:
 - real runner는 존재하지만, 실제 CLI binary 유무에 따라 runtime 결과가 달라질 수 있음
@@ -236,6 +237,7 @@ CLI Input
 
 남은 것:
 - adapter별 실제 command execution 검증
+- end-to-end real mode 검증
 
 ---
 
@@ -261,6 +263,7 @@ CLI Input
 - help와 실제 출력 계약 점검 완료
 - main help / repl help 예시 문구 보강
 - CLI smoke JSON parse를 깨는 info 로그 문제 해결
+- adapter별 real execution request command 검증 보강
 
 ---
 
