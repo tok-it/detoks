@@ -77,6 +77,7 @@ test_data_role2/*
 etc_doc/
 docs/role1/
 stress-sessions/
+detoks-dataset/
 
 # OS
 .DS_Store

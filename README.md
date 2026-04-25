@@ -62,7 +62,6 @@ User → detoks → LLM CLI → detoks → Output
 - [ROLES.md](./docs/ROLES.md)
 - [PROJECT_STRUCTURE.md](./docs/PROJECT_STRUCTURE.md)
 - [STACK_VERSIONS.md](./docs/STACK_VERSIONS.md)
-- [TMUX_WORKFLOW.md](./docs/my docs/TMUX_WORKFLOW.md)
 
 ---
 

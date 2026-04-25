@@ -231,4 +231,12 @@ describe("detoks CLI smoke", () => {
   it("keeps gemini real rawOutput distinct from stub rawOutput in smoke mode", () => {
     runAdapterRawOutputSmoke("gemini", "hello gemini");
   });
+
+  it("keeps codex real rawOutput distinct from stub rawOutput in smoke mode", () => {
+    runAdapterRawOutputSmoke("codex", "hello detoks");
+  });
+
+  it("keeps gemini real rawOutput distinct from stub rawOutput in smoke mode", () => {
+    runAdapterRawOutputSmoke("gemini", "hello gemini");
+  });
 });
