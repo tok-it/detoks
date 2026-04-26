@@ -154,8 +154,7 @@ t3 완료 → "t3 완료" 이벤트 발생 → t4 시작
 ```
 
 **학술 근거**: Feldman (1979) *"Make — A Program for Maintaining Computer Programs"*, Software: Practice and Experience
-> Makefile의 forward-chaining은 정적인 빌드 타겟에선 유효하지만,  
-> **동적으로 생성되는 의존성 그래프**에서는 사전 검증 부재로 안전 보장이 부족하다.
+> Make는 Makefile에 **정적으로 선언된** 의존성을 처리하는 시스템으로, 동적으로 생성되는 의존성 그래프를 지원하지 않는다. detoks처럼 요청마다 그래프 구조가 달라지는 환경에서는, 정적 선언 방식을 적용할 수 없어 실행 시점 trigger에 의존하게 되며, 이 경우 사전 구조 검증이 불가능하다.
 
 ---
 
@@ -264,27 +263,37 @@ Orchestrator: stage 0 → stage 1 (병렬) → stage 2
 
 ### 병렬 실행 시각화
 
+병렬 효과를 보려면 독립 태스크가 존재하는 구조가 필요합니다.  
+아래는 t1 → {t2, t3} → t4 형태의 다이아몬드 그래프 예시입니다.
+
 ```
-[직렬 실행 (병렬 계산 없을 때)]
+[그래프 구조]
 
-  t1 ──► t2 ──► t3 ──► t4
-  ↑       ↑      ↑      ↑
-  1초    1초    1초    1초    = 총 4초
+  t1 ──► t2 ──► t4
+   \            ▲
+    ──► t3 ─────┘
 
-[ParallelClassifier 적용 후]
+  t2와 t3은 모두 t1만 기다리므로 동시 실행 가능
+
+[ParallelClassifier 없이 단순 직렬 실행]
+
+  t1 → t2 → t3 → t4
+  1초   1초   1초   1초  = 총 4초
+
+[ParallelClassifier 적용 후 — stage 기반 실행]
 
   stage 0     stage 1          stage 2
   ┌────┐    ┌────┐┌────┐      ┌────┐
   │ t1 │───►│ t2 ││ t3 │─────►│ t4 │
   └────┘    └────┘└────┘      └────┘
-   1초        1초(동시)          1초     = 총 3초
+   1초        1초(동시)          1초   = 총 3초
 ```
 
 **학술 근거**: Kahn (1962) *"Topological sorting of large networks"*, Communications of the ACM
 > in-degree 기반 알고리즘은 O(V+E) 시간에 전체 그래프를 처리하며, **실행 전 완전성 보장**이 핵심 장점이다.
 
-**학술 근거**: Coffman & Graham (1972) *"Optimal Scheduling for Two-Processor Systems"*, Acta Informatica
-> DAG 기반 병렬 스케줄링이 최적 stage 계산에 이론적으로 우월함을 증명한다.
+**학술 근거**: Hu (1961) *"Parallel Sequencing and Assembly Line Problems"*, Operations Research
+> DAG의 각 노드를 의존성 깊이(level) 기준으로 stage에 배치하는 방식이, 단위 시간 태스크 환경에서 최소 실행 시간을 보장하는 최적 스케줄임을 증명한다. ParallelClassifier의 `stage = max(deps' stages) + 1` 규칙은 이 level-based scheduling의 직접 구현이다.
 
 ---
 
@@ -340,7 +349,7 @@ Coffman & Graham (1972)의 병렬 스케줄링 이론에 따라 최적 병렬 st
 |------|------|------|------|
 | Kahn, A.B. | 1962 | Topological sorting of large networks | *Communications of the ACM* |
 | Liu, C.L. & Layland, J.W. | 1973 | Scheduling Algorithms for Multiprogramming in a Hard-Real-Time Environment | *Journal of the ACM* |
-| Coffman, E.G. & Graham, R.L. | 1972 | Optimal Scheduling for Two-Processor Systems | *Acta Informatica* |
+| Hu, T.C. | 1961 | Parallel Sequencing and Assembly Line Problems | *Operations Research, 9(6)* |
 | Feldman, S.I. | 1979 | Make — A Program for Maintaining Computer Programs | *Software: Practice and Experience* |
 | Cormen et al. | 2009 | Introduction to Algorithms (3rd ed.), Ch. 22.4 Topological sort | MIT Press |
 
