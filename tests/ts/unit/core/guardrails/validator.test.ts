@@ -23,4 +23,38 @@ describe("validate_translation", () => {
     expect(result.validation_errors).toContain("source_korean_copied");
     expect(result.validation_errors).toContain("forbidden_pattern:^Translation:");
   });
+
+  it("핵심 기술 토큰이 누락되면 required literal 오류를 검출한다", () => {
+    const result = validate_translation({
+      source_text: "numpy.dot(A, B)으로 계산하고 unittest.mock.patch도 유지해",
+      compressed_prompt: "Calculate it and keep the mock patch.",
+      required_literals: ["numpy.dot(A, B)", "unittest.mock.patch"],
+    });
+
+    expect(result.validation_errors).toContain(
+      "required_literal_missing:numpy.dot(A, B)",
+    );
+    expect(result.validation_errors).toContain(
+      "required_literal_missing:unittest.mock.patch",
+    );
+  });
+
+  it("자동 추론된 저신뢰 literal은 과민 검출하지 않는다", () => {
+    const result = validate_translation({
+      source_text: "API Gateway 뒤 서비스가 느려",
+      compressed_prompt: "The services behind the gateway are slow.",
+    });
+
+    expect(result.validation_errors).not.toContain("required_literal_missing:API");
+  });
+
+  it("명시적으로 요구한 literal은 confidence와 무관하게 유지한다", () => {
+    const result = validate_translation({
+      source_text: "API Gateway 뒤 서비스가 느려",
+      compressed_prompt: "The services behind the gateway are slow.",
+      required_literals: ["API"],
+    });
+
+    expect(result.validation_errors).toContain("required_literal_missing:API");
+  });
 });

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  collect_preservable_literals,
   mask_protected_segments,
   restore_placeholders,
 } from "../../../../../src/core/translate/masking.js";
@@ -47,5 +48,37 @@ describe("mask_protected_segments", () => {
     expect(restore_placeholders(masked.masked_text, masked.placeholders)).toBe(
       sourceText,
     );
+  });
+
+  it("qualified identifier, 함수 호출식, slash token, quoted literal을 보호한다", () => {
+    const sourceText = [
+      "Use unittest.mock.patch on external API calls.",
+      "Run numpy.dot(A, B) before visualization.",
+      "Keep I/O and blue/green deployment terms unchanged.",
+      "Wait for 'GO' after threading.Event is set.",
+    ].join(" ");
+
+    const masked = mask_protected_segments(sourceText);
+    const literals = collect_preservable_literals(sourceText);
+
+    expect(literals).toContain("unittest.mock.patch");
+    expect(literals).toContain("numpy.dot(A, B)");
+    expect(literals).toContain("I/O");
+    expect(literals).toContain("blue/green");
+    expect(literals).toContain("'GO'");
+    expect(literals).toContain("threading.Event");
+    expect(restore_placeholders(masked.masked_text, masked.placeholders)).toBe(
+      sourceText,
+    );
+  });
+
+  it("일반 한국어 인용구는 보호하지 않는다", () => {
+    const sourceText = "사용자에게 '확인 버튼을 눌러 주세요'라고 안내해";
+    const masked = mask_protected_segments(sourceText);
+    const literals = collect_preservable_literals(sourceText);
+
+    expect(masked.placeholders).toHaveLength(0);
+    expect(literals).toEqual([]);
+    expect(masked.masked_text).toBe(sourceText);
   });
 });
