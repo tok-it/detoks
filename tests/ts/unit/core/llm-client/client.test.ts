@@ -69,4 +69,27 @@ describe("complete_chat", () => {
       ),
     ).rejects.toThrow("LLM client requires OPENAI_API_BASE");
   });
+
+  it("fetch가 응답 객체를 반환하지 않으면 명시적 오류를 반환한다", async () => {
+    const fetchImplementation = vi.fn(async () => undefined as never);
+
+    await expect(() =>
+      complete_chat(
+        {
+          messages: [
+            {
+              role: "user",
+              content: "파일 생성",
+            },
+          ],
+        },
+        {
+          apiBase: "http://127.0.0.1:1234/v1",
+          apiKey: "test-key",
+          modelName: "local-model",
+          fetchImplementation,
+        },
+      ),
+    ).rejects.toThrow("Invalid LLM response: fetch returned no response");
+  });
 });
