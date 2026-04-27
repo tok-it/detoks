@@ -23,6 +23,7 @@ const CLI_USAGE_MAIN = [
   '  detoks "<prompt>" [--adapter codex|gemini] [--execution-mode stub|real] [--verbose] [--trace]',
   "  detoks --file <path> [--verbose]",
   "  detoks repl [--adapter codex|gemini] [--execution-mode stub|real] [--verbose]",
+  "  detoks session list",
   "  detoks checkpoint list <session-id>",
   "  detoks checkpoint show <checkpoint-id>",
   "  detoks repl --help",
@@ -33,6 +34,7 @@ const CLI_USAGE_MAIN = [
   '  detoks "파이썬으로 버블 정렬 짜줘" --trace',
   "  detoks --file tests/data/row_data.json --verbose",
   "  detoks repl --adapter codex --execution-mode stub",
+  "  detoks session list",
   "  detoks checkpoint list session_2026_04_27",
   "  detoks checkpoint show session_2026_04_27_checkpoint_001",
   "",
@@ -43,6 +45,22 @@ const CLI_USAGE_MAIN = [
   EXECUTION_MODE_HELP,
   VERBOSE_HELP,
   TRACE_HELP,
+  "  -h, --help                    Show this help message",
+].join("\n");
+
+const CLI_USAGE_SESSION_LIST = [
+  "Usage:",
+  "  detoks session list",
+  "",
+  "Example:",
+  "  detoks session list",
+  "",
+  "Session notes:",
+  "  - lists saved sessions at a high level",
+  "  - read-only; does not create, continue, reset, fork, or modify session state",
+  "  - stdout JSON contract is intentionally not defined in this step",
+  "",
+  "Options:",
   "  -h, --help                    Show this help message",
 ].join("\n");
 
@@ -146,7 +164,9 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
       const helpTopic =
         positionals[0] === "repl"
           ? "repl"
-          : positionals[0] === "checkpoint" && positionals[1] === "list"
+          : positionals[0] === "session" && positionals[1] === "list"
+            ? "session-list"
+            : positionals[0] === "checkpoint" && positionals[1] === "list"
             ? "checkpoint-list"
             : positionals[0] === "checkpoint" && positionals[1] === "show"
               ? "checkpoint-show"
@@ -234,6 +254,30 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
   }
 
   const first = positionals[0];
+  if (first === "session") {
+    if (inputFile) {
+      throw new Error("Session commands do not support --file. Run `detoks session list --help` for usage.");
+    }
+
+    if (positionals[1] === "list") {
+      if (positionals.length > 2) {
+        throw new Error("Session list does not accept arguments. Run `detoks session list --help` for usage.");
+      }
+      return {
+        mode: "run",
+        command: "session-list",
+        adapter,
+        executionMode,
+        verbose,
+        trace,
+        showHelp: false,
+        helpTopic: "session-list",
+      };
+    }
+
+    throw new Error("Unsupported session command. Run `detoks session list --help` for usage.");
+  }
+
   if (first === "checkpoint") {
     if (inputFile) {
       throw new Error("Checkpoint commands do not support --file. Run `detoks checkpoint --help` for usage.");
@@ -319,9 +363,12 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
   };
 };
 
-export const getCliUsage = (topic: "main" | "repl" | "checkpoint-list" | "checkpoint-show" = "main"): string => {
+export const getCliUsage = (topic: "main" | "repl" | "session-list" | "checkpoint-list" | "checkpoint-show" = "main"): string => {
   if (topic === "repl") {
     return CLI_USAGE_REPL;
+  }
+  if (topic === "session-list") {
+    return CLI_USAGE_SESSION_LIST;
   }
   if (topic === "checkpoint-list") {
     return CLI_USAGE_CHECKPOINT_LIST;

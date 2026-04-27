@@ -40,6 +40,12 @@ const main = async (): Promise<void> => {
     return;
   }
 
+  if (args.command === "session-list") {
+    throw new Error(
+      "session list execution is not implemented yet; this step only defines parse/help/usage. Run `detoks session list --help` for current read-only UX notes.",
+    );
+  }
+
   if (args.command === "checkpoint-list") {
     const result = await runCheckpointListCommand(args.sessionId ?? "");
     console.log(JSON.stringify(result, null, 2));
