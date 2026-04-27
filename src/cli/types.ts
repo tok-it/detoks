@@ -24,8 +24,8 @@ export interface CliArgs {
     | "session-reset"
     | "checkpoint-list"
     | "checkpoint-show"
-    | "checkpoint-restore"
-    | undefined;
+    | "checkpoint-restore";
+    
   prompt?: string;
   sessionId?: string;
   newSessionId?: string;
@@ -45,8 +45,7 @@ export interface CliArgs {
     | "session-fork"
     | "checkpoint-list"
     | "checkpoint-show"
-    | "checkpoint-restore"
-    | undefined;
+    | "checkpoint-restore";
 }
 
 export type NormalizedCliRequest = PipelineExecutionRequest;

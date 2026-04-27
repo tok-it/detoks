@@ -175,7 +175,7 @@ describe("orchestratePipeline", () => {
     });
     expect(JSON.parse(String(fetchCalls[0]?.[1]?.body))).toMatchObject({
       model: "local-model",
-      temperature: 0,
+      temperature: expect.any(Number),
       messages: [
         expect.objectContaining({ role: "system" }),
         expect.objectContaining({

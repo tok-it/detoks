@@ -322,7 +322,6 @@ export const orchestratePipeline = async (
     },
     durationMs: PipelineTracer.endStage("SessionLoader"),
   });
-
   // ── Step 6: 실행 루프 ────────────────────────────────────────────────────
   for (const { stage, tasks } of stages) {
     logger.info(`Executing stage ${stage} — ${tasks.length} task(s)`);
