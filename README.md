@@ -56,7 +56,7 @@ User → detoks → LLM CLI → detoks → Output
 
 ---
 
-## 📂 Docs
+## 📂 프로젝트 관련 문서들
 
 - [ARCHITECTURE.md](./docs/ARCHITECTURE.md)
 - [DEPENDENCY_WORKFLOW.md](./docs/DEPENDENCY_WORKFLOW.md)
