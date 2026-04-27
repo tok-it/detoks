@@ -143,6 +143,8 @@ describe("parseCliArgs", () => {
     expect(usage).toContain("detoks checkpoint list <session-id>");
     expect(usage).toContain("read-only");
     expect(usage).toContain("does not restore or modify session state");
+    expect(usage).toContain("hasCheckpoints");
+    expect(usage).toContain("checkpoints=[]");
   });
 
   it("adds actionable guidance to parse errors", () => {

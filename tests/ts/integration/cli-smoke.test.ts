@@ -1,4 +1,4 @@
-import { chmodSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -265,6 +265,71 @@ describe("detoks CLI smoke", () => {
       expect(verboseJson.results[1].compiled_prompt).toBe("Run npm test");
     } finally {
       rmSync(tempDir, { force: true, recursive: true });
+    }
+  });
+
+  it("prints explicit checkpoint list JSON for empty and populated sessions", () => {
+    const sessionId = `session_cli_smoke_${Date.now()}`;
+    const checkpointId = `${sessionId}_checkpoint_001`;
+    const checkpointDir = join(repoRoot, ".state", "checkpoints");
+    const checkpointPath = join(checkpointDir, `${checkpointId}.json`);
+
+    try {
+      const emptyRun = runCli(["checkpoint", "list", sessionId]);
+
+      expect(emptyRun.error).toBeUndefined();
+      expect(emptyRun.status).toBe(0);
+      expect(emptyRun.stderr).toBe("");
+      expect(JSON.parse(emptyRun.stdout.trim())).toEqual({
+        ok: true,
+        mode: "checkpoint-list",
+        sessionId,
+        hasCheckpoints: false,
+        checkpointCount: 0,
+        message: `No checkpoints found for session ${sessionId}.`,
+        checkpoints: [],
+      });
+
+      mkdirSync(checkpointDir, { recursive: true });
+      writeFileSync(
+        checkpointPath,
+        JSON.stringify({
+          id: checkpointId,
+          title: "Smoke checkpoint",
+          task_id: "task_001",
+          summary: "Smoke summary",
+          changed_files: ["src/cli/commands/checkpoint-list.ts"],
+          next_action: "Review stdout contract",
+          created_at: "2026-04-27T00:00:00.000Z",
+        }),
+        "utf8",
+      );
+
+      const populatedRun = runCli(["checkpoint", "list", sessionId]);
+
+      expect(populatedRun.error).toBeUndefined();
+      expect(populatedRun.status).toBe(0);
+      expect(populatedRun.stderr).toBe("");
+      expect(JSON.parse(populatedRun.stdout.trim())).toEqual({
+        ok: true,
+        mode: "checkpoint-list",
+        sessionId,
+        hasCheckpoints: true,
+        checkpointCount: 1,
+        message: `1 checkpoint(s) found for session ${sessionId}.`,
+        checkpoints: [
+          {
+            id: checkpointId,
+            title: "Smoke checkpoint",
+            taskId: "task_001",
+            createdAt: "2026-04-27T00:00:00.000Z",
+            changedFiles: ["src/cli/commands/checkpoint-list.ts"],
+            nextAction: "Review stdout contract",
+          },
+        ],
+      });
+    } finally {
+      rmSync(checkpointPath, { force: true });
     }
   });
 

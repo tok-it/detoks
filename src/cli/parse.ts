@@ -54,6 +54,8 @@ const CLI_USAGE_CHECKPOINT_LIST = [
   "Checkpoint notes:",
   "  - lists saved checkpoints for an existing session",
   "  - read-only; does not restore or modify session state",
+  "  - stdout is JSON with sessionId, hasCheckpoints, checkpointCount, message, and checkpoints",
+  "  - empty sessions return hasCheckpoints=false, checkpointCount=0, and checkpoints=[]",
   "",
   "Options:",
   "  -h, --help                    Show this help message",
