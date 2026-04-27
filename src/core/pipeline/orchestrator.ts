@@ -18,12 +18,15 @@ import type {
   TaskExecutionRecord,
 } from "./types.js";
 
+const SESSION_VERSION = "1";
+
 function generateSessionId(): string {
   return createHash("sha256").update(String(Date.now())).digest("hex").slice(0, 12);
 }
 
 function initSessionState(sessionId: string, rawInput: string): SessionState {
   return {
+    version: SESSION_VERSION,
     shared_context: { session_id: sessionId, raw_input: rawInput },
     task_results: {},
     current_task_id: null,
@@ -264,27 +267,61 @@ export const orchestratePipeline = async (
   const taskRecords: TaskExecutionRecord[] = [];
   const failedTaskIds = new Set<string>();
 
+  PipelineTracer.startStage("SessionLoader");
+  const graphTaskIds = graph.tasks.map((t) => t.id);
+
   if (await SessionStateManager.sessionExists(sessionId)) {
-    logger.info(`Loading existing session: ${sessionId}`);
-    state = await SessionStateManager.loadSession(sessionId);
-    state = {
-      ...state,
-      shared_context: {
-        ...state.shared_context,
-        session_id: sessionId,
-        raw_input:
-          typeof state.shared_context.raw_input === "string" &&
-          state.shared_context.raw_input.trim().length > 0
-            ? state.shared_context.raw_input
-            : request.userRequest.raw_input,
-      },
-    };
-    // 이전에 실패한 작업들을 failedTaskIds에 추가하여 의존성 차단 로직이 작동하게 함
-    const loadedFailedIds = (state.shared_context.failed_task_ids as string[]) || [];
-    loadedFailedIds.forEach((id) => failedTaskIds.add(id));
+    try {
+      const loaded = await SessionStateManager.loadSession(sessionId);
+      if (loaded.version !== SESSION_VERSION) {
+        logger.warn(`[Role 2.2] 세션 버전 불일치 (${loaded.version ?? "none"} → ${SESSION_VERSION}). 새로 시작.`);
+        state = initSessionState(sessionId, request.userRequest.raw_input);
+        logger.info(`[Role 2.2] 새 세션 생성 (버전 불일치): ${sessionId}`);
+      } else {
+        const orphanedTaskIds = loaded.completed_task_ids.filter((id) => !graphTaskIds.includes(id));
+        if (orphanedTaskIds.length > 0) {
+          logger.warn(`[Role 2.2] 세션의 Task가 현재 그래프에 없음: ${orphanedTaskIds.join(", ")}. 세션 초기화.`);
+          state = initSessionState(sessionId, request.userRequest.raw_input);
+          logger.info(`[Role 2.2] 새 세션 생성 (그래프 불일치): ${sessionId}`);
+        } else {
+          logger.info(`Loading existing session: ${sessionId}`);
+          state = {
+            ...loaded,
+            shared_context: {
+              ...loaded.shared_context,
+              session_id: sessionId,
+              raw_input:
+                typeof loaded.shared_context.raw_input === "string" &&
+                loaded.shared_context.raw_input.trim().length > 0
+                  ? loaded.shared_context.raw_input
+                  : request.userRequest.raw_input,
+            },
+          };
+          const loadedFailedIds = (state.shared_context.failed_task_ids as string[]) || [];
+          loadedFailedIds.forEach((id) => failedTaskIds.add(id));
+        }
+      }
+    } catch (error) {
+      logger.warn(`[Role 2.2] 세션 로드 실패, 새 세션으로 재시작: ${error}`);
+      state = initSessionState(sessionId, request.userRequest.raw_input);
+    }
   } else {
     state = initSessionState(sessionId, request.userRequest.raw_input);
   }
+
+  await PipelineTracer.trace({
+    sessionId,
+    stage: "SessionLoader",
+    role: "role2.2",
+    phase: "output",
+    dataType: "SessionState",
+    data: {
+      session_id: state.shared_context.session_id,
+      completed_task_count: state.completed_task_ids.length,
+      next_task_id: state.current_task_id,
+    },
+    durationMs: PipelineTracer.endStage("SessionLoader"),
+  });
 
   // ── Step 6: 실행 루프 ────────────────────────────────────────────────────
   for (const { stage, tasks } of stages) {
