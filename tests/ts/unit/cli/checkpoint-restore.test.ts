@@ -8,6 +8,28 @@ describe("runCheckpointRestoreCommand", () => {
     vi.useRealTimers();
   });
 
+  it("rejects checkpoint ids that cannot identify a non-empty session id", async () => {
+    vi.spyOn(SessionStateManager, "loadCheckpoint").mockResolvedValue({
+      id: "_checkpoint_001",
+      title: "Invalid checkpoint",
+      task_id: "task_001",
+      summary: "Invalid",
+      changed_files: [],
+      next_action: "None",
+      created_at: "2026-04-27T00:00:00.000Z",
+    } as any);
+
+    await expect(runCheckpointRestoreCommand("_checkpoint_001")).resolves.toEqual({
+      ok: false,
+      mode: "checkpoint-restore",
+      sessionId: "unknown",
+      checkpointId: "_checkpoint_001",
+      restored: false,
+      mutatesState: false,
+      message: "Checkpoint _checkpoint_001 does not use <session-id>_checkpoint_<checkpoint-id>.",
+    });
+  });
+
   it("returns an explicit not-found contract when the target session is missing", async () => {
     vi.spyOn(SessionStateManager, "loadCheckpoint").mockResolvedValue({
       id: "session_restore_checkpoint_001",

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { TaskResultSchema, type TaskResult } from '../schemas/pipeline.js';
 
 export interface SharedContext {
   project_info: string;
@@ -43,13 +44,13 @@ export const OptimizedContextSchema = z.object({
 export interface CompressedState {
   shared_context: SharedContext;
   task_context: TaskContext;
-  task_results: Record<string, unknown>;
+  task_results: Record<string, TaskResult>;
   token_estimate: number;
 }
 
 export const CompressedStateSchema = z.object({
   shared_context: SharedContextSchema,
   task_context: TaskContextSchema,
-  task_results: z.record(z.string(), z.unknown()),
+  task_results: z.record(z.string(), TaskResultSchema),
   token_estimate: z.number().positive(),
 });

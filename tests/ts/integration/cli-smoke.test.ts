@@ -3,11 +3,15 @@ import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync 
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { resolve } from "node:path";
-import { describe, expect, it } from "vitest";
+import { pathToFileURL } from "node:url";
+import { describe, expect, it, vi } from "vitest";
 
 const repoRoot = process.cwd();
 const cliEntry = resolve(repoRoot, "src/cli/index.ts");
 const tsxLoader = resolve(repoRoot, "node_modules/tsx/dist/loader.mjs");
+const tsxLoaderUrl = pathToFileURL(tsxLoader).href;
+
+vi.setConfig({ testTimeout: 30_000 });
 
 const runCli = (args: string[]) =>
   spawnSync(process.execPath, ["--import", "tsx", cliEntry, ...args], {
@@ -42,7 +46,7 @@ const runCliWithEnvAndTimeout = (
   });
 
 const runCliFromCwd = (cwd: string, args: string[]) =>
-  spawnSync(process.execPath, ["--import", tsxLoader, cliEntry, ...args], {
+  spawnSync(process.execPath, ["--import", tsxLoaderUrl, cliEntry, ...args], {
     cwd,
     encoding: "utf8",
   });

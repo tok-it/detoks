@@ -1,4 +1,4 @@
-import type { SessionState } from '../../schemas/pipeline.js';
+import type { SessionState, TaskResult } from '../../schemas/pipeline.js';
 import { ContextProcessingError } from '../errors/StateErrors.js';
 
 /**
@@ -48,10 +48,10 @@ export class ContextCompressor {
    * 오래된 결과일수록 더 공격적으로 정보를 제거합니다.
    */
   private static compressTaskResults(
-    results: Record<string, any>, 
+    results: Record<string, TaskResult>, 
     completedIds: string[]
-  ): Record<string, any> {
-    const compressed: Record<string, any> = {};
+  ): Record<string, TaskResult> {
+    const compressed: Record<string, TaskResult> = {};
     const keepDetailCount = 3; // 최근 3개 작업만 상세 정보 유지
 
     // 전체 결과에 대해 루프를 돌며 압축 여부 결정
@@ -66,10 +66,9 @@ export class ContextCompressor {
         compressed[id] = result;
       } else {
         // 오래된 완료 작업은 압축
-        const res = result as any;
         compressed[id] = {
-          summary: res.summary || 'Summary preserved after compression',
-          status: res.status || (res.success ? 'completed' : 'failed'),
+          summary: result.summary || 'Summary preserved after compression',
+          status: 'success' in result && result.success ? 'completed' : 'failed',
           _compressed: true
         };
       }
@@ -102,14 +101,13 @@ export class ContextCompressor {
     }
 
     try {
-      const compressed: Record<string, any> = {};
+      const compressed: Record<string, TaskResult> = {};
       
       for (const [id, result] of Object.entries(state.task_results)) {
         if (!result) continue;
-        const res = result as any;
         compressed[id] = {
-          summary: res.summary || 'Summary preserved after compression',
-          status: res.status || (res.success ? 'completed' : 'failed'),
+          summary: result.summary || 'Summary preserved after compression',
+          status: 'success' in result && result.success ? 'completed' : 'failed',
           _compressed: true
         };
       }

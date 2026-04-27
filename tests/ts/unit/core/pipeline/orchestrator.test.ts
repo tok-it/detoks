@@ -263,6 +263,100 @@ describe("orchestratePipeline", () => {
     );
   });
 
+  it("continues a REPL session with new task ids and previous context for new input", async () => {
+    vi.spyOn(SessionStateManager, "sessionExists").mockResolvedValue(true);
+    vi.spyOn(SessionStateManager, "loadSession").mockResolvedValue({
+      version: "1",
+      shared_context: {
+        session_id: "repl_session",
+        raw_input: "Compare JavaScript array sorting methods",
+      },
+      task_results: {
+        t1: {
+          task_id: "t1",
+          success: true,
+          summary: "sort is fastest but mutates the source array",
+          raw_output: "sort is fastest but mutates the source array",
+        },
+      },
+      current_task_id: null,
+      completed_task_ids: ["t1"],
+      updated_at: "2026-04-27T00:00:00.000Z",
+    });
+    const saveSessionSpy = vi
+      .spyOn(SessionStateManager, "saveSession")
+      .mockResolvedValue(undefined);
+    executeWithAdapterMock.mockResolvedValueOnce({
+      ok: true,
+      adapter: "gemini",
+      rawOutput: "[mock-repl] follow-up",
+      exitCode: 0,
+    });
+
+    const result = await orchestratePipeline({
+      mode: "repl",
+      adapter: "gemini",
+      executionMode: "stub",
+      verbose: false,
+      userRequest: {
+        raw_input: "What is the downside of the fastest method?",
+        session_id: "repl_session",
+      },
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.taskRecords).toEqual([
+      { taskId: "t2", status: "completed", rawOutput: "[mock-repl] follow-up" },
+    ]);
+    expect(executeWithAdapterMock).toHaveBeenCalledTimes(1);
+    expect(executeWithAdapterMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        prompt: expect.stringContaining("Task [t1]: sort is fastest"),
+        sessionId: "repl_session",
+      }),
+    );
+    expect(saveSessionSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        completed_task_ids: ["t1", "t2"],
+        shared_context: expect.objectContaining({
+          raw_input: "What is the downside of the fastest method?",
+          input_history: [
+            "Compare JavaScript array sorting methods",
+            "What is the downside of the fastest method?",
+          ],
+        }),
+      }),
+    );
+  });
+
+  it("does not overwrite an existing session when loading it fails", async () => {
+    vi.spyOn(SessionStateManager, "sessionExists").mockResolvedValue(true);
+    vi.spyOn(SessionStateManager, "loadSession").mockRejectedValue(
+      new Error("Session file is corrupted"),
+    );
+    const saveSessionSpy = vi
+      .spyOn(SessionStateManager, "saveSession")
+      .mockResolvedValue(undefined);
+
+    const result = await orchestratePipeline({
+      mode: "run",
+      adapter: "codex",
+      executionMode: "stub",
+      verbose: false,
+      userRequest: {
+        raw_input: "hello detoks",
+        session_id: "corrupt_session",
+      },
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.sessionId).toBe("corrupt_session");
+    expect(result.summary).toBe("Session load failed: Session file is corrupted");
+    expect(result.nextAction).toBe("Fix or reset the existing session before retrying");
+    expect(saveSessionSpy).not.toHaveBeenCalled();
+    expect(executeWithAdapterMock).not.toHaveBeenCalled();
+  });
+
   it("retries a previously failed task and unblocks its dependent task on success", async () => {
     vi.spyOn(SessionStateManager, "sessionExists").mockResolvedValue(true);
     vi.spyOn(SessionStateManager, "loadSession").mockResolvedValue({

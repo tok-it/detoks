@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { randomInt } from "node:crypto";
 import { DAGValidator } from "../task-graph/DAGValidator.js";
 import { DependencyResolver } from "../task-graph/DependencyResolver.js";
 import { ParallelClassifier } from "../task-graph/ParallelClassifier.js";
@@ -10,7 +10,7 @@ import { SessionStateManager } from "../state/SessionStateManager.js";
 import { executeWithAdapter } from "../executor/execute.js";
 import { logger } from "../utils/logger.js";
 import { PipelineTracer } from "../utils/PipelineTracer.js";
-import type { SessionState } from "../../schemas/pipeline.js";
+import type { SessionState, TaskGraph, TaskResult } from "../../schemas/pipeline.js";
 import type {
   PipelineExecutionRequest,
   PipelineExecutionResult,
@@ -20,8 +20,109 @@ import type {
 
 const SESSION_VERSION = "1";
 
+const SESSION_ID_CHARSET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+const SESSION_ID_LENGTH = 24;
+
 function generateSessionId(): string {
-  return createHash("sha256").update(String(Date.now())).digest("hex").slice(0, 12);
+  return Array.from(
+    { length: SESSION_ID_LENGTH },
+    () => SESSION_ID_CHARSET[randomInt(SESSION_ID_CHARSET.length)]!,
+  ).join("");
+}
+
+async function allocateSessionId(): Promise<string> {
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    const sessionId = generateSessionId();
+    if (!(await SessionStateManager.sessionExists(sessionId))) {
+      return sessionId;
+    }
+  }
+  throw new Error("Unable to allocate a unique session id after 10 attempts");
+}
+
+function taskResultRawOutput(result: TaskResult | undefined): string {
+  return result && "raw_output" in result && typeof result.raw_output === "string"
+    ? result.raw_output
+    : "";
+}
+
+function taskIdNumber(taskId: string): number | null {
+  const match = /^t(\d+)$/u.exec(taskId);
+  if (!match) {
+    return null;
+  }
+
+  const parsed = Number(match[1]);
+  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : null;
+}
+
+function nextTaskIdOffset(state: SessionState): number {
+  const taskIds = new Set<string>([
+    ...state.completed_task_ids,
+    ...Object.keys(state.task_results),
+  ]);
+  if (state.current_task_id) {
+    taskIds.add(state.current_task_id);
+  }
+
+  let max = 0;
+  for (const taskId of taskIds) {
+    const number = taskIdNumber(taskId);
+    if (number && number > max) {
+      max = number;
+    }
+  }
+
+  return max;
+}
+
+function retargetTaskGraphIds(graph: TaskGraph, offset: number): TaskGraph {
+  if (offset <= 0) {
+    return graph;
+  }
+
+  const idMap = new Map<string, string>();
+  graph.tasks.forEach((task, index) => {
+    idMap.set(task.id, `t${offset + index + 1}`);
+  });
+
+  graph.tasks.forEach((task) => {
+    task.id = idMap.get(task.id) ?? task.id;
+    task.depends_on = task.depends_on.map((depId) => idMap.get(depId) ?? depId);
+  });
+
+  return graph;
+}
+
+function appendSessionInputHistory(
+  state: SessionState,
+  nextRawInput: string,
+): SessionState {
+  const existingHistory = Array.isArray(state.shared_context.input_history)
+    ? state.shared_context.input_history.filter((entry): entry is string => typeof entry === "string")
+    : [];
+  const previousRawInput =
+    typeof state.shared_context.raw_input === "string"
+      ? state.shared_context.raw_input
+      : undefined;
+  const nextHistory = [...existingHistory];
+
+  if (previousRawInput && !nextHistory.includes(previousRawInput)) {
+    nextHistory.push(previousRawInput);
+  }
+  if (!nextHistory.includes(nextRawInput)) {
+    nextHistory.push(nextRawInput);
+  }
+
+  return {
+    ...state,
+    shared_context: {
+      ...state.shared_context,
+      raw_input: nextRawInput,
+      input_history: nextHistory,
+    },
+    updated_at: new Date().toISOString(),
+  };
 }
 
 function initSessionState(sessionId: string, rawInput: string): SessionState {
@@ -125,7 +226,7 @@ function inferPromptFailureNextAction(errorMessage: string): string {
 export const orchestratePipeline = async (
   request: PipelineExecutionRequest,
 ): Promise<PipelineExecutionResult> => {
-  const sessionId = request.userRequest.session_id ?? generateSessionId();
+  const sessionId = request.userRequest.session_id ?? (await allocateSessionId());
   PipelineTracer.clear();
 
   // ── Step 1: Prompt compile + Role 2.1 handoff 생성 (Role 1) ──────────────
@@ -271,7 +372,7 @@ export const orchestratePipeline = async (
   const failedTaskIds = new Set<string>();
 
   PipelineTracer.startStage("SessionLoader");
-  const graphTaskIds = graph.tasks.map((t) => t.id);
+  let graphTaskIds = graph.tasks.map((t) => t.id);
 
   if (await SessionStateManager.sessionExists(sessionId)) {
     try {
@@ -281,6 +382,20 @@ export const orchestratePipeline = async (
         state = initSessionState(sessionId, request.userRequest.raw_input);
         logger.info(`[Role 2.2] 새 세션 생성 (버전 불일치): ${sessionId}`);
       } else {
+        const loadedRawInput =
+          typeof loaded.shared_context.raw_input === "string"
+            ? loaded.shared_context.raw_input
+            : "";
+        const isContinuationInput =
+          loadedRawInput.trim().length > 0 &&
+          loadedRawInput.trim() !== request.userRequest.raw_input.trim();
+
+        if (isContinuationInput) {
+          retargetTaskGraphIds(graph, nextTaskIdOffset(loaded));
+          graphTaskIds = graph.tasks.map((t) => t.id);
+          logger.info(`Continuing existing session: ${sessionId}`);
+          state = appendSessionInputHistory(loaded, request.userRequest.raw_input);
+        } else {
         const orphanedTaskIds = loaded.completed_task_ids.filter((id) => !graphTaskIds.includes(id));
         if (orphanedTaskIds.length > 0) {
           logger.warn(`[Role 2.2] 세션의 Task가 현재 그래프에 없음: ${orphanedTaskIds.join(", ")}. 세션 초기화.`);
@@ -300,13 +415,38 @@ export const orchestratePipeline = async (
                   : request.userRequest.raw_input,
             },
           };
-          const loadedFailedIds = (state.shared_context.failed_task_ids as string[]) || [];
+          const loadedFailedIds = Array.isArray(state.shared_context.failed_task_ids)
+            ? state.shared_context.failed_task_ids.filter((id): id is string => typeof id === "string")
+            : [];
           loadedFailedIds.forEach((id) => failedTaskIds.add(id));
+          }
         }
       }
     } catch (error) {
-      logger.warn(`[Role 2.2] 세션 로드 실패, 새 세션으로 재시작: ${error}`);
-      state = initSessionState(sessionId, request.userRequest.raw_input);
+      const errorMessage = toErrorMessage(error);
+      logger.error(`[Role 2.2] Session load failed for [${sessionId}]: ${errorMessage}`);
+      const traceFilePath = request.trace
+        ? await PipelineTracer.saveTrace(sessionId)
+        : undefined;
+      return {
+        ok: false,
+        mode: request.mode,
+        adapter: request.adapter,
+        summary: `Session load failed: ${errorMessage}`,
+        nextAction: "Fix or reset the existing session before retrying",
+        stages: buildPipelineStages(false),
+        rawOutput: errorMessage,
+        sessionId,
+        taskRecords,
+        compiledPrompt: compiledPrompt.compressed_prompt,
+        role2Handoff: role2PromptInput.compiled_prompt,
+        promptLanguage: compiledPrompt.language,
+        promptInferenceTimeSec: compiledPrompt.inference_time_sec ?? 0,
+        promptValidationErrors: compiledPrompt.validation_errors ?? [],
+        promptRepairActions: compiledPrompt.repair_actions ?? [],
+        ...(request.trace ? { traceLog: PipelineTracer.getTrace(sessionId) } : {}),
+        ...(traceFilePath ? { traceFilePath } : {}),
+      };
     }
   } else {
     state = initSessionState(sessionId, request.userRequest.raw_input);
@@ -333,11 +473,10 @@ export const orchestratePipeline = async (
       // 이미 완료된 작업이면 스킵 (Role 2.2 / Role 3 경계)
       if (state.completed_task_ids.includes(task.id)) {
         logger.info(`Task [${task.id}] already completed in session — skipping`);
-        const previousResult = state.task_results[task.id] as any;
         taskRecords.push({
           taskId: task.id,
           status: "completed",
-          rawOutput: previousResult?.raw_output ?? "",
+          rawOutput: taskResultRawOutput(state.task_results[task.id]),
         });
         continue;
       }
@@ -346,6 +485,16 @@ export const orchestratePipeline = async (
       const blockedBy = task.depends_on.find((depId) => failedTaskIds.has(depId));
       if (blockedBy) {
         failedTaskIds.add(task.id);
+        const rawOutput = `Skipped because dependency [${blockedBy}] failed`;
+        state = markTaskFailed(state, task.id, rawOutput);
+        state = {
+          ...state,
+          shared_context: {
+            ...state.shared_context,
+            failed_task_ids: Array.from(failedTaskIds),
+          },
+        };
+        await SessionStateManager.saveSession(state);
         taskRecords.push({ taskId: task.id, status: "skipped", rawOutput: "", blockedBy });
         logger.warn(`Task [${task.id}] skipped — dependency [${blockedBy}] failed`);
         continue;
