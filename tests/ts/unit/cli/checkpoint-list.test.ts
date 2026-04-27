@@ -10,15 +10,22 @@ describe("runCheckpointListCommand", () => {
   it("returns an explicit empty contract when a session has no checkpoints", async () => {
     vi.spyOn(SessionStateManager, "listCheckpoints").mockResolvedValue([]);
 
-    await expect(runCheckpointListCommand("session_empty")).resolves.toEqual({
+    const result = await runCheckpointListCommand("session_empty");
+
+    expect(result).toEqual({
       ok: true,
       mode: "checkpoint-list",
       sessionId: "session_empty",
+      mutatesState: false,
       hasCheckpoints: false,
       checkpointCount: 0,
       message: "No checkpoints found for session session_empty.",
       checkpoints: [],
     });
+    expect(result).not.toHaveProperty("promptLanguage");
+    expect(result).not.toHaveProperty("promptInferenceTimeSec");
+    expect(result).not.toHaveProperty("promptValidationErrors");
+    expect(result).not.toHaveProperty("promptRepairActions");
   });
 
   it("returns checkpoint metadata without mutating session state", async () => {
@@ -34,10 +41,13 @@ describe("runCheckpointListCommand", () => {
       },
     ]);
 
-    await expect(runCheckpointListCommand("session_full")).resolves.toEqual({
+    const result = await runCheckpointListCommand("session_full");
+
+    expect(result).toEqual({
       ok: true,
       mode: "checkpoint-list",
       sessionId: "session_full",
+      mutatesState: false,
       hasCheckpoints: true,
       checkpointCount: 1,
       message: "1 checkpoint(s) found for session session_full.",
@@ -52,5 +62,9 @@ describe("runCheckpointListCommand", () => {
         },
       ],
     });
+    expect(result).not.toHaveProperty("promptLanguage");
+    expect(result).not.toHaveProperty("promptInferenceTimeSec");
+    expect(result).not.toHaveProperty("promptValidationErrors");
+    expect(result).not.toHaveProperty("promptRepairActions");
   });
 });

@@ -3,6 +3,8 @@ import { SessionStateManager } from "../../core/state/SessionStateManager.js";
 export interface CheckpointShowOutput {
   ok: true;
   mode: "checkpoint-show";
+  mutatesState: false;
+  message: string;
   checkpoint: {
     id: string;
     title: string;
@@ -21,6 +23,8 @@ export const runCheckpointShowCommand = async (
   return {
     ok: true,
     mode: "checkpoint-show",
+    mutatesState: false,
+    message: `Checkpoint ${checkpoint.id} loaded.`,
     checkpoint: {
       id: checkpoint.id,
       title: checkpoint.title,

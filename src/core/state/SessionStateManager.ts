@@ -41,7 +41,7 @@ export class SessionStateManager {
       }
 
       // 2. 자동 실패 트래킹: shared_context.failed_task_ids 동기화
-      const failedIds = new Set((state.shared_context?.failed_task_ids as string[]) || []);
+      const failedIds = new Set<string>();
       for (const [taskId, result] of Object.entries(state.task_results)) {
         const res = result as any;
         if (res.success === false) {
@@ -105,6 +105,89 @@ export class SessionStateManager {
       return true;
     } catch {
       return false;
+    }
+  }
+
+
+  static async forkSession(sourceSessionId: string, newSessionId: string): Promise<SessionState> {
+    if (!(await this.sessionExists(sourceSessionId))) {
+      throw new StateIOError(`Session file not found [${sourceSessionId}]`, {
+        sessionId: sourceSessionId,
+        errorCode: 'ENOENT'
+      });
+    }
+
+    if (await this.sessionExists(newSessionId)) {
+      throw new StateIOError(`Session already exists [${newSessionId}]`, {
+        sessionId: newSessionId,
+        errorCode: 'EEXIST'
+      });
+    }
+
+    const source = await this.loadSession(sourceSessionId);
+    const forked = SessionStateSchema.parse({
+      ...JSON.parse(JSON.stringify(source)),
+      shared_context: {
+        ...source.shared_context,
+        session_id: newSessionId,
+      },
+    });
+
+    await this.saveSession(forked);
+    return forked;
+  }
+
+  static async listSessions(): Promise<Array<{
+    id: string;
+    updatedAt: string | null;
+    currentTaskId: string | null;
+    completedTaskCount: number;
+    taskResultCount: number;
+    nextAction: string | null;
+  }>> {
+    try {
+      const files = await fs.readdir(SESSIONS_DIR);
+      const sessions: Array<{
+        id: string;
+        updatedAt: string | null;
+        currentTaskId: string | null;
+        completedTaskCount: number;
+        taskResultCount: number;
+        nextAction: string | null;
+      }> = [];
+
+      for (const file of files) {
+        if (!file.endsWith('.json')) continue;
+
+        try {
+          const data = await fs.readFile(join(SESSIONS_DIR, file), 'utf-8');
+          const state = SessionStateSchema.parse(JSON.parse(data));
+          sessions.push({
+            id: file.slice(0, -'.json'.length),
+            updatedAt: state.updated_at ?? null,
+            currentTaskId: state.current_task_id ?? null,
+            completedTaskCount: state.completed_task_ids.length,
+            taskResultCount: Object.keys(state.task_results).length,
+            nextAction: state.next_action ?? null,
+          });
+        } catch (e) {
+          logger.info(`Failed to load session file [${file}], skipping.`, e);
+        }
+      }
+
+      return sessions.sort((a, b) => {
+        const aTime = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
+        const bTime = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
+        return bTime - aTime || a.id.localeCompare(b.id);
+      });
+    } catch (error: unknown) {
+      const nodeError = error as NodeJS.ErrnoException;
+      if (nodeError.code === 'ENOENT') {
+        return [];
+      }
+      throw new StateIOError(`Failed to list sessions`, {
+        originalError: error instanceof Error ? error.message : String(error)
+      });
     }
   }
 

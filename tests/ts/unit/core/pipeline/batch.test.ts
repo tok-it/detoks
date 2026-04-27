@@ -40,9 +40,9 @@ describe("runBatchPromptPipeline", () => {
 
     const result = await runBatchPromptPipeline(["새 `config.ts` 파일을 생성해"], {
       env: {
-        OPENAI_API_BASE: "http://127.0.0.1:1234/v1",
-        OPENAI_API_KEY: "test-key",
-        MODEL_NAME: "local-model",
+        LOCAL_LLM_API_BASE: "http://127.0.0.1:1234/v1",
+        LOCAL_LLM_API_KEY: "test-key",
+        LOCAL_LLM_MODEL_NAME: "local-model",
         PIPELINE_MODE: "debug",
         TRANSLATION_MAX_ATTEMPTS: "1",
       },
@@ -74,9 +74,9 @@ describe("runBatchPromptPipeline", () => {
       ["Please create a new file", "새 파일을 생성해"],
       {
         env: {
-          OPENAI_API_BASE: "http://127.0.0.1:1234/v1",
-          OPENAI_API_KEY: "test-key",
-          MODEL_NAME: "local-model",
+          LOCAL_LLM_API_BASE: "http://127.0.0.1:1234/v1",
+          LOCAL_LLM_API_KEY: "test-key",
+          LOCAL_LLM_MODEL_NAME: "local-model",
           PIPELINE_MODE: "safe",
           TRANSLATION_MAX_ATTEMPTS: "1",
         },

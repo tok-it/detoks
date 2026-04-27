@@ -4,6 +4,8 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TASK_PROMPT="$*"
+CODEX_MODEL="${CODEX_MODEL:-gpt-5.5}"
+CODEX_REASONING="${CODEX_REASONING:-medium}"
 
 if [[ $# -lt 1 ]]; then
   echo "Usage: $(basename "$0") \"<task prompt>\"" >&2
@@ -85,7 +87,7 @@ STATUS_OUTPUT_BEFORE="$(collect_status_output)"
 
 if {
   bash "$ROOT_DIR/scripts/build-agent-prompt.sh" "$@"
-} | codex exec -; then
+} | codex exec -m "$CODEX_MODEL" -c "model_reasoning_effort=\"$CODEX_REASONING\"" -; then
   TASK_STATUS="success"
   COMPLETION_BG="$GREEN_BG"
 else
@@ -95,10 +97,11 @@ fi
 
 STATUS_OUTPUT_AFTER="$(collect_status_output)"
 DIFF_OUTPUT_AFTER="$(collect_diff_output)"
+TASK_STATUS_UPPER="$(printf '%s' "$TASK_STATUS" | tr '[:lower:]' '[:upper:]')"
 
 if [[ -t 2 ]]; then
   {
-    printf '\n%s%s%s\n' "${BOLD}${COMPLETION_BG}${WHITE}" "=== CODEX TASK COMPLETED (${TASK_STATUS^^}) ===" "$RESET"
+    printf '\n%s%s%s\n' "${BOLD}${COMPLETION_BG}${WHITE}" "=== CODEX TASK COMPLETED (${TASK_STATUS_UPPER}) ===" "$RESET"
 
     printf '%s%s%s\n' "$YELLOW" "Relevant file status:" "$RESET"
     printf '%s%s%s\n\n' "${DIM}${BLUE_BG}${WHITE}" "${STATUS_OUTPUT_AFTER:-<clean>}" "$RESET"

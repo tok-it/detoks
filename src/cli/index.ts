@@ -6,6 +6,11 @@ import { runCheckpointListCommand } from "./commands/checkpoint-list.js";
 import { runCheckpointShowCommand } from "./commands/checkpoint-show.js";
 import { runBatchCommand } from "./commands/run-batch.js";
 import { runCommand } from "./commands/run.js";
+import { runSessionListCommand } from "./commands/session-list.js";
+import { runSessionContinueCommand } from "./commands/session-continue.js";
+import { runSessionResetCommand } from "./commands/session-reset.js";
+import { runSessionForkCommand } from "./commands/session-fork.js";
+import { runCheckpointRestoreCommand } from "./commands/checkpoint-restore.js";
 import { startRepl } from "./repl/index.js";
 
 const runOneShotCommand = async (
@@ -41,9 +46,40 @@ const main = async (): Promise<void> => {
   }
 
   if (args.command === "session-list") {
-    throw new Error(
-      "session list execution is not implemented yet; this step only defines parse/help/usage. Run `detoks session list --help` for current read-only UX notes.",
-    );
+    const result = await runSessionListCommand();
+    console.log(JSON.stringify(result, null, 2));
+    return;
+  }
+
+  if (args.command === "session-continue") {
+    const request = toNormalizedRequest(args, {
+      prompt: "[session continue]",
+      ...(args.sessionId ? { sessionId: args.sessionId } : {}),
+    });
+    const result = await runSessionContinueCommand(request, runOneShotCommand);
+    console.log(JSON.stringify(result, null, 2));
+    if (result.resumeStarted && !result.ok) {
+      process.exitCode = 1;
+    }
+    return;
+  }
+
+  if (args.command === "session-reset") {
+    const result = await runSessionResetCommand(args.sessionId ?? "");
+    console.log(JSON.stringify(result, null, 2));
+    if (!result.ok) {
+      process.exitCode = 1;
+    }
+    return;
+  }
+
+  if (args.command === "session-fork") {
+    const result = await runSessionForkCommand(args.sessionId ?? "", args.newSessionId ?? "");
+    console.log(JSON.stringify(result, null, 2));
+    if (!result.ok) {
+      process.exitCode = 1;
+    }
+    return;
   }
 
   if (args.command === "checkpoint-list") {
@@ -55,6 +91,15 @@ const main = async (): Promise<void> => {
   if (args.command === "checkpoint-show") {
     const result = await runCheckpointShowCommand(args.checkpointId ?? "");
     console.log(JSON.stringify(result, null, 2));
+    return;
+  }
+
+  if (args.command === "checkpoint-restore") {
+    const result = await runCheckpointRestoreCommand(args.checkpointId ?? "");
+    console.log(JSON.stringify(result, null, 2));
+    if (!result.ok) {
+      process.exitCode = 1;
+    }
     return;
   }
 

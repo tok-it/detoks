@@ -14,6 +14,8 @@ export interface PipelineExecutionRequest {
   verbose: boolean;
   trace?: boolean;
   userRequest: UserRequest;
+  env?: NodeJS.ProcessEnv;
+  fetchImplementation?: typeof fetch;
 }
 
 export interface PipelineStageStatus {
@@ -41,6 +43,10 @@ export interface PipelineExecutionResult {
   taskRecords: TaskExecutionRecord[];
   compiledPrompt?: string;
   role2Handoff?: string;
+  promptLanguage?: "ko" | "en" | "mixed";
+  promptInferenceTimeSec?: number;
+  promptValidationErrors?: string[];
+  promptRepairActions?: string[];
   traceLog?: TraceLog;
   traceFilePath?: string;
 }

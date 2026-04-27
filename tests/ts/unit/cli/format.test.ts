@@ -18,6 +18,10 @@ describe("formatSuccess", () => {
       { name: "Prompt Compiler", owner: "role1" as const, status: "stubbed" as const },
     ],
     rawOutput: "[stub:codex] hello detoks",
+    promptLanguage: "en" as const,
+    promptInferenceTimeSec: 0,
+    promptValidationErrors: [],
+    promptRepairActions: [],
   };
 
   it("returns a concise success payload by default", () => {
@@ -29,6 +33,10 @@ describe("formatSuccess", () => {
       adapter: "codex",
       summary: "stub executor accepted prompt (12 chars)",
       nextAction: "connect core pipeline modules behind this boundary",
+      promptLanguage: "en",
+      promptInferenceTimeSec: 0,
+      promptValidationErrors: [],
+      promptRepairActions: [],
     });
     expect(formatted).not.toHaveProperty("stages");
     expect(formatted).not.toHaveProperty("rawOutput");

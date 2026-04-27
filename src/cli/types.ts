@@ -17,9 +17,18 @@ export type CliMode = InteractionMode;
 
 export interface CliArgs {
   mode: CliMode;
-  command?: "session-list" | "checkpoint-list" | "checkpoint-show";
+  command?:
+    | "session-list"
+    | "session-continue"
+    | "session-fork"
+    | "session-reset"
+    | "checkpoint-list"
+    | "checkpoint-show"
+    | "checkpoint-restore"
+    | undefined;
   prompt?: string;
   sessionId?: string;
+  newSessionId?: string;
   checkpointId?: string;
   inputFile?: string;
   adapter: Adapter;
@@ -27,7 +36,17 @@ export interface CliArgs {
   verbose: boolean;
   trace: boolean;
   showHelp: boolean;
-  helpTopic?: "main" | "repl" | "session-list" | "checkpoint-list" | "checkpoint-show";
+  helpTopic?:
+    | "main"
+    | "repl"
+    | "session-list"
+    | "session-continue"
+    | "session-reset"
+    | "session-fork"
+    | "checkpoint-list"
+    | "checkpoint-show"
+    | "checkpoint-restore"
+    | undefined;
 }
 
 export type NormalizedCliRequest = PipelineExecutionRequest;

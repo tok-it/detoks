@@ -30,8 +30,9 @@ describe("loadRole1RuntimeConfig", () => {
     expect(config.requestTimeout).toBe(30000);
     expect(config.translationMaxAttempts).toBe(5);
     expect(config.temperature).toBe(0);
-    expect(config.openaiApiBase).toBeUndefined();
-    expect(config.openaiApiKey).toBeUndefined();
+    expect(config.localLlmApiBase).toBeUndefined();
+    expect(config.localLlmApiKey).toBeUndefined();
+    expect(config.localLlmModelName).toBeUndefined();
   });
 
   it(".env와 legacy alias를 함께 읽는다", () => {
@@ -41,7 +42,7 @@ describe("loadRole1RuntimeConfig", () => {
       [
         "LM_STUDIO_URL=http://127.0.0.1:1234/v1",
         "LM_STUDIO_API_KEY=not-needed",
-        "MODEL_NAME=local-model",
+        "MODEL_NAME=legacy-local-model",
         "PIPELINE_MODE=debug",
         "REQUEST_TIMEOUT=15000",
         "TRANSLATION_MAX_ATTEMPTS=7",
@@ -52,13 +53,39 @@ describe("loadRole1RuntimeConfig", () => {
 
     const config = loadRole1RuntimeConfig({ cwd, env: {} });
 
-    expect(config.openaiApiBase).toBe("http://127.0.0.1:1234/v1");
-    expect(config.openaiApiKey).toBe("not-needed");
-    expect(config.modelName).toBe("local-model");
+    expect(config.localLlmApiBase).toBe("http://127.0.0.1:1234/v1");
+    expect(config.localLlmApiKey).toBe("not-needed");
+    expect(config.localLlmModelName).toBe("legacy-local-model");
     expect(config.pipelineMode).toBe("debug");
     expect(config.requestTimeout).toBe(15000);
     expect(config.translationMaxAttempts).toBe(7);
     expect(config.temperature).toBe(0.2);
+  });
+
+  it("LOCAL_LLM_* env가 legacy alias보다 우선한다", () => {
+    const cwd = createTempDir();
+    writeFileSync(
+      join(cwd, ".env"),
+      [
+        "OPENAI_API_BASE=http://127.0.0.1:1111/v1",
+        "OPENAI_API_KEY=legacy-openai-key",
+        "MODEL_NAME=legacy-model",
+      ].join("\n"),
+      "utf8",
+    );
+
+    const config = loadRole1RuntimeConfig({
+      cwd,
+      env: {
+        LOCAL_LLM_API_BASE: "http://127.0.0.1:1234/v1",
+        LOCAL_LLM_API_KEY: "local-llm-key",
+        LOCAL_LLM_MODEL_NAME: "local-model",
+      },
+    });
+
+    expect(config.localLlmApiBase).toBe("http://127.0.0.1:1234/v1");
+    expect(config.localLlmApiKey).toBe("local-llm-key");
+    expect(config.localLlmModelName).toBe("local-model");
   });
 
   it("process env가 .env 값보다 우선한다", () => {

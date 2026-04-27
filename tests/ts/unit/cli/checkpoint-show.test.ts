@@ -18,9 +18,13 @@ describe("runCheckpointShowCommand", () => {
       created_at: "2026-04-27T00:00:00.000Z",
     });
 
-    await expect(runCheckpointShowCommand("session_full_checkpoint_001")).resolves.toEqual({
+    const result = await runCheckpointShowCommand("session_full_checkpoint_001");
+
+    expect(result).toEqual({
       ok: true,
       mode: "checkpoint-show",
+      mutatesState: false,
+      message: "Checkpoint session_full_checkpoint_001 loaded.",
       checkpoint: {
         id: "session_full_checkpoint_001",
         title: "After parse UX",
@@ -30,5 +34,9 @@ describe("runCheckpointShowCommand", () => {
         nextAction: "Run parse tests",
       },
     });
+    expect(result).not.toHaveProperty("promptLanguage");
+    expect(result).not.toHaveProperty("promptInferenceTimeSec");
+    expect(result).not.toHaveProperty("promptValidationErrors");
+    expect(result).not.toHaveProperty("promptRepairActions");
   });
 });

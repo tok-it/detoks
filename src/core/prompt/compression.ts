@@ -30,7 +30,7 @@ const SENTENCE_SPLIT_REGEX = /(?<=[.!?])\s+/;
 
 export interface CompressPromptOptions {
   policies: Role1Policies;
-  modelName?: string;
+  localLlmModelName?: string;
 }
 
 export interface CompressPromptResult {
@@ -238,7 +238,7 @@ function buildMaskOptions(
   return {
     protected_terms: options.policies.protectedTerms,
     preferred_translations: options.policies.preferredTranslations,
-    model_names: options.modelName ? [options.modelName] : [],
+    model_names: options.localLlmModelName ? [options.localLlmModelName] : [],
   };
 }
 
