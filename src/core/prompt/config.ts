@@ -7,10 +7,13 @@ const DEFAULT_TRANSLATION_MAX_ATTEMPTS = 5;
 const DEFAULT_TEMPERATURE = 0;
 const DEFAULT_LOCAL_LLM_API_BASE = "http://127.0.0.1:12370/v1";
 const DEFAULT_LOCAL_LLM_MODEL_NAME = "mradermacher/gemma-4-E2B-it-heretic-ara-GGUF";
+const DEFAULT_LOCAL_LLM_HF_REPO = `${DEFAULT_LOCAL_LLM_MODEL_NAME}:Q4_K_S`;
+const DEFAULT_LOCAL_LLM_HF_FILE = "gemma-4-E2B-it-heretic-ara.Q4_K_S.gguf";
 const DEFAULT_LOCAL_LLM_SERVER_BINARY = "llama-server";
 const DEFAULT_LOCAL_LLM_SERVER_HOST = "127.0.0.1";
 const DEFAULT_LOCAL_LLM_SERVER_PORT = 12370;
 const DEFAULT_LOCAL_LLM_STARTUP_TIMEOUT = 600_000;
+const DEFAULT_LOCAL_LLM_GPU_LAYERS = "all";
 
 const PipelineModeSchema = z.enum(["safe", "debug"]);
 
@@ -23,9 +26,11 @@ const Role1RuntimeConfigSchema = z.object({
   localLlmServerHost: z.string().optional(),
   localLlmServerPort: z.number().int().positive().optional(),
   localLlmStartupTimeout: z.number().int().positive().optional(),
+  localLlmGpuLayers: z.string().optional(),
   localLlmModelPath: z.string().optional(),
   localLlmModelUrl: z.string().optional(),
   localLlmHfRepo: z.string().optional(),
+  localLlmHfFile: z.string().optional(),
   pipelineMode: PipelineModeSchema,
   requestTimeout: z.number().int().positive(),
   translationMaxAttempts: z.number().int().positive(),
@@ -212,10 +217,12 @@ export function loadRole1RuntimeConfig(
       DEFAULT_LOCAL_LLM_STARTUP_TIMEOUT,
       "LOCAL_LLM_STARTUP_TIMEOUT",
     ),
+    localLlmGpuLayers:
+      readEnvValue(env, "LOCAL_LLM_GPU_LAYERS") ?? DEFAULT_LOCAL_LLM_GPU_LAYERS,
     localLlmModelPath: readEnvValue(env, "LOCAL_LLM_MODEL_PATH"),
     localLlmModelUrl: readEnvValue(env, "LOCAL_LLM_MODEL_URL"),
-    localLlmHfRepo:
-      readEnvValue(env, "LOCAL_LLM_HF_REPO") ?? DEFAULT_LOCAL_LLM_MODEL_NAME,
+    localLlmHfRepo: readEnvValue(env, "LOCAL_LLM_HF_REPO") ?? DEFAULT_LOCAL_LLM_HF_REPO,
+    localLlmHfFile: readEnvValue(env, "LOCAL_LLM_HF_FILE") ?? DEFAULT_LOCAL_LLM_HF_FILE,
     pipelineMode,
     requestTimeout: parseNumber(
       env.REQUEST_TIMEOUT,

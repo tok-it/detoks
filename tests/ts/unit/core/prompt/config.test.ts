@@ -39,9 +39,11 @@ describe("loadRole1RuntimeConfig", () => {
     expect(config.localLlmServerBinary).toBe("llama-server");
     expect(config.localLlmServerHost).toBe("127.0.0.1");
     expect(config.localLlmServerPort).toBe(12370);
+    expect(config.localLlmGpuLayers).toBe("all");
     expect(config.localLlmHfRepo).toBe(
-      "mradermacher/gemma-4-E2B-it-heretic-ara-GGUF",
+      "mradermacher/gemma-4-E2B-it-heretic-ara-GGUF:Q4_K_S",
     );
+    expect(config.localLlmHfFile).toBe("gemma-4-E2B-it-heretic-ara.Q4_K_S.gguf");
   });
 
   it(".env와 legacy alias를 함께 읽는다", () => {

@@ -82,6 +82,9 @@ export function buildLlamaServerArgs(config: Role1RuntimeConfig): string[] {
     }
 
     args.push("-hf", hfRepo);
+    if (config.localLlmHfFile) {
+      args.push("--hf-file", config.localLlmHfFile);
+    }
   }
 
   if (config.localLlmModelName) {
@@ -94,6 +97,10 @@ export function buildLlamaServerArgs(config: Role1RuntimeConfig): string[] {
     "--port",
     String(config.localLlmServerPort ?? 12370),
   );
+
+  if (config.localLlmGpuLayers) {
+    args.push("--gpu-layers", config.localLlmGpuLayers);
+  }
 
   return args;
 }
