@@ -82,6 +82,81 @@ describe("orchestratePipeline", () => {
     );
   });
 
+  it("persists task type when a task completes successfully", async () => {
+    const saveSessionSpy = vi
+      .spyOn(SessionStateManager, "saveSession")
+      .mockResolvedValue(undefined);
+
+    const result = await orchestratePipeline({
+      mode: "run",
+      adapter: "codex",
+      executionMode: "stub",
+      verbose: false,
+      userRequest: {
+        raw_input: "Analyze the codebase",
+      },
+    });
+
+    expect(result.ok).toBe(true);
+    expect(saveSessionSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        task_results: expect.objectContaining({
+          t1: expect.objectContaining({
+            task_id: "t1",
+            success: true,
+            type: "analyze",
+          }),
+        }),
+      }),
+    );
+  });
+
+  it("persists task type when a task fails or is skipped by dependency failure", async () => {
+    const saveSessionSpy = vi
+      .spyOn(SessionStateManager, "saveSession")
+      .mockResolvedValue(undefined);
+    executeWithAdapterMock.mockResolvedValueOnce({
+      ok: false,
+      adapter: "codex",
+      rawOutput: "[mock-failure] t1",
+      exitCode: 1,
+    });
+
+    const result = await orchestratePipeline({
+      mode: "run",
+      adapter: "codex",
+      executionMode: "stub",
+      verbose: false,
+      userRequest: {
+        raw_input: "Find the auth module. Test the auth module.",
+      },
+    });
+
+    expect(result.ok).toBe(false);
+    expect(saveSessionSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        task_results: expect.objectContaining({
+          t1: expect.objectContaining({
+            task_id: "t1",
+            success: false,
+            type: "explore",
+          }),
+        }),
+      }),
+    );
+    expect(saveSessionSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        task_results: expect.objectContaining({
+          t2: expect.objectContaining({
+            task_id: "t2",
+            success: false,
+            type: "validate",
+          }),
+        }),
+      }),
+    );
+  });
+
   it("returns a structured failure when prompt compilation cannot start translation", async () => {
     const result = await orchestratePipeline({
       mode: "run",

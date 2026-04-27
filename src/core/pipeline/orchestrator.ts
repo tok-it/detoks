@@ -10,7 +10,7 @@ import { SessionStateManager } from "../state/SessionStateManager.js";
 import { executeWithAdapter } from "../executor/execute.js";
 import { logger } from "../utils/logger.js";
 import { PipelineTracer } from "../utils/PipelineTracer.js";
-import type { SessionState, TaskGraph, TaskResult } from "../../schemas/pipeline.js";
+import type { RequestCategory, SessionState, TaskGraph, TaskResult } from "../../schemas/pipeline.js";
 import type {
   PipelineExecutionRequest,
   PipelineExecutionResult,
@@ -140,6 +140,7 @@ function markTaskCompleted(
   state: SessionState,
   taskId: string,
   rawOutput: string,
+  taskType?: RequestCategory,
 ): SessionState {
   return {
     ...state,
@@ -152,6 +153,7 @@ function markTaskCompleted(
         success: true,
         summary: rawOutput.slice(0, 200),
         raw_output: rawOutput,
+        ...(taskType ? { type: taskType } : {}),
       },
     },
     updated_at: new Date().toISOString(),
@@ -162,6 +164,7 @@ function markTaskFailed(
   state: SessionState,
   taskId: string,
   rawOutput: string,
+  taskType?: RequestCategory,
 ): SessionState {
   return {
     ...state,
@@ -173,6 +176,7 @@ function markTaskFailed(
         success: false,
         summary: rawOutput.slice(0, 200),
         raw_output: rawOutput,
+        ...(taskType ? { type: taskType } : {}),
       },
     },
     updated_at: new Date().toISOString(),
@@ -486,7 +490,7 @@ export const orchestratePipeline = async (
       if (blockedBy) {
         failedTaskIds.add(task.id);
         const rawOutput = `Skipped because dependency [${blockedBy}] failed`;
-        state = markTaskFailed(state, task.id, rawOutput);
+        state = markTaskFailed(state, task.id, rawOutput, task.type);
         state = {
           ...state,
           shared_context: {
@@ -534,12 +538,12 @@ export const orchestratePipeline = async (
       if (!execResult.ok) {
         // 실패 — Strict 모드에 따라 후속 의존 Task도 차단됨
         failedTaskIds.add(task.id);
-        state = markTaskFailed(state, task.id, execResult.rawOutput);
+        state = markTaskFailed(state, task.id, execResult.rawOutput, task.type);
         await SessionStateManager.saveSession(state);
         taskRecords.push({ taskId: task.id, status: "failed", rawOutput: execResult.rawOutput });
         await PipelineTracer.trace({
           sessionId, stage: `Executor:${task.id}`, role: "role3", phase: "output",
-          dataType: "ExecutionResult", data: { task_id: task.id, success: false, raw_output: execResult.rawOutput },
+          dataType: "ExecutionResult", data: { task_id: task.id, type: task.type, success: false, raw_output: execResult.rawOutput },
           durationMs: PipelineTracer.endStage(`Executor:${task.id}`),
         });
         logger.error(`Task [${task.id}] failed (exit ${execResult.exitCode}) — dependent tasks will be skipped`);
@@ -547,11 +551,11 @@ export const orchestratePipeline = async (
         // 성공 — 세션 상태 갱신 및 저장 (Role 2.2)
         await PipelineTracer.trace({
           sessionId, stage: `Executor:${task.id}`, role: "role3", phase: "output",
-          dataType: "ExecutionResult", data: { task_id: task.id, success: true, raw_output: execResult.rawOutput },
+          dataType: "ExecutionResult", data: { task_id: task.id, type: task.type, success: true, raw_output: execResult.rawOutput },
           durationMs: PipelineTracer.endStage(`Executor:${task.id}`),
         });
         failedTaskIds.delete(task.id);
-        state = markTaskCompleted(state, task.id, execResult.rawOutput);
+        state = markTaskCompleted(state, task.id, execResult.rawOutput, task.type);
         await SessionStateManager.saveSession(state);
         taskRecords.push({ taskId: task.id, status: "completed", rawOutput: execResult.rawOutput });
         logger.info(`Task [${task.id}] completed`);
