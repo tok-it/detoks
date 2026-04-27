@@ -31,6 +31,7 @@ describe("complete_chat", () => {
             content: "파일 생성",
           },
         ],
+        max_tokens: 128,
       },
       {
         apiBase: "http://127.0.0.1:1234/v1",
@@ -47,6 +48,9 @@ describe("complete_chat", () => {
     expect(mockCalls[0]?.[0]).toBe(
       "http://127.0.0.1:1234/v1/chat/completions",
     );
+    expect(JSON.parse(String(mockCalls[0]?.[1]?.body))).toMatchObject({
+      max_tokens: 128,
+    });
     expect(response.content).toBe("Create a new file");
     expect(response.raw_response).toBeTruthy();
     expect(response.inference_time_sec).toBeTypeOf("number");

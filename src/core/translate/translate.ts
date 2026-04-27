@@ -176,6 +176,14 @@ function isBetterValidationResult(
 	return nextErrors.length < currentErrors.length;
 }
 
+function estimateTranslationMaxTokens(
+	text: string,
+	config: Role1RuntimeConfig,
+): number {
+	const configuredMax = config.localLlmMaxTokens ?? 512;
+	return Math.min(configuredMax, Math.max(128, Math.ceil(text.length * 1.5)));
+}
+
 async function translate_span(
 	span: TranslatableSpan,
 	options: TranslateToEnglishOptions,
@@ -232,6 +240,7 @@ Pay special attention to:
 				},
 			],
 			temperature: options.config.temperature,
+			max_tokens: estimateTranslationMaxTokens(span.text, options.config),
 			timeout_ms: options.config.requestTimeout,
 		},
 		{

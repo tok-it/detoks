@@ -8,6 +8,7 @@ export interface LlmMessage {
 export interface LlmCompletionRequest {
   messages: LlmMessage[];
   temperature?: number;
+  max_tokens?: number;
   timeout_ms?: number;
 }
 
@@ -112,6 +113,7 @@ export async function complete_chat(
           model: options.localLlmModelName,
           messages: request.messages,
           temperature: request.temperature ?? 0,
+          ...(request.max_tokens ? { max_tokens: request.max_tokens } : {}),
         }),
         signal: controller.signal,
       },

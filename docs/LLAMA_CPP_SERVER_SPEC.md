@@ -50,7 +50,7 @@ This document defines the current `python/llama-server` runtime contract used by
 | `LLAMA_SERVER_PORT`          | `12370`                                        | Bind port                                            |
 | `LLAMA_SERVER_API_PREFIX`    | `/v1`                                          | API prefix                                           |
 | `LLAMA_SERVER_HEALTH_PATH`   | `/health`                                      | Health endpoint path                                 |
-| `LOCAL_LLM_MODEL_NAME`       | `mradermacher/gemma-4-E2B-it-heretic-ara-GGUF` | Default model name returned to clients               |
+| `LOCAL_LLM_MODEL_NAME`       | `gemma-4-E2B-it-heretic-ara-GGUF`              | Default model alias returned to clients              |
 | `REQUEST_TIMEOUT`            | `30`                                           | Upstream timeout in seconds                          |
 | `LLAMA_SERVER_API_KEY`       | unset                                          | Optional Bearer auth for inbound requests            |
 | `LLAMA_CPP_API_BASE`         | unset                                          | Upstream OpenAI-compatible llama.cpp base URL        |
@@ -61,7 +61,11 @@ This document defines the current `python/llama-server` runtime contract used by
 | `LOCAL_LLM_SERVER_BINARY`    | `llama-server`                                 | llama.cpp server executable                          |
 | `LOCAL_LLM_SERVER_HOST`      | `127.0.0.1`                                    | Auto-start bind host                                 |
 | `LOCAL_LLM_SERVER_PORT`      | `12370`                                        | Auto-start bind port                                 |
+| `LOCAL_LLM_DEVICE`           | unset                                          | Optional llama.cpp device selector, e.g. `none`      |
 | `LOCAL_LLM_GPU_LAYERS`       | `all`                                          | llama.cpp GPU offload layer count                    |
+| `LOCAL_LLM_CONTEXT_SIZE`     | `4096`                                         | llama.cpp prompt context size                        |
+| `LOCAL_LLM_MAX_TOKENS`       | `512`                                          | Maximum generated tokens per Role 1 translation span |
+| `LOCAL_LLM_REASONING`        | `off`                                          | llama.cpp reasoning mode for chat templates          |
 | `LOCAL_LLM_HF_REPO`          | `mradermacher/gemma-4-E2B-it-heretic-ara-GGUF:Q4_K_S` | Hugging Face GGUF repo and quant used when no model path exists |
 | `LOCAL_LLM_HF_FILE`          | `gemma-4-E2B-it-heretic-ara.Q4_K_S.gguf`       | Exact Hugging Face GGUF file                         |
 | `LOCAL_LLM_MODEL_PATH`       | unset                                          | Optional local GGUF model path                       |
@@ -123,6 +127,10 @@ Behavior:
 - If `LOCAL_LLM_MODEL_PATH` is missing and `LOCAL_LLM_MODEL_URL` is set, download the GGUF file first
 - If no local model path is set, start `llama-server -hf <LOCAL_LLM_HF_REPO> --hf-file <LOCAL_LLM_HF_FILE>` and let llama.cpp handle Hugging Face GGUF download/cache
 - Pass `--gpu-layers <LOCAL_LLM_GPU_LAYERS>`, default `all`, so Metal/GPU offload is requested on supported llama.cpp builds
+- If GPU startup fails before readiness, retry once with `--device none --gpu-layers 0`
+- Pass `--ctx-size <LOCAL_LLM_CONTEXT_SIZE>`, default `4096`, instead of inheriting very large model context defaults
+- Role 1 chat completion requests include `max_tokens`, capped by `LOCAL_LLM_MAX_TOKENS`
+- Pass `--reasoning off` by default so Gemma chat templates do not spend translation budget on hidden reasoning
 - The default Hugging Face GGUF quant is explicitly `Q4_K_S`
 - The server is opened on `LOCAL_LLM_SERVER_HOST:LOCAL_LLM_SERVER_PORT`, default `127.0.0.1:12370`
 

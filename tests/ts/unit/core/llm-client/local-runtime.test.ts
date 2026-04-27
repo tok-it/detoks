@@ -9,6 +9,8 @@ describe("buildLlamaServerArgs", () => {
       localLlmServerHost: "127.0.0.1",
       localLlmServerPort: 12370,
       localLlmGpuLayers: "all",
+      localLlmContextSize: 4096,
+      localLlmReasoning: "off",
       pipelineMode: "safe",
       requestTimeout: 30000,
       translationMaxAttempts: 5,
@@ -26,6 +28,10 @@ describe("buildLlamaServerArgs", () => {
       "12370",
       "--gpu-layers",
       "all",
+      "--ctx-size",
+      "4096",
+      "--reasoning",
+      "off",
     ]);
   });
 
@@ -37,6 +43,8 @@ describe("buildLlamaServerArgs", () => {
       localLlmServerHost: "127.0.0.1",
       localLlmServerPort: 12370,
       localLlmGpuLayers: "all",
+      localLlmContextSize: 4096,
+      localLlmReasoning: "off",
       pipelineMode: "safe",
       requestTimeout: 30000,
       translationMaxAttempts: 5,
@@ -56,6 +64,32 @@ describe("buildLlamaServerArgs", () => {
       "12370",
       "--gpu-layers",
       "all",
+      "--ctx-size",
+      "4096",
+      "--reasoning",
+      "off",
     ]);
+  });
+
+  it("device가 지정되면 llama.cpp device 인자를 추가한다", () => {
+    const args = buildLlamaServerArgs({
+      localLlmHfRepo: "mradermacher/gemma-4-E2B-it-heretic-ara-GGUF:Q4_K_S",
+      localLlmHfFile: "gemma-4-E2B-it-heretic-ara.Q4_K_S.gguf",
+      localLlmModelName: "detoks-local",
+      localLlmServerHost: "127.0.0.1",
+      localLlmServerPort: 12370,
+      localLlmGpuLayers: "0",
+      localLlmDevice: "none",
+      localLlmContextSize: 4096,
+      pipelineMode: "safe",
+      requestTimeout: 30000,
+      translationMaxAttempts: 5,
+      temperature: 0,
+    });
+
+    expect(args).toContain("--device");
+    expect(args).toContain("none");
+    expect(args).toContain("--gpu-layers");
+    expect(args).toContain("0");
   });
 });
