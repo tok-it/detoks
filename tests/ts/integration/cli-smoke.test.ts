@@ -550,6 +550,7 @@ describe("detoks CLI smoke", () => {
       writeFileSync(
         sessionPath,
         JSON.stringify({
+          version: "1",
           shared_context: {
             session_id: sessionId,
             raw_input: "Find the auth module. Test the auth module.",
@@ -955,6 +956,8 @@ describe("detoks CLI smoke", () => {
       expect(JSON.parse(showRun.stdout.trim())).toEqual({
         ok: true,
         mode: "checkpoint-show",
+        mutatesState: false,
+        message: `Checkpoint ${checkpointId} loaded.`,
         checkpoint: {
           id: checkpointId,
           title: "Smoke checkpoint",
