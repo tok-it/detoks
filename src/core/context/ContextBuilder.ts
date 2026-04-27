@@ -1,4 +1,4 @@
-import type { SessionState, ExecutionContext, Task } from '../../schemas/pipeline.js';
+import type { SessionState, ExecutionContext, Task, TaskResult } from '../../schemas/pipeline.js';
 import { ContextCompressor } from './ContextCompressor.js';
 import { ContextProcessingError } from '../errors/StateErrors.js';
 
@@ -61,13 +61,18 @@ export class ContextBuilder {
         continue;
       }
 
-      const res = result as any;
-      selected[depId] = res.structured_output
-        ? { summary: res.summary, ...res.structured_output }
-        : { summary: res.summary || 'Summary not available' };
+      selected[depId] = this.summarizeTaskResult(result);
     }
 
     return selected;
+  }
+
+  private static summarizeTaskResult(result: TaskResult): Record<string, unknown> {
+    const summary = typeof result.summary === 'string' ? result.summary : 'Summary not available';
+    if ('structured_output' in result && result.structured_output) {
+      return { summary, ...result.structured_output };
+    }
+    return { summary };
   }
 
   private static generateContextSummary(
@@ -82,8 +87,12 @@ export class ContextBuilder {
 
     const taskSummaries = Object.entries(selected)
       .map(([id, res]) => {
-        const r = res as any;
-        return `- Task [${id}]: ${r.summary || (typeof r === 'string' ? r : JSON.stringify(r))}`;
+        const summary = typeof res === 'object' && res !== null && 'summary' in res
+          ? String(res.summary)
+          : typeof res === 'string'
+            ? res
+            : JSON.stringify(res);
+        return `- Task [${id}]: ${summary}`;
       })
       .join('\n');
 

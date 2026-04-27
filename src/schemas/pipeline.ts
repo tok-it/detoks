@@ -65,6 +65,10 @@ export const UserRequestSchema = z.object({
   timestamp: z.string().optional(),
 });
 
+export const SessionUserRequestSchema = UserRequestSchema.extend({
+  session_id: z.string().min(1),
+});
+
 export const PromptCompressionProviderValues = [
   "nlp_adapter",
   "llm",
@@ -206,10 +210,37 @@ export const ExecutionResultSchema = z.object({
     })
     .optional(),
   next_action: z.string().optional(),
-});
+}).passthrough();
+
+export const CompressedExecutionResultSchema = z.object({
+  summary: z.string(),
+  status: z.enum(["completed", "failed"]).optional(),
+  _compressed: z.literal(true),
+}).passthrough();
+
+export const LegacyExecutionResultSchema = z.object({
+  success: z.boolean(),
+  summary: z.string().optional(),
+  raw_output: z.string().optional(),
+  structured_output: z.record(z.string(), z.unknown()).optional(),
+  next_action: z.string().optional(),
+}).passthrough();
+
+export const SummaryOnlyTaskResultSchema = z.object({
+  summary: z.string(),
+}).passthrough();
+
+export const TaskResultSchema = z.union([
+  ExecutionResultSchema,
+  LegacyExecutionResultSchema,
+  SummaryOnlyTaskResultSchema,
+  CompressedExecutionResultSchema,
+]);
 
 export const CheckpointSchema = z.object({
-  id: z.string().min(1),
+  id: z.string().regex(/^(.+_checkpoint_.+|checkpoint_.+)$/, {
+    message: "Checkpoint id must use <session-id>_checkpoint_<checkpoint-id> or legacy checkpoint_<id>",
+  }),
   title: z.string().min(1),
   task_id: z.string(),
   summary: z.string(),
@@ -221,7 +252,7 @@ export const CheckpointSchema = z.object({
 export const SessionStateSchema = z.object({
   version: z.string().optional(),
   shared_context: z.record(z.string(), z.unknown()).default({}),
-  task_results: z.record(z.string(), z.unknown()).default({}),
+  task_results: z.record(z.string(), TaskResultSchema).default({}),
   current_task_id: z.string().optional().nullable(),
   completed_task_ids: z.array(z.string()).default([]),
   last_summary: z.string().optional(),
@@ -238,6 +269,7 @@ export const CompiledSentencesSchema = z.object({
 export type CompiledSentences = z.infer<typeof CompiledSentencesSchema>;
 
 export type UserRequest = z.infer<typeof UserRequestSchema>;
+export type SessionUserRequest = z.infer<typeof SessionUserRequestSchema>;
 export type RequestCategory = z.infer<typeof RequestCategorySchema>;
 export type PromptCompressionProvider = z.infer<
   typeof PromptCompressionProviderSchema
@@ -258,4 +290,5 @@ export type TaskGraph = z.infer<typeof TaskGraphSchema>;
 export type Checkpoint = z.infer<typeof CheckpointSchema>;
 export type ExecutionContext = z.infer<typeof ExecutionContextSchema>;
 export type ExecutionResult = z.infer<typeof ExecutionResultSchema>;
+export type TaskResult = z.infer<typeof TaskResultSchema>;
 export type SessionState = z.infer<typeof SessionStateSchema>;
