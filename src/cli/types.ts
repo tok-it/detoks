@@ -17,14 +17,16 @@ export type CliMode = InteractionMode;
 
 export interface CliArgs {
   mode: CliMode;
+  command?: "checkpoint-list";
   prompt?: string;
+  sessionId?: string;
   inputFile?: string;
   adapter: Adapter;
   executionMode: ExecutionMode;
   verbose: boolean;
   trace: boolean;
   showHelp: boolean;
-  helpTopic?: "main" | "repl";
+  helpTopic?: "main" | "repl" | "checkpoint-list";
 }
 
 export type NormalizedCliRequest = PipelineExecutionRequest;

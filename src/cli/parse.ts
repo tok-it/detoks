@@ -23,6 +23,7 @@ const CLI_USAGE_MAIN = [
   '  detoks "<prompt>" [--adapter codex|gemini] [--execution-mode stub|real] [--verbose] [--trace]',
   "  detoks --file <path> [--verbose]",
   "  detoks repl [--adapter codex|gemini] [--execution-mode stub|real] [--verbose]",
+  "  detoks checkpoint list <session-id>",
   "  detoks repl --help",
   "  detoks --help",
   "",
@@ -31,6 +32,7 @@ const CLI_USAGE_MAIN = [
   '  detoks "파이썬으로 버블 정렬 짜줘" --trace',
   "  detoks --file tests/data/row_data.json --verbose",
   "  detoks repl --adapter codex --execution-mode stub",
+  "  detoks checkpoint list session_2026_04_27",
   "",
   "Options:",
   "  --adapter codex|gemini        Target adapter (default: codex)",
@@ -39,6 +41,21 @@ const CLI_USAGE_MAIN = [
   EXECUTION_MODE_HELP,
   VERBOSE_HELP,
   TRACE_HELP,
+  "  -h, --help                    Show this help message",
+].join("\n");
+
+const CLI_USAGE_CHECKPOINT_LIST = [
+  "Usage:",
+  "  detoks checkpoint list <session-id>",
+  "",
+  "Example:",
+  "  detoks checkpoint list session_2026_04_27",
+  "",
+  "Checkpoint notes:",
+  "  - lists saved checkpoints for an existing session",
+  "  - read-only; does not restore or modify session state",
+  "",
+  "Options:",
   "  -h, --help                    Show this help message",
 ].join("\n");
 
@@ -105,7 +122,12 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
     }
 
     if (current === "-h" || current === "--help") {
-      const helpTopic = positionals[0] === "repl" ? "repl" : "main";
+      const helpTopic =
+        positionals[0] === "repl"
+          ? "repl"
+          : positionals[0] === "checkpoint" && positionals[1] === "list"
+            ? "checkpoint-list"
+            : "main";
       return {
         mode: "run",
         adapter,
@@ -189,6 +211,30 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
   }
 
   const first = positionals[0];
+  if (first === "checkpoint") {
+    if (inputFile) {
+      throw new Error("Checkpoint commands do not support --file. Run `detoks checkpoint list --help` for usage.");
+    }
+    if (positionals[1] !== "list") {
+      throw new Error("Unsupported checkpoint command. Run `detoks checkpoint list --help` for usage.");
+    }
+    const sessionId = positionals[2]?.trim();
+    if (!sessionId || positionals.length > 3) {
+      throw new Error("Checkpoint list requires exactly one <session-id>. Run `detoks checkpoint list --help` for usage.");
+    }
+    return {
+      mode: "run",
+      command: "checkpoint-list",
+      sessionId,
+      adapter,
+      executionMode,
+      verbose,
+      trace,
+      showHelp: false,
+      helpTopic: "checkpoint-list",
+    };
+  }
+
   if (first === "repl") {
     if (inputFile) {
       throw new Error("REPL mode does not support --file. Run `detoks repl --help` for usage.");
@@ -230,8 +276,15 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
   };
 };
 
-export const getCliUsage = (topic: "main" | "repl" = "main"): string =>
-  topic === "repl" ? CLI_USAGE_REPL : CLI_USAGE_MAIN;
+export const getCliUsage = (topic: "main" | "repl" | "checkpoint-list" = "main"): string => {
+  if (topic === "repl") {
+    return CLI_USAGE_REPL;
+  }
+  if (topic === "checkpoint-list") {
+    return CLI_USAGE_CHECKPOINT_LIST;
+  }
+  return CLI_USAGE_MAIN;
+};
 
 export const toNormalizedRequest = (
   args: CliArgs,
