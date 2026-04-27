@@ -10,7 +10,7 @@ import { SessionStateManager } from "../state/SessionStateManager.js";
 import { executeWithAdapter } from "../executor/execute.js";
 import { logger } from "../utils/logger.js";
 import { PipelineTracer } from "../utils/PipelineTracer.js";
-import type { SessionState, TaskResult } from "../../schemas/pipeline.js";
+import type { SessionState, TaskGraph, TaskResult } from "../../schemas/pipeline.js";
 import type {
   PipelineExecutionRequest,
   PipelineExecutionResult,
@@ -44,6 +44,85 @@ function taskResultRawOutput(result: TaskResult | undefined): string {
   return result && "raw_output" in result && typeof result.raw_output === "string"
     ? result.raw_output
     : "";
+}
+
+function taskIdNumber(taskId: string): number | null {
+  const match = /^t(\d+)$/u.exec(taskId);
+  if (!match) {
+    return null;
+  }
+
+  const parsed = Number(match[1]);
+  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : null;
+}
+
+function nextTaskIdOffset(state: SessionState): number {
+  const taskIds = new Set<string>([
+    ...state.completed_task_ids,
+    ...Object.keys(state.task_results),
+  ]);
+  if (state.current_task_id) {
+    taskIds.add(state.current_task_id);
+  }
+
+  let max = 0;
+  for (const taskId of taskIds) {
+    const number = taskIdNumber(taskId);
+    if (number && number > max) {
+      max = number;
+    }
+  }
+
+  return max;
+}
+
+function retargetTaskGraphIds(graph: TaskGraph, offset: number): TaskGraph {
+  if (offset <= 0) {
+    return graph;
+  }
+
+  const idMap = new Map<string, string>();
+  graph.tasks.forEach((task, index) => {
+    idMap.set(task.id, `t${offset + index + 1}`);
+  });
+
+  graph.tasks.forEach((task) => {
+    task.id = idMap.get(task.id) ?? task.id;
+    task.depends_on = task.depends_on.map((depId) => idMap.get(depId) ?? depId);
+  });
+
+  return graph;
+}
+
+function appendSessionInputHistory(
+  state: SessionState,
+  nextRawInput: string,
+): SessionState {
+  const existingHistory = Array.isArray(state.shared_context.input_history)
+    ? state.shared_context.input_history.filter((entry): entry is string => typeof entry === "string")
+    : [];
+  const previousRawInput =
+    typeof state.shared_context.raw_input === "string"
+      ? state.shared_context.raw_input
+      : undefined;
+  const nextHistory = [...existingHistory];
+
+  if (previousRawInput && !nextHistory.includes(previousRawInput)) {
+    nextHistory.push(previousRawInput);
+  }
+  if (!nextHistory.includes(nextRawInput)) {
+    nextHistory.push(nextRawInput);
+  }
+
+  return {
+    ...state,
+    shared_context: {
+      ...state.shared_context,
+      raw_input: nextRawInput,
+      input_history: nextHistory,
+    },
+    updated_at: new Date().toISOString(),
+  };
 }
 
 function initSessionState(sessionId: string, rawInput: string): SessionState {
@@ -293,7 +372,7 @@ export const orchestratePipeline = async (
   const failedTaskIds = new Set<string>();
 
   PipelineTracer.startStage("SessionLoader");
-  const graphTaskIds = graph.tasks.map((t) => t.id);
+  let graphTaskIds = graph.tasks.map((t) => t.id);
 
   if (await SessionStateManager.sessionExists(sessionId)) {
     try {
@@ -303,6 +382,20 @@ export const orchestratePipeline = async (
         state = initSessionState(sessionId, request.userRequest.raw_input);
         logger.info(`[Role 2.2] 새 세션 생성 (버전 불일치): ${sessionId}`);
       } else {
+        const loadedRawInput =
+          typeof loaded.shared_context.raw_input === "string"
+            ? loaded.shared_context.raw_input
+            : "";
+        const isContinuationInput =
+          loadedRawInput.trim().length > 0 &&
+          loadedRawInput.trim() !== request.userRequest.raw_input.trim();
+
+        if (isContinuationInput) {
+          retargetTaskGraphIds(graph, nextTaskIdOffset(loaded));
+          graphTaskIds = graph.tasks.map((t) => t.id);
+          logger.info(`Continuing existing session: ${sessionId}`);
+          state = appendSessionInputHistory(loaded, request.userRequest.raw_input);
+        } else {
         const orphanedTaskIds = loaded.completed_task_ids.filter((id) => !graphTaskIds.includes(id));
         if (orphanedTaskIds.length > 0) {
           logger.warn(`[Role 2.2] 세션의 Task가 현재 그래프에 없음: ${orphanedTaskIds.join(", ")}. 세션 초기화.`);
@@ -326,6 +419,7 @@ export const orchestratePipeline = async (
             ? state.shared_context.failed_task_ids.filter((id): id is string => typeof id === "string")
             : [];
           loadedFailedIds.forEach((id) => failedTaskIds.add(id));
+          }
         }
       }
     } catch (error) {

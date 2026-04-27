@@ -50,8 +50,14 @@ export class ContextBuilder {
   ): Record<string, unknown> {
     const selected: Record<string, unknown> = {};
     const taskResults = state.task_results || {};
+    const dependencyIds =
+      targetTask.depends_on.length > 0
+        ? targetTask.depends_on
+        : (state.completed_task_ids || [])
+            .filter((taskId) => taskId !== targetTask.id)
+            .slice(-3);
 
-    for (const depId of targetTask.depends_on || []) {
+    for (const depId of dependencyIds) {
       if (!state.completed_task_ids.includes(depId)) {
         continue;
       }
