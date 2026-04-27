@@ -28,6 +28,39 @@ const runCliWithEnv = (args: string[], env: NodeJS.ProcessEnv) =>
     env: { ...process.env, ...env },
   });
 
+const runCliWithEnvAndTimeout = (
+  args: string[],
+  env: NodeJS.ProcessEnv,
+  timeout: number,
+) =>
+  spawnSync(process.execPath, ["--import", "tsx", cliEntry, ...args], {
+    cwd: repoRoot,
+    encoding: "utf8",
+    env: { ...process.env, ...env },
+    timeout,
+  });
+
+const findInstalledBinary = (command: "codex" | "gemini"): string | undefined => {
+  const result = spawnSync("sh", ["-lc", `command -v ${command}`], {
+    cwd: repoRoot,
+    encoding: "utf8",
+  });
+
+  return result.status === 0 && result.stdout.trim().length > 0
+    ? result.stdout.trim()
+    : undefined;
+};
+
+const installedRealAdapter =
+  findInstalledBinary("codex") !== undefined
+    ? "codex"
+    : findInstalledBinary("gemini") !== undefined
+      ? "gemini"
+      : undefined;
+const realBinarySmoke = process.env.DETOKS_REAL_BINARY_SMOKE === "1" && installedRealAdapter
+  ? it
+  : it.skip;
+
 const createFakeBinary = (
   dir: string,
   command: "codex" | "gemini",
@@ -242,6 +275,41 @@ describe("detoks CLI smoke", () => {
   it("keeps gemini real rawOutput distinct from stub rawOutput in smoke mode", () => {
     runAdapterRawOutputSmoke("gemini", "hello gemini");
   });
+
+  realBinarySmoke(
+    "runs the real execution contract against an installed codex/gemini binary when opted in",
+    () => {
+      const adapter = installedRealAdapter;
+      expect(adapter).toBeDefined();
+
+      const realRun = runCliWithEnvAndTimeout(
+        [
+          "detoks installed binary smoke",
+          "--adapter",
+          adapter!,
+          "--execution-mode",
+          "real",
+          "--verbose",
+        ],
+        {},
+        15_000,
+      );
+
+      expect(realRun.error).toBeUndefined();
+      expect(realRun.status).toBe(0);
+      expect(realRun.stderr).toBe("");
+
+      const realJson = JSON.parse(realRun.stdout.trim());
+      expect(realJson).toMatchObject({
+        ok: true,
+        mode: "run",
+        adapter,
+      });
+      expect(realJson).toHaveProperty("rawOutput");
+      expect(realJson.rawOutput).not.toContain(`[fake:${adapter}]`);
+      expect(realJson.rawOutput).not.toContain(`[stub:${adapter}]`);
+    },
+  );
 
   it("prints real non-zero run results to stderr and exits 1", () => {
     const tempDir = mkdtempSync(join(tmpdir(), "detoks-cli-real-fail-"));
