@@ -79,7 +79,7 @@ describe("parseCliArgs", () => {
     });
   });
 
-  it("parses session continue as the first write-oriented session entrypoint", () => {
+  it("parses session continue as a session preflight entrypoint", () => {
     const parsed = parseCliArgs(["session", "continue", "session_2026_04_27"]);
     expect(parsed).toEqual({
       mode: "run",
@@ -224,13 +224,14 @@ describe("parseCliArgs", () => {
     expect(usage).toContain("completedTaskCount");
   });
 
-  it("documents session continue as a parse/help-only write-oriented command", () => {
+  it("documents session continue as a read-only preflight command", () => {
     const usage = getCliUsage("session-continue");
     expect(usage).toContain("detoks session continue <session-id>");
-    expect(usage).toContain("first write-oriented session UX entrypoint");
-    expect(usage).toContain("requires only an existing session id");
-    expect(usage).toContain("parse/help contract only");
-    expect(usage).toContain("does not mutate session state yet");
+    expect(usage).toContain("preflights whether a saved session exists");
+    expect(usage).toContain("nextAction");
+    expect(usage).toContain("does not mutate session state or start resume execution");
+    expect(usage).toContain("resumeStarted=false");
+    expect(usage).toContain("mutatesState=false");
   });
 
   it("documents checkpoint list as a read-only command", () => {

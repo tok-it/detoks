@@ -7,6 +7,7 @@ import { runCheckpointShowCommand } from "./commands/checkpoint-show.js";
 import { runBatchCommand } from "./commands/run-batch.js";
 import { runCommand } from "./commands/run.js";
 import { runSessionListCommand } from "./commands/session-list.js";
+import { runSessionContinueCommand } from "./commands/session-continue.js";
 import { startRepl } from "./repl/index.js";
 
 const runOneShotCommand = async (
@@ -48,8 +49,8 @@ const main = async (): Promise<void> => {
   }
 
   if (args.command === "session-continue") {
-    console.error(getCliUsage("session-continue"));
-    process.exitCode = 1;
+    const result = await runSessionContinueCommand(args.sessionId ?? "");
+    console.log(JSON.stringify(result, null, 2));
     return;
   }
 

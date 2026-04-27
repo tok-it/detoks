@@ -333,6 +333,65 @@ describe("detoks CLI smoke", () => {
     }
   });
 
+  it("prints session continue preflight JSON without starting resume", () => {
+    const missingSessionId = `session_cli_missing_${Date.now()}`;
+    const sessionId = `session_cli_smoke_${Date.now()}`;
+    const sessionDir = join(repoRoot, ".state", "sessions");
+    const sessionPath = join(sessionDir, `${sessionId}.json`);
+
+    try {
+      const missingRun = runCli(["session", "continue", missingSessionId]);
+
+      expect(missingRun.error).toBeUndefined();
+      expect(missingRun.status).toBe(0);
+      expect(missingRun.stderr).toBe("");
+      expect(JSON.parse(missingRun.stdout.trim())).toEqual({
+        ok: true,
+        mode: "session-continue",
+        sessionId: missingSessionId,
+        canContinue: false,
+        resumeStarted: false,
+        mutatesState: false,
+        message: `Session ${missingSessionId} was not found. No resume was started.`,
+        nextAction: null,
+      });
+
+      mkdirSync(sessionDir, { recursive: true });
+      writeFileSync(
+        sessionPath,
+        JSON.stringify({
+          shared_context: {
+            session_id: sessionId,
+          },
+          task_results: {},
+          current_task_id: "task_001",
+          completed_task_ids: [],
+          next_action: "Review session continue preflight",
+          updated_at: "2026-04-27T00:00:00.000Z",
+        }),
+        "utf8",
+      );
+
+      const continueRun = runCli(["session", "continue", sessionId]);
+
+      expect(continueRun.error).toBeUndefined();
+      expect(continueRun.status).toBe(0);
+      expect(continueRun.stderr).toBe("");
+      expect(JSON.parse(continueRun.stdout.trim())).toEqual({
+        ok: true,
+        mode: "session-continue",
+        sessionId,
+        canContinue: true,
+        resumeStarted: false,
+        mutatesState: false,
+        message: `Session ${sessionId} is ready to continue. No resume was started in preflight mode.`,
+        nextAction: "Review session continue preflight",
+      });
+    } finally {
+      rmSync(sessionPath, { force: true });
+    }
+  });
+
   it("prints minimal session list JSON for saved sessions", () => {
     const sessionId = `session_cli_smoke_${Date.now()}`;
     const sessionDir = join(repoRoot, ".state", "sessions");
