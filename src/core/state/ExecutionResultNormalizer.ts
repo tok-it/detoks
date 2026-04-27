@@ -19,7 +19,8 @@ export class ExecutionResultNormalizer {
         raw_output: rawAdapterResult.rawOutput || rawAdapterResult.stdout || '',
         summary: rawAdapterResult.summary, // 이미 있으면 유지
         structured_output: rawAdapterResult.structured_output || {},
-        next_action: rawAdapterResult.next_action
+        next_action: rawAdapterResult.next_action,
+        type: rawAdapterResult.type // Task type 저장 (optional)
       };
 
       // 0. Summary 자동 추출 (없을 경우)

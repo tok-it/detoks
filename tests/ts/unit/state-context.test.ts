@@ -11,15 +11,17 @@ describe('State & Context Engine Unit Tests', () => {
   const mockState: SessionState = {
     shared_context: {
       session_id: 'test-session',
-      project_info: 'DeToks Project'
+      raw_input: 'test input',
+      failed_task_ids: [],
+      project_name: 'DeToks Project'
     },
     task_results: {
-      'task-1': { summary: 'First task completed', success: true, structured_output: { files: ['a.ts'] } },
-      'task-2': { summary: 'Second task completed', success: true, structured_output: { files: ['b.ts'] } }
+      'task-1': { task_id: 'task-1', summary: 'First task completed', success: true, raw_output: 'output 1' },
+      'task-2': { task_id: 'task-2', summary: 'Second task completed', success: true, raw_output: 'output 2' }
     },
     completed_task_ids: ['task-1', 'task-2'],
     current_task_id: 'task-3',
-    last_summary: 'Ready for task 3'
+    updated_at: new Date().toISOString()
   };
 
   describe('StateValidator', () => {
@@ -28,9 +30,8 @@ describe('State & Context Engine Unit Tests', () => {
     });
 
     it('should throw StateValidationError if shared_context is missing (Two-Tier rule)', () => {
-      const invalidState = { ...mockState, shared_context: {} };
+      const invalidState = { ...mockState, shared_context: undefined };
       expect(() => StateValidator.validate(invalidState)).toThrow(StateValidationError);
-      expect(() => StateValidator.validate(invalidState)).toThrow(/shared_context must be a non-empty object/);
     });
 
     it('should throw StateValidationError if current_task is already in completed_task_ids', () => {

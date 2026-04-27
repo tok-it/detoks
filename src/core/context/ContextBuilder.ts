@@ -87,8 +87,9 @@ export class ContextBuilder {
   ): string {
     const parts: string[] = [];
 
-    if (shared?.project_info) {
-      parts.push(`Project: ${shared.project_info}`);
+    const projectName = shared?.project_name || shared?.project_info;
+    if (projectName) {
+      parts.push(`Project: ${projectName}`);
     }
 
     const taskSummaries = Object.entries(selected)
