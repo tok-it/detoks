@@ -263,6 +263,34 @@ describe("orchestratePipeline", () => {
     );
   });
 
+  it("does not overwrite an existing session when loading it fails", async () => {
+    vi.spyOn(SessionStateManager, "sessionExists").mockResolvedValue(true);
+    vi.spyOn(SessionStateManager, "loadSession").mockRejectedValue(
+      new Error("Session file is corrupted"),
+    );
+    const saveSessionSpy = vi
+      .spyOn(SessionStateManager, "saveSession")
+      .mockResolvedValue(undefined);
+
+    const result = await orchestratePipeline({
+      mode: "run",
+      adapter: "codex",
+      executionMode: "stub",
+      verbose: false,
+      userRequest: {
+        raw_input: "hello detoks",
+        session_id: "corrupt_session",
+      },
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.sessionId).toBe("corrupt_session");
+    expect(result.summary).toBe("Session load failed: Session file is corrupted");
+    expect(result.nextAction).toBe("Fix or reset the existing session before retrying");
+    expect(saveSessionSpy).not.toHaveBeenCalled();
+    expect(executeWithAdapterMock).not.toHaveBeenCalled();
+  });
+
   it("retries a previously failed task and unblocks its dependent task on success", async () => {
     vi.spyOn(SessionStateManager, "sessionExists").mockResolvedValue(true);
     vi.spyOn(SessionStateManager, "loadSession").mockResolvedValue({
