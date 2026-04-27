@@ -21,10 +21,16 @@ def test_load_llama_server_config_defaults() -> None:
     config = load_llama_server_config({})
 
     assert config.host == "127.0.0.1"
-    assert config.port == 1234
+    assert config.port == 12370
     assert config.api_prefix == "/v1"
     assert config.health_path == "/health"
     assert config.model_name == "mradermacher/gemma-4-E2B-it-heretic-ara-GGUF"
+
+
+def test_load_llama_server_config_reads_local_llm_model_name() -> None:
+    config = load_llama_server_config({"LOCAL_LLM_MODEL_NAME": "detoks-local"})
+
+    assert config.model_name == "detoks-local"
 
 
 def test_build_health_response_reports_backend_state() -> None:

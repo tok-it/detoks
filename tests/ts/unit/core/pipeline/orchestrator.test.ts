@@ -92,6 +92,10 @@ describe("orchestratePipeline", () => {
         raw_input: "새 파일을 생성해",
         cwd: "/tmp",
       },
+      env: {
+        LOCAL_LLM_API_BASE: "",
+        LOCAL_LLM_MODEL_NAME: "",
+      },
     });
 
     expect(result.ok).toBe(false);
@@ -157,7 +161,7 @@ describe("orchestratePipeline", () => {
       },
       env: {
         LM_STUDIO_URL: "http://127.0.0.1:1234/v1",
-        LM_STUDIO_API_KEY: "test-key",
+        LOCAL_LLM_API_KEY: "test-key",
         LOCAL_LLM_MODEL_NAME: "local-model",
         TRANSLATION_MAX_ATTEMPTS: "1",
       },
