@@ -551,7 +551,7 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
   return {
     mode: "run",
     prompt,
-    sessionId,
+    ...(sessionId !== undefined ? { sessionId } : {}),
     adapter,
     executionMode,
     verbose,
