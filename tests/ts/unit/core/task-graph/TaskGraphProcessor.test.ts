@@ -83,6 +83,14 @@ describe("TaskGraphProcessor", () => {
       ["Break down the migration steps",   "plan",     "break down"],
       ["Outline the rollout approach",     "plan",     "outline/approach"],
       ["Design the migration strategy",    "plan",     "design strategy"],
+      // idiom: make + 숙어 → create 패턴 'make' 단일어에 가로채지지 않아야 함
+      ["Make sure the output is valid",    "validate", "make sure → validate"],
+      ["Make certain the config is correct","validate","make certain → validate"],
+      ["Make changes to the config file",  "modify",   "make changes → modify"],
+      ["Make improvements to the service", "modify",   "make improvements → modify"],
+      ["Make use of the existing module",  "execute",  "make use of → execute"],
+      ["Make a note of the findings",      "document", "make a note → document"],
+      ["Make a plan for the rollout",      "plan",     "make a plan → plan"],
     ];
 
     it.each(cases)('"%s" → type: "%s" (%s 키워드)', (sentence, expectedType) => {
