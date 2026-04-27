@@ -24,6 +24,7 @@ const CLI_USAGE_MAIN = [
   "  detoks --file <path> [--verbose]",
   "  detoks repl [--adapter codex|gemini] [--execution-mode stub|real] [--verbose]",
   "  detoks checkpoint list <session-id>",
+  "  detoks checkpoint show <checkpoint-id>",
   "  detoks repl --help",
   "  detoks --help",
   "",
@@ -33,6 +34,7 @@ const CLI_USAGE_MAIN = [
   "  detoks --file tests/data/row_data.json --verbose",
   "  detoks repl --adapter codex --execution-mode stub",
   "  detoks checkpoint list session_2026_04_27",
+  "  detoks checkpoint show session_2026_04_27_checkpoint_001",
   "",
   "Options:",
   "  --adapter codex|gemini        Target adapter (default: codex)",
@@ -54,6 +56,25 @@ const CLI_USAGE_CHECKPOINT_LIST = [
   "Checkpoint notes:",
   "  - lists saved checkpoints for an existing session",
   "  - read-only; does not restore or modify session state",
+  "  - stdout is JSON with sessionId, hasCheckpoints, checkpointCount, message, and checkpoints",
+  "  - empty sessions return hasCheckpoints=false, checkpointCount=0, and checkpoints=[]",
+  "",
+  "Options:",
+  "  -h, --help                    Show this help message",
+].join("\n");
+
+
+const CLI_USAGE_CHECKPOINT_SHOW = [
+  "Usage:",
+  "  detoks checkpoint show <checkpoint-id>",
+  "",
+  "Example:",
+  "  detoks checkpoint show session_2026_04_27_checkpoint_001",
+  "",
+  "Checkpoint notes:",
+  "  - shows saved checkpoint metadata by checkpoint id",
+  "  - read-only; does not restore or modify session state",
+  "  - stdout is JSON with checkpoint id, title, taskId, createdAt, changedFiles, and nextAction",
   "",
   "Options:",
   "  -h, --help                    Show this help message",
@@ -127,7 +148,9 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
           ? "repl"
           : positionals[0] === "checkpoint" && positionals[1] === "list"
             ? "checkpoint-list"
-            : "main";
+            : positionals[0] === "checkpoint" && positionals[1] === "show"
+              ? "checkpoint-show"
+              : "main";
       return {
         mode: "run",
         adapter,
@@ -213,26 +236,46 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
   const first = positionals[0];
   if (first === "checkpoint") {
     if (inputFile) {
-      throw new Error("Checkpoint commands do not support --file. Run `detoks checkpoint list --help` for usage.");
+      throw new Error("Checkpoint commands do not support --file. Run `detoks checkpoint --help` for usage.");
     }
-    if (positionals[1] !== "list") {
-      throw new Error("Unsupported checkpoint command. Run `detoks checkpoint list --help` for usage.");
+
+    if (positionals[1] === "list") {
+      const sessionId = positionals[2]?.trim();
+      if (!sessionId || positionals.length > 3) {
+        throw new Error("Checkpoint list requires exactly one <session-id>. Run `detoks checkpoint list --help` for usage.");
+      }
+      return {
+        mode: "run",
+        command: "checkpoint-list",
+        sessionId,
+        adapter,
+        executionMode,
+        verbose,
+        trace,
+        showHelp: false,
+        helpTopic: "checkpoint-list",
+      };
     }
-    const sessionId = positionals[2]?.trim();
-    if (!sessionId || positionals.length > 3) {
-      throw new Error("Checkpoint list requires exactly one <session-id>. Run `detoks checkpoint list --help` for usage.");
+
+    if (positionals[1] === "show") {
+      const checkpointId = positionals[2]?.trim();
+      if (!checkpointId || positionals.length > 3) {
+        throw new Error("Checkpoint show requires exactly one <checkpoint-id>. Run `detoks checkpoint show --help` for usage.");
+      }
+      return {
+        mode: "run",
+        command: "checkpoint-show",
+        checkpointId,
+        adapter,
+        executionMode,
+        verbose,
+        trace,
+        showHelp: false,
+        helpTopic: "checkpoint-show",
+      };
     }
-    return {
-      mode: "run",
-      command: "checkpoint-list",
-      sessionId,
-      adapter,
-      executionMode,
-      verbose,
-      trace,
-      showHelp: false,
-      helpTopic: "checkpoint-list",
-    };
+
+    throw new Error("Unsupported checkpoint command. Run `detoks checkpoint list --help` or `detoks checkpoint show --help` for usage.");
   }
 
   if (first === "repl") {
@@ -276,12 +319,15 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
   };
 };
 
-export const getCliUsage = (topic: "main" | "repl" | "checkpoint-list" = "main"): string => {
+export const getCliUsage = (topic: "main" | "repl" | "checkpoint-list" | "checkpoint-show" = "main"): string => {
   if (topic === "repl") {
     return CLI_USAGE_REPL;
   }
   if (topic === "checkpoint-list") {
     return CLI_USAGE_CHECKPOINT_LIST;
+  }
+  if (topic === "checkpoint-show") {
+    return CLI_USAGE_CHECKPOINT_SHOW;
   }
   return CLI_USAGE_MAIN;
 };
