@@ -3,6 +3,7 @@
 import { formatBatchSuccess, formatError, formatFailedResult, formatSuccess } from "./format.js";
 import { getCliUsage, parseCliArgs, toNormalizedRequest } from "./parse.js";
 import { runCheckpointListCommand } from "./commands/checkpoint-list.js";
+import { runCheckpointShowCommand } from "./commands/checkpoint-show.js";
 import { runBatchCommand } from "./commands/run-batch.js";
 import { runCommand } from "./commands/run.js";
 import { startRepl } from "./repl/index.js";
@@ -41,6 +42,12 @@ const main = async (): Promise<void> => {
 
   if (args.command === "checkpoint-list") {
     const result = await runCheckpointListCommand(args.sessionId ?? "");
+    console.log(JSON.stringify(result, null, 2));
+    return;
+  }
+
+  if (args.command === "checkpoint-show") {
+    const result = await runCheckpointShowCommand(args.checkpointId ?? "");
     console.log(JSON.stringify(result, null, 2));
     return;
   }
