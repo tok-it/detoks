@@ -24,6 +24,7 @@ const CLI_USAGE_MAIN = [
   "  detoks --file <path> [--verbose]",
   "  detoks repl [--adapter codex|gemini] [--execution-mode stub|real] [--verbose]",
   "  detoks session list",
+  "  detoks session continue <session-id>",
   "  detoks checkpoint list <session-id>",
   "  detoks checkpoint show <checkpoint-id>",
   "  detoks repl --help",
@@ -35,6 +36,7 @@ const CLI_USAGE_MAIN = [
   "  detoks --file tests/data/row_data.json --verbose",
   "  detoks repl --adapter codex --execution-mode stub",
   "  detoks session list",
+  "  detoks session continue session_2026_04_27",
   "  detoks checkpoint list session_2026_04_27",
   "  detoks checkpoint show session_2026_04_27_checkpoint_001",
   "",
@@ -60,6 +62,22 @@ const CLI_USAGE_SESSION_LIST = [
   "  - read-only; does not create, continue, reset, fork, or modify session state",
   "  - stdout is JSON with hasSessions, sessionCount, message, and sessions",
   "  - each session includes id, updatedAt, currentTaskId, completedTaskCount, taskResultCount, and nextAction",
+  "",
+  "Options:",
+  "  -h, --help                    Show this help message",
+].join("\n");
+
+const CLI_USAGE_SESSION_CONTINUE = [
+  "Usage:",
+  "  detoks session continue <session-id>",
+  "",
+  "Example:",
+  "  detoks session continue session_2026_04_27",
+  "",
+  "Session continue notes:",
+  "  - selected as the first write-oriented session UX entrypoint because it requires only an existing session id",
+  "  - parse/help contract only in this step; it does not mutate session state yet",
+  "  - future behavior should resume work from the saved session's next action",
   "",
   "Options:",
   "  -h, --help                    Show this help message",
@@ -167,6 +185,8 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
           ? "repl"
           : positionals[0] === "session" && positionals[1] === "list"
             ? "session-list"
+            : positionals[0] === "session" && positionals[1] === "continue"
+              ? "session-continue"
             : positionals[0] === "checkpoint" && positionals[1] === "list"
             ? "checkpoint-list"
             : positionals[0] === "checkpoint" && positionals[1] === "show"
@@ -276,7 +296,25 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
       };
     }
 
-    throw new Error("Unsupported session command. Run `detoks session list --help` for usage.");
+    if (positionals[1] === "continue") {
+      const sessionId = positionals[2]?.trim();
+      if (!sessionId || positionals.length > 3) {
+        throw new Error("Session continue requires exactly one <session-id>. Run `detoks session continue --help` for usage.");
+      }
+      return {
+        mode: "run",
+        command: "session-continue",
+        sessionId,
+        adapter,
+        executionMode,
+        verbose,
+        trace,
+        showHelp: false,
+        helpTopic: "session-continue",
+      };
+    }
+
+    throw new Error("Unsupported session command. Run `detoks session list --help` or `detoks session continue --help` for usage.");
   }
 
   if (first === "checkpoint") {
@@ -364,12 +402,15 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
   };
 };
 
-export const getCliUsage = (topic: "main" | "repl" | "session-list" | "checkpoint-list" | "checkpoint-show" = "main"): string => {
+export const getCliUsage = (topic: "main" | "repl" | "session-list" | "session-continue" | "checkpoint-list" | "checkpoint-show" = "main"): string => {
   if (topic === "repl") {
     return CLI_USAGE_REPL;
   }
   if (topic === "session-list") {
     return CLI_USAGE_SESSION_LIST;
+  }
+  if (topic === "session-continue") {
+    return CLI_USAGE_SESSION_CONTINUE;
   }
   if (topic === "checkpoint-list") {
     return CLI_USAGE_CHECKPOINT_LIST;

@@ -79,6 +79,21 @@ describe("parseCliArgs", () => {
     });
   });
 
+  it("parses session continue as the first write-oriented session entrypoint", () => {
+    const parsed = parseCliArgs(["session", "continue", "session_2026_04_27"]);
+    expect(parsed).toEqual({
+      mode: "run",
+      command: "session-continue",
+      sessionId: "session_2026_04_27",
+      adapter: "codex",
+      executionMode: "stub",
+      verbose: false,
+      trace: false,
+      showHelp: false,
+      helpTopic: "session-continue",
+    });
+  });
+
   it("parses checkpoint show as the next read-only checkpoint command", () => {
     const parsed = parseCliArgs(["checkpoint", "show", "session_2026_04_27_checkpoint_001"]);
     expect(parsed).toEqual({
@@ -142,6 +157,15 @@ describe("parseCliArgs", () => {
     });
   });
 
+  it("parses session continue help as a topic-specific help request", () => {
+    const parsed = parseCliArgs(["session", "continue", "--help"]);
+    expect(parsed).toMatchObject({
+      mode: "run",
+      showHelp: true,
+      helpTopic: "session-continue",
+    });
+  });
+
   it("parses checkpoint list help as a topic-specific help request", () => {
     const parsed = parseCliArgs(["checkpoint", "list", "--help"]);
     expect(parsed).toMatchObject({
@@ -168,6 +192,8 @@ describe("parseCliArgs", () => {
     expect(usage).toContain("--file <path>");
     expect(usage).toContain("detoks repl --adapter codex --execution-mode stub");
     expect(usage).toContain("detoks session list");
+    expect(usage).toContain("detoks session continue <session-id>");
+    expect(usage).toContain("detoks session continue session_2026_04_27");
     expect(usage).toContain("detoks checkpoint list <session-id>");
     expect(usage).toContain("detoks checkpoint show <checkpoint-id>");
     expect(usage).toContain("detoks checkpoint list session_2026_04_27");
@@ -198,6 +224,15 @@ describe("parseCliArgs", () => {
     expect(usage).toContain("completedTaskCount");
   });
 
+  it("documents session continue as a parse/help-only write-oriented command", () => {
+    const usage = getCliUsage("session-continue");
+    expect(usage).toContain("detoks session continue <session-id>");
+    expect(usage).toContain("first write-oriented session UX entrypoint");
+    expect(usage).toContain("requires only an existing session id");
+    expect(usage).toContain("parse/help contract only");
+    expect(usage).toContain("does not mutate session state yet");
+  });
+
   it("documents checkpoint list as a read-only command", () => {
     const usage = getCliUsage("checkpoint-list");
     expect(usage).toContain("detoks checkpoint list <session-id>");
@@ -226,6 +261,9 @@ describe("parseCliArgs", () => {
     );
     expect(() => parseCliArgs(["session", "list", "extra"])).toThrow(
       /does not accept arguments/,
+    );
+    expect(() => parseCliArgs(["session", "continue"])).toThrow(
+      /requires exactly one <session-id>/,
     );
     expect(() => parseCliArgs(["checkpoint", "list"])).toThrow(
       /requires exactly one <session-id>/,

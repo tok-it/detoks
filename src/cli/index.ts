@@ -47,6 +47,12 @@ const main = async (): Promise<void> => {
     return;
   }
 
+  if (args.command === "session-continue") {
+    console.error(getCliUsage("session-continue"));
+    process.exitCode = 1;
+    return;
+  }
+
   if (args.command === "checkpoint-list") {
     const result = await runCheckpointListCommand(args.sessionId ?? "");
     console.log(JSON.stringify(result, null, 2));
