@@ -150,6 +150,9 @@ export class TaskGraphProcessor {
         /\bgame\s+plan\b/,
       ],
     },
+    // 키워드가 없는 질문형 문장의 최후 fallback — 모든 키워드 패턴 검사 후 여기 도달.
+    // 위 패턴들이 먼저 소비하므로 "How can we validate?" 같은 케이스는 validate에서 처리됨.
+    { type: "analyze", patterns: [/\?$/] },
   ];
   /**
    * type A → type B 전환이 "자연스러운 실행 흐름"인 조합을 정의한 테이블입니다.
