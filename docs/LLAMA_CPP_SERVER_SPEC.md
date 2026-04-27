@@ -48,7 +48,7 @@ This document defines the current `python/llama-server` runtime contract used by
 | `LLAMA_SERVER_PORT` | `1234` | Bind port |
 | `LLAMA_SERVER_API_PREFIX` | `/v1` | API prefix |
 | `LLAMA_SERVER_HEALTH_PATH` | `/health` | Health endpoint path |
-| `MODEL_NAME` | `mradermacher/gemma-4-E2B-it-heretic-ara-GGUF` | Default model name returned to clients |
+| `LOCAL_LLM_MODEL_NAME` | `mradermacher/gemma-4-E2B-it-heretic-ara-GGUF` | Default model name returned to clients |
 | `REQUEST_TIMEOUT` | `30` | Upstream timeout in seconds |
 | `LLAMA_SERVER_API_KEY` | unset | Optional Bearer auth for inbound requests |
 | `LLAMA_CPP_API_BASE` | unset | Upstream OpenAI-compatible llama.cpp base URL |

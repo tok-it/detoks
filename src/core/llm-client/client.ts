@@ -20,7 +20,7 @@ export interface LlmCompletionResponse {
 export interface LlmClientOptions {
   apiBase?: string;
   apiKey?: string;
-  modelName?: string;
+  localLlmModelName?: string;
   fetchImplementation?: typeof fetch;
 }
 
@@ -80,11 +80,11 @@ export async function complete_chat(
   options: LlmClientOptions,
 ): Promise<LlmCompletionResponse> {
   if (!options.apiBase) {
-    throw new Error("LLM client requires OPENAI_API_BASE");
+    throw new Error("LLM client requires LOCAL_LLM_API_BASE");
   }
 
-  if (!options.modelName) {
-    throw new Error("LLM client requires MODEL_NAME");
+  if (!options.localLlmModelName) {
+    throw new Error("LLM client requires LOCAL_LLM_MODEL_NAME");
   }
 
   const fetchImplementation = options.fetchImplementation ?? globalThis.fetch;
@@ -109,7 +109,7 @@ export async function complete_chat(
             : {}),
         },
         body: JSON.stringify({
-          model: options.modelName,
+          model: options.localLlmModelName,
           messages: request.messages,
           temperature: request.temperature ?? 0,
         }),

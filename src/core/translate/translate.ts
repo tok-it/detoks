@@ -156,14 +156,14 @@ Pay extra attention to missing technical literals and untranslated Korean text.`
       timeout_ms: options.config.requestTimeout,
     },
     {
-      ...(options.config.openaiApiBase
-        ? { apiBase: options.config.openaiApiBase }
+      ...(options.config.localLlmApiBase
+        ? { apiBase: options.config.localLlmApiBase }
         : {}),
-      ...(options.config.openaiApiKey
-        ? { apiKey: options.config.openaiApiKey }
+      ...(options.config.localLlmApiKey
+        ? { apiKey: options.config.localLlmApiKey }
         : {}),
-      ...(options.config.modelName
-        ? { modelName: options.config.modelName }
+      ...(options.config.localLlmModelName
+        ? { localLlmModelName: options.config.localLlmModelName }
         : {}),
       ...(options.fetchImplementation
         ? { fetchImplementation: options.fetchImplementation }
@@ -184,7 +184,7 @@ async function runTranslationPass(
   const masked = mask_protected_segments(source_text, {
     protected_terms: options.policies.protectedTerms,
     preferred_translations: options.policies.preferredTranslations,
-    model_names: options.config.modelName ? [options.config.modelName] : [],
+    model_names: options.config.localLlmModelName ? [options.config.localLlmModelName] : [],
   });
   const spans = extract_translatable_spans(masked.masked_text, masked.placeholders);
   const translatedSpans: TranslatableSpan[] = [];
@@ -232,7 +232,7 @@ async function runTranslationPass(
       placeholders: placeholderTokens,
       protected_terms: options.policies.protectedTerms,
       required_terms: requiredTerms,
-      model_names: options.config.modelName ? [options.config.modelName] : [],
+      model_names: options.config.localLlmModelName ? [options.config.localLlmModelName] : [],
       forbidden_patterns: options.policies.forbiddenPatterns,
     });
     const repaired = repair_translation({
@@ -249,7 +249,7 @@ async function runTranslationPass(
       placeholders: placeholderTokens,
       protected_terms: options.policies.protectedTerms,
       required_terms: requiredTerms,
-      model_names: options.config.modelName ? [options.config.modelName] : [],
+      model_names: options.config.localLlmModelName ? [options.config.localLlmModelName] : [],
       forbidden_patterns: options.policies.forbiddenPatterns,
     });
 
@@ -288,7 +288,7 @@ async function runTranslationPass(
           placeholders: placeholderTokens,
           protected_terms: options.policies.protectedTerms,
           required_terms: requiredTerms,
-          model_names: options.config.modelName ? [options.config.modelName] : [],
+          model_names: options.config.localLlmModelName ? [options.config.localLlmModelName] : [],
           forbidden_patterns: options.policies.forbiddenPatterns,
         });
         repairActions.push(...fallbackRepaired.repair_actions);
@@ -338,7 +338,7 @@ async function runTranslationPass(
     required_literals: masked.placeholders
       .map((entry) => entry.original)
       .filter(isHighConfidenceInferredLiteral),
-    model_names: options.config.modelName ? [options.config.modelName] : [],
+    model_names: options.config.localLlmModelName ? [options.config.localLlmModelName] : [],
     forbidden_patterns: options.policies.forbiddenPatterns,
   });
   const finalValidationErrors = finalValidation.validation_errors;

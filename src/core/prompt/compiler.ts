@@ -76,8 +76,8 @@ export async function compilePrompt(
   const translatedOutput = translationResult?.text ?? normalizedInput;
   const compressionResult = compress_prompt(translatedOutput, {
     policies,
-    ...(runtimeConfig.modelName
-      ? { modelName: runtimeConfig.modelName }
+    ...(runtimeConfig.localLlmModelName
+      ? { localLlmModelName: runtimeConfig.localLlmModelName }
       : {}),
   });
   const repairActions = [

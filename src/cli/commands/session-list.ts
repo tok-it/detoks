@@ -3,6 +3,7 @@ import { SessionStateManager } from "../../core/state/SessionStateManager.js";
 export interface SessionListOutput {
   ok: true;
   mode: "session-list";
+  mutatesState: false;
   hasSessions: boolean;
   sessionCount: number;
   message: string;
@@ -23,6 +24,7 @@ export const runSessionListCommand = async (): Promise<SessionListOutput> => {
   return {
     ok: true,
     mode: "session-list",
+    mutatesState: false,
     hasSessions: sessionCount > 0,
     sessionCount,
     message:

@@ -4,6 +4,7 @@ export interface CheckpointListOutput {
   ok: true;
   mode: "checkpoint-list";
   sessionId: string;
+  mutatesState: false;
   hasCheckpoints: boolean;
   checkpointCount: number;
   message: string;
@@ -27,6 +28,7 @@ export const runCheckpointListCommand = async (
     ok: true,
     mode: "checkpoint-list",
     sessionId,
+    mutatesState: false,
     hasCheckpoints: checkpointCount > 0,
     checkpointCount,
     message:

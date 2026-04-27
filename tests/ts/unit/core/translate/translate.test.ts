@@ -37,9 +37,9 @@ describe("translate_to_english", () => {
 
     const result = await translate_to_english("`app.ts` 파일을 생성해", {
       config: {
-        openaiApiBase: "http://127.0.0.1:1234/v1",
-        openaiApiKey: "test-key",
-        modelName: "local-model",
+        localLlmApiBase: "http://127.0.0.1:1234/v1",
+        localLlmApiKey: "test-key",
+        localLlmModelName: "local-model",
         pipelineMode: "safe",
         requestTimeout: 30000,
         translationMaxAttempts: 5,
@@ -67,9 +67,9 @@ describe("translate_to_english", () => {
 
     const result = await translate_to_english("Create a file", {
       config: {
-        openaiApiBase: "http://127.0.0.1:1234/v1",
-        openaiApiKey: "test-key",
-        modelName: "local-model",
+        localLlmApiBase: "http://127.0.0.1:1234/v1",
+        localLlmApiKey: "test-key",
+        localLlmModelName: "local-model",
         pipelineMode: "safe",
         requestTimeout: 30000,
         translationMaxAttempts: 5,
@@ -133,9 +133,9 @@ describe("translate_to_english", () => {
 
     const result = await translate_to_english("파일을 생성해", {
       config: {
-        openaiApiBase: "http://127.0.0.1:1234/v1",
-        openaiApiKey: "test-key",
-        modelName: "local-model",
+        localLlmApiBase: "http://127.0.0.1:1234/v1",
+        localLlmApiKey: "test-key",
+        localLlmModelName: "local-model",
         pipelineMode: "safe",
         requestTimeout: 30000,
         translationMaxAttempts: 2,
@@ -179,9 +179,9 @@ describe("translate_to_english", () => {
 
     const result = await translate_to_english("파일을 생성해", {
       config: {
-        openaiApiBase: "http://127.0.0.1:1234/v1",
-        openaiApiKey: "test-key",
-        modelName: "local-model",
+        localLlmApiBase: "http://127.0.0.1:1234/v1",
+        localLlmApiKey: "test-key",
+        localLlmModelName: "local-model",
         pipelineMode: "safe",
         requestTimeout: 30000,
         translationMaxAttempts: 1,
@@ -226,9 +226,9 @@ describe("translate_to_english", () => {
 
     const result = await translate_to_english("`app.ts` 파일 생성", {
       config: {
-        openaiApiBase: "http://127.0.0.1:1234/v1",
-        openaiApiKey: "test-key",
-        modelName: "local-model",
+        localLlmApiBase: "http://127.0.0.1:1234/v1",
+        localLlmApiKey: "test-key",
+        localLlmModelName: "local-model",
         pipelineMode: "debug",
         requestTimeout: 30000,
         translationMaxAttempts: 2,
@@ -271,9 +271,9 @@ describe("translate_to_english", () => {
 
     const result = await translate_to_english("`endpoint.ts` 엔드포인트 확인", {
       config: {
-        openaiApiBase: "http://127.0.0.1:1234/v1",
-        openaiApiKey: "test-key",
-        modelName: "local-model",
+        localLlmApiBase: "http://127.0.0.1:1234/v1",
+        localLlmApiKey: "test-key",
+        localLlmModelName: "local-model",
         pipelineMode: "safe",
         requestTimeout: 30000,
         translationMaxAttempts: 2,
@@ -315,9 +315,9 @@ describe("translate_to_english", () => {
 
     const result = await translate_to_english("블루/그린 배포를 먼저 검토해", {
       config: {
-        openaiApiBase: "http://127.0.0.1:1234/v1",
-        openaiApiKey: "test-key",
-        modelName: "local-model",
+        localLlmApiBase: "http://127.0.0.1:1234/v1",
+        localLlmApiKey: "test-key",
+        localLlmModelName: "local-model",
         pipelineMode: "safe",
         requestTimeout: 30000,
         translationMaxAttempts: 1,
@@ -381,9 +381,9 @@ describe("translate_to_english", () => {
 
     const result = await translate_to_english("`app.ts` 파일을 생성해", {
       config: {
-        openaiApiBase: "http://127.0.0.1:1234/v1",
-        openaiApiKey: "test-key",
-        modelName: "local-model",
+        localLlmApiBase: "http://127.0.0.1:1234/v1",
+        localLlmApiKey: "test-key",
+        localLlmModelName: "local-model",
         pipelineMode: "safe",
         requestTimeout: 30000,
         translationMaxAttempts: 1,
@@ -427,9 +427,9 @@ describe("translate_to_english", () => {
       "API Gateway 뒤에서 돌아가는 서비스들이 너무 느려",
       {
         config: {
-          openaiApiBase: "http://127.0.0.1:1234/v1",
-          openaiApiKey: "test-key",
-          modelName: "local-model",
+          localLlmApiBase: "http://127.0.0.1:1234/v1",
+          localLlmApiKey: "test-key",
+          localLlmModelName: "local-model",
           pipelineMode: "safe",
           requestTimeout: 30000,
           translationMaxAttempts: 1,

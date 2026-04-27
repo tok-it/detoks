@@ -22,9 +22,9 @@ function generateSessionId(): string {
   return createHash("sha256").update(String(Date.now())).digest("hex").slice(0, 12);
 }
 
-function initSessionState(sessionId: string): SessionState {
+function initSessionState(sessionId: string, rawInput: string): SessionState {
   return {
-    shared_context: { session_id: sessionId },
+    shared_context: { session_id: sessionId, raw_input: rawInput },
     task_results: {},
     current_task_id: null,
     completed_task_ids: [],
@@ -43,7 +43,33 @@ function markTaskCompleted(
     completed_task_ids: [...state.completed_task_ids, taskId],
     task_results: {
       ...state.task_results,
-      [taskId]: { summary: rawOutput.slice(0, 200), raw_output: rawOutput },
+      [taskId]: {
+        task_id: taskId,
+        success: true,
+        summary: rawOutput.slice(0, 200),
+        raw_output: rawOutput,
+      },
+    },
+    updated_at: new Date().toISOString(),
+  };
+}
+
+function markTaskFailed(
+  state: SessionState,
+  taskId: string,
+  rawOutput: string,
+): SessionState {
+  return {
+    ...state,
+    current_task_id: taskId,
+    task_results: {
+      ...state.task_results,
+      [taskId]: {
+        task_id: taskId,
+        success: false,
+        summary: rawOutput.slice(0, 200),
+        raw_output: rawOutput,
+      },
     },
     updated_at: new Date().toISOString(),
   };
@@ -58,6 +84,23 @@ function buildPipelineStages(ok: boolean): PipelineStageStatus[] {
     { name: "Executor",           owner: "role3",   status: "ready"        },
     { name: "State Manager",      owner: "role2.2", status: resultStatus   },
   ];
+}
+
+function toErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function inferPromptFailureNextAction(errorMessage: string): string {
+  if (
+    errorMessage.includes("LOCAL_LLM_API_BASE") ||
+    errorMessage.includes("LOCAL_LLM_MODEL_NAME") ||
+    errorMessage.includes("MODEL_NAME") ||
+    errorMessage.includes("fetch support")
+  ) {
+    return "Set Role 1 local LLM runtime config (LOCAL_LLM_API_BASE, LOCAL_LLM_MODEL_NAME) and retry";
+  }
+
+  return "Fix prompt compilation inputs or runtime config and retry";
 }
 
 /**
@@ -80,20 +123,61 @@ export const orchestratePipeline = async (
   PipelineTracer.clear();
 
   // ── Step 1: Prompt compile + Role 2.1 handoff 생성 (Role 1) ──────────────
+  let compiledPrompt;
+  let role2PromptInput;
   await PipelineTracer.trace({
     sessionId, stage: "PromptCompiler", role: "role1", phase: "input",
     dataType: "UserRequest", data: { raw_input: request.userRequest.raw_input },
   });
-  PipelineTracer.startStage("PromptCompiler");
-  const compiledPrompt = await compilePrompt({
-    raw_input: request.userRequest.raw_input,
-  });
-  const role2PromptInput = createRole2PromptInput(compiledPrompt);
-  await PipelineTracer.trace({
-    sessionId, stage: "PromptCompiler", role: "role1", phase: "output",
-    dataType: "CompiledPrompt", data: compiledPrompt,
-    durationMs: PipelineTracer.endStage("PromptCompiler"),
-  });
+  try {
+    PipelineTracer.startStage("PromptCompiler");
+    compiledPrompt = await compilePrompt(
+      {
+        raw_input: request.userRequest.raw_input,
+      },
+      {
+        ...(request.userRequest.cwd ? { cwd: request.userRequest.cwd } : {}),
+        ...(request.env ? { env: request.env } : {}),
+        ...(request.fetchImplementation
+          ? { fetchImplementation: request.fetchImplementation }
+          : {}),
+      },
+    );
+    role2PromptInput = createRole2PromptInput(compiledPrompt);
+    await PipelineTracer.trace({
+      sessionId, stage: "PromptCompiler", role: "role1", phase: "output",
+      dataType: "CompiledPrompt", data: compiledPrompt,
+      durationMs: PipelineTracer.endStage("PromptCompiler"),
+    });
+  } catch (error) {
+    const errorMessage = toErrorMessage(error);
+    logger.error(`Prompt compilation failed: ${errorMessage}`);
+    await PipelineTracer.trace({
+      sessionId,
+      stage: "PromptCompiler",
+      role: "role1",
+      phase: "output",
+      dataType: "PromptCompilerError",
+      data: { error: errorMessage },
+      durationMs: PipelineTracer.endStage("PromptCompiler"),
+    });
+    const traceFilePath = request.trace
+      ? await PipelineTracer.saveTrace(sessionId)
+      : undefined;
+    return {
+      ok: false,
+      mode: request.mode,
+      adapter: request.adapter,
+      summary: `Prompt compilation failed: ${errorMessage}`,
+      nextAction: inferPromptFailureNextAction(errorMessage),
+      stages: buildPipelineStages(false),
+      rawOutput: errorMessage,
+      sessionId,
+      taskRecords: [],
+      ...(request.trace ? { traceLog: PipelineTracer.getTrace(sessionId) } : {}),
+      ...(traceFilePath ? { traceFilePath } : {}),
+    };
+  }
 
   // ── Step 2: TaskGraph 생성 (Role 2.1) ────────────────────────────────────
   await PipelineTracer.trace({
@@ -132,6 +216,10 @@ export const orchestratePipeline = async (
       taskRecords: [],
       compiledPrompt: compiledPrompt.compressed_prompt,
       role2Handoff: role2PromptInput.compiled_prompt,
+      promptLanguage: compiledPrompt.language,
+      promptInferenceTimeSec: compiledPrompt.inference_time_sec ?? 0,
+      promptValidationErrors: compiledPrompt.validation_errors ?? [],
+      promptRepairActions: compiledPrompt.repair_actions ?? [],
       ...(request.trace ? { traceLog: PipelineTracer.getTrace(sessionId) } : {}),
       ...(traceFilePath ? { traceFilePath } : {}),
     };
@@ -171,17 +259,50 @@ export const orchestratePipeline = async (
     },
   });
 
-  // ── Step 5: 세션 상태 초기화 (Role 2.2) ──────────────────────────────────
-  let state = initSessionState(sessionId);
-
-  // ── Step 6: 실행 루프 ────────────────────────────────────────────────────
+  // ── Step 5: 세션 상태 초기화 / 로드 (Role 2.2) ───────────────────────────
+  let state: SessionState;
   const taskRecords: TaskExecutionRecord[] = [];
   const failedTaskIds = new Set<string>();
 
+  if (await SessionStateManager.sessionExists(sessionId)) {
+    logger.info(`Loading existing session: ${sessionId}`);
+    state = await SessionStateManager.loadSession(sessionId);
+    state = {
+      ...state,
+      shared_context: {
+        ...state.shared_context,
+        session_id: sessionId,
+        raw_input:
+          typeof state.shared_context.raw_input === "string" &&
+          state.shared_context.raw_input.trim().length > 0
+            ? state.shared_context.raw_input
+            : request.userRequest.raw_input,
+      },
+    };
+    // 이전에 실패한 작업들을 failedTaskIds에 추가하여 의존성 차단 로직이 작동하게 함
+    const loadedFailedIds = (state.shared_context.failed_task_ids as string[]) || [];
+    loadedFailedIds.forEach((id) => failedTaskIds.add(id));
+  } else {
+    state = initSessionState(sessionId, request.userRequest.raw_input);
+  }
+
+  // ── Step 6: 실행 루프 ────────────────────────────────────────────────────
   for (const { stage, tasks } of stages) {
     logger.info(`Executing stage ${stage} — ${tasks.length} task(s)`);
 
     for (const task of tasks) {
+      // 이미 완료된 작업이면 스킵 (Role 2.2 / Role 3 경계)
+      if (state.completed_task_ids.includes(task.id)) {
+        logger.info(`Task [${task.id}] already completed in session — skipping`);
+        const previousResult = state.task_results[task.id] as any;
+        taskRecords.push({
+          taskId: task.id,
+          status: "completed",
+          rawOutput: previousResult?.raw_output ?? "",
+        });
+        continue;
+      }
+
       // Strict 모드: 의존 Task가 실패했으면 현재 Task 실행 불가
       const blockedBy = task.depends_on.find((depId) => failedTaskIds.has(depId));
       if (blockedBy) {
@@ -225,6 +346,8 @@ export const orchestratePipeline = async (
       if (!execResult.ok) {
         // 실패 — Strict 모드에 따라 후속 의존 Task도 차단됨
         failedTaskIds.add(task.id);
+        state = markTaskFailed(state, task.id, execResult.rawOutput);
+        await SessionStateManager.saveSession(state);
         taskRecords.push({ taskId: task.id, status: "failed", rawOutput: execResult.rawOutput });
         await PipelineTracer.trace({
           sessionId, stage: `Executor:${task.id}`, role: "role3", phase: "output",
@@ -239,6 +362,7 @@ export const orchestratePipeline = async (
           dataType: "ExecutionResult", data: { task_id: task.id, success: true, raw_output: execResult.rawOutput },
           durationMs: PipelineTracer.endStage(`Executor:${task.id}`),
         });
+        failedTaskIds.delete(task.id);
         state = markTaskCompleted(state, task.id, execResult.rawOutput);
         await SessionStateManager.saveSession(state);
         taskRecords.push({ taskId: task.id, status: "completed", rawOutput: execResult.rawOutput });
@@ -272,6 +396,10 @@ export const orchestratePipeline = async (
     taskRecords,
     compiledPrompt: compiledPrompt.compressed_prompt,
     role2Handoff: role2PromptInput.compiled_prompt,
+    promptLanguage: compiledPrompt.language,
+    promptInferenceTimeSec: compiledPrompt.inference_time_sec ?? 0,
+    promptValidationErrors: compiledPrompt.validation_errors ?? [],
+    promptRepairActions: compiledPrompt.repair_actions ?? [],
     ...(request.trace ? { traceLog: PipelineTracer.getTrace(sessionId) } : {}),
     ...(traceFilePath ? { traceFilePath } : {}),
   };

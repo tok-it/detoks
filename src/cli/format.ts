@@ -1,6 +1,21 @@
 import { PipelineTracer } from "../core/utils/PipelineTracer.js";
 import type { CliBatchExecutionResult, CliExecutionResult } from "./types.js";
 
+function toPromptMetadata(result: CliExecutionResult) {
+  return {
+    ...(result.promptLanguage ? { promptLanguage: result.promptLanguage } : {}),
+    ...(result.promptInferenceTimeSec !== undefined
+      ? { promptInferenceTimeSec: result.promptInferenceTimeSec }
+      : {}),
+    ...(result.promptValidationErrors
+      ? { promptValidationErrors: result.promptValidationErrors }
+      : {}),
+    ...(result.promptRepairActions
+      ? { promptRepairActions: result.promptRepairActions }
+      : {}),
+  };
+}
+
 export const formatSuccess = (result: CliExecutionResult, verbose: boolean): string => {
   const traceSection = result.traceLog
     ? "\n\n" + PipelineTracer.formatAsMarkdown(result.traceLog)
@@ -21,6 +36,7 @@ export const formatSuccess = (result: CliExecutionResult, verbose: boolean): str
         adapter: result.adapter,
         summary: result.summary,
         nextAction: result.nextAction,
+        ...toPromptMetadata(result),
         ...(result.traceFilePath ? { traceFile: result.traceFilePath } : {}),
       },
       null,

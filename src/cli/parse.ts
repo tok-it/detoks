@@ -18,32 +18,44 @@ const VERBOSE_HELP =
   "  --verbose                     Show full success JSON and error stacks (output only)";
 const TRACE_HELP =
   "  --trace                       Record pipeline stage I/O and save to local_config/trace/{sessionId}-trace.json";
+const SESSION_FLAG_HELP =
+  "  --session <id>                Resume or use a specific session id";
 const CLI_USAGE_MAIN = [
   "Usage:",
-  '  detoks "<prompt>" [--adapter codex|gemini] [--execution-mode stub|real] [--verbose] [--trace]',
+  '  detoks "<prompt>" [--adapter codex|gemini] [--execution-mode stub|real] [--session <id>] [--verbose] [--trace]',
   "  detoks --file <path> [--verbose]",
-  "  detoks repl [--adapter codex|gemini] [--execution-mode stub|real] [--verbose]",
+  "  detoks repl [--adapter codex|gemini] [--execution-mode stub|real] [--session <id>] [--verbose]",
   "  detoks session list",
   "  detoks session continue <session-id>",
+  "  detoks session reset <session-id>",
+  "  detoks session fork <source-session-id> <new-session-id>",
   "  detoks checkpoint list <session-id>",
   "  detoks checkpoint show <checkpoint-id>",
+  "  detoks checkpoint restore <checkpoint-id>",
   "  detoks repl --help",
   "  detoks --help",
   "",
+  "Local LLM env (read from current cwd .env / .env.local):",
+  "  LOCAL_LLM_API_BASE, LOCAL_LLM_API_KEY, LOCAL_LLM_MODEL_NAME",
+  "",
   "Examples:",
   '  detoks "summarize the current repo status"',
-  '  detoks "파이썬으로 버블 정렬 짜줘" --trace',
+  '  detoks "파이썬으로 버블 정렬 짜줘" --session session_123',
   "  detoks --file tests/data/row_data.json --verbose",
   "  detoks repl --adapter codex --execution-mode stub",
   "  detoks session list",
   "  detoks session continue session_2026_04_27",
+  "  detoks session reset session_2026_04_27",
+  "  detoks session fork session_2026_04_27 session_2026_04_27_fork",
   "  detoks checkpoint list session_2026_04_27",
   "  detoks checkpoint show session_2026_04_27_checkpoint_001",
+  "  detoks checkpoint restore session_2026_04_27_checkpoint_001",
   "",
   "Options:",
   "  --adapter codex|gemini        Target adapter (default: codex)",
   "  --execution-mode stub|real    Runtime execution mode (default: stub)",
   "  --file <path>                 Run batch prompt compilation from a JSON file",
+  SESSION_FLAG_HELP,
   EXECUTION_MODE_HELP,
   VERBOSE_HELP,
   TRACE_HELP,
@@ -60,7 +72,7 @@ const CLI_USAGE_SESSION_LIST = [
   "Session notes:",
   "  - lists saved sessions at a high level",
   "  - read-only; does not create, continue, reset, fork, or modify session state",
-  "  - stdout is JSON with hasSessions, sessionCount, message, and sessions",
+  "  - stdout is JSON with mutatesState=false, hasSessions, sessionCount, message, and sessions",
   "  - each session includes id, updatedAt, currentTaskId, completedTaskCount, taskResultCount, and nextAction",
   "",
   "Options:",
@@ -75,9 +87,46 @@ const CLI_USAGE_SESSION_CONTINUE = [
   "  detoks session continue session_2026_04_27",
   "",
   "Session continue notes:",
-  "  - preflights whether a saved session exists and surfaces its nextAction",
-  "  - read-only in this step; it does not mutate session state or start resume execution",
-  "  - stdout is JSON with sessionId, canContinue, resumeStarted=false, mutatesState=false, message, and nextAction",
+  "  - resumes execution for a saved session by replaying its stored raw_input",
+  "  - skips already completed task ids in the session and retries pending/failed work",
+  "  - if the session is missing or has no stored raw_input, stdout explains why no resume was started",
+  "  - stdout is JSON with sessionId, canContinue, resumeStarted, mutatesState, message, summary, nextAction, and taskRecords",
+  "",
+  "Options:",
+  "  -h, --help                    Show this help message",
+].join("\n");
+
+const CLI_USAGE_SESSION_RESET = [
+  "Usage:",
+  "  detoks session reset <session-id>",
+  "",
+  "Example:",
+  "  detoks session reset session_2026_04_27",
+  "",
+  "Session reset notes:",
+  "  - deletes the session state and all its task results",
+  "  - dangerous; cannot be undone",
+  "  - stdout is JSON with sessionId, reset=true, mutatesState=true, and message on success",
+  "  - missing sessions return ok=false, mutatesState=false, and exit code 1",
+  "",
+  "Options:",
+  "  -h, --help                    Show this help message",
+].join("\n");
+
+
+const CLI_USAGE_SESSION_FORK = [
+  "Usage:",
+  "  detoks session fork <source-session-id> <new-session-id>",
+  "",
+  "Example:",
+  "  detoks session fork session_2026_04_27 session_2026_04_27_fork",
+  "",
+  "Session fork notes:",
+  "  - copies an existing saved session to a new session id",
+  "  - verifies the source session exists and prevents overwriting an existing new session id",
+  "  - does not start resume execution or mutate task results",
+  "  - stdout is JSON with sourceSessionId, newSessionId, forked, mutatesState, message, and nextAction",
+  "  - missing source sessions or duplicate target ids return ok=false, mutatesState=false, and exit code 1",
   "",
   "Options:",
   "  -h, --help                    Show this help message",
@@ -93,7 +142,7 @@ const CLI_USAGE_CHECKPOINT_LIST = [
   "Checkpoint notes:",
   "  - lists saved checkpoints for an existing session",
   "  - read-only; does not restore or modify session state",
-  "  - stdout is JSON with sessionId, hasCheckpoints, checkpointCount, message, and checkpoints",
+  "  - stdout is JSON with sessionId, mutatesState=false, hasCheckpoints, checkpointCount, message, and checkpoints",
   "  - empty sessions return hasCheckpoints=false, checkpointCount=0, and checkpoints=[]",
   "",
   "Options:",
@@ -111,7 +160,24 @@ const CLI_USAGE_CHECKPOINT_SHOW = [
   "Checkpoint notes:",
   "  - shows saved checkpoint metadata by checkpoint id",
   "  - read-only; does not restore or modify session state",
-  "  - stdout is JSON with checkpoint id, title, taskId, createdAt, changedFiles, and nextAction",
+  "  - stdout is JSON with mutatesState=false, message, and checkpoint metadata including changedFiles and nextAction",
+  "",
+  "Options:",
+  "  -h, --help                    Show this help message",
+].join("\n");
+
+const CLI_USAGE_CHECKPOINT_RESTORE = [
+  "Usage:",
+  "  detoks checkpoint restore <checkpoint-id>",
+  "",
+  "Example:",
+  "  detoks checkpoint restore session_2026_04_27_checkpoint_001",
+  "",
+  "Checkpoint restore notes:",
+  "  - restores a session to the state captured at this checkpoint",
+  "  - subsequent task results after this checkpoint will be truncated",
+  "  - stdout is JSON with sessionId, checkpointId, restored=true, mutatesState=true, and message on success",
+  "  - invalid restore targets return ok=false, mutatesState=false, and exit code 1",
   "",
   "Options:",
   "  -h, --help                    Show this help message",
@@ -119,7 +185,7 @@ const CLI_USAGE_CHECKPOINT_SHOW = [
 
 const CLI_USAGE_REPL = [
   "Usage:",
-  "  detoks repl [--adapter codex|gemini] [--execution-mode stub|real] [--verbose]",
+  "  detoks repl [--adapter codex|gemini] [--execution-mode stub|real] [--session <id>] [--verbose]",
   "  detoks repl --help",
   "",
   "Example:",
@@ -134,6 +200,7 @@ const CLI_USAGE_REPL = [
   "Options:",
   "  --adapter codex|gemini        Target adapter (default: codex)",
   "  --execution-mode stub|real    Runtime execution mode (default: stub)",
+  SESSION_FLAG_HELP,
   EXECUTION_MODE_HELP,
   VERBOSE_HELP,
   "  -h, --help                    Show this help message",
@@ -159,6 +226,7 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
   const positionals: string[] = [];
   let adapter: CliArgs["adapter"] = DEFAULT_ADAPTER;
   let executionMode: CliArgs["executionMode"] = DEFAULT_EXECUTION_MODE;
+  let sessionId: string | undefined;
   let inputFile: string | undefined;
   let verbose = false;
   let trace = false;
@@ -187,10 +255,16 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
             ? "session-list"
             : positionals[0] === "session" && positionals[1] === "continue"
               ? "session-continue"
+            : positionals[0] === "session" && positionals[1] === "reset"
+              ? "session-reset"
+            : positionals[0] === "session" && positionals[1] === "fork"
+              ? "session-fork"
             : positionals[0] === "checkpoint" && positionals[1] === "list"
             ? "checkpoint-list"
             : positionals[0] === "checkpoint" && positionals[1] === "show"
               ? "checkpoint-show"
+            : positionals[0] === "checkpoint" && positionals[1] === "restore"
+              ? "checkpoint-restore"
               : "main";
       return {
         mode: "run",
@@ -249,6 +323,34 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
       continue;
     }
 
+    if (current === "--session" || current === "--session-id") {
+      const next = argv[i + 1];
+      if (!next) {
+        throw new Error(
+          `${current} requires a value. Run \`detoks --help\` for usage.`,
+        );
+      }
+      sessionId = next;
+      i += 1;
+      continue;
+    }
+
+    if (current.startsWith("--session=")) {
+      sessionId = current.split("=")[1] ?? "";
+      if (!sessionId) {
+        throw new Error("--session requires a value. Run `detoks --help` for usage.");
+      }
+      continue;
+    }
+
+    if (current.startsWith("--session-id=")) {
+      sessionId = current.split("=")[1] ?? "";
+      if (!sessionId) {
+        throw new Error("--session-id requires a value. Run `detoks --help` for usage.");
+      }
+      continue;
+    }
+
     if (current === "--file") {
       const next = argv[i + 1];
       if (!next) {
@@ -297,14 +399,14 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
     }
 
     if (positionals[1] === "continue") {
-      const sessionId = positionals[2]?.trim();
-      if (!sessionId || positionals.length > 3) {
+      const sessionIdFromPos = positionals[2]?.trim();
+      if (!sessionIdFromPos || positionals.length > 3) {
         throw new Error("Session continue requires exactly one <session-id>. Run `detoks session continue --help` for usage.");
       }
       return {
         mode: "run",
         command: "session-continue",
-        sessionId,
+        sessionId: sessionIdFromPos,
         adapter,
         executionMode,
         verbose,
@@ -314,7 +416,45 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
       };
     }
 
-    throw new Error("Unsupported session command. Run `detoks session list --help` or `detoks session continue --help` for usage.");
+    if (positionals[1] === "reset") {
+      const sessionIdToReset = positionals[2]?.trim();
+      if (!sessionIdToReset || positionals.length > 3) {
+        throw new Error("Session reset requires exactly one <session-id>. Run `detoks session reset --help` for usage.");
+      }
+      return {
+        mode: "run",
+        command: "session-reset",
+        sessionId: sessionIdToReset,
+        adapter,
+        executionMode,
+        verbose,
+        trace,
+        showHelp: false,
+        helpTopic: "session-reset",
+      };
+    }
+
+    if (positionals[1] === "fork") {
+      const sourceSessionId = positionals[2]?.trim();
+      const newSessionId = positionals[3]?.trim();
+      if (!sourceSessionId || !newSessionId || positionals.length > 4) {
+        throw new Error("Session fork requires exactly one <source-session-id> and one <new-session-id>. Run `detoks session fork --help` for usage.");
+      }
+      return {
+        mode: "run",
+        command: "session-fork",
+        sessionId: sourceSessionId,
+        newSessionId,
+        adapter,
+        executionMode,
+        verbose,
+        trace,
+        showHelp: false,
+        helpTopic: "session-fork",
+      };
+    }
+
+    throw new Error("Unsupported session command. Run `detoks session list --help`, `detoks session continue --help`, or `detoks session fork --help` for usage.");
   }
 
   if (first === "checkpoint") {
@@ -358,7 +498,25 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
       };
     }
 
-    throw new Error("Unsupported checkpoint command. Run `detoks checkpoint list --help` or `detoks checkpoint show --help` for usage.");
+    if (positionals[1] === "restore") {
+      const checkpointId = positionals[2]?.trim();
+      if (!checkpointId || positionals.length > 3) {
+        throw new Error("Checkpoint restore requires exactly one <checkpoint-id>. Run `detoks checkpoint restore --help` for usage.");
+      }
+      return {
+        mode: "run",
+        command: "checkpoint-restore",
+        checkpointId,
+        adapter,
+        executionMode,
+        verbose,
+        trace,
+        showHelp: false,
+        helpTopic: "checkpoint-restore",
+      };
+    }
+
+    throw new Error("Unsupported checkpoint command. Run `detoks checkpoint list --help`, `detoks checkpoint show --help`, or `detoks checkpoint restore --help` for usage.");
   }
 
   if (first === "repl") {
@@ -393,6 +551,7 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
   return {
     mode: "run",
     prompt,
+    sessionId,
     adapter,
     executionMode,
     verbose,
@@ -402,7 +561,18 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
   };
 };
 
-export const getCliUsage = (topic: "main" | "repl" | "session-list" | "session-continue" | "checkpoint-list" | "checkpoint-show" = "main"): string => {
+export const getCliUsage = (
+  topic:
+    | "main"
+    | "repl"
+    | "session-list"
+    | "session-continue"
+    | "session-reset"
+    | "session-fork"
+    | "checkpoint-list"
+    | "checkpoint-show"
+    | "checkpoint-restore" = "main",
+): string => {
   if (topic === "repl") {
     return CLI_USAGE_REPL;
   }
@@ -412,21 +582,32 @@ export const getCliUsage = (topic: "main" | "repl" | "session-list" | "session-c
   if (topic === "session-continue") {
     return CLI_USAGE_SESSION_CONTINUE;
   }
+  if (topic === "session-reset") {
+    return CLI_USAGE_SESSION_RESET;
+  }
+  if (topic === "session-fork") {
+    return CLI_USAGE_SESSION_FORK;
+  }
   if (topic === "checkpoint-list") {
     return CLI_USAGE_CHECKPOINT_LIST;
   }
   if (topic === "checkpoint-show") {
     return CLI_USAGE_CHECKPOINT_SHOW;
   }
+  if (topic === "checkpoint-restore") {
+    return CLI_USAGE_CHECKPOINT_RESTORE;
+  }
   return CLI_USAGE_MAIN;
 };
 
 export const toNormalizedRequest = (
   args: CliArgs,
-  options?: { cwd?: string; sessionId?: string; mode?: CliMode },
+  options?: { cwd?: string; sessionId?: string; mode?: CliMode; prompt?: string },
 ): NormalizedCliRequest => {
   const mode = options?.mode ?? args.mode;
-  const prompt = mode === "repl" ? args.prompt ?? "" : assertPrompt(args.prompt);
+  const promptSource = options?.prompt ?? args.prompt;
+  const prompt = mode === "repl" ? promptSource ?? "" : assertPrompt(promptSource);
+  const sessionId = options?.sessionId ?? args.sessionId;
 
   return {
     mode,
@@ -437,7 +618,7 @@ export const toNormalizedRequest = (
     userRequest: UserRequestSchema.parse({
       raw_input: prompt,
       cwd: options?.cwd ?? process.cwd(),
-      session_id: options?.sessionId,
+      session_id: sessionId,
       timestamp: new Date().toISOString(),
     }),
   };

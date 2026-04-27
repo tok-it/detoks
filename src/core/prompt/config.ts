@@ -9,9 +9,9 @@ const DEFAULT_TEMPERATURE = 0;
 const PipelineModeSchema = z.enum(["safe", "debug"]);
 
 const Role1RuntimeConfigSchema = z.object({
-  openaiApiBase: z.string().optional(),
-  openaiApiKey: z.string().optional(),
-  modelName: z.string().optional(),
+  localLlmApiBase: z.string().optional(),
+  localLlmApiKey: z.string().optional(),
+  localLlmModelName: z.string().optional(),
   pipelineMode: PipelineModeSchema,
   requestTimeout: z.number().int().positive(),
   translationMaxAttempts: z.number().int().positive(),
@@ -132,9 +132,11 @@ export function loadRole1RuntimeConfig(
   const pipelineMode = env.PIPELINE_MODE ?? "safe";
 
   return Role1RuntimeConfigSchema.parse({
-    openaiApiBase: env.OPENAI_API_BASE ?? env.LM_STUDIO_URL,
-    openaiApiKey: env.OPENAI_API_KEY ?? env.LM_STUDIO_API_KEY,
-    modelName: env.MODEL_NAME,
+    localLlmApiBase:
+      env.LOCAL_LLM_API_BASE ?? env.OPENAI_API_BASE ?? env.LM_STUDIO_URL,
+    localLlmApiKey:
+      env.LOCAL_LLM_API_KEY ?? env.OPENAI_API_KEY ?? env.LM_STUDIO_API_KEY,
+    localLlmModelName: env.LOCAL_LLM_MODEL_NAME ?? env.MODEL_NAME,
     pipelineMode,
     requestTimeout: parseNumber(
       env.REQUEST_TIMEOUT,

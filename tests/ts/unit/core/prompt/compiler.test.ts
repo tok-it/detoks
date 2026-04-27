@@ -81,9 +81,9 @@ describe("compilePrompt", () => {
       },
       {
         env: {
-          OPENAI_API_BASE: "http://127.0.0.1:1234/v1",
-          OPENAI_API_KEY: "test-key",
-          MODEL_NAME: "local-model",
+          LOCAL_LLM_API_BASE: "http://127.0.0.1:1234/v1",
+          LOCAL_LLM_API_KEY: "test-key",
+          LOCAL_LLM_MODEL_NAME: "local-model",
           TRANSLATION_MAX_ATTEMPTS: "1",
         },
         fetchImplementation,
@@ -144,9 +144,9 @@ describe("compilePrompt", () => {
       },
       {
         env: {
-          OPENAI_API_BASE: "http://127.0.0.1:1234/v1",
-          OPENAI_API_KEY: "test-key",
-          MODEL_NAME: "local-model",
+          LOCAL_LLM_API_BASE: "http://127.0.0.1:1234/v1",
+          LOCAL_LLM_API_KEY: "test-key",
+          LOCAL_LLM_MODEL_NAME: "local-model",
           TRANSLATION_MAX_ATTEMPTS: "1",
         },
         fetchImplementation,

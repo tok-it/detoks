@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { complete_chat } from "../../../../../src/core/llm-client/client.js";
 
 describe("complete_chat", () => {
-  it("OpenAI-compatible chat completions 응답을 파싱한다", async () => {
+  it("local LLM의 OpenAI-compatible chat completions 응답을 파싱한다", async () => {
     const fetchImplementation = vi.fn(async () => {
       return new Response(
         JSON.stringify({
@@ -35,7 +35,7 @@ describe("complete_chat", () => {
       {
         apiBase: "http://127.0.0.1:1234/v1",
         apiKey: "test-key",
-        modelName: "local-model",
+        localLlmModelName: "local-model",
         fetchImplementation,
       },
     );
@@ -64,10 +64,10 @@ describe("complete_chat", () => {
           ],
         },
         {
-          modelName: "local-model",
+          localLlmModelName: "local-model",
         },
       ),
-    ).rejects.toThrow("LLM client requires OPENAI_API_BASE");
+    ).rejects.toThrow("LLM client requires LOCAL_LLM_API_BASE");
   });
 
   it("fetch가 응답 객체를 반환하지 않으면 명시적 오류를 반환한다", async () => {
@@ -86,7 +86,7 @@ describe("complete_chat", () => {
         {
           apiBase: "http://127.0.0.1:1234/v1",
           apiKey: "test-key",
-          modelName: "local-model",
+          localLlmModelName: "local-model",
           fetchImplementation,
         },
       ),
