@@ -1,6 +1,8 @@
 import type { Role1Policies } from "./config.js";
 import {
+  collect_preservable_literals,
   mask_protected_segments,
+  type MaskProtectedSegmentsOptions,
   restore_placeholders,
   type PlaceholderEntry,
 } from "../translate/masking.js";
@@ -195,6 +197,21 @@ function isUnsafeCompression(
   return false;
 }
 
+function normalizeLiteralText(text: string): string {
+  return text.replace(/\s+/g, " ").trim();
+}
+
+function isMissingCriticalLiteral(
+  outputText: string,
+  requiredLiterals: readonly string[],
+): boolean {
+  const normalizedOutput = normalizeLiteralText(outputText);
+
+  return [...new Set(requiredLiterals)]
+    .filter(Boolean)
+    .some((literal) => !normalizedOutput.includes(normalizeLiteralText(literal)));
+}
+
 function compressMaskedText(maskedText: string): string {
   const lines = maskedText.split("\n");
 
@@ -217,11 +234,7 @@ function compressMaskedText(maskedText: string): string {
 
 function buildMaskOptions(
   options: CompressPromptOptions,
-): {
-  protected_terms: string[];
-  preferred_translations: Record<string, string>;
-  model_names: string[];
-} {
+): MaskProtectedSegmentsOptions {
   return {
     protected_terms: options.policies.protectedTerms,
     preferred_translations: options.policies.preferredTranslations,
@@ -234,6 +247,10 @@ export function compress_prompt(
   options: CompressPromptOptions,
 ): CompressPromptResult {
   const maskOptions = buildMaskOptions(options);
+  const requiredLiterals = collect_preservable_literals(
+    normalized_input,
+    maskOptions,
+  );
   const masked = mask_protected_segments(normalized_input, maskOptions);
   const compressedMaskedText = compressMaskedText(masked.masked_text);
 
@@ -248,6 +265,13 @@ export function compress_prompt(
     compressedMaskedText,
     masked.placeholders as PlaceholderEntry[],
   );
+
+  if (isMissingCriticalLiteral(restored, requiredLiterals)) {
+    return {
+      compressed_prompt: normalized_input,
+      repair_actions: ["compression_fallback_to_normalized_input"],
+    };
+  }
 
   if (normalizeWhitespace(restored) === normalizeWhitespace(normalized_input)) {
     return {

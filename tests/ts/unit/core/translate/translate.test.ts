@@ -195,7 +195,7 @@ describe("translate_to_english", () => {
       fetchImplementation,
     });
 
-    expect(fetchImplementation).toHaveBeenCalledOnce();
+    expect(fetchImplementation).toHaveBeenCalledTimes(2);
     expect(result.span_results[0]!.status).toBe("failed");
     expect(result.span_results[0]!.attempts).toBe(1);
     expect(result.span_results[0]!.validation_errors).toContain(
@@ -290,5 +290,163 @@ describe("translate_to_english", () => {
     expect(result.text).toBe("Check `endpoint.ts` endpoint first");
     expect(result.span_results[0]!.output_text).toContain("__PH_0001__");
     expect(result.validation_errors).toEqual([]);
+  });
+
+  it("복원 이후 한글이 다시 남으면 최종 validation 오류를 남긴다", async () => {
+    const fetchImplementation = vi.fn(async () => {
+      return new Response(
+        JSON.stringify({
+          choices: [
+            {
+              message: {
+                content: "Review __PH_0001__ deployment first",
+              },
+            },
+          ],
+        }),
+        {
+          status: 200,
+          headers: {
+            "content-type": "application/json",
+          },
+        },
+      );
+    });
+
+    const result = await translate_to_english("블루/그린 배포를 먼저 검토해", {
+      config: {
+        openaiApiBase: "http://127.0.0.1:1234/v1",
+        openaiApiKey: "test-key",
+        modelName: "local-model",
+        pipelineMode: "safe",
+        requestTimeout: 30000,
+        translationMaxAttempts: 1,
+        temperature: 0,
+      },
+      policies: {
+        protectedTerms: [],
+        preferredTranslations: {},
+        forbiddenPatterns: [],
+      },
+      fetchImplementation,
+    });
+
+    expect(fetchImplementation).toHaveBeenCalledTimes(2);
+    expect(result.text).toBe("Review 블루/그린 deployment first");
+    expect(result.validation_errors).toContain("korean_text_remaining");
+    expect(result.validation_errors).toContain("source_korean_copied");
+  });
+
+  it("최종 validation에서 literal 누락이 나면 item 단위로 한 번 더 재호출한다", async () => {
+    const fetchImplementation = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            choices: [
+              {
+                message: {
+                  content: "Create a file",
+                },
+              },
+            ],
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json",
+            },
+          },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            choices: [
+              {
+                message: {
+                  content: "Create a file named __PH_0001__",
+                },
+              },
+            ],
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json",
+            },
+          },
+        ),
+      );
+
+    const result = await translate_to_english("`app.ts` 파일을 생성해", {
+      config: {
+        openaiApiBase: "http://127.0.0.1:1234/v1",
+        openaiApiKey: "test-key",
+        modelName: "local-model",
+        pipelineMode: "safe",
+        requestTimeout: 30000,
+        translationMaxAttempts: 1,
+        temperature: 0,
+      },
+      policies: {
+        protectedTerms: [],
+        preferredTranslations: {},
+        forbiddenPatterns: [],
+      },
+      fetchImplementation,
+    });
+
+    expect(fetchImplementation).toHaveBeenCalledTimes(2);
+    expect(result.text).toBe("Create a file named `app.ts`");
+    expect(result.validation_errors).toEqual([]);
+  });
+
+  it("저신뢰 placeholder literal은 최종 validation에서 강제하지 않는다", async () => {
+    const fetchImplementation = vi.fn(async () => {
+      return new Response(
+        JSON.stringify({
+          choices: [
+            {
+              message: {
+                content: "The services behind the gateway are too slow.",
+              },
+            },
+          ],
+        }),
+        {
+          status: 200,
+          headers: {
+            "content-type": "application/json",
+          },
+        },
+      );
+    });
+
+    const result = await translate_to_english(
+      "API Gateway 뒤에서 돌아가는 서비스들이 너무 느려",
+      {
+        config: {
+          openaiApiBase: "http://127.0.0.1:1234/v1",
+          openaiApiKey: "test-key",
+          modelName: "local-model",
+          pipelineMode: "safe",
+          requestTimeout: 30000,
+          translationMaxAttempts: 1,
+          temperature: 0,
+        },
+        policies: {
+          protectedTerms: [],
+          preferredTranslations: {},
+          forbiddenPatterns: [],
+        },
+        fetchImplementation,
+      },
+    );
+
+    expect(result.text).toBe("The services behind the gateway are too slow.");
+    expect(result.validation_errors).not.toContain(
+      "required_literal_missing:API",
+    );
   });
 });

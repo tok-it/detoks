@@ -117,6 +117,10 @@ export async function complete_chat(
       },
     );
 
+    if (!response || typeof response.json !== "function") {
+      throw new Error("Invalid LLM response: fetch returned no response");
+    }
+
     const rawResponse = (await response.json()) as Record<string, unknown>;
     if (!response.ok) {
       throw new Error(

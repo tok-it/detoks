@@ -45,4 +45,16 @@ describe("compress_prompt", () => {
       "compression_fallback_to_normalized_input",
     );
   });
+
+  it("기술 식별자가 포함된 문장은 압축 후에도 핵심 토큰을 유지한다", () => {
+    const result = compress_prompt(
+      "Please run numpy.dot(A, B) first and then replace the external call with unittest.mock.patch.",
+      {
+        policies: defaultPolicies,
+      },
+    );
+
+    expect(result.compressed_prompt).toContain("numpy.dot(A, B)");
+    expect(result.compressed_prompt).toContain("unittest.mock.patch");
+  });
 });

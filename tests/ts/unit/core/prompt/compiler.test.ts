@@ -117,6 +117,25 @@ describe("compilePrompt", () => {
             },
           },
         ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            choices: [
+              {
+                message: {
+                  content: "새 파일을 생성해",
+                },
+              },
+            ],
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json",
+            },
+          },
+        ),
       );
 
     const compiled = await compilePrompt(
@@ -134,6 +153,7 @@ describe("compilePrompt", () => {
       },
     );
 
+    expect(fetchImplementation).toHaveBeenCalledTimes(2);
     expect(compiled.validation_errors).toContain("korean_text_remaining");
     expect(compiled.repair_actions ?? []).toContain(
       "compression_fallback_to_normalized_input",
