@@ -926,6 +926,49 @@ describe("detoks CLI smoke", () => {
     }
   });
 
+  it("prints explicit checkpoint show JSON for a saved checkpoint", () => {
+    const checkpointId = `session_cli_smoke_${Date.now()}_checkpoint_001`;
+    const checkpointDir = join(repoRoot, ".state", "checkpoints");
+    const checkpointPath = join(checkpointDir, `${checkpointId}.json`);
+
+    try {
+      mkdirSync(checkpointDir, { recursive: true });
+      writeFileSync(
+        checkpointPath,
+        JSON.stringify({
+          id: checkpointId,
+          title: "Smoke checkpoint",
+          task_id: "task_001",
+          summary: "Smoke summary",
+          changed_files: ["src/cli/commands/checkpoint-show.ts"],
+          next_action: "Review checkpoint show stdout contract",
+          created_at: "2026-04-27T00:00:00.000Z",
+        }),
+        "utf8",
+      );
+
+      const showRun = runCli(["checkpoint", "show", checkpointId]);
+
+      expect(showRun.error).toBeUndefined();
+      expect(showRun.status).toBe(0);
+      expect(showRun.stderr).toBe("");
+      expect(JSON.parse(showRun.stdout.trim())).toEqual({
+        ok: true,
+        mode: "checkpoint-show",
+        checkpoint: {
+          id: checkpointId,
+          title: "Smoke checkpoint",
+          taskId: "task_001",
+          createdAt: "2026-04-27T00:00:00.000Z",
+          changedFiles: ["src/cli/commands/checkpoint-show.ts"],
+          nextAction: "Review checkpoint show stdout contract",
+        },
+      });
+    } finally {
+      rmSync(checkpointPath, { force: true });
+    }
+  });
+
   it("keeps codex real rawOutput distinct from stub rawOutput in smoke mode", () => {
     runAdapterRawOutputSmoke("codex", "hello detoks");
   });

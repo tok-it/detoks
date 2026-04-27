@@ -26,11 +26,11 @@ export interface CliArgs {
     | "checkpoint-show"
     | "checkpoint-restore"
     | undefined;
-  prompt?: string | undefined;
-  sessionId?: string | undefined;
-  newSessionId?: string | undefined;
-  checkpointId?: string | undefined;
-  inputFile?: string | undefined;
+  prompt?: string;
+  sessionId?: string;
+  newSessionId?: string;
+  checkpointId?: string;
+  inputFile?: string;
   adapter: Adapter;
   executionMode: ExecutionMode;
   verbose: boolean;

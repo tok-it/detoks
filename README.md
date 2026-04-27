@@ -1,7 +1,23 @@
 # 🚀 detoks
 
 detoks는 LLM CLI(codex, gemini 등) 앞단에서 동작하는 **interactive wrapper shell**로,  
-입력·출력·세션을 최적화하여 **토큰 사용을 줄이고 개발 효율을 극대화**하는 시스템이다.
+입력·출력·세션을 최적화하여 **토큰 사용을 줄이고 개발 효율을 극대화**하는 시스템입니다.
+
+---
+
+## 🖼 프리뷰
+
+<p align="center">
+  <img src="./content.png" alt="detoks content preview" width="512" height="512" padding="20px" />
+</p>
+
+---
+
+## 📌 문제
+
+- 반복되는 컨텍스트 전달
+- 과도한 출력
+- 토큰 제한으로 인한 작업 중단
 
 ---
 
@@ -16,17 +32,7 @@ detoks는 LLM CLI(codex, gemini 등) 앞단에서 동작하는 **interactive wra
 
 ## 🧠 한 줄 정의
 
-> detoks는 LLM 사용 방식을 재설계하여 토큰과 컨텍스트를 최적화하는 CLI 시스템이다
-
----
-
-## 🖼 Preview
-
-<p align="center">
-  <img src="./content.png" alt="detoks content preview" width="512" height="512" padding="20px" />
-</p>
-
-## 📌 문제
+> detoks는 LLM 사용 방식을 재설계하여 토큰과 컨텍스트를 최적화하는 CLI 시스템입니다.
 
 ---
 
@@ -50,7 +56,7 @@ User → detoks → LLM CLI → detoks → Output
 
 ---
 
-## 📂 Docs
+## 📂 프로젝트 관련 문서들
 
 - [ARCHITECTURE.md](./docs/ARCHITECTURE.md)
 - [DEPENDENCY_WORKFLOW.md](./docs/DEPENDENCY_WORKFLOW.md)
