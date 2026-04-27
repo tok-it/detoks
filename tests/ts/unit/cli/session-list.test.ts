@@ -35,6 +35,8 @@ describe("runSessionListCommand", () => {
         currentTaskId: "task_001",
         completedTaskCount: 1,
         taskResultCount: 2,
+        failedTaskCount: 1,
+        checkpointCount: 3,
         nextAction: "Review saved session",
       },
     ]);
