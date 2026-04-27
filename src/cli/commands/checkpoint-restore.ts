@@ -1,4 +1,15 @@
 import { SessionStateManager } from "../../core/state/SessionStateManager.js";
+import type { TaskResult } from "../../schemas/pipeline.js";
+
+const CHECKPOINT_SEPARATOR = "_checkpoint_";
+
+function parseSessionIdFromCheckpointId(checkpointId: string): string | null {
+  const separatorIndex = checkpointId.indexOf(CHECKPOINT_SEPARATOR);
+  if (separatorIndex <= 0 || separatorIndex === checkpointId.length - CHECKPOINT_SEPARATOR.length) {
+    return null;
+  }
+  return checkpointId.slice(0, separatorIndex);
+}
 
 export interface CheckpointRestoreOutput {
   ok: boolean;
@@ -15,7 +26,18 @@ export const runCheckpointRestoreCommand = async (
 ): Promise<CheckpointRestoreOutput> => {
   try {
     const checkpoint = await SessionStateManager.loadCheckpoint(checkpointId);
-    const sessionId = checkpoint.id.split('_checkpoint_')[0] || checkpoint.id;
+    const sessionId = parseSessionIdFromCheckpointId(checkpoint.id);
+    if (!sessionId) {
+      return {
+        ok: false,
+        mode: "checkpoint-restore",
+        sessionId: "unknown",
+        checkpointId,
+        restored: false,
+        mutatesState: false,
+        message: `Checkpoint ${checkpointId} does not use <session-id>_checkpoint_<checkpoint-id>.`,
+      };
+    }
     
     // Check if session exists
     if (!(await SessionStateManager.sessionExists(sessionId))) {
@@ -48,9 +70,12 @@ export const runCheckpointRestoreCommand = async (
 
     // Truncate history to this checkpoint
     const newCompletedIds = state.completed_task_ids.slice(0, taskIndex + 1);
-    const newTaskResults: Record<string, unknown> = {};
+    const newTaskResults: Record<string, TaskResult> = {};
     for (const id of newCompletedIds) {
-        newTaskResults[id] = state.task_results[id];
+        const result = state.task_results[id];
+        if (result) {
+          newTaskResults[id] = result;
+        }
     }
 
     const newState = {
