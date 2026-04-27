@@ -47,8 +47,9 @@ export class TaskGraphProcessor {
   ];
 
   // Dependency transitions should stay aligned with docs/TYPE_DEFINITION.md.
-  // In particular, explore means discovery, analyze means interpretation,
-  // and document is typically treated as a terminal stage.
+  // In particular, explore means discovery, analyze means interpretation.
+  // Document is often terminal, but an explicit follow-up action can still
+  // continue the user's ordered workflow.
   private static readonly TYPE_PATTERNS: ReadonlyArray<{
     type: RequestCategory;
     patterns: readonly RegExp[];
@@ -69,6 +70,7 @@ export class TaskGraphProcessor {
     {
       type: "document",
       patterns: [
+        /\b(create|generate|draft|produce)\s+(a\s+|an\s+|the\s+)?(comprehensive\s+)?(documentation|docs|readme|guide|docstring|comment[s]?)\b/,
         /\b(write|update|add)\s+(the\s+)?(documentation|docs|readme|guide|docstring|comment[s]?)\b/,
         /\b(write|prepare)\s+(a\s+)?(summary|overview|note[s]?|guide)\b/,
         /\bdocument\b.*\b(api|module|system|workflow|changes?)\b/,
@@ -175,7 +177,7 @@ export class TaskGraphProcessor {
     modify:   ["analyze", "validate", "document", "execute"],
     validate: ["explore", "analyze", "document", "execute", "modify"],
     execute:  ["explore", "analyze", "validate", "document", "plan", "create"],
-    document: [],
+    document: ["analyze", "modify", "validate", "execute", "create", "plan"],
   };
 
   /**
