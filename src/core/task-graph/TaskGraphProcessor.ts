@@ -28,6 +28,24 @@ import type { Task, TaskGraph, RequestCategory } from "../../schemas/pipeline.js
  *     → ParallelClassifier.classify()
  */
 export class TaskGraphProcessor {
+  // 'make' 등 단일 키워드가 create/modify 패턴에 먼저 걸리는 숙어들을 TYPE_PATTERNS보다 먼저 처리.
+  // 패턴 순서가 바뀌어도 이 테이블의 판정은 항상 우선한다.
+  private static readonly IDIOM_PATTERNS: ReadonlyArray<{
+    type: RequestCategory;
+    pattern: RegExp;
+  }> = [
+    // make + sure/certain → validate  (create의 'make' 키워드보다 먼저 차단)
+    { type: "validate", pattern: /\bmake\s+(sure|certain)\b/i },
+    // make + changes/improvements/… → modify
+    { type: "modify",   pattern: /\bmake\s+(changes?|adjustments?|modifications?|improvements?|updates?|fixes?|tweaks?)\b/i },
+    // make use of → execute
+    { type: "execute",  pattern: /\bmake\s+use\s+of\b/i },
+    // make a note/notes → document
+    { type: "document", pattern: /\bmake\s+(?:a\s+)?notes?\b/i },
+    // make a plan/roadmap → plan
+    { type: "plan",     pattern: /\bmake\s+(?:a\s+)?(?:plan|roadmap)\b/i },
+  ];
+
   // Dependency transitions should stay aligned with docs/TYPE_DEFINITION.md.
   // In particular, explore means discovery, analyze means interpretation,
   // and document is typically treated as a terminal stage.
@@ -132,6 +150,9 @@ export class TaskGraphProcessor {
         /\bgame\s+plan\b/,
       ],
     },
+    // 키워드가 없는 질문형 문장의 최후 fallback — 모든 키워드 패턴 검사 후 여기 도달.
+    // 위 패턴들이 먼저 소비하므로 "How can we validate?" 같은 케이스는 validate에서 처리됨.
+    { type: "analyze", patterns: [/\?$/] },
   ];
   /**
    * type A → type B 전환이 "자연스러운 실행 흐름"인 조합을 정의한 테이블입니다.
@@ -263,6 +284,9 @@ export class TaskGraphProcessor {
   // before the execute keywords are evaluated.
   private static classifyType(sentence: string): RequestCategory {
     const s = sentence.toLowerCase();
+    for (const { type, pattern } of this.IDIOM_PATTERNS) {
+      if (pattern.test(s)) return type;
+    }
     for (const entry of this.TYPE_PATTERNS) {
       if (entry.patterns.some((pattern) => pattern.test(s))) {
         return entry.type;

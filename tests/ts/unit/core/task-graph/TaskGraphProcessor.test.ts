@@ -83,6 +83,23 @@ describe("TaskGraphProcessor", () => {
       ["Break down the migration steps",   "plan",     "break down"],
       ["Outline the rollout approach",     "plan",     "outline/approach"],
       ["Design the migration strategy",    "plan",     "design strategy"],
+      // idiom: make + 숙어 → create 패턴 'make' 단일어에 가로채지지 않아야 함
+      ["Make sure the output is valid",    "validate", "make sure → validate"],
+      ["Make certain the config is correct","validate","make certain → validate"],
+      ["Make changes to the config file",  "modify",   "make changes → modify"],
+      ["Make improvements to the service", "modify",   "make improvements → modify"],
+      ["Make use of the existing module",  "execute",  "make use of → execute"],
+      ["Make a note of the findings",      "document", "make a note → document"],
+      ["Make a plan for the rollout",      "plan",     "make a plan → plan"],
+      // question-form: 키워드 없는 질문형 → analyze
+      ["What should we address first?",   "analyze",  "question-form → analyze"],
+      ["How far should we go with this?", "analyze",  "how far → analyze"],
+      ["Which pattern is most effective?", "analyze",  "question-form no keyword → analyze"],
+      // question-form: 키워드 있는 질문형 → 키워드 패턴 우선
+      ["How can we validate this?",        "validate", "validate keyword beats ?"],
+      ["What should we deploy next?",      "execute",  "execute keyword beats ?"],
+      ["How should we fix the bug?",       "modify",   "modify keyword beats ?"],
+      ["Where should we find the module?", "explore",  "explore keyword beats ?"],
     ];
 
     it.each(cases)('"%s" → type: "%s" (%s 키워드)', (sentence, expectedType) => {
