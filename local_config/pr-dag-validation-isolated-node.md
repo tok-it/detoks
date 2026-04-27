@@ -1,43 +1,43 @@
-# PR: Fix document follow-up DAG connectivity
+# PR: 문서화 후속 작업의 DAG 연결성 수정
 
-## Summary
+## 요약
 
-This PR fixes a TaskGraph construction regression where ordered multi-step requests could fail DAG validation with `DISCONNECTED_NODE` after a `document` task.
+이 PR은 순서가 있는 다중 작업 요청에서 `document` 작업 이후 DAG 검증이 `DISCONNECTED_NODE`로 실패할 수 있는 TaskGraph 생성 회귀를 수정합니다.
 
-The failure was caused by two gaps:
+실패 원인은 두 가지입니다.
 
-- Documentation artifacts such as `create comprehensive documentation` could be classified as `create` instead of `document`.
-- `document` was treated as an absolute terminal type, so explicit follow-up tasks were disconnected from the prior workflow.
+- `create comprehensive documentation` 같은 문서 산출물이 `document`가 아니라 `create`로 분류될 수 있었습니다.
+- `document`가 절대적인 종료 타입으로 처리되어, 명시적 후속 작업이 이전 workflow에서 끊겼습니다.
 
-`DAGValidator` is left unchanged. Its disconnected-node check is still correct; the graph builder now avoids producing a disconnected graph for explicitly ordered follow-up workflows.
+`DAGValidator`는 변경하지 않았습니다. disconnected-node 검사는 올바른 동작이며, 이번 수정은 graph builder가 명시적으로 순서가 있는 후속 작업에 대해 끊어진 그래프를 만들지 않도록 하는 것입니다.
 
-## Related Issue
+## 관련 이슈
 
 - Closes #
 
-## Change Type
+## 변경 유형
 
-- [x] Bug fix
-- [ ] Feature
-- [x] Tests
-- [x] Docs
-- [ ] Refactor
+- [x] 버그 수정
+- [ ] 기능 추가
+- [x] 테스트
+- [x] 문서
+- [ ] 리팩터링
 
-## Changes
+## 변경 사항
 
 - `src/core/task-graph/TaskGraphProcessor.ts`
-  - Added a `document` pattern for `create/generate/draft/produce documentation/docs/readme/guide/docstring/comments`.
-  - Updated `FLOWS_TO.document` so explicit follow-up work can continue into `analyze`, `modify`, `validate`, `execute`, `create`, or `plan`.
+  - `create/generate/draft/produce documentation/docs/readme/guide/docstring/comments` 표현을 `document`로 분류하는 패턴을 추가했습니다.
+  - `FLOWS_TO.document`를 업데이트해 명시적 후속 작업이 `analyze`, `modify`, `validate`, `execute`, `create`, `plan`으로 이어질 수 있게 했습니다.
 
 - `tests/ts/unit/core/task-graph/TaskGraphProcessor.test.ts`
-  - Added coverage for `Create comprehensive documentation -> document`.
-  - Updated `document -> validate` expectation to sequential.
-  - Added regression coverage for `analyze -> document -> create -> validate`.
+  - `Create comprehensive documentation -> document` 분류 테스트를 추가했습니다.
+  - `document -> validate` 기대값을 순차 의존성으로 갱신했습니다.
+  - `analyze -> document -> create -> validate` 회귀 테스트를 추가했습니다.
 
 - `docs/TYPE_DEFINITION.md`
-  - Clarified that `document` is typically terminal, but explicitly ordered follow-up work can continue the workflow.
+  - `document`는 보통 종료 단계지만, 명시적으로 순서가 있는 후속 작업은 workflow를 이어갈 수 있다고 설명을 보강했습니다.
 
-## Before
+## 수정 전
 
 ```text
 Analyze the entire codebase
@@ -46,7 +46,7 @@ implement all suggested improvements
 validate everything
 ```
 
-Could produce a partially connected graph:
+부분적으로만 연결된 그래프가 만들어질 수 있었습니다.
 
 ```text
 t1 analyze -> t2 document
@@ -54,36 +54,36 @@ t3 create
 t4 validate
 ```
 
-`DAGValidator` then rejected `t3` as disconnected.
+이후 `DAGValidator`가 `t3`를 고립 노드로 판단해 거부했습니다.
 
-## After
+## 수정 후
 
-The same ordered workflow produces a connected graph:
+같은 순서 있는 workflow가 하나의 연결된 그래프로 생성됩니다.
 
 ```text
 t1 analyze -> t2 document -> t3 create -> t4 validate
 ```
 
-## Validation
+## 검증
 
 - [x] `npm run build`
 - [x] `npm run test -- tests/ts/unit/core/task-graph/TaskGraphProcessor.test.ts tests/ts/unit/core/task-graph/TaskSentenceSplitter.test.ts tests/ts/unit/core/task-graph/DAGValidator.test.ts`
 - [x] `npm run test`
 
-Full test result:
+전체 테스트 결과:
 
 ```text
 Test Files  37 passed | 1 skipped (38)
 Tests       321 passed | 1 skipped (322)
 ```
 
-## Risk / Notes
+## 리스크 / 참고 사항
 
-- This changes the old assumption that `document` always terminates dependency flow.
-- The updated behavior is intentionally limited to graph construction for ordered task sentences.
-- Genuine disconnected graphs are still rejected by `DAGValidator`.
+- 기존의 `document`는 항상 dependency flow를 종료한다는 가정이 바뀝니다.
+- 변경된 동작은 순서 있는 작업 문장으로부터 그래프를 생성하는 경우에 초점을 둡니다.
+- 실제로 끊어진 그래프는 여전히 `DAGValidator`가 거부합니다.
 
-## Files Changed
+## 변경 파일
 
 ```text
 docs/TYPE_DEFINITION.md
