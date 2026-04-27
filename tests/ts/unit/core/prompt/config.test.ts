@@ -30,9 +30,18 @@ describe("loadRole1RuntimeConfig", () => {
     expect(config.requestTimeout).toBe(30000);
     expect(config.translationMaxAttempts).toBe(5);
     expect(config.temperature).toBe(0);
-    expect(config.localLlmApiBase).toBeUndefined();
+    expect(config.localLlmApiBase).toBe("http://127.0.0.1:12370/v1");
     expect(config.localLlmApiKey).toBeUndefined();
-    expect(config.localLlmModelName).toBeUndefined();
+    expect(config.localLlmModelName).toBe(
+      "mradermacher/gemma-4-E2B-it-heretic-ara-GGUF",
+    );
+    expect(config.localLlmAutoStart).toBe(true);
+    expect(config.localLlmServerBinary).toBe("llama-server");
+    expect(config.localLlmServerHost).toBe("127.0.0.1");
+    expect(config.localLlmServerPort).toBe(12370);
+    expect(config.localLlmHfRepo).toBe(
+      "mradermacher/gemma-4-E2B-it-heretic-ara-GGUF",
+    );
   });
 
   it(".env와 legacy alias를 함께 읽는다", () => {

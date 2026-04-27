@@ -1077,6 +1077,8 @@ describe("detoks CLI smoke", () => {
         [
           "LOCAL_LLM_API_BASE=http://127.0.0.1:1234/v1",
           "LOCAL_LLM_API_KEY=test-key",
+          "LOCAL_LLM_MODEL_NAME=",
+          "LOCAL_LLM_AUTO_START=0",
         ].join("\n"),
         "utf8",
       );

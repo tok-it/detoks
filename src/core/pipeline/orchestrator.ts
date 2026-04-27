@@ -98,9 +98,12 @@ function inferPromptFailureNextAction(errorMessage: string): string {
     errorMessage.includes("LOCAL_LLM_API_BASE") ||
     errorMessage.includes("LOCAL_LLM_MODEL_NAME") ||
     errorMessage.includes("MODEL_NAME") ||
+    errorMessage.includes("llama.cpp server") ||
+    errorMessage.includes("llama-server") ||
+    errorMessage.includes("GGUF model") ||
     errorMessage.includes("fetch support")
   ) {
-    return "Set Role 1 local LLM runtime config (LOCAL_LLM_API_BASE, LOCAL_LLM_MODEL_NAME) and retry";
+    return "Install llama-server or set Role 1 local LLM runtime config (LOCAL_LLM_API_BASE, LOCAL_LLM_MODEL_NAME) and retry";
   }
 
   return "Fix prompt compilation inputs or runtime config and retry";
