@@ -164,23 +164,36 @@ export function loadRole1RuntimeConfig(
 	const overrideEnv = options.env ?? process.env;
 	const env = { ...fileEnv, ...overrideEnv };
 
-	const pickEnv = (...keys: string[]): string | undefined => {
+	const findEnv = (
+		...keys: string[]
+	): { found: true; value: string | undefined } | { found: false } => {
 		for (const key of keys) {
 			if (overrideEnv[key] !== undefined) {
-				return overrideEnv[key];
+				return { found: true, value: overrideEnv[key] };
 			}
 		}
 		for (const key of keys) {
 			if (fileEnv[key] !== undefined) {
-				return fileEnv[key];
+				return { found: true, value: fileEnv[key] };
 			}
 		}
-		return undefined;
+		return { found: false };
 	};
 
-	const pickEnvWithDefault = (keys: string[], fallback: string): string => {
-		const value = pickEnv(...keys)?.trim();
-		return value || fallback;
+	const pickEnv = (...keys: string[]): string | undefined => {
+		const result = findEnv(...keys);
+		return result.found ? result.value?.trim() || undefined : undefined;
+	};
+
+	const pickEnvWithDefault = (
+		keys: string[],
+		fallback: string,
+	): string | undefined => {
+		const result = findEnv(...keys);
+		if (!result.found) {
+			return fallback;
+		}
+		return result.value?.trim() || undefined;
 	};
 
 	const pipelineMode = env.PIPELINE_MODE ?? "safe";
