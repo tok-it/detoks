@@ -79,6 +79,7 @@ describe("TaskGraphProcessor", () => {
       ["Write the README",                 "document", "readme"],
       ["Prepare a summary",                "document", "summary"],
       ["Update the docs",                  "document", "update docs"],
+      ["Create comprehensive documentation","document","create documentation"],
       ["Plan the architecture",            "plan",     "plan"],
       ["Break down the migration steps",   "plan",     "break down"],
       ["Outline the rollout approach",     "plan",     "outline/approach"],
@@ -226,7 +227,7 @@ describe("TaskGraphProcessor", () => {
       expect(result.tasks[1]!.depends_on).toEqual([]);
     });
 
-    it("document → 어떤 type이든 독립 처리된다 (FLOWS_TO[document] = [])", () => {
+    it("document → validate 흐름은 sequential이다", () => {
       const result = TaskGraphProcessor.process({
         sentences: [
           "Document the API",        // document
@@ -234,7 +235,29 @@ describe("TaskGraphProcessor", () => {
         ],
       });
 
-      expect(result.tasks[1]!.depends_on).toEqual([]);
+      expect(result.tasks[1]!.depends_on).toEqual(["t1"]);
+    });
+
+    it("analyze → document → create → validate follow-up workflow는 sequential이다", () => {
+      const result = TaskGraphProcessor.process({
+        sentences: [
+          "Analyze the entire codebase",
+          "create a comprehensive documentation with examples",
+          "implement all suggested improvements",
+          "validate everything",
+        ],
+      });
+
+      expect(result.tasks.map((task) => task.type)).toEqual([
+        "analyze",
+        "document",
+        "create",
+        "validate",
+      ]);
+      expect(result.tasks[0]!.depends_on).toEqual([]);
+      expect(result.tasks[1]!.depends_on).toEqual(["t1"]);
+      expect(result.tasks[2]!.depends_on).toEqual(["t2"]);
+      expect(result.tasks[3]!.depends_on).toEqual(["t3"]);
     });
   });
 });

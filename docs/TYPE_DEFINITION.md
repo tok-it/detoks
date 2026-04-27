@@ -117,7 +117,7 @@ Typical natural flows:
 - `validate -> modify`
 - `validate -> document`
 
-`document` is typically a terminal stage.
+`document` is typically a terminal stage, but an explicitly ordered follow-up can continue into implementation, validation, execution, analysis, or planning.
 
 ## Notes
 
