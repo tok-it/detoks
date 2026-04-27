@@ -17,7 +17,7 @@ export type CliMode = InteractionMode;
 
 export interface CliArgs {
   mode: CliMode;
-  command?: "checkpoint-list" | "checkpoint-show";
+  command?: "session-list" | "checkpoint-list" | "checkpoint-show";
   prompt?: string;
   sessionId?: string;
   checkpointId?: string;
@@ -27,7 +27,7 @@ export interface CliArgs {
   verbose: boolean;
   trace: boolean;
   showHelp: boolean;
-  helpTopic?: "main" | "repl" | "checkpoint-list" | "checkpoint-show";
+  helpTopic?: "main" | "repl" | "session-list" | "checkpoint-list" | "checkpoint-show";
 }
 
 export type NormalizedCliRequest = PipelineExecutionRequest;

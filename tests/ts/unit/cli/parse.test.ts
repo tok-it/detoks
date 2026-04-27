@@ -50,6 +50,20 @@ describe("parseCliArgs", () => {
     });
   });
 
+  it("parses session list as the read-only session entrypoint", () => {
+    const parsed = parseCliArgs(["session", "list"]);
+    expect(parsed).toEqual({
+      mode: "run",
+      command: "session-list",
+      adapter: "codex",
+      executionMode: "stub",
+      verbose: false,
+      trace: false,
+      showHelp: false,
+      helpTopic: "session-list",
+    });
+  });
+
   it("parses checkpoint list as a read-only session command", () => {
     const parsed = parseCliArgs(["checkpoint", "list", "session_2026_04_27"]);
     expect(parsed).toEqual({
@@ -119,6 +133,15 @@ describe("parseCliArgs", () => {
     });
   });
 
+  it("parses session list help as a topic-specific help request", () => {
+    const parsed = parseCliArgs(["session", "list", "--help"]);
+    expect(parsed).toMatchObject({
+      mode: "run",
+      showHelp: true,
+      helpTopic: "session-list",
+    });
+  });
+
   it("parses checkpoint list help as a topic-specific help request", () => {
     const parsed = parseCliArgs(["checkpoint", "list", "--help"]);
     expect(parsed).toMatchObject({
@@ -144,6 +167,7 @@ describe("parseCliArgs", () => {
     expect(usage).toContain("detoks --file tests/data/row_data.json --verbose");
     expect(usage).toContain("--file <path>");
     expect(usage).toContain("detoks repl --adapter codex --execution-mode stub");
+    expect(usage).toContain("detoks session list");
     expect(usage).toContain("detoks checkpoint list <session-id>");
     expect(usage).toContain("detoks checkpoint show <checkpoint-id>");
     expect(usage).toContain("detoks checkpoint list session_2026_04_27");
@@ -162,6 +186,14 @@ describe("parseCliArgs", () => {
     expect(usage).toContain("stub = simulated output for fast, safe CLI testing");
     expect(usage).toContain("real = runs the adapter's real execution path");
     expect(usage).toContain("Show full success JSON and error stacks");
+  });
+
+  it("documents session list as a read-only command without a stdout contract", () => {
+    const usage = getCliUsage("session-list");
+    expect(usage).toContain("detoks session list");
+    expect(usage).toContain("read-only");
+    expect(usage).toContain("does not create, continue, reset, fork, or modify session state");
+    expect(usage).toContain("stdout JSON contract is intentionally not defined in this step");
   });
 
   it("documents checkpoint list as a read-only command", () => {
@@ -189,6 +221,9 @@ describe("parseCliArgs", () => {
     expect(() => parseCliArgs(["--unknown"])).toThrow(/Run `detoks --help` for usage/);
     expect(() => parseCliArgs(["hello detoks", "--file", "input.json"])).toThrow(
       /Prompt input and --file cannot be used together/,
+    );
+    expect(() => parseCliArgs(["session", "list", "extra"])).toThrow(
+      /does not accept arguments/,
     );
     expect(() => parseCliArgs(["checkpoint", "list"])).toThrow(
       /requires exactly one <session-id>/,
