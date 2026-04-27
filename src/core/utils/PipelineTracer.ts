@@ -1,5 +1,6 @@
 import { promises as fs } from 'fs';
 import { join } from 'path';
+import { get_encoding } from 'tiktoken';
 import type { ZodSchema } from 'zod';
 
 export interface TraceEntry {
@@ -13,6 +14,7 @@ export interface TraceEntry {
   schemaErrors?: string[];
   durationMs?: number;
   memoryMb?: number;
+  estimatedTokens?: number;
 }
 
 export interface TraceLog {
@@ -29,6 +31,22 @@ export interface TraceLog {
 const TRACE_DIR = 'local_config/trace';
 const traces = new Map<string, TraceEntry[]>();
 const stageTiming = new Map<string, { start: number; end?: number }>();
+
+let _enc: ReturnType<typeof get_encoding> | null = null;
+function getEncoder() {
+  if (!_enc) _enc = get_encoding('cl100k_base');
+  return _enc;
+}
+
+function estimateTokenCount(data: unknown): number {
+  try {
+    const text = typeof data === 'string' ? data : JSON.stringify(data);
+    return getEncoder().encode(text).length;
+  } catch {
+    const text = typeof data === 'string' ? data : JSON.stringify(data);
+    return Math.ceil(text.length / 4);
+  }
+}
 
 export class PipelineTracer {
   /**
@@ -70,6 +88,8 @@ export class PipelineTracer {
       }
     }
 
+    const estimatedTokens = estimateTokenCount(data);
+
     const entry: TraceEntry = {
       timestamp: new Date().toISOString(),
       stage,
@@ -81,6 +101,7 @@ export class PipelineTracer {
       ...(schemaErrors !== undefined ? { schemaErrors } : {}),
       ...(durationMs !== undefined ? { durationMs } : {}),
       memoryMb: process.memoryUsage().heapUsed / 1024 / 1024,
+      estimatedTokens,
     };
 
     // 메모리에 저장
@@ -206,6 +227,9 @@ export class PipelineTracer {
       lines.push(`- **Type**: ${entry.dataType}`);
       lines.push(`- **Timestamp**: ${entry.timestamp}`);
       lines.push(`- **Memory**: ${entry.memoryMb?.toFixed(2)}MB`);
+      if (entry.estimatedTokens) {
+        lines.push(`- **Estimated Tokens**: ${entry.estimatedTokens}`);
+      }
       if (entry.durationMs) {
         lines.push(`- **Duration**: ${entry.durationMs}ms`);
       }
