@@ -210,6 +210,7 @@ export const ExecutionResultSchema = z.object({
     })
     .optional(),
   next_action: z.string().optional(),
+  type: z.enum(RequestCategoryValues).optional(),
 }).passthrough();
 
 export const CompressedExecutionResultSchema = z.object({
@@ -251,7 +252,19 @@ export const CheckpointSchema = z.object({
 
 export const SessionStateSchema = z.object({
   version: z.string().optional(),
-  shared_context: z.record(z.string(), z.unknown()).default({}),
+  shared_context: z.object({
+    session_id: z.string(),
+    raw_input: z.string().optional(),
+    failed_task_ids: z.array(z.string()).optional(),
+    input_history: z.array(z.string()).optional(),
+    // Session persistence fields
+    project_id: z.string().optional(),
+    project_path: z.string().optional(),
+    project_name: z.string().optional(),
+    repl_mode: z.boolean().optional(),
+    created_at: z.string().optional(),
+    last_modified_at: z.string().optional(),
+  }).passthrough(),
   task_results: z.record(z.string(), TaskResultSchema).default({}),
   current_task_id: z.string().optional().nullable(),
   completed_task_ids: z.array(z.string()).default([]),

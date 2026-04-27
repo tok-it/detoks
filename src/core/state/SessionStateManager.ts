@@ -10,6 +10,12 @@ import { ContextCompressor } from '../context/ContextCompressor.js';
 import { StateIOError, StateValidationError } from '../errors/StateErrors.js';
 import { logger } from '../utils/logger.js';
 
+export interface ProjectInfo {
+  projectId: string;
+  projectPath: string;
+  projectName: string;
+}
+
 const STATE_DIR = '.state';
 const SESSIONS_DIR = join(STATE_DIR, 'sessions');
 const CHECKPOINTS_DIR = join(STATE_DIR, 'checkpoints');
@@ -94,37 +100,60 @@ export class SessionStateManager {
     }
   };
 
-  static async saveSession(state: SessionState): Promise<void> {
+  static async saveSession(state: SessionState, projectInfo?: ProjectInfo): Promise<void> {
     const sessionId = state.shared_context?.session_id as string || 'default';
     await this.ensureDirectories();
     await this.acquireLock(sessionId);
     try {
+      // 0. 메타데이터 업데이트 - 원본 변경하지 않기
+      const now = new Date().toISOString();
+      const stateToSave: SessionState = {
+        ...state,
+        shared_context: {
+          ...state.shared_context,
+          ...(projectInfo && {
+            project_id: projectInfo.projectId,
+            project_path: projectInfo.projectPath,
+            project_name: projectInfo.projectName,
+          }),
+          last_modified_at: now,
+          created_at: state.shared_context.created_at || now,
+        },
+      };
+
       // 1. 자동 정규화: task_results의 원시 데이터를 표준 스키마로 보정
-      for (const [taskId, result] of Object.entries(state.task_results)) {
+      const normalizedTaskResults = { ...stateToSave.task_results };
+      for (const [taskId, result] of Object.entries(normalizedTaskResults)) {
         const res = result as Record<string, unknown>;
         // 이미 정규화된 데이터가 아니라면(예: summary가 없거나 raw_output만 있다면) 보정 시도
         if (!('_compressed' in res) && (!res.task_id || !res.summary)) {
-          state.task_results[taskId] = ExecutionResultNormalizer.normalize(taskId, res);
+          normalizedTaskResults[taskId] = ExecutionResultNormalizer.normalize(taskId, res);
         }
       }
 
       // 2. 자동 실패 트래킹: shared_context.failed_task_ids 동기화
       const failedIds = new Set<string>(
-        Array.isArray(state.shared_context.failed_task_ids)
-          ? state.shared_context.failed_task_ids.filter((id): id is string => typeof id === 'string')
+        Array.isArray(stateToSave.shared_context.failed_task_ids)
+          ? stateToSave.shared_context.failed_task_ids.filter((id): id is string => typeof id === 'string')
           : [],
       );
-      for (const [taskId, result] of Object.entries(state.task_results)) {
+      for (const [taskId, result] of Object.entries(normalizedTaskResults)) {
         if (hasFailed(result)) {
           failedIds.add(taskId);
         } else {
           failedIds.delete(taskId);
         }
       }
-      state.shared_context.failed_task_ids = Array.from(failedIds);
 
       // 3. 자동 압축: 토큰 임계 초과 시 오래된 결과 압축
-      const compressedState = ContextCompressor.compress(state);
+      const compressedState = ContextCompressor.compress({
+        ...stateToSave,
+        task_results: normalizedTaskResults,
+        shared_context: {
+          ...stateToSave.shared_context,
+          failed_task_ids: Array.from(failedIds),
+        },
+      });
 
       // 4. 최종 무결성 검증
       const validated = StateValidator.validate(compressedState);
