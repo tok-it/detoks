@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { RequestCategoryValues } from "../../../../../src/schemas/pipeline.js";
@@ -15,11 +15,12 @@ function extractPrompt(filePath: string): string {
   return match[1];
 }
 
-const files = readdirSync(DATA_DIR)
-  .filter((f) => f.endsWith(".ts"))
-  .sort();
+// local_config/ is gitignored — CI 환경에 데이터가 없으면 suite 전체를 skip
+const files = existsSync(DATA_DIR)
+  ? readdirSync(DATA_DIR).filter((f) => f.endsWith(".ts")).sort()
+  : [];
 
-describe("dataTest_Compact — sentence split & type classification", () => {
+describe.skipIf(files.length === 0)("dataTest_Compact — sentence split & type classification", () => {
   describe("TaskSentenceSplitter", () => {
     it.each(files)("%s: 문장이 1개 이상 분리되어야 한다", (file) => {
       const prompt = extractPrompt(join(DATA_DIR, file));
