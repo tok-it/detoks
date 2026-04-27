@@ -138,35 +138,6 @@ function parseBoolean(value: string | undefined, fallback: boolean): boolean {
 	return ["1", "true", "on", "yes"].includes(value.toLowerCase());
 }
 
-function readEnvValue(
-	env: Record<string, string | undefined>,
-	...keys: string[]
-): string | undefined {
-	for (const key of keys) {
-		const value = env[key]?.trim();
-		if (value) {
-			return value;
-		}
-	}
-
-	return undefined;
-}
-
-function readEnvValueWithDefault(
-	env: Record<string, string | undefined>,
-	keys: string[],
-	fallback: string,
-): string | undefined {
-	for (const key of keys) {
-		if (Object.prototype.hasOwnProperty.call(env, key)) {
-			const value = env[key]?.trim();
-			return value || undefined;
-		}
-	}
-
-	return fallback;
-}
-
 function readJsonFile<T>(
 	filePath: string,
 	schema: z.ZodSchema<T>,
@@ -190,34 +161,49 @@ export function loadRole1RuntimeConfig(
 ): Role1RuntimeConfig {
 	const cwd = options.cwd ?? process.cwd();
 	const fileEnv = loadDotEnv(cwd);
-	const env = { ...fileEnv, ...(options.env ?? process.env) };
+	const overrideEnv = options.env ?? process.env;
+	const env = { ...fileEnv, ...overrideEnv };
+
+	const pickEnv = (...keys: string[]): string | undefined => {
+		for (const key of keys) {
+			if (overrideEnv[key] !== undefined) {
+				return overrideEnv[key];
+			}
+		}
+		for (const key of keys) {
+			if (fileEnv[key] !== undefined) {
+				return fileEnv[key];
+			}
+		}
+		return undefined;
+	};
+
+	const pickEnvWithDefault = (keys: string[], fallback: string): string => {
+		const value = pickEnv(...keys)?.trim();
+		return value || fallback;
+	};
 
 	const pipelineMode = env.PIPELINE_MODE ?? "safe";
 
 	return Role1RuntimeConfigSchema.parse({
-		localLlmApiBase: readEnvValueWithDefault(
-			env,
+		localLlmApiBase: pickEnvWithDefault(
 			["LOCAL_LLM_API_BASE", "OPENAI_API_BASE", "LM_STUDIO_URL"],
 			DEFAULT_LOCAL_LLM_API_BASE,
 		),
-		localLlmApiKey: readEnvValue(
-			env,
+		localLlmApiKey: pickEnv(
 			"LOCAL_LLM_API_KEY",
 			"OPENAI_API_KEY",
 			"LM_STUDIO_API_KEY",
 		),
-		localLlmModelName: readEnvValueWithDefault(
-			env,
+		localLlmModelName: pickEnvWithDefault(
 			["LOCAL_LLM_MODEL_NAME", "MODEL_NAME"],
 			DEFAULT_LOCAL_LLM_MODEL_NAME,
 		),
 		localLlmAutoStart: parseBoolean(env.LOCAL_LLM_AUTO_START, true),
 		localLlmServerBinary:
-			readEnvValue(env, "LOCAL_LLM_SERVER_BINARY") ??
-			DEFAULT_LOCAL_LLM_SERVER_BINARY,
+			pickEnv("LOCAL_LLM_SERVER_BINARY") ?? DEFAULT_LOCAL_LLM_SERVER_BINARY,
 		localLlmServerHost:
-			readEnvValue(env, "LOCAL_LLM_SERVER_HOST") ??
-			DEFAULT_LOCAL_LLM_SERVER_HOST,
+			pickEnv("LOCAL_LLM_SERVER_HOST") ?? DEFAULT_LOCAL_LLM_SERVER_HOST,
 		localLlmServerPort: parseNumber(
 			env.LOCAL_LLM_SERVER_PORT,
 			DEFAULT_LOCAL_LLM_SERVER_PORT,
@@ -228,9 +214,9 @@ export function loadRole1RuntimeConfig(
 			DEFAULT_LOCAL_LLM_STARTUP_TIMEOUT,
 			"LOCAL_LLM_STARTUP_TIMEOUT",
 		),
-		localLlmDevice: readEnvValue(env, "LOCAL_LLM_DEVICE"),
+		localLlmDevice: pickEnv("LOCAL_LLM_DEVICE"),
 		localLlmGpuLayers:
-			readEnvValue(env, "LOCAL_LLM_GPU_LAYERS") ?? DEFAULT_LOCAL_LLM_GPU_LAYERS,
+			pickEnv("LOCAL_LLM_GPU_LAYERS") ?? DEFAULT_LOCAL_LLM_GPU_LAYERS,
 		localLlmContextSize: parseNumber(
 			env.LOCAL_LLM_CONTEXT_SIZE,
 			DEFAULT_LOCAL_LLM_CONTEXT_SIZE,
@@ -242,13 +228,13 @@ export function loadRole1RuntimeConfig(
 			"LOCAL_LLM_MAX_TOKENS",
 		),
 		localLlmReasoning:
-			readEnvValue(env, "LOCAL_LLM_REASONING") ?? DEFAULT_LOCAL_LLM_REASONING,
-		localLlmModelPath: readEnvValue(env, "LOCAL_LLM_MODEL_PATH"),
-		localLlmModelUrl: readEnvValue(env, "LOCAL_LLM_MODEL_URL"),
+			pickEnv("LOCAL_LLM_REASONING") ?? DEFAULT_LOCAL_LLM_REASONING,
+		localLlmModelPath: pickEnv("LOCAL_LLM_MODEL_PATH"),
+		localLlmModelUrl: pickEnv("LOCAL_LLM_MODEL_URL"),
 		localLlmHfRepo:
-			readEnvValue(env, "LOCAL_LLM_HF_REPO") ?? DEFAULT_LOCAL_LLM_HF_REPO,
+			pickEnv("LOCAL_LLM_HF_REPO") ?? DEFAULT_LOCAL_LLM_HF_REPO,
 		localLlmHfFile:
-			readEnvValue(env, "LOCAL_LLM_HF_FILE") ?? DEFAULT_LOCAL_LLM_HF_FILE,
+			pickEnv("LOCAL_LLM_HF_FILE") ?? DEFAULT_LOCAL_LLM_HF_FILE,
 		pipelineMode,
 		requestTimeout: parseNumber(
 			env.REQUEST_TIMEOUT,
