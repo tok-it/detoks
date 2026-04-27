@@ -219,6 +219,7 @@ export const CheckpointSchema = z.object({
 });
 
 export const SessionStateSchema = z.object({
+  version: z.string().optional(),
   shared_context: z.record(z.string(), z.unknown()).default({}),
   task_results: z.record(z.string(), z.unknown()).default({}),
   current_task_id: z.string().optional().nullable(),

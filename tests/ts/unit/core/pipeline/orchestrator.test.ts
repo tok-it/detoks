@@ -202,6 +202,7 @@ describe("orchestratePipeline", () => {
   it("skips completed tasks from an existing session and resumes remaining work", async () => {
     vi.spyOn(SessionStateManager, "sessionExists").mockResolvedValue(true);
     vi.spyOn(SessionStateManager, "loadSession").mockResolvedValue({
+      version: "1",
       shared_context: {
         session_id: "resume_session",
         raw_input: "Find the auth module. Test the auth module.",

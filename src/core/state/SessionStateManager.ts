@@ -13,7 +13,48 @@ const STATE_DIR = '.state';
 const SESSIONS_DIR = join(STATE_DIR, 'sessions');
 const CHECKPOINTS_DIR = join(STATE_DIR, 'checkpoints');
 
+const LOCK_TIMEOUT_MS = 5000;
+const LOCK_RETRY_MS = 100;
+
 export class SessionStateManager {
+  private static lockPath(sessionId: string): string {
+    return join(SESSIONS_DIR, `${sessionId}.lock`);
+  }
+
+  private static async acquireLock(sessionId: string): Promise<void> {
+    const lockPath = this.lockPath(sessionId);
+    const deadline = Date.now() + LOCK_TIMEOUT_MS;
+
+    while (Date.now() < deadline) {
+      try {
+        const fd = await fs.open(lockPath, 'wx');
+        await fd.close();
+        return;
+      } catch (error: any) {
+        if (error.code !== 'EEXIST') throw error;
+        await new Promise<void>((resolve) => setTimeout(resolve, LOCK_RETRY_MS));
+      }
+    }
+
+    // 타임아웃 — 스테일 락으로 간주하고 강제 제거 후 재시도
+    logger.warn(`[SessionStateManager] Stale lock detected for session [${sessionId}], removing.`);
+    try {
+      await fs.unlink(lockPath);
+      const fd = await fs.open(lockPath, 'wx');
+      await fd.close();
+    } catch {
+      throw new StateIOError(`Failed to acquire lock for session [${sessionId}]`, { sessionId });
+    }
+  }
+
+  private static async releaseLock(sessionId: string): Promise<void> {
+    try {
+      await fs.unlink(this.lockPath(sessionId));
+    } catch {
+      // 이미 제거된 경우 무시
+    }
+  }
+
   private static ensureDirectories = async () => {
     try {
       await fs.mkdir(SESSIONS_DIR, { recursive: true });
@@ -28,9 +69,9 @@ export class SessionStateManager {
 
   static async saveSession(state: SessionState): Promise<void> {
     const sessionId = state.shared_context?.session_id as string || 'default';
+    await this.ensureDirectories();
+    await this.acquireLock(sessionId);
     try {
-      await this.ensureDirectories();
-
       // 1. 자동 정규화: task_results의 원시 데이터를 표준 스키마로 보정
       for (const [taskId, result] of Object.entries(state.task_results)) {
         const res = result as any;
@@ -55,7 +96,7 @@ export class SessionStateManager {
 
       // 4. 최종 무결성 검증
       const validated = StateValidator.validate(compressedState);
-      
+
       const filePath = join(SESSIONS_DIR, `${sessionId}.json`);
       await fs.writeFile(filePath, JSON.stringify(validated, null, 2));
     } catch (error: any) {
@@ -64,11 +105,15 @@ export class SessionStateManager {
         sessionId,
         originalError: error.message
       });
+    } finally {
+      await this.releaseLock(sessionId);
     }
   }
 
   static async loadSession(sessionId: string): Promise<SessionState> {
     const filePath = join(SESSIONS_DIR, `${sessionId}.json`);
+    await this.ensureDirectories();
+    await this.acquireLock(sessionId);
     try {
       const data = await fs.readFile(filePath, 'utf-8');
       const parsed = JSON.parse(data);
@@ -77,7 +122,7 @@ export class SessionStateManager {
       if (error instanceof StateValidationError) throw error;
       if (error instanceof SyntaxError) {
         throw new StateIOError(`Session file [${sessionId}] is corrupted`, {
-          sessionId, path: filePath, originalError: error.message
+          sessionId, path: filePath, originalError: (error as Error).message
         });
       }
       const nodeError = error as NodeJS.ErrnoException;
@@ -94,6 +139,8 @@ export class SessionStateManager {
       throw new StateIOError(`Failed to load session [${sessionId}]`, {
         sessionId, path: filePath, originalError: error instanceof Error ? error.message : String(error)
       });
+    } finally {
+      await this.releaseLock(sessionId);
     }
   }
 
