@@ -1,3 +1,4 @@
+import { randomInt } from "node:crypto";
 import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 import { formatError, formatSuccess } from "../format.js";
@@ -9,7 +10,8 @@ const EXIT_COMMANDS = new Set(["exit", "quit", ".exit"]);
 
 export const runReplCommand = async (baseArgs: CliArgs): Promise<void> => {
   const rl = createInterface({ input, output });
-  const sessionId = `repl-${Date.now()}`;
+  const SESSION_ID_CHARSET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+  const sessionId = `repl-${Array.from({ length: 16 }, () => SESSION_ID_CHARSET[randomInt(SESSION_ID_CHARSET.length)]!).join("")}`;
 
   output.write(
     `detoks repl started (adapter=${baseArgs.adapter}, executionMode=${baseArgs.executionMode}, verbose=${String(baseArgs.verbose)}). stub = simulated output; real = adapter's real execution path. type "exit" to quit.\n`,

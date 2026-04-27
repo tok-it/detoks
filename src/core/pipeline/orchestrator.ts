@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { randomInt } from "node:crypto";
 import { DAGValidator } from "../task-graph/DAGValidator.js";
 import { DependencyResolver } from "../task-graph/DependencyResolver.js";
 import { ParallelClassifier } from "../task-graph/ParallelClassifier.js";
@@ -20,8 +20,14 @@ import type {
 
 const SESSION_VERSION = "1";
 
+const SESSION_ID_CHARSET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+const SESSION_ID_LENGTH = 24;
+
 function generateSessionId(): string {
-  return createHash("sha256").update(String(Date.now())).digest("hex").slice(0, 12);
+  return Array.from(
+    { length: SESSION_ID_LENGTH },
+    () => SESSION_ID_CHARSET[randomInt(SESSION_ID_CHARSET.length)]!,
+  ).join("");
 }
 
 function initSessionState(sessionId: string, rawInput: string): SessionState {
