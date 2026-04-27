@@ -188,12 +188,14 @@ describe("parseCliArgs", () => {
     expect(usage).toContain("Show full success JSON and error stacks");
   });
 
-  it("documents session list as a read-only command without a stdout contract", () => {
+  it("documents session list as a read-only command with a minimal stdout contract", () => {
     const usage = getCliUsage("session-list");
     expect(usage).toContain("detoks session list");
     expect(usage).toContain("read-only");
     expect(usage).toContain("does not create, continue, reset, fork, or modify session state");
-    expect(usage).toContain("stdout JSON contract is intentionally not defined in this step");
+    expect(usage).toContain("hasSessions");
+    expect(usage).toContain("sessionCount");
+    expect(usage).toContain("completedTaskCount");
   });
 
   it("documents checkpoint list as a read-only command", () => {

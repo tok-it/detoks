@@ -108,6 +108,60 @@ export class SessionStateManager {
     }
   }
 
+  static async listSessions(): Promise<Array<{
+    id: string;
+    updatedAt: string | null;
+    currentTaskId: string | null;
+    completedTaskCount: number;
+    taskResultCount: number;
+    nextAction: string | null;
+  }>> {
+    try {
+      const files = await fs.readdir(SESSIONS_DIR);
+      const sessions: Array<{
+        id: string;
+        updatedAt: string | null;
+        currentTaskId: string | null;
+        completedTaskCount: number;
+        taskResultCount: number;
+        nextAction: string | null;
+      }> = [];
+
+      for (const file of files) {
+        if (!file.endsWith('.json')) continue;
+
+        try {
+          const data = await fs.readFile(join(SESSIONS_DIR, file), 'utf-8');
+          const state = SessionStateSchema.parse(JSON.parse(data));
+          sessions.push({
+            id: file.slice(0, -'.json'.length),
+            updatedAt: state.updated_at ?? null,
+            currentTaskId: state.current_task_id ?? null,
+            completedTaskCount: state.completed_task_ids.length,
+            taskResultCount: Object.keys(state.task_results).length,
+            nextAction: state.next_action ?? null,
+          });
+        } catch (e) {
+          logger.info(`Failed to load session file [${file}], skipping.`, e);
+        }
+      }
+
+      return sessions.sort((a, b) => {
+        const aTime = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
+        const bTime = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
+        return bTime - aTime || a.id.localeCompare(b.id);
+      });
+    } catch (error: unknown) {
+      const nodeError = error as NodeJS.ErrnoException;
+      if (nodeError.code === 'ENOENT') {
+        return [];
+      }
+      throw new StateIOError(`Failed to list sessions`, {
+        originalError: error instanceof Error ? error.message : String(error)
+      });
+    }
+  }
+
   static async createCheckpoint(checkpoint: Checkpoint): Promise<void> {
     try {
       await this.ensureDirectories();

@@ -333,6 +333,62 @@ describe("detoks CLI smoke", () => {
     }
   });
 
+  it("prints minimal session list JSON for saved sessions", () => {
+    const sessionId = `session_cli_smoke_${Date.now()}`;
+    const sessionDir = join(repoRoot, ".state", "sessions");
+    const sessionPath = join(sessionDir, `${sessionId}.json`);
+
+    try {
+      mkdirSync(sessionDir, { recursive: true });
+      writeFileSync(
+        sessionPath,
+        JSON.stringify({
+          shared_context: {
+            session_id: sessionId,
+          },
+          task_results: {
+            task_001: {
+              summary: "Smoke result",
+            },
+          },
+          current_task_id: "task_001",
+          completed_task_ids: ["task_001"],
+          next_action: "Review session list stdout contract",
+          updated_at: "2026-04-27T00:00:00.000Z",
+        }),
+        "utf8",
+      );
+
+      const run = runCli(["session", "list"]);
+
+      expect(run.error).toBeUndefined();
+      expect(run.status).toBe(0);
+      expect(run.stderr).toBe("");
+
+      const output = JSON.parse(run.stdout.trim());
+      expect(output).toMatchObject({
+        ok: true,
+        mode: "session-list",
+        hasSessions: true,
+      });
+      expect(output.sessionCount).toBeGreaterThanOrEqual(1);
+      expect(output.sessions).toEqual(
+        expect.arrayContaining([
+          {
+            id: sessionId,
+            updatedAt: "2026-04-27T00:00:00.000Z",
+            currentTaskId: "task_001",
+            completedTaskCount: 1,
+            taskResultCount: 1,
+            nextAction: "Review session list stdout contract",
+          },
+        ]),
+      );
+    } finally {
+      rmSync(sessionPath, { force: true });
+    }
+  });
+
   it("prints explicit checkpoint show JSON for a saved checkpoint", () => {
     const checkpointId = `session_cli_smoke_${Date.now()}_checkpoint_001`;
     const checkpointDir = join(repoRoot, ".state", "checkpoints");

@@ -6,6 +6,7 @@ import { runCheckpointListCommand } from "./commands/checkpoint-list.js";
 import { runCheckpointShowCommand } from "./commands/checkpoint-show.js";
 import { runBatchCommand } from "./commands/run-batch.js";
 import { runCommand } from "./commands/run.js";
+import { runSessionListCommand } from "./commands/session-list.js";
 import { startRepl } from "./repl/index.js";
 
 const runOneShotCommand = async (
@@ -41,9 +42,9 @@ const main = async (): Promise<void> => {
   }
 
   if (args.command === "session-list") {
-    throw new Error(
-      "session list execution is not implemented yet; this step only defines parse/help/usage. Run `detoks session list --help` for current read-only UX notes.",
-    );
+    const result = await runSessionListCommand();
+    console.log(JSON.stringify(result, null, 2));
+    return;
   }
 
   if (args.command === "checkpoint-list") {
