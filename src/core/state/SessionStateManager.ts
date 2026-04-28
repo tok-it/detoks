@@ -19,6 +19,7 @@ export interface ProjectInfo {
 const STATE_DIR = '.state';
 const SESSIONS_DIR = join(STATE_DIR, 'sessions');
 const CHECKPOINTS_DIR = join(STATE_DIR, 'checkpoints');
+const CURRENT_SESSION_LOG = join(STATE_DIR, 'current_session.log');
 
 const LOCK_TIMEOUT_MS = 5000;
 const LOCK_RETRY_MS = 100;
@@ -419,6 +420,58 @@ export class SessionStateManager {
         sessionId,
         originalError: error.message
       });
+    }
+  }
+
+  /**
+   * 현재 세션의 input 번역 결과를 로그 파일에 기록합니다.
+   * CLI에서 사용자가 확인할 수 있도록 임시 로그로 관리합니다.
+   */
+  static async logInputTranslation(
+    sessionId: string,
+    koreanInput: string,
+    englishTranslation: string
+  ): Promise<void> {
+    try {
+      await this.ensureDirectories();
+      const timestamp = new Date().toISOString();
+      const logEntry = `[${timestamp}] Session: ${sessionId}
+KO: ${koreanInput}
+EN: ${englishTranslation}
+---
+`;
+      await fs.appendFile(CURRENT_SESSION_LOG, logEntry, 'utf-8');
+    } catch (error: any) {
+      logger.warn(`Failed to log input translation for session [${sessionId}]`, error);
+      // 로깅 실패가 세션 저장을 방해하지 않도록 에러를 던지지 않음
+    }
+  }
+
+  /**
+   * 현재 세션 로그를 읽습니다.
+   */
+  static async readCurrentSessionLog(): Promise<string> {
+    try {
+      return await fs.readFile(CURRENT_SESSION_LOG, 'utf-8');
+    } catch (error: any) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+        return '';
+      }
+      logger.warn(`Failed to read current session log`, error);
+      return '';
+    }
+  }
+
+  /**
+   * 현재 세션 로그를 초기화합니다.
+   */
+  static async clearCurrentSessionLog(): Promise<void> {
+    try {
+      await fs.unlink(CURRENT_SESSION_LOG);
+    } catch (error: any) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+        logger.warn(`Failed to clear current session log`, error);
+      }
     }
   }
 }
