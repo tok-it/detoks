@@ -10,47 +10,47 @@ import {
 const DEFAULT_ADAPTER = "codex";
 const DEFAULT_EXECUTION_MODE = "stub";
 const EXECUTION_MODE_HELP = [
-  "Execution mode:",
-  "    stub = simulated output for fast, safe CLI testing",
-  "    real = runs the adapter's real execution path",
+  "실행 모드:",
+  "    stub = 빠르고 안전한 CLI 테스트를 위한 시뮬레이션 출력",
+  "    real = 어댑터의 실제 실행 경로를 사용",
 ].join("\n");
 const VERBOSE_HELP =
-  "  --verbose                     Show full success JSON and error stacks (output only)";
+  "  --verbose                     성공 JSON 전체와 에러 스택 출력 (출력 전용)";
 const TRACE_HELP =
-  "  --trace                       Record pipeline stage I/O and save to local_config/trace/{sessionId}-trace.json";
+  "  --trace                       파이프라인 단계 I/O를 기록하고 local_config/trace/{sessionId}-trace.json에 저장";
 const SESSION_FLAG_HELP =
-  "  --session <id>                Resume or use a specific session id";
+  "  --session <id>                특정 세션 ID를 재개하거나 지정";
 const MODEL_FLAG_HELP =
-  "  --model <name>                Pass a model name through to the selected adapter CLI";
+  "  --model <이름>                선택한 어댑터 CLI에 모델 이름을 전달";
 const CLI_USAGE_MAIN = [
-  "DeToks CLI Guide",
+  "DeToks CLI 가이드",
   "",
-  "Quick start:",
-  '  detoks "summarize the current repo status"',
+  "빠른 시작:",
+  '  detoks "현재 저장소 상태를 요약해줘"',
   "  detoks repl",
   "  detoks session list",
   "",
-  "Usage:",
-  '  detoks "<prompt>" [--adapter codex|gemini] [--model <name>] [--execution-mode stub|real] [--session <id>] [--verbose] [--trace]',
-  "  detoks --file <path> [--verbose]",
-  "  detoks repl [--adapter codex|gemini] [--model <name>] [--execution-mode stub|real] [--session <id>] [--verbose]",
+  "사용법:",
+  '  detoks "<프롬프트>" [--adapter codex|gemini] [--model <이름>] [--execution-mode stub|real] [--session <id>] [--verbose] [--trace]',
+  "  detoks --file <경로> [--verbose]",
+  "  detoks repl [--adapter codex|gemini] [--model <이름>] [--execution-mode stub|real] [--session <id>] [--verbose]",
   "",
-  "Session / checkpoint commands:",
+  "세션 / 체크포인트 명령어:",
   "  detoks session list",
-  "  detoks session continue <session-id>",
-  "  detoks session reset <session-id>",
-  "  detoks session fork <source-session-id> <new-session-id>",
-  "  detoks checkpoint list <session-id>",
-  "  detoks checkpoint show <checkpoint-id>",
-  "  detoks checkpoint restore <checkpoint-id>",
+  "  detoks session continue <세션-id>",
+  "  detoks session reset <세션-id>",
+  "  detoks session fork <원본-세션-id> <새-세션-id>",
+  "  detoks checkpoint list <세션-id>",
+  "  detoks checkpoint show <체크포인트-id>",
+  "  detoks checkpoint restore <체크포인트-id>",
   "  detoks repl --help",
   "  detoks --help",
   "",
-  "Local LLM env (read from current cwd .env / .env.local):",
+  "로컬 LLM 환경 변수 (현재 cwd .env / .env.local에서 읽음):",
   "  LOCAL_LLM_API_BASE, LOCAL_LLM_API_KEY, LOCAL_LLM_MODEL_NAME",
   "",
-  "Examples:",
-  '  detoks "summarize the current repo status"',
+  "예시:",
+  '  detoks "현재 저장소 상태를 요약해줘"',
   '  detoks "파이썬으로 버블 정렬 짜줘" --session session_123',
   "  detoks --file tests/data/row_data.json --verbose",
   "  detoks repl --adapter codex --model gpt-5 --execution-mode stub",
@@ -62,171 +62,171 @@ const CLI_USAGE_MAIN = [
   "  detoks checkpoint show session_2026_04_27_checkpoint_001",
   "  detoks checkpoint restore session_2026_04_27_checkpoint_001",
   "",
-  "Options:",
-  "  --adapter codex|gemini        Target adapter (default: codex)",
+  "옵션:",
+  "  --adapter codex|gemini        대상 어댑터 (기본값: codex)",
   MODEL_FLAG_HELP,
-  "  --execution-mode stub|real    Runtime execution mode (default: stub)",
-  "  --file <path>                 Run batch prompt compilation from a JSON file",
+  "  --execution-mode stub|real    실행 모드 (기본값: stub)",
+  "  --file <경로>                 JSON 파일에서 배치 프롬프트 컴파일 실행",
   SESSION_FLAG_HELP,
   EXECUTION_MODE_HELP,
   VERBOSE_HELP,
   TRACE_HELP,
-  "  -h, --help                    Show this help message",
+  "  -h, --help                    도움말 표시",
 ].join("\n");
 
 const CLI_USAGE_SESSION_LIST = [
-  "Usage:",
+  "사용법:",
   "  detoks session list",
   "",
-  "Example:",
+  "예시:",
   "  detoks session list",
   "",
-  "Session notes:",
-  "  - lists saved sessions at a high level",
-  "  - read-only; does not create, continue, reset, fork, or modify session state",
-  "  - stdout is JSON with mutatesState=false, hasSessions, sessionCount, message, and sessions",
-  "  - each session includes id, updatedAt, currentTaskId, completedTaskCount, taskResultCount, and nextAction",
+  "세션 목록 안내:",
+  "  - 저장된 세션을 개요 형태로 나열합니다",
+  "  - 읽기 전용; 세션 생성·재개·초기화·포크·변경 없음",
+  "  - stdout은 JSON으로 mutatesState=false, hasSessions, sessionCount, message, sessions 포함",
+  "  - 각 세션에는 id, updatedAt, currentTaskId, completedTaskCount, taskResultCount, nextAction 포함",
   "",
-  "Options:",
-  "  -h, --help                    Show this help message",
+  "옵션:",
+  "  -h, --help                    도움말 표시",
 ].join("\n");
 
 const CLI_USAGE_SESSION_CONTINUE = [
-  "Usage:",
-  "  detoks session continue <session-id>",
+  "사용법:",
+  "  detoks session continue <세션-id>",
   "",
-  "Example:",
+  "예시:",
   "  detoks session continue session_2026_04_27",
   "",
-  "Session continue notes:",
-  "  - resumes execution for a saved session by replaying its stored raw_input",
-  "  - skips already completed task ids in the session and retries pending/failed work",
-  "  - if the session is missing or has no stored raw_input, stdout explains why no resume was started",
-  "  - stdout is JSON with sessionId, canContinue, resumeStarted, mutatesState, message, summary, nextAction, and taskRecords",
+  "세션 재개 안내:",
+  "  - 저장된 세션의 raw_input을 재실행하여 실행을 재개합니다",
+  "  - 이미 완료된 태스크 ID는 건너뛰고 대기 중/실패한 작업을 재시도합니다",
+  "  - 세션이 없거나 저장된 raw_input이 없으면 stdout에 사유를 설명합니다",
+  "  - stdout은 JSON으로 sessionId, canContinue, resumeStarted, mutatesState, message, summary, nextAction, taskRecords 포함",
   "",
-  "Options:",
-  "  -h, --help                    Show this help message",
+  "옵션:",
+  "  -h, --help                    도움말 표시",
 ].join("\n");
 
 const CLI_USAGE_SESSION_RESET = [
-  "Usage:",
-  "  detoks session reset <session-id>",
+  "사용법:",
+  "  detoks session reset <세션-id>",
   "",
-  "Example:",
+  "예시:",
   "  detoks session reset session_2026_04_27",
   "",
-  "Session reset notes:",
-  "  - deletes the session state and all its task results",
-  "  - dangerous; cannot be undone",
-  "  - stdout is JSON with sessionId, reset=true, mutatesState=true, and message on success",
-  "  - missing sessions return ok=false, mutatesState=false, and exit code 1",
+  "세션 초기화 안내:",
+  "  - 세션 상태와 모든 태스크 결과를 삭제합니다",
+  "  - 위험; 되돌릴 수 없습니다",
+  "  - 성공 시 stdout은 JSON으로 sessionId, reset=true, mutatesState=true, message 포함",
+  "  - 없는 세션은 ok=false, mutatesState=false를 반환하고 종료 코드 1",
   "",
-  "Options:",
-  "  -h, --help                    Show this help message",
+  "옵션:",
+  "  -h, --help                    도움말 표시",
 ].join("\n");
 
 
 const CLI_USAGE_SESSION_FORK = [
-  "Usage:",
-  "  detoks session fork <source-session-id> <new-session-id>",
+  "사용법:",
+  "  detoks session fork <원본-세션-id> <새-세션-id>",
   "",
-  "Example:",
+  "예시:",
   "  detoks session fork session_2026_04_27 session_2026_04_27_fork",
   "",
-  "Session fork notes:",
-  "  - copies an existing saved session to a new session id",
-  "  - verifies the source session exists and prevents overwriting an existing new session id",
-  "  - does not start resume execution or mutate task results",
-  "  - stdout is JSON with sourceSessionId, newSessionId, forked, mutatesState, message, and nextAction",
-  "  - missing source sessions or duplicate target ids return ok=false, mutatesState=false, and exit code 1",
+  "세션 포크 안내:",
+  "  - 기존 세션을 새 세션 ID로 복사합니다",
+  "  - 원본 세션 존재 여부 확인, 새 세션 ID 중복 방지",
+  "  - 실행 재개나 태스크 결과 변경 없음",
+  "  - stdout은 JSON으로 sourceSessionId, newSessionId, forked, mutatesState, message, nextAction 포함",
+  "  - 없는 원본 세션 또는 중복 대상 ID는 ok=false, mutatesState=false를 반환하고 종료 코드 1",
   "",
-  "Options:",
-  "  -h, --help                    Show this help message",
+  "옵션:",
+  "  -h, --help                    도움말 표시",
 ].join("\n");
 
 const CLI_USAGE_CHECKPOINT_LIST = [
-  "Usage:",
-  "  detoks checkpoint list <session-id>",
+  "사용법:",
+  "  detoks checkpoint list <세션-id>",
   "",
-  "Example:",
+  "예시:",
   "  detoks checkpoint list session_2026_04_27",
   "",
-  "Checkpoint notes:",
-  "  - lists saved checkpoints for an existing session",
-  "  - read-only; does not restore or modify session state",
-  "  - stdout is JSON with sessionId, mutatesState=false, hasCheckpoints, checkpointCount, message, and checkpoints",
-  "  - empty sessions return hasCheckpoints=false, checkpointCount=0, and checkpoints=[]",
+  "체크포인트 목록 안내:",
+  "  - 기존 세션의 저장된 체크포인트를 나열합니다",
+  "  - 읽기 전용; 복원 또는 세션 상태 변경 없음",
+  "  - stdout은 JSON으로 sessionId, mutatesState=false, hasCheckpoints, checkpointCount, message, checkpoints 포함",
+  "  - 빈 세션은 hasCheckpoints=false, checkpointCount=0, checkpoints=[] 반환",
   "",
-  "Options:",
-  "  -h, --help                    Show this help message",
+  "옵션:",
+  "  -h, --help                    도움말 표시",
 ].join("\n");
 
 
 const CLI_USAGE_CHECKPOINT_SHOW = [
-  "Usage:",
-  "  detoks checkpoint show <checkpoint-id>",
+  "사용법:",
+  "  detoks checkpoint show <체크포인트-id>",
   "",
-  "Example:",
+  "예시:",
   "  detoks checkpoint show session_2026_04_27_checkpoint_001",
   "",
-  "Checkpoint notes:",
-  "  - shows saved checkpoint metadata by checkpoint id",
-  "  - read-only; does not restore or modify session state",
-  "  - stdout is JSON with mutatesState=false, message, and checkpoint metadata including changedFiles and nextAction",
+  "체크포인트 조회 안내:",
+  "  - 체크포인트 ID로 저장된 메타데이터를 조회합니다",
+  "  - 읽기 전용; 복원 또는 세션 상태 변경 없음",
+  "  - stdout은 JSON으로 mutatesState=false, message, changedFiles, nextAction 등 체크포인트 메타데이터 포함",
   "",
-  "Options:",
-  "  -h, --help                    Show this help message",
+  "옵션:",
+  "  -h, --help                    도움말 표시",
 ].join("\n");
 
 const CLI_USAGE_CHECKPOINT_RESTORE = [
-  "Usage:",
-  "  detoks checkpoint restore <checkpoint-id>",
+  "사용법:",
+  "  detoks checkpoint restore <체크포인트-id>",
   "",
-  "Example:",
+  "예시:",
   "  detoks checkpoint restore session_2026_04_27_checkpoint_001",
   "",
-  "Checkpoint restore notes:",
-  "  - restores a session to the state captured at this checkpoint",
-  "  - subsequent task results after this checkpoint will be truncated",
-  "  - stdout is JSON with sessionId, checkpointId, restored=true, mutatesState=true, and message on success",
-  "  - invalid restore targets return ok=false, mutatesState=false, and exit code 1",
+  "체크포인트 복원 안내:",
+  "  - 세션을 해당 체크포인트 시점의 상태로 복원합니다",
+  "  - 이 체크포인트 이후의 태스크 결과는 삭제됩니다",
+  "  - 성공 시 stdout은 JSON으로 sessionId, checkpointId, restored=true, mutatesState=true, message 포함",
+  "  - 유효하지 않은 복원 대상은 ok=false, mutatesState=false를 반환하고 종료 코드 1",
   "",
-  "Options:",
-  "  -h, --help                    Show this help message",
+  "옵션:",
+  "  -h, --help                    도움말 표시",
 ].join("\n");
 
 const CLI_USAGE_REPL = [
-  "Usage:",
-  "  detoks repl [--adapter codex|gemini] [--model <name>] [--execution-mode stub|real] [--session <id>] [--verbose]",
+  "사용법:",
+  "  detoks repl [--adapter codex|gemini] [--model <이름>] [--execution-mode stub|real] [--session <id>] [--verbose]",
   "  detoks repl --help",
   "",
-  "Example:",
+  "예시:",
   "  detoks repl --adapter codex --model gpt-5 --execution-mode stub",
   "",
-  "REPL notes:",
-  "  - type a prompt and press Enter to run it",
-  "  - the prompt shows the current source as detoks[<adapter>[:<model>]]",
-  "  - if a saved project REPL session exists, startup uses an arrow-key chooser to continue it or start fresh",
-  "  - type /help to show REPL help inside the REPL",
-  "  - type /login to open an arrow-key adapter chooser and start a login flow",
-  "  - type /session to inspect the current REPL session and runtime settings",
-  "  - type /adapter to open an arrow-key adapter chooser for later prompts",
-  "  - type /adapter codex|gemini to change the adapter for later prompts directly",
-  "  - type /model or /model <name> to inspect or change the adapter model for later prompts",
-  "  - type /verbose to open an arrow-key verbose chooser inside the REPL",
-  "  - type /verbose on|off to change concise vs full output inside the REPL directly",
-  "  - type exit, quit, .exit, /exit, or /quit to leave the REPL",
-  "  - each prompt is executed as a separate work unit",
-  "  - execution-mode controls whether prompts use simulated or real execution",
+  "REPL 안내:",
+  "  - 프롬프트를 입력하고 Enter를 눌러 실행합니다",
+  "  - 프롬프트에 현재 소스가 detoks[<어댑터>[:<모델>]] 형태로 표시됩니다",
+  "  - 프로젝트에 저장된 REPL 세션이 있으면 시작 시 화살표 키 선택기로 재개하거나 새로 시작할 수 있습니다",
+  "  - /help 입력 시 REPL 내부 도움말 표시",
+  "  - /login 입력 시 화살표 키 어댑터 선택기와 로그인 흐름 시작",
+  "  - /session 입력 시 현재 REPL 세션과 런타임 설정 확인",
+  "  - /adapter 입력 시 화살표 키 어댑터 선택기 표시",
+  "  - /adapter codex|gemini 입력 시 이후 프롬프트의 어댑터를 직접 변경",
+  "  - /model 또는 /model <이름> 입력 시 어댑터 모델 확인 또는 변경",
+  "  - /verbose 입력 시 화살표 키 상세 출력 선택기 표시",
+  "  - /verbose on|off 입력 시 간결/전체 출력을 직접 변경",
+  "  - exit, quit, .exit, /exit, /quit 입력 시 REPL 종료",
+  "  - 각 프롬프트는 독립적인 작업 단위로 실행됩니다",
+  "  - execution-mode로 프롬프트가 시뮬레이션 또는 실제 실행을 사용할지 결정합니다",
   "",
-  "Options:",
-  "  --adapter codex|gemini        Target adapter (default: codex)",
+  "옵션:",
+  "  --adapter codex|gemini        대상 어댑터 (기본값: codex)",
   MODEL_FLAG_HELP,
-  "  --execution-mode stub|real    Runtime execution mode (default: stub)",
+  "  --execution-mode stub|real    실행 모드 (기본값: stub)",
   SESSION_FLAG_HELP,
   EXECUTION_MODE_HELP,
   VERBOSE_HELP,
-  "  -h, --help                    Show this help message",
+  "  -h, --help                    도움말 표시",
 ].join("\n");
 
 const isAdapter = (value: string): value is (typeof AdapterValues)[number] =>
@@ -239,7 +239,7 @@ const assertPrompt = (prompt: string | undefined): string => {
   const normalized = prompt?.trim();
   if (!normalized) {
     throw new Error(
-      "Missing prompt. Run `detoks --help` for usage.",
+      "프롬프트가 없습니다. 사용법은 `detoks --help`를 참고하세요.",
     );
   }
   return normalized;
@@ -316,10 +316,10 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
     if (current === "--adapter") {
       const next = argv[i + 1];
       if (!next) {
-        throw new Error("--adapter requires a value: codex|gemini. Run `detoks --help` for usage.");
+        throw new Error("--adapter 값이 필요합니다: codex|gemini. 사용법은 `detoks --help`를 참고하세요.");
       }
       if (!isAdapter(next)) {
-        throw new Error(`Unsupported adapter: ${next}. Use codex or gemini.`);
+        throw new Error(`지원하지 않는 어댑터: ${next}. codex 또는 gemini를 사용하세요.`);
       }
       adapter = next;
       i += 1;
@@ -329,7 +329,7 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
     if (current.startsWith("--adapter=")) {
       const inline = current.split("=")[1] ?? "";
       if (!isAdapter(inline)) {
-        throw new Error(`Unsupported adapter: ${inline}. Use codex or gemini.`);
+        throw new Error(`지원하지 않는 어댑터: ${inline}. codex 또는 gemini를 사용하세요.`);
       }
       adapter = inline;
       continue;
@@ -338,7 +338,7 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
     if (current === "--model") {
       const next = argv[i + 1];
       if (!next) {
-        throw new Error("--model requires a value. Run `detoks --help` for usage.");
+        throw new Error("--model 값이 필요합니다. 사용법은 `detoks --help`를 참고하세요.");
       }
       model = next;
       i += 1;
@@ -348,7 +348,7 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
     if (current.startsWith("--model=")) {
       const inline = current.split("=")[1] ?? "";
       if (!inline) {
-        throw new Error("--model requires a value. Run `detoks --help` for usage.");
+        throw new Error("--model 값이 필요합니다. 사용법은 `detoks --help`를 참고하세요.");
       }
       model = inline;
       continue;
@@ -358,11 +358,11 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
       const next = argv[i + 1];
       if (!next) {
         throw new Error(
-          "--execution-mode requires a value: stub|real. Run `detoks --help` for usage.",
+          "--execution-mode 값이 필요합니다: stub|real. 사용법은 `detoks --help`를 참고하세요.",
         );
       }
       if (!isExecutionMode(next)) {
-        throw new Error(`Unsupported execution mode: ${next}. Use stub or real.`);
+        throw new Error(`지원하지 않는 실행 모드: ${next}. stub 또는 real을 사용하세요.`);
       }
       executionMode = next;
       i += 1;
@@ -372,7 +372,7 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
     if (current.startsWith("--execution-mode=")) {
       const inline = current.split("=")[1] ?? "";
       if (!isExecutionMode(inline)) {
-        throw new Error(`Unsupported execution mode: ${inline}. Use stub or real.`);
+        throw new Error(`지원하지 않는 실행 모드: ${inline}. stub 또는 real을 사용하세요.`);
       }
       executionMode = inline;
       continue;
@@ -382,7 +382,7 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
       const next = argv[i + 1];
       if (!next) {
         throw new Error(
-          `${current} requires a value. Run \`detoks --help\` for usage.`,
+          `${current} 값이 필요합니다. 사용법은 \`detoks --help\`를 참고하세요.`,
         );
       }
       sessionId = next;
@@ -393,7 +393,7 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
     if (current.startsWith("--session=")) {
       sessionId = current.split("=")[1] ?? "";
       if (!sessionId) {
-        throw new Error("--session requires a value. Run `detoks --help` for usage.");
+        throw new Error("--session 값이 필요합니다. 사용법은 `detoks --help`를 참고하세요.");
       }
       continue;
     }
@@ -401,7 +401,7 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
     if (current.startsWith("--session-id=")) {
       sessionId = current.split("=")[1] ?? "";
       if (!sessionId) {
-        throw new Error("--session-id requires a value. Run `detoks --help` for usage.");
+        throw new Error("--session-id 값이 필요합니다. 사용법은 `detoks --help`를 참고하세요.");
       }
       continue;
     }
@@ -409,7 +409,7 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
     if (current === "--file") {
       const next = argv[i + 1];
       if (!next) {
-        throw new Error("--file requires a path. Run `detoks --help` for usage.");
+        throw new Error("--file 경로가 필요합니다. 사용법은 `detoks --help`를 참고하세요.");
       }
       inputFile = next;
       i += 1;
@@ -419,13 +419,13 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
     if (current.startsWith("--file=")) {
       inputFile = current.split("=")[1] ?? "";
       if (!inputFile) {
-        throw new Error("--file requires a path. Run `detoks --help` for usage.");
+        throw new Error("--file 경로가 필요합니다. 사용법은 `detoks --help`를 참고하세요.");
       }
       continue;
     }
 
     if (current.startsWith("--")) {
-      throw new Error(`Unknown flag: ${current}. Run \`detoks --help\` for usage.`);
+      throw new Error(`알 수 없는 플래그: ${current}. 사용법은 \`detoks --help\`를 참고하세요.`);
     }
 
     positionals.push(current);
@@ -434,12 +434,12 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
   const first = positionals[0];
   if (first === "session") {
     if (inputFile) {
-      throw new Error("Session commands do not support --file. Run `detoks session list --help` for usage.");
+      throw new Error("session 명령어는 --file을 지원하지 않습니다. 사용법은 `detoks session list --help`를 참고하세요.");
     }
 
     if (positionals[1] === "list") {
       if (positionals.length > 2) {
-        throw new Error("Session list does not accept arguments. Run `detoks session list --help` for usage.");
+        throw new Error("session list는 인수를 받지 않습니다. 사용법은 `detoks session list --help`를 참고하세요.");
       }
       return {
         mode: "run",
@@ -456,7 +456,7 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
     if (positionals[1] === "continue") {
       const sessionIdFromPos = positionals[2]?.trim();
       if (!sessionIdFromPos || positionals.length > 3) {
-        throw new Error("Session continue requires exactly one <session-id>. Run `detoks session continue --help` for usage.");
+        throw new Error("session continue는 <세션-id> 하나가 필요합니다. 사용법은 `detoks session continue --help`를 참고하세요.");
       }
       return {
         mode: "run",
@@ -474,7 +474,7 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
     if (positionals[1] === "reset") {
       const sessionIdToReset = positionals[2]?.trim();
       if (!sessionIdToReset || positionals.length > 3) {
-        throw new Error("Session reset requires exactly one <session-id>. Run `detoks session reset --help` for usage.");
+        throw new Error("session reset은 <세션-id> 하나가 필요합니다. 사용법은 `detoks session reset --help`를 참고하세요.");
       }
       return {
         mode: "run",
@@ -493,7 +493,7 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
       const sourceSessionId = positionals[2]?.trim();
       const newSessionId = positionals[3]?.trim();
       if (!sourceSessionId || !newSessionId || positionals.length > 4) {
-        throw new Error("Session fork requires exactly one <source-session-id> and one <new-session-id>. Run `detoks session fork --help` for usage.");
+        throw new Error("session fork는 <원본-세션-id>와 <새-세션-id> 각각 하나가 필요합니다. 사용법은 `detoks session fork --help`를 참고하세요.");
       }
       return {
         mode: "run",
@@ -509,18 +509,18 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
       };
     }
 
-    throw new Error("Unsupported session command. Run `detoks session list --help`, `detoks session continue --help`, or `detoks session fork --help` for usage.");
+    throw new Error("지원하지 않는 session 명령어입니다. `detoks session list --help`, `detoks session continue --help`, `detoks session fork --help`를 참고하세요.");
   }
 
   if (first === "checkpoint") {
     if (inputFile) {
-      throw new Error("Checkpoint commands do not support --file. Run `detoks checkpoint --help` for usage.");
+      throw new Error("checkpoint 명령어는 --file을 지원하지 않습니다. 사용법은 `detoks checkpoint --help`를 참고하세요.");
     }
 
     if (positionals[1] === "list") {
       const sessionId = positionals[2]?.trim();
       if (!sessionId || positionals.length > 3) {
-        throw new Error("Checkpoint list requires exactly one <session-id>. Run `detoks checkpoint list --help` for usage.");
+        throw new Error("checkpoint list는 <세션-id> 하나가 필요합니다. 사용법은 `detoks checkpoint list --help`를 참고하세요.");
       }
       return {
         mode: "run",
@@ -538,7 +538,7 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
     if (positionals[1] === "show") {
       const checkpointId = positionals[2]?.trim();
       if (!checkpointId || positionals.length > 3) {
-        throw new Error("Checkpoint show requires exactly one <checkpoint-id>. Run `detoks checkpoint show --help` for usage.");
+        throw new Error("checkpoint show는 <체크포인트-id> 하나가 필요합니다. 사용법은 `detoks checkpoint show --help`를 참고하세요.");
       }
       return {
         mode: "run",
@@ -556,7 +556,7 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
     if (positionals[1] === "restore") {
       const checkpointId = positionals[2]?.trim();
       if (!checkpointId || positionals.length > 3) {
-        throw new Error("Checkpoint restore requires exactly one <checkpoint-id>. Run `detoks checkpoint restore --help` for usage.");
+        throw new Error("checkpoint restore는 <체크포인트-id> 하나가 필요합니다. 사용법은 `detoks checkpoint restore --help`를 참고하세요.");
       }
       return {
         mode: "run",
@@ -571,16 +571,16 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
       };
     }
 
-    throw new Error("Unsupported checkpoint command. Run `detoks checkpoint list --help`, `detoks checkpoint show --help`, or `detoks checkpoint restore --help` for usage.");
+    throw new Error("지원하지 않는 checkpoint 명령어입니다. `detoks checkpoint list --help`, `detoks checkpoint show --help`, `detoks checkpoint restore --help`를 참고하세요.");
   }
 
   if (first === "repl") {
     if (inputFile) {
-      throw new Error("REPL mode does not support --file. Run `detoks repl --help` for usage.");
+      throw new Error("repl 모드는 --file을 지원하지 않습니다. 사용법은 `detoks repl --help`를 참고하세요.");
     }
     if (positionals.length > 1) {
       throw new Error(
-        "REPL mode does not accept prompt arguments. Run `detoks repl --help` for usage.",
+        "repl 모드는 프롬프트 인수를 받지 않습니다. 사용법은 `detoks repl --help`를 참고하세요.",
       );
     }
     return {
@@ -597,7 +597,7 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
 
   if (inputFile) {
     if (positionals.length > 0) {
-      throw new Error("Prompt input and --file cannot be used together. Run `detoks --help` for usage.");
+      throw new Error("프롬프트와 --file을 동시에 사용할 수 없습니다. 사용법은 `detoks --help`를 참고하세요.");
     }
     return {
       mode: "run",

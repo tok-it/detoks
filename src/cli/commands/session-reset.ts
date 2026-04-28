@@ -21,7 +21,7 @@ export const runSessionResetCommand = async (
       sessionId,
       reset: false,
       mutatesState: false,
-      message: `Session ${sessionId} was not found.`,
+      message: `세션 ${sessionId}을(를) 찾을 수 없습니다.`,
     };
   }
 
@@ -33,7 +33,7 @@ export const runSessionResetCommand = async (
       sessionId,
       reset: true,
       mutatesState: true,
-      message: `Session ${sessionId} has been reset (deleted).`,
+      message: `세션 ${sessionId}이(가) 초기화(삭제)되었습니다.`,
     };
   } catch (error: any) {
     return {
@@ -42,7 +42,7 @@ export const runSessionResetCommand = async (
       sessionId,
       reset: false,
       mutatesState: false,
-      message: `Failed to reset session ${sessionId}: ${error.message}`,
+      message: `세션 ${sessionId} 초기화 실패: ${error.message}`,
     };
   }
 };
