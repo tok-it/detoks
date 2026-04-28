@@ -155,7 +155,7 @@ export class TaskSentenceSplitter {
     const restored = sentences
       .map((sentence) => this.restoreLiterals(sentence, protectedInput.tokens))
       .map((sentence) => this.cleanClause(sentence))
-      .filter(Boolean);
+      .filter((sentence) => sentence && !this.isDirectiveLeadIn(sentence));
 
     return CompiledSentencesSchema.parse({ sentences: restored });
   }
@@ -385,6 +385,12 @@ export class TaskSentenceSplitter {
 
   private static looksLikeDescriptiveFragment(text: string): boolean {
     return /^(?:test\s+data\b|run-?time\b|runtime\b|build\s+time\b|compile\s+time\b)/i.test(
+      text.trim(),
+    );
+  }
+
+  private static isDirectiveLeadIn(text: string): boolean {
+    return /^(?:process|perform|complete|handle|do)\s+(?:the\s+)?following\b.*:\s*$/i.test(
       text.trim(),
     );
   }

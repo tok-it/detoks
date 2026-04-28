@@ -31,6 +31,20 @@ describe("TaskSentenceSplitter", () => {
     ]);
   });
 
+  it("drops directive lead-ins before numbered task lists", () => {
+    const result = TaskSentenceSplitter.split(
+      "Please process the following five tasks in order: 1) Find the authentication module. 2) Analyze the login flow. 3) Fix the bug. 4) Run the regression test. 5) Document the changes.",
+    );
+
+    expect(result.sentences).toEqual([
+      "Find the authentication module.",
+      "Analyze the login flow.",
+      "Fix the bug.",
+      "Run the regression test.",
+      "Document the changes.",
+    ]);
+  });
+
   it("splits create-and-validate follow-up requests", () => {
     const result = TaskSentenceSplitter.split("Create a new endpoint and test it");
 
