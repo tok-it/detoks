@@ -605,6 +605,13 @@ export const runReplCommand = async (baseArgs: CliArgs): Promise<void> => {
         );
         const result = await runCommand(request);
 
+        output.write(
+          `${terminal.adapterBadge(replState.adapter, {
+            ...(replState.model !== undefined ? { model: replState.model } : {}),
+            executionMode: replState.executionMode,
+          })}\n`,
+        );
+
         // 번역 표시 (P3): concise 모드에서 translation 발생 시 결과 앞에 표시
         // (verbose 모드는 compiledPrompt가 JSON에 이미 포함됨)
         if (!replState.verbose && result.compiledPrompt && result.compiledPrompt !== line) {
@@ -622,6 +629,12 @@ export const runReplCommand = async (baseArgs: CliArgs): Promise<void> => {
           );
         }
       } catch (error) {
+        output.write(
+          `${terminal.adapterBadge(replState.adapter, {
+            ...(replState.model !== undefined ? { model: replState.model } : {}),
+            executionMode: replState.executionMode,
+          })}\n`,
+        );
         output.write(`${formatError(error, baseArgs.verbose)}\n`);
       }
     }

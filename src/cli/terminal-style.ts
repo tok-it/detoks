@@ -3,6 +3,7 @@ const ANSI = {
   bold: "\x1b[1m",
   dim: "\x1b[2m",
   cyan: "\x1b[36m",
+  magenta: "\x1b[35m",
   green: "\x1b[32m",
   yellow: "\x1b[33m",
   red: "\x1b[31m",
@@ -12,6 +13,8 @@ export interface TerminalStyleOptions {
   isTTY: boolean;
   env: NodeJS.ProcessEnv;
 }
+
+type AdapterName = "codex" | "gemini";
 
 export const shouldUseTerminalColor = ({ isTTY, env }: TerminalStyleOptions): boolean => {
   if (!isTTY) {
@@ -38,6 +41,8 @@ const wrap = (enabled: boolean, text: string, ...codes: string[]): string =>
 
 export const createTerminalStyle = (options: TerminalStyleOptions) => {
   const enabled = shouldUseTerminalColor(options);
+  const adapterAccent = (adapter: AdapterName): string =>
+    adapter === "gemini" ? ANSI.magenta : ANSI.cyan;
 
   return {
     enabled,
@@ -49,6 +54,17 @@ export const createTerminalStyle = (options: TerminalStyleOptions) => {
     success: (text: string) => wrap(enabled, text, ANSI.green),
     warning: (text: string) => wrap(enabled, text, ANSI.yellow),
     error: (text: string) => wrap(enabled, text, ANSI.red),
+    adapterBadge: (
+      adapter: AdapterName,
+      options?: { model?: string; executionMode?: string },
+    ) => {
+      const label = [
+        `◆ ${adapter.toUpperCase()}`,
+        ...(options?.model ? [options.model] : []),
+        ...(options?.executionMode ? [options.executionMode] : []),
+      ].join(" · ");
+      return wrap(enabled, label, ANSI.bold, adapterAccent(adapter));
+    },
   };
 };
 
@@ -87,6 +103,54 @@ export const formatTerminalHelp = (
 
       if (trimmed.startsWith("detoks ")) {
         return withIndent(line, style.emphasis);
+      }
+
+      return line;
+    })
+    .join("\n");
+};
+
+export const formatTerminalTrace = (
+  text: string,
+  options: TerminalStyleOptions,
+): string => {
+  const style = createTerminalStyle(options);
+  if (!style.enabled) {
+    return text;
+  }
+
+  return text
+    .split("\n")
+    .map((line) => {
+      const trimmed = line.trim();
+      if (!trimmed) {
+        return line;
+      }
+
+      if (trimmed.startsWith("[Trace saved →")) {
+        return style.muted(trimmed);
+      }
+
+      if (trimmed.startsWith("# ")) {
+        return style.title(trimmed.slice(2));
+      }
+
+      if (trimmed.startsWith("## ")) {
+        return style.title(trimmed.slice(3));
+      }
+
+      if (trimmed.startsWith("### ")) {
+        return style.emphasis(trimmed.slice(4));
+      }
+
+      const metadataLine = line.match(/^(\*\*[^*]+\*\*:)(\s.*)?$/);
+      if (metadataLine) {
+        return `${style.emphasis(metadataLine[1] ?? "")}${metadataLine[2] ?? ""}`;
+      }
+
+      const bulletLabelLine = line.match(/^(\s*-\s)(\*\*[^*]+\*\*:)(\s.*)?$/);
+      if (bulletLabelLine) {
+        return `${bulletLabelLine[1] ?? ""}${style.emphasis(bulletLabelLine[2] ?? "")}${bulletLabelLine[3] ?? ""}`;
       }
 
       return line;

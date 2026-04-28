@@ -2,8 +2,11 @@ import { describe, expect, it } from "vitest";
 import {
   formatBatchSuccess,
   formatError,
+  formatFailedResult,
   formatSuccess,
 } from "../../../../src/cli/format.js";
+
+const colorTty = { isTTY: true, env: { FORCE_COLOR: "1" } };
 
 describe("formatSuccess", () => {
   const result = {
@@ -44,6 +47,32 @@ describe("formatSuccess", () => {
 
   it("returns the full success payload in verbose mode", () => {
     expect(JSON.parse(formatSuccess(result, true))).toEqual(result);
+  });
+
+  it("styles trace helper text outside the JSON body when enabled", () => {
+    const formatted = formatSuccess(
+      {
+        ...result,
+        traceLog: {
+          sessionId: "test-session",
+          startTime: "2026-04-28T00:00:00.000Z",
+          entries: [],
+          summary: {
+            totalDurationMs: 10,
+            stageTimings: { PromptCompiler: 10 },
+            totalMemoryMb: 12.34,
+          },
+        },
+        traceFilePath: "local_config/trace/test-trace.json",
+      },
+      false,
+      colorTty,
+    );
+
+    expect(formatted).toContain('"traceFile": "local_config/trace/test-trace.json"');
+    expect(formatted).toContain("\x1b[1mPipeline Trace Report\x1b[0m");
+    expect(formatted).toContain("\x1b[1m**Session ID**:\x1b[0m test-session");
+    expect(formatted).toContain("- \x1b[1m**Total Duration**:\x1b[0m 10ms");
   });
 });
 
@@ -95,5 +124,29 @@ describe("formatBatchSuccess", () => {
 
   it("returns the full batch payload in verbose mode", () => {
     expect(JSON.parse(formatBatchSuccess(result, true))).toEqual(result);
+  });
+});
+
+describe("formatFailedResult", () => {
+  it("styles trace helper text for failed results when enabled", () => {
+    const formatted = formatFailedResult(
+      {
+        ok: false,
+        mode: "run",
+        adapter: "codex",
+        summary: "failed",
+        nextAction: "retry",
+        sessionId: "test-session",
+        taskRecords: [],
+        stages: [],
+        rawOutput: "[stub:codex] failed",
+        traceFilePath: "local_config/trace/test-trace.json",
+      },
+      false,
+      colorTty,
+    );
+
+    expect(formatted).toContain('"error": "failed"');
+    expect(formatted).toContain("\x1b[2m[Trace saved → local_config/trace/test-trace.json]\x1b[0m");
   });
 });

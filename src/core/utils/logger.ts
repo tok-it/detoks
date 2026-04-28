@@ -1,3 +1,9 @@
+import {
+  formatErrorLabel,
+  formatInfoLabel,
+  formatWarnLabel,
+} from "./terminal-log-style.js";
+
 const isDebugEnabled = (): boolean => process.env.DETOKS_DEBUG === "1";
 
 export const logger = {
@@ -5,8 +11,8 @@ export const logger = {
     if (!isDebugEnabled()) {
       return;
     }
-    console.error(`[INFO] ${msg}`, ...args);
+    console.error(`${formatInfoLabel()} ${msg}`, ...args);
   },
-  warn: (msg: string, ...args: unknown[]) => console.warn(`[WARN] ${msg}`, ...args),
-  error: (msg: string, ...args: unknown[]) => console.error(`[ERROR] ${msg}`, ...args),
+  warn: (msg: string, ...args: unknown[]) => console.warn(`${formatWarnLabel()} ${msg}`, ...args),
+  error: (msg: string, ...args: unknown[]) => console.error(`${formatErrorLabel()} ${msg}`, ...args),
 };
