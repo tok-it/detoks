@@ -44,8 +44,8 @@ describe("buildLlamaServerArgs", () => {
 
 	it("GGUF 경로가 없으면 Hugging Face GGUF repo를 llama-server 다운로드 대상으로 넘긴다", () => {
 		const args = buildLlamaServerArgs({
-			localLlmHfRepo: "mradermacher/supergemma4-e4b-abliterated-GGUF:Q4_K_S",
-			localLlmHfFile: "supergemma4-e4b-abliterated.Q4_K_S.gguf",
+			localLlmHfRepo: "mradermacher/gemma-4-e2b-it-heretic-ara-GGUF:Q4_K_S",
+			localLlmHfFile: "gemma-4-e2b-it-heretic-ara.Q4_K_S.gguf",
 			localLlmModelName: "detoks-local",
 			localLlmServerHost: "127.0.0.1",
 			localLlmServerPort: 12370,
@@ -60,9 +60,9 @@ describe("buildLlamaServerArgs", () => {
 
 		expect(args).toEqual([
 			"-hf",
-			"mradermacher/supergemma4-e4b-abliterated-GGUF:Q4_K_S",
+			"mradermacher/gemma-4-e2b-it-heretic-ara-GGUF:Q4_K_S",
 			"--hf-file",
-			"supergemma4-e4b-abliterated.Q4_K_S.gguf",
+			"gemma-4-e2b-it-heretic-ara.Q4_K_S.gguf",
 			"--alias",
 			"detoks-local",
 			"--host",
@@ -80,8 +80,8 @@ describe("buildLlamaServerArgs", () => {
 
 	it("device가 지정되면 llama.cpp device 인자를 추가한다", () => {
 		const args = buildLlamaServerArgs({
-			localLlmHfRepo: "mradermacher/supergemma4-e4b-abliterated-GGUF:Q4_K_S",
-			localLlmHfFile: "supergemma4-e4b-abliterated.Q4_K_S.gguf",
+			localLlmHfRepo: "mradermacher/gemma-4-e2b-it-heretic-ara-GGUF:Q4_K_S",
+			localLlmHfFile: "gemma-4-e2b-it-heretic-ara.Q4_K_S.gguf",
 			localLlmModelName: "detoks-local",
 			localLlmServerHost: "127.0.0.1",
 			localLlmServerPort: 12370,
@@ -124,7 +124,7 @@ describe("buildLlamaServerArgs", () => {
 			ensureLocalLlmRuntime({
 				localLlmApiBase: "http://127.0.0.1:12370/v1",
 				localLlmModelName:
-					"mradermacher/supergemma4-e4b-abliterated-GGUF:Q4_K_S",
+					"mradermacher/gemma-4-e2b-it-heretic-ara-GGUF:Q4_K_S",
 				localLlmAutoStart: true,
 				localLlmServerHost: "127.0.0.1",
 				localLlmServerPort: 12370,
@@ -136,6 +136,8 @@ describe("buildLlamaServerArgs", () => {
 				translationMaxAttempts: 5,
 				temperature: 0,
 			}),
-		).rejects.toThrow("Expected mradermacher/supergemma4-e4b-abliterated-GGUF:Q4_K_S");
+		).rejects.toThrow(
+			"Expected mradermacher/gemma-4-e2b-it-heretic-ara-GGUF:Q4_K_S",
+		);
 	});
 });

@@ -7,10 +7,10 @@ const DEFAULT_TRANSLATION_MAX_ATTEMPTS = 5;
 const DEFAULT_TEMPERATURE = 0;
 const DEFAULT_LOCAL_LLM_API_BASE = "http://127.0.0.1:12370/v1";
 const DEFAULT_LOCAL_LLM_MODEL_NAME =
-	"mradermacher/supergemma4-e4b-abliterated-GGUF:Q4_K_S";
+	"mradermacher/gemma-4-e2b-it-heretic-ara-GGUF:Q4_K_S";
 const DEFAULT_LOCAL_LLM_HF_REPO =
-	"mradermacher/supergemma4-e4b-abliterated-GGUF:Q4_K_S";
-const DEFAULT_LOCAL_LLM_HF_FILE = "supergemma4-e4b-abliterated.Q4_K_S.gguf";
+	"mradermacher/gemma-4-e2b-it-heretic-ara-GGUF:Q4_K_S";
+const DEFAULT_LOCAL_LLM_HF_FILE = "gemma-4-e2b-it-heretic-ara.Q4_K_S.gguf";
 const DEFAULT_LOCAL_LLM_SERVER_BINARY = "llama-server";
 const DEFAULT_LOCAL_LLM_SERVER_HOST = "127.0.0.1";
 const DEFAULT_LOCAL_LLM_SERVER_PORT = 12370;
