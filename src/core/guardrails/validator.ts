@@ -207,3 +207,39 @@ export function validate_translation(
     repair_actions: [],
   };
 }
+
+export interface AdapterOutputWarning {
+  code: string;
+  detail?: string;
+}
+
+/**
+ * adapter rawOutput에 대한 기본 출력 품질 검증.
+ * 번역/압축 guardrails와 달리 실행 직후 품질 신호를 탐지하는 경량 체크.
+ */
+export function validate_adapter_output(rawOutput: string): AdapterOutputWarning[] {
+  const warnings: AdapterOutputWarning[] = [];
+  const trimmed = rawOutput.trim();
+
+  if (!trimmed) {
+    warnings.push({ code: "empty_output" });
+    return warnings;
+  }
+
+  // 에러 패턴 감지
+  if (/^(Error|Exception|Traceback|Fatal|FATAL|error:)/m.test(trimmed)) {
+    warnings.push({ code: "error_pattern_detected" });
+  }
+
+  // 응답 미완성 감지: 문장 중간에 잘린 신호
+  if (/\.\.\.\s*$/.test(trimmed) && trimmed.length > 30) {
+    warnings.push({ code: "possible_truncation" });
+  }
+
+  // 매우 짧은 출력 (실질적 내용 없음)
+  if (trimmed.length < 10 && !/^(ok|yes|no|done|true|false)$/i.test(trimmed)) {
+    warnings.push({ code: "suspiciously_short_output", detail: `length=${trimmed.length}` });
+  }
+
+  return warnings;
+}

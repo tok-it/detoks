@@ -52,6 +52,7 @@ export interface PipelineExecutionResult {
 	promptInferenceTimeSec?: number;
 	promptValidationErrors?: string[];
 	promptRepairActions?: string[];
+	outputWarnings?: string[];
 	traceLog?: TraceLog;
 	traceFilePath?: string;
 }

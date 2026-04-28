@@ -8,6 +8,7 @@ import { compilePrompt, createRole2PromptInput } from "../prompt/compiler.js";
 import { ContextBuilder } from "../context/ContextBuilder.js";
 import { SessionStateManager } from "../state/SessionStateManager.js";
 import { executeWithAdapter } from "../executor/execute.js";
+import { validate_adapter_output } from "../guardrails/validator.js";
 import { logger } from "../utils/logger.js";
 import { PipelineTracer } from "../utils/PipelineTracer.js";
 import type { RequestCategory, SessionState, TaskGraph, TaskResult } from "../../schemas/pipeline.js";
@@ -376,6 +377,7 @@ export const orchestratePipeline = async (
   // ── Step 5: 세션 상태 초기화 / 로드 (Role 2.2) ───────────────────────────
   let state: SessionState;
   const taskRecords: TaskExecutionRecord[] = [];
+  const outputWarnings: string[] = [];
   const failedTaskIds = new Set<string>();
 
   PipelineTracer.startStage("SessionLoader");
@@ -563,6 +565,12 @@ export const orchestratePipeline = async (
         state = markTaskCompleted(state, task.id, execResult.rawOutput, task.type);
         await SessionStateManager.saveSession(state, request.projectInfo);
         taskRecords.push({ taskId: task.id, status: "completed", rawOutput: execResult.rawOutput });
+        const adapterWarnings = validate_adapter_output(execResult.rawOutput ?? "");
+        for (const w of adapterWarnings) {
+          const code = w.detail ? `${w.code}(${w.detail})` : w.code;
+          outputWarnings.push(`${task.id}:${code}`);
+          logger.warn(`[guardrails] task=${task.id} output_warning=${code}`);
+        }
         logger.info(`Task [${task.id}] completed`);
       }
     }
@@ -597,6 +605,7 @@ export const orchestratePipeline = async (
     promptInferenceTimeSec: compiledPrompt.inference_time_sec ?? 0,
     promptValidationErrors: compiledPrompt.validation_errors ?? [],
     promptRepairActions: compiledPrompt.repair_actions ?? [],
+    ...(outputWarnings.length > 0 ? { outputWarnings } : {}),
     ...(request.trace ? { traceLog: PipelineTracer.getTrace(sessionId) } : {}),
     ...(traceFilePath ? { traceFilePath } : {}),
   };
