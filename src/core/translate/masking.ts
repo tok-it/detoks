@@ -156,6 +156,15 @@ function addRegexCandidates(
       continue;
     }
 
+    if (
+      (kind === "function_call" ||
+        kind === "slash_token" ||
+        kind === "directory_path") &&
+      hasKorean(original)
+    ) {
+      continue;
+    }
+
     if (kind === "quoted_literal" && !isTechnicalQuotedLiteral(original)) {
       continue;
     }
