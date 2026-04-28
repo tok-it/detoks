@@ -9,7 +9,15 @@ export class CodexStubAdapter implements CliAdapter {
   buildSubprocessRequest(request: AdapterExecutionRequest) {
     return {
       command: "codex",
-      args: [],
+      args: [
+        "exec",
+        "-",
+        "--sandbox",
+        "workspace-write",
+        "--skip-git-repo-check",
+        "--color",
+        "never",
+      ],
       ...(request.cwd !== undefined ? { cwd: request.cwd } : {}),
       input: request.prompt,
     };
