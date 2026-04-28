@@ -169,6 +169,7 @@ export class TaskCandidateExtractor {
     return (
       /^(?:process|perform|complete|handle|do)\s+(?:the\s+)?(?:(?:following\b.*)|(?:these\b.*\btasks?\b))/i.test(text) ||
       /\bnot urgent\b/.test(normalized) ||
+      /^organize\s+it\s+in\s+order\b/.test(normalized) ||
       /\breduce unnecessary words\b/.test(normalized) ||
       /\bmaintain only the important sequence\b/.test(normalized) ||
       /\bsame thing twice\b/.test(normalized) ||
@@ -234,9 +235,17 @@ function normalizeCauseAction(text: string): string {
     return sinceProblem;
   }
 
-  return text.replace(
+  const causedByProblem = text.replace(
     /^(?:and\s+)?(?:probably\s+)?the\s+problem\s+is\s+caused\s+by\s+(.+?),\s*so\s+fix\s+that\s+bug\.?$/i,
     "fix the bug caused by $1.",
+  );
+  if (causedByProblem !== text) {
+    return causedByProblem;
+  }
+
+  return text.replace(
+    /^(?:and\s+)?(?:probably\s+)?because\s+(.+?),\s*so\s+fix\s+that\s+(bug|defect)\.?$/i,
+    "fix the $2 because $1.",
   );
 }
 
