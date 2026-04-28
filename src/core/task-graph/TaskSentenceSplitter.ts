@@ -206,7 +206,10 @@ export class TaskSentenceSplitter {
     const expanded = text
       .replace(/(^|\n)\s*[-*•◦]\s+/g, "$1") // 글머리 기호 제거
       .replace(/(^|\n)\s*\d+[.)]\s+/g, "$1") // "1. " / "1) " 형태 번호 제거
-      .replace(/\s+(?=\d+[.)]\s+)/g, "\n"); // 번호 앞 공백을 줄바꿈으로 변환
+      .replace(/\s+(?=\d+[.)]\s+)/g, (match, offset, source) => {
+        const previous = source.slice(0, offset).trimEnd().at(-1);
+        return previous && /[+\-*/=]/.test(previous) ? match : "\n";
+      }); // 번호 앞 공백을 줄바꿈으로 변환하되 수식은 보존
 
     return expanded
       .split(/\n+/)

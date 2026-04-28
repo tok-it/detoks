@@ -161,6 +161,24 @@ describe("TaskSentenceSplitter", () => {
     ]);
   });
 
+  it("does not treat arithmetic results as numbered-list items", () => {
+    const result = TaskSentenceSplitter.split("Create the result of 4 + 5. Also check it.");
+
+    expect(result.sentences).toEqual([
+      "Create the result of 4 + 5.",
+      "Also check it.",
+    ]);
+  });
+
+  it("preserves arithmetic expressions while splitting follow-up tasks", () => {
+    const result = TaskSentenceSplitter.split(
+      "Make a calculator with Python. First, make it so that only addition and subtraction are possible, and then create the result of 4 + 5. Also, check if it works correctly.",
+    );
+
+    expect(result.sentences).toContain("create the result of 4 + 5.");
+    expect(result.sentences).not.toContain("create the result of 4 +");
+  });
+
   describe("integration with TaskGraphProcessor", () => {
     it("create → validate: sequential dependency", () => {
       const compiled = TaskSentenceSplitter.split("Create a new endpoint and test it");
