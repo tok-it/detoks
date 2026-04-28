@@ -126,6 +126,6 @@ export function createRole2PromptInput(
   compiledPrompt: PromptCompileResponse,
 ): Role2PromptInput {
   return Role2PromptInputSchema.parse({
-    compiled_prompt: compiledPrompt.compressed_prompt,
+    compiled_prompt: compiledPrompt.normalized_input,
   });
 }

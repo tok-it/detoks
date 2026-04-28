@@ -21,7 +21,7 @@ describe("compilePrompt", () => {
     expect(Role2PromptInputSchema.parse(handoff)).toEqual(handoff);
     expect(compiled.normalized_input).toBe("Find the auth module.\n\nAnalyze the flow.");
     expect(compiled.compression_provider).toBe("kompress");
-    expect(handoff.compiled_prompt).toBe(compiled.compressed_prompt);
+    expect(handoff.compiled_prompt).toBe(compiled.normalized_input);
   });
 
   it("영문 입력은 en으로 판정한다", async () => {
@@ -49,6 +49,23 @@ describe("compilePrompt", () => {
       "Update src/api/user.ts and run npm test -- --runInBand 2 times?",
     );
     expect(compiled.repair_actions ?? []).toContain("compressed_with_kompress");
+  });
+
+  it("Role 2.1 handoff uses normalized input before compression", async () => {
+    const compiled = await compilePrompt({
+      raw_input: "Please create a new file and test it",
+    }, {
+      compressionImplementation: vi.fn(async (text: string) => ({
+        compressed: text.replace(/^Please /i, ""),
+        compression_ratio: 0.55,
+        tokens_saved: 1,
+      })),
+    });
+    const handoff = createRole2PromptInput(compiled);
+
+    expect(compiled.normalized_input).toBe("Please create a new file and test it");
+    expect(compiled.compressed_prompt).toBe("Create a new file and test it");
+    expect(handoff.compiled_prompt).toBe("Please create a new file and test it");
   });
 
   it("지원하지 않는 압축 provider는 오류를 반환한다", async () => {
