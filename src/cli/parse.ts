@@ -20,6 +20,8 @@ const TRACE_HELP =
   "  --trace                       Record pipeline stage I/O and save to local_config/trace/{sessionId}-trace.json";
 const SESSION_FLAG_HELP =
   "  --session <id>                Resume or use a specific session id";
+const MODEL_FLAG_HELP =
+  "  --model <name>                Pass a model name through to the selected adapter CLI";
 const CLI_USAGE_MAIN = [
   "DeToks CLI Guide",
   "",
@@ -29,9 +31,9 @@ const CLI_USAGE_MAIN = [
   "  detoks session list",
   "",
   "Usage:",
-  '  detoks "<prompt>" [--adapter codex|gemini] [--execution-mode stub|real] [--session <id>] [--verbose] [--trace]',
+  '  detoks "<prompt>" [--adapter codex|gemini] [--model <name>] [--execution-mode stub|real] [--session <id>] [--verbose] [--trace]',
   "  detoks --file <path> [--verbose]",
-  "  detoks repl [--adapter codex|gemini] [--execution-mode stub|real] [--session <id>] [--verbose]",
+  "  detoks repl [--adapter codex|gemini] [--model <name>] [--execution-mode stub|real] [--session <id>] [--verbose]",
   "",
   "Session / checkpoint commands:",
   "  detoks session list",
@@ -51,7 +53,7 @@ const CLI_USAGE_MAIN = [
   '  detoks "summarize the current repo status"',
   '  detoks "파이썬으로 버블 정렬 짜줘" --session session_123',
   "  detoks --file tests/data/row_data.json --verbose",
-  "  detoks repl --adapter codex --execution-mode stub",
+  "  detoks repl --adapter codex --model gpt-5 --execution-mode stub",
   "  detoks session list",
   "  detoks session continue session_2026_04_27",
   "  detoks session reset session_2026_04_27",
@@ -62,6 +64,7 @@ const CLI_USAGE_MAIN = [
   "",
   "Options:",
   "  --adapter codex|gemini        Target adapter (default: codex)",
+  MODEL_FLAG_HELP,
   "  --execution-mode stub|real    Runtime execution mode (default: stub)",
   "  --file <path>                 Run batch prompt compilation from a JSON file",
   SESSION_FLAG_HELP,
@@ -194,20 +197,31 @@ const CLI_USAGE_CHECKPOINT_RESTORE = [
 
 const CLI_USAGE_REPL = [
   "Usage:",
-  "  detoks repl [--adapter codex|gemini] [--execution-mode stub|real] [--session <id>] [--verbose]",
+  "  detoks repl [--adapter codex|gemini] [--model <name>] [--execution-mode stub|real] [--session <id>] [--verbose]",
   "  detoks repl --help",
   "",
   "Example:",
-  "  detoks repl --adapter codex --execution-mode stub",
+  "  detoks repl --adapter codex --model gpt-5 --execution-mode stub",
   "",
   "REPL notes:",
   "  - type a prompt and press Enter to run it",
-  "  - type exit, quit, or .exit to leave the REPL",
+  "  - the prompt shows the current source as detoks[<adapter>[:<model>]]",
+  "  - if a saved project REPL session exists, startup uses an arrow-key chooser to continue it or start fresh",
+  "  - type /help to show REPL help inside the REPL",
+  "  - type /login to open an arrow-key adapter chooser and start a login flow",
+  "  - type /session to inspect the current REPL session and runtime settings",
+  "  - type /adapter to open an arrow-key adapter chooser for later prompts",
+  "  - type /adapter codex|gemini to change the adapter for later prompts directly",
+  "  - type /model or /model <name> to inspect or change the adapter model for later prompts",
+  "  - type /verbose to open an arrow-key verbose chooser inside the REPL",
+  "  - type /verbose on|off to change concise vs full output inside the REPL directly",
+  "  - type exit, quit, .exit, /exit, or /quit to leave the REPL",
   "  - each prompt is executed as a separate work unit",
   "  - execution-mode controls whether prompts use simulated or real execution",
   "",
   "Options:",
   "  --adapter codex|gemini        Target adapter (default: codex)",
+  MODEL_FLAG_HELP,
   "  --execution-mode stub|real    Runtime execution mode (default: stub)",
   SESSION_FLAG_HELP,
   EXECUTION_MODE_HELP,
@@ -249,6 +263,7 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
   let executionMode: CliArgs["executionMode"] = DEFAULT_EXECUTION_MODE;
   let sessionId: string | undefined;
   let inputFile: string | undefined;
+  let model: string | undefined;
   let verbose = false;
   let trace = false;
 
@@ -317,6 +332,25 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
         throw new Error(`Unsupported adapter: ${inline}. Use codex or gemini.`);
       }
       adapter = inline;
+      continue;
+    }
+
+    if (current === "--model") {
+      const next = argv[i + 1];
+      if (!next) {
+        throw new Error("--model requires a value. Run `detoks --help` for usage.");
+      }
+      model = next;
+      i += 1;
+      continue;
+    }
+
+    if (current.startsWith("--model=")) {
+      const inline = current.split("=")[1] ?? "";
+      if (!inline) {
+        throw new Error("--model requires a value. Run `detoks --help` for usage.");
+      }
+      model = inline;
       continue;
     }
 
@@ -549,7 +583,16 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
         "REPL mode does not accept prompt arguments. Run `detoks repl --help` for usage.",
       );
     }
-    return { mode: "repl", adapter, executionMode, verbose, trace, showHelp: false, helpTopic: "repl" };
+    return {
+      mode: "repl",
+      adapter,
+      ...(model !== undefined ? { model } : {}),
+      executionMode,
+      verbose,
+      trace,
+      showHelp: false,
+      helpTopic: "repl",
+    };
   }
 
   if (inputFile) {
@@ -560,6 +603,7 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
       mode: "run",
       inputFile,
       adapter,
+      ...(model !== undefined ? { model } : {}),
       executionMode,
       verbose,
       trace,
@@ -574,6 +618,7 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
     prompt,
     ...(sessionId !== undefined ? { sessionId } : {}),
     adapter,
+    ...(model !== undefined ? { model } : {}),
     executionMode,
     verbose,
     trace,
@@ -633,6 +678,7 @@ export const toNormalizedRequest = (
   return {
     mode,
     adapter: args.adapter,
+    ...(args.model !== undefined ? { model: args.model } : {}),
     executionMode: args.executionMode,
     verbose: args.verbose,
     trace: args.trace,

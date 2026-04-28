@@ -1,4 +1,4 @@
-import type { ExecutionResult } from '../../schemas/pipeline.js';
+import type { ExecutionResult, RequestCategory } from '../../schemas/pipeline.js';
 import { ExecutionResultSchema } from '../../schemas/pipeline.js';
 import { StateValidationError } from '../errors/StateErrors.js';
 
@@ -67,8 +67,21 @@ export class ExecutionResultNormalizer {
         };
       }
 
-      // 4. 최종 스키마 검증
-      return ExecutionResultSchema.parse(normalized);
+      // 4. 구조 완전성 검증 (task.type 기반)
+      const taskType = (rawAdapterResult.type ?? normalized.type) as RequestCategory | undefined;
+      const missingFields = this.checkStructuralCompleteness(
+        taskType,
+        normalized.structured_output,
+        normalized.raw_output ?? '',
+      );
+
+      // 5. 최종 스키마 검증
+      const result = ExecutionResultSchema.parse(normalized);
+      if (missingFields.length > 0) {
+        (result as Record<string, unknown>).structurally_incomplete = true;
+        (result as Record<string, unknown>).missing_structural_fields = missingFields;
+      }
+      return result;
     } catch (error: any) {
       throw new StateValidationError(`Failed to normalize execution result for task [${taskId}]`, {
         taskId,
@@ -76,6 +89,58 @@ export class ExecutionResultNormalizer {
         receivedData: rawAdapterResult
       });
     }
+  }
+
+  /**
+   * task.type 기반 구조 완전성 검증.
+   * 반환값: 누락된 필수 필드명 배열 (비어 있으면 완전함).
+   */
+  private static checkStructuralCompleteness(
+    taskType: RequestCategory | undefined,
+    structuredOutput: Record<string, unknown> | undefined,
+    rawOutput: string,
+  ): string[] {
+    if (!taskType) {
+      return [];
+    }
+
+    const out = structuredOutput ?? {};
+
+    if (taskType === 'modify' || taskType === 'create') {
+      const files = out.changed_files;
+      const hasFiles = Array.isArray(files) && files.length > 0;
+      if (!hasFiles) {
+        // fallback: raw_output에서 파일 변경 힌트 확인
+        const hasRawHint = /modified:|changed files:|created:|wrote/i.test(rawOutput);
+        if (!hasRawHint) {
+          return ['changed_files'];
+        }
+      }
+    }
+
+    if (taskType === 'validate') {
+      const hasComplianceReport =
+        'compliance_report' in out ||
+        'test_results' in out ||
+        'passed' in out ||
+        'validation_passed' in out ||
+        /passed|failed|complian/i.test(rawOutput);
+      if (!hasComplianceReport) {
+        return ['compliance_report or test_results'];
+      }
+    }
+
+    if (taskType === 'analyze') {
+      const hasSummaryOrFindings =
+        (typeof out.summary === 'string' && out.summary.length > 0) ||
+        'findings' in out ||
+        (typeof (out as any).analysis === 'string');
+      if (!hasSummaryOrFindings) {
+        return ['summary or findings'];
+      }
+    }
+
+    return [];
   }
 
   private static extractJsonFromRaw(raw: string): Record<string, any> | null {

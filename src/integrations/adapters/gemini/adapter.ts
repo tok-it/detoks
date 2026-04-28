@@ -9,7 +9,7 @@ export class GeminiStubAdapter implements CliAdapter {
   buildSubprocessRequest(request: AdapterExecutionRequest) {
     return {
       command: "gemini",
-      args: [],
+      args: request.model ? ["--model", request.model] : [],
       ...(request.cwd !== undefined ? { cwd: request.cwd } : {}),
       input: request.prompt,
     };

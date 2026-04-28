@@ -12,6 +12,7 @@ export type ExecutionMode = (typeof ExecutionModeValues)[number];
 export interface PipelineExecutionRequest {
 	mode: InteractionMode;
 	adapter: Adapter;
+	model?: string;
 	executionMode: ExecutionMode;
 	verbose: boolean;
 	trace?: boolean;
@@ -51,6 +52,7 @@ export interface PipelineExecutionResult {
 	promptInferenceTimeSec?: number;
 	promptValidationErrors?: string[];
 	promptRepairActions?: string[];
+	outputWarnings?: string[];
 	traceLog?: TraceLog;
 	traceFilePath?: string;
 }

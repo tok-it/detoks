@@ -33,7 +33,7 @@ describe("loadRole1RuntimeConfig", () => {
 		expect(config.localLlmApiBase).toBe("http://127.0.0.1:12370/v1");
 		expect(config.localLlmApiKey).toBeUndefined();
 		expect(config.localLlmModelName).toBe(
-			"mradermacher/supergemma4-e4b-abliterated-GGUF:Q4_K_S",
+			"mradermacher/gemma-4-e2b-it-heretic-ara-GGUF:Q4_K_S",
 		);
 		expect(config.localLlmAutoStart).toBe(true);
 		expect(config.localLlmServerBinary).toBe("llama-server");
@@ -44,10 +44,10 @@ describe("loadRole1RuntimeConfig", () => {
 		expect(config.localLlmMaxTokens).toBe(512);
 		expect(config.localLlmReasoning).toBe("off");
 		expect(config.localLlmHfRepo).toBe(
-			"mradermacher/supergemma4-e4b-abliterated-GGUF:Q4_K_S",
+			"mradermacher/gemma-4-e2b-it-heretic-ara-GGUF:Q4_K_S",
 		);
 		expect(config.localLlmHfFile).toBe(
-			"supergemma4-e4b-abliterated.Q4_K_S.gguf",
+			"gemma-4-e2b-it-heretic-ara.Q4_K_S.gguf",
 		);
 		expect(config.kompressPythonBin).toBe("python3");
 		expect(config.kompressModelId).toBe("chopratejas/kompress-base");

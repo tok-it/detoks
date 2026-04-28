@@ -2,6 +2,11 @@ import { promises as fs } from 'fs';
 import { join } from 'path';
 import { get_encoding } from 'tiktoken';
 import type { ZodSchema } from 'zod';
+import {
+  formatTraceFailureMessage,
+  formatTraceLabel,
+  formatTraceWarningPrefix,
+} from './terminal-log-style.js';
 
 export interface TraceEntry {
   timestamp: string;
@@ -112,9 +117,14 @@ export class PipelineTracer {
 
     // 환경변수로 실시간 로깅
     if (process.env.DETOKS_TRACE === '1') {
-      console.error(`[TRACE] ${stage} (${role}) ${phase}: ${dataType}`);
+      console.error(
+        `${formatTraceLabel()} ${stage} (${role}) ${phase}: ${dataType}`,
+      );
       if (!schemaValid && schemaErrors) {
-        console.error(`  ⚠️  Schema validation failed:`, schemaErrors);
+        console.error(
+          `  ${formatTraceWarningPrefix()} ${formatTraceFailureMessage("Schema validation failed:")}`,
+          schemaErrors,
+        );
       }
     }
   }
@@ -167,7 +177,9 @@ export class PipelineTracer {
 
       return filePath;
     } catch (error) {
-      console.error(`[TRACE] Failed to save trace: ${error}`);
+      console.error(
+        `${formatTraceLabel()} ${formatTraceFailureMessage(`Failed to save trace: ${String(error)}`)}`,
+      );
       throw error;
     }
   }

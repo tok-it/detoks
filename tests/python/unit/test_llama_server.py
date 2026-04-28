@@ -24,7 +24,7 @@ def test_load_llama_server_config_defaults() -> None:
     assert config.port == 12370
     assert config.api_prefix == "/v1"
     assert config.health_path == "/health"
-    assert config.model_name == "mradermacher/supergemma4-e4b-abliterated-GGUF:Q4_K_S"
+    assert config.model_name == "mradermacher/gemma-4-e2b-it-heretic-ara-GGUF:Q4_K_S"
 
 
 def test_load_llama_server_config_reads_local_llm_model_name() -> None:
@@ -41,7 +41,7 @@ def test_build_health_response_reports_backend_state() -> None:
     assert response.status_code == 200
     assert response.body == {
         "ok": True,
-        "model": "mradermacher/supergemma4-e4b-abliterated-GGUF:Q4_K_S",
+        "model": "mradermacher/gemma-4-e2b-it-heretic-ara-GGUF:Q4_K_S",
         "backend": "stub",
     }
 

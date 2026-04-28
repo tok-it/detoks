@@ -1,9 +1,20 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PipelineTracer } from "../../../../../src/core/utils/PipelineTracer.js";
+
+const originalTrace = process.env.DETOKS_TRACE;
+const originalForceColor = process.env.FORCE_COLOR;
+const originalNoColor = process.env.NO_COLOR;
 
 describe("PipelineTracer", () => {
   beforeEach(() => {
     PipelineTracer.clear();
+  });
+
+  afterEach(() => {
+    process.env.DETOKS_TRACE = originalTrace;
+    process.env.FORCE_COLOR = originalForceColor;
+    process.env.NO_COLOR = originalNoColor;
+    vi.restoreAllMocks();
   });
 
   it("단계별 trace를 기록한다", async () => {
@@ -115,5 +126,24 @@ describe("PipelineTracer", () => {
     PipelineTracer.clear();
     const log = PipelineTracer.getTrace("clear-test");
     expect(log.entries).toHaveLength(0);
+  });
+
+  it("DETOKS_TRACE=1이면 styled trace stderr를 출력한다", async () => {
+    process.env.DETOKS_TRACE = "1";
+    process.env.FORCE_COLOR = "1";
+    delete process.env.NO_COLOR;
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    await PipelineTracer.trace({
+      sessionId: "trace-live-test",
+      stage: "PromptCompiler",
+      role: "role1",
+      phase: "input",
+      dataType: "UserRequest",
+      data: { raw_input: "hello" },
+    });
+
+    expect(String(errorSpy.mock.calls[0]?.[0])).toContain("\x1b[1m\x1b[36m[TRACE]\x1b[0m");
+    expect(String(errorSpy.mock.calls[0]?.[0])).toContain("PromptCompiler (role1) input: UserRequest");
   });
 });

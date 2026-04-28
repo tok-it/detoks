@@ -68,6 +68,7 @@ yarn.lock
 *~
 
 # Project-specific
+.repl-session.json
 .devlogs/
 daily-reports/
 .prompts/
@@ -98,6 +99,4 @@ scripts/generate-daily-reports.py
 Thumbs.db
 tests/ts/integration/
 tests/integration/
-tests/data
-tmp
 graphify-out

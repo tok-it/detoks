@@ -1,5 +1,11 @@
 import { PipelineTracer } from "../core/utils/PipelineTracer.js";
+import { formatTerminalTrace, type TerminalStyleOptions } from "./terminal-style.js";
 import type { CliBatchExecutionResult, CliExecutionResult } from "./types.js";
+
+const defaultTerminalStyleOptions = (): TerminalStyleOptions => ({
+  isTTY: Boolean(process.stdout.isTTY),
+  env: process.env,
+});
 
 function toPromptMetadata(result: CliExecutionResult) {
   return {
@@ -16,12 +22,25 @@ function toPromptMetadata(result: CliExecutionResult) {
   };
 }
 
-export const formatSuccess = (result: CliExecutionResult, verbose: boolean): string => {
-  const traceSection = result.traceLog
-    ? "\n\n" + PipelineTracer.formatAsMarkdown(result.traceLog)
+const toTraceSection = (
+  result: Pick<CliExecutionResult, "traceLog" | "traceFilePath">,
+  terminalStyleOptions: TerminalStyleOptions,
+): string => {
+  const traceText = result.traceLog
+    ? PipelineTracer.formatAsMarkdown(result.traceLog)
     : result.traceFilePath
-      ? `\n\n[Trace saved → ${result.traceFilePath}]`
+      ? `[Trace saved → ${result.traceFilePath}]`
       : "";
+
+  return traceText ? `\n\n${formatTerminalTrace(traceText, terminalStyleOptions)}` : "";
+};
+
+export const formatSuccess = (
+  result: CliExecutionResult,
+  verbose: boolean,
+  terminalStyleOptions: TerminalStyleOptions = defaultTerminalStyleOptions(),
+): string => {
+  const traceSection = toTraceSection(result, terminalStyleOptions);
 
   if (verbose) {
     const { traceLog, ...rest } = result;
@@ -48,12 +67,9 @@ export const formatSuccess = (result: CliExecutionResult, verbose: boolean): str
 export const formatFailedResult = (
   result: CliExecutionResult,
   verbose: boolean,
+  terminalStyleOptions: TerminalStyleOptions = defaultTerminalStyleOptions(),
 ): string => {
-  const traceSection = result.traceLog
-    ? "\n\n" + PipelineTracer.formatAsMarkdown(result.traceLog)
-    : result.traceFilePath
-      ? `\n\n[Trace saved → ${result.traceFilePath}]`
-      : "";
+  const traceSection = toTraceSection(result, terminalStyleOptions);
 
   if (verbose) {
     const { traceLog, ...rest } = result;

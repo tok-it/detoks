@@ -12,7 +12,7 @@ describe("runBatchPromptPipeline", () => {
     expect(result.run_metadata.pipeline_mode).toBe("safe");
     expect(result.results).toHaveLength(1);
     expect(result.results[0]?.compiled_prompt).toBe("Create a new file");
-    expect(result.results[0]?.role2_handoff).toBe("Create a new file");
+    expect(result.results[0]?.role2_handoff).toBe("Please create a new file");
     expect(result.results[0]?.status).toBe("completed");
     expect(result.results[0]?.inference_time_sec).toBe(0);
   });

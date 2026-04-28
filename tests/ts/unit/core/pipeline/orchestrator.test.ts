@@ -211,6 +211,33 @@ describe("orchestratePipeline", () => {
     expect(result.promptInferenceTimeSec).toBe(0);
     expect(result.promptValidationErrors).toEqual([]);
     expect(result.promptRepairActions).toContain("compressed_with_kompress");
+<<<<<<< HEAD
+=======
+  });
+
+  it("builds the Role 2.1 graph from normalized input before compression", async () => {
+    const result = await orchestratePipeline({
+      mode: "run",
+      adapter: "codex",
+      executionMode: "stub",
+      verbose: false,
+      userRequest: {
+        raw_input: "Please create a new file and test it",
+      },
+      compressionImplementation: vi.fn(async (text: string) => ({
+        compressed: text.replace(/^Please /i, ""),
+        compression_ratio: 0.55,
+        tokens_saved: 1,
+      })),
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.compiledPrompt).toBe("Create a new file and test it");
+    expect(result.role2Handoff).toBe("Please create a new file and test it");
+    expect(result.taskRecords).toHaveLength(2);
+    expect(result.rawOutput).toContain("[CREATE] create a new file");
+    expect(result.rawOutput).toContain("[VALIDATE] test it");
+>>>>>>> origin/dev
   });
 
   it("bridges Korean input through the local LLM request contract when runtime overrides are provided", async () => {

@@ -81,4 +81,17 @@ describe("mask_protected_segments", () => {
     expect(literals).toEqual([]);
     expect(masked.masked_text).toBe(sourceText);
   });
+
+  it("한글이 섞인 slash token과 괄호형 혼합 표현은 과보호하지 않는다", () => {
+    const sourceText = "배포 전략으로 블루/그린이나 ROI(투자 대비 효과)를 검토해";
+    const masked = mask_protected_segments(sourceText);
+    const literals = collect_preservable_literals(sourceText);
+
+    expect(masked.masked_text).toContain("블루/그린");
+    expect(masked.masked_text).toContain("__PH_0001__(투자 대비 효과)");
+    expect(masked.masked_text).toContain("투자 대비 효과");
+    expect(literals).toContain("ROI");
+    expect(literals).not.toContain("블루/그린");
+    expect(literals).not.toContain("ROI(투자 대비 효과)");
+  });
 });

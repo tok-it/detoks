@@ -79,12 +79,12 @@ const TRANSLATION_SYSTEM_PROMPT = `You are a translator that translates Korean i
 ### Few-shot Example 1
 
 Input:
-기존 REST API의 응답 속도가 점점 느려지고 있습니다.
+기존 __PH_1__의 응답 속도가 점점 느려지고 있습니다.
 특히 사용자 인증 이후 대시보드 데이터를 불러오는 구간에서 병목이 발생합니다.
 가장 먼저 점검해야 할 포인트를 우선순위대로 정리해 주세요.
 
 Output:
-The response speed of the existing REST API is gradually getting slower.
+The response speed of the existing __PH_1__ is gradually getting slower.
 In particular, a bottleneck occurs in the section that loads dashboard data after user authentication.
 Please organize the points that should be checked first in order of priority.
 
@@ -112,26 +112,26 @@ Output:
 
 ### Few-shot Example 3
 Input:
-기존 PostgreSQL 기반 인증 시스템을 MongoDB 중심 구조로 점진적으로 마이그레이션하려고 합니다.
+기존 __PH_1__ 기반 인증 시스템을 __PH_2__ 중심 구조로 점진적으로 마이그레이션하려고 합니다.
 
 다음 작업을 모두 수행해 주세요.
 
 1. 현재 시스템에서 가장 먼저 점검해야 할 데이터 무결성 리스크를 정리해 주세요.
 2. 무중단 배포를 전제로 한 단계별 마이그레이션 로드맵을 작성해 주세요.
-3. 사용자 세션, JWT, OAuth 2.0 연동 과정에서 발생할 수 있는 주요 장애 포인트를 설명해 주세요.
+3. 사용자 세션, JWT, __PH_3__ 연동 과정에서 발생할 수 있는 주요 장애 포인트를 설명해 주세요.
 4. 각 단계별로 필요한 테스트 전략(단위 테스트, 통합 테스트, 회귀 테스트)을 구분해서 제안해 주세요.
-5. 최종적으로 운영 비용, 유지보수성, 확장성 측면에서 MongoDB 전환이 실제로 유리한지 평가해 주세요.
+5. 최종적으로 운영 비용, 유지보수성, 확장성 측면에서 __PH_4__ 전환이 실제로 유리한지 평가해 주세요.
 
 Output:
-We are planning to gradually migrate the existing PostgreSQL-based authentication system to a MongoDB-centered structure.
+We are planning to gradually migrate the existing __PH_1__-based authentication system to a __PH_2__-centered structure.
 
 Please perform all of the following tasks.
 
 1. Summarize the data integrity risks that should be checked first in the current system.
 2. Create a step-by-step migration roadmap based on zero-downtime deployment.
-3. Explain the major failure points that may occur during user session, JWT, and OAuth 2.0 integration.
+3. Explain the major failure points that may occur during user session, JWT, and __PH_3__ integration.
 4. Propose the necessary testing strategies for each phase, separating unit tests, integration tests, and regression tests.
-5. Finally, evaluate whether switching to MongoDB is actually beneficial in terms of operating costs, maintainability, and scalability.`;
+5. Finally, evaluate whether switching to __PH_4__ is actually beneficial in terms of operating costs, maintainability, and scalability.`;
 
 const TRANSLATION_USER_PROMPT_PREFIX =
 	"Translate the following text data into English.\n\n";
@@ -140,6 +140,17 @@ type TranslationPassPromptType = "primary" | "fallback" | "final_retry";
 
 function containsKorean(text: string): boolean {
 	return /[가-힣]/.test(text);
+}
+
+function formatPlaceholderGuidance(placeholders: readonly string[]): string {
+	if (placeholders.length === 0) {
+		return "";
+	}
+
+	return `\n\nExact placeholders that must be preserved verbatim:
+${placeholders.map((placeholder) => `- ${placeholder}`).join("\n")}
+
+Never delete, translate, split, or paraphrase these tokens.`;
 }
 
 function collectRequiredTerms(
@@ -164,6 +175,8 @@ function shouldRetryWholeItem(
 		(error) =>
 			error.startsWith("required_literal_missing:") ||
 			error.startsWith("required_term_missing:") ||
+			error === "placeholder_count_mismatch" ||
+			error === "placeholder_order_mismatch" ||
 			error === "korean_text_remaining" ||
 			error === "source_korean_copied",
 	);
@@ -192,10 +205,13 @@ async function translate_span(
 		previous_output: string;
 		validation_errors: string[];
 	},
+	placeholderTokens: readonly string[] = [],
 ): Promise<LlmCompletionResponse | null> {
 	if (!span.translate || !containsKorean(span.text)) {
 		return null;
 	}
+
+	const placeholderGuidance = formatPlaceholderGuidance(placeholderTokens);
 
 	return complete_chat(
 		{
@@ -204,7 +220,7 @@ async function translate_span(
 					role: "system",
 					content:
 						promptType === "fallback" || promptType === "final_retry"
-							? `${TRANSLATION_SYSTEM_PROMPT}
+							? `${TRANSLATION_SYSTEM_PROMPT}${placeholderGuidance}
 
 Return only the corrected English translation.
 
@@ -232,7 +248,7 @@ Pay special attention to:
 - dropped acronyms
 - omitted parenthetical meanings
 - rewritten framework/class names`
-							: TRANSLATION_SYSTEM_PROMPT,
+							: `${TRANSLATION_SYSTEM_PROMPT}${placeholderGuidance}`,
 				},
 				{
 					role: "user",
@@ -287,11 +303,15 @@ async function runTranslationPass(
 	const spanResults: TranslationSpanResult[] = [];
 
 	for (const span of spans) {
+		const placeholderTokens = masked.placeholders
+			.filter((entry) => span.text.includes(entry.placeholder))
+			.map((entry) => entry.placeholder);
 		const llmResponse = await translate_span(
 			span,
 			options,
 			initialPromptType,
 			finalRetryContext,
+			placeholderTokens,
 		);
 		if (!llmResponse) {
 			translatedSpans.push(span);
@@ -312,9 +332,6 @@ async function runTranslationPass(
 		}
 		inferenceTimeSec += llmResponse.inference_time_sec ?? 0;
 
-		const placeholderTokens = masked.placeholders
-			.filter((entry) => span.text.includes(entry.placeholder))
-			.map((entry) => entry.placeholder);
 		const requiredTerms = collectRequiredTerms(
 			span.text,
 			options.policies.preferredTranslations,
@@ -360,10 +377,16 @@ async function runTranslationPass(
 			validationErrors.length > 0 &&
 			attempts < options.config.translationMaxAttempts
 		) {
-			const fallbackResponse = await translate_span(span, options, "fallback", {
-				previous_output: repaired.output,
-				validation_errors: validationErrors,
-			});
+			const fallbackResponse = await translate_span(
+				span,
+				options,
+				"fallback",
+				{
+					previous_output: repaired.output,
+					validation_errors: validationErrors,
+				},
+				placeholderTokens,
+			);
 			attempts += 1;
 
 			if (fallbackResponse) {

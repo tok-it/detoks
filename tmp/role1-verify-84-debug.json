@@ -1,0 +1,58 @@
+{
+  "summary": {
+    "completed_count": 0,
+    "failed_count": 1,
+    "average_inference_time_sec": 1.613,
+    "average_token_reduction_rate": 60,
+    "average_translation_token_reduction_rate": 60,
+    "average_compression_token_reduction_rate": 0,
+    "compression_fallback_count": 0,
+    "repair_action_item_count": 0,
+    "validation_failed_count": 1
+  },
+  "run_metadata": {
+    "generated_at": "2026-04-25T16:02:53.694Z",
+    "pipeline_mode": "debug",
+    "input_count": 1
+  },
+  "results": [
+    {
+      "index": 84,
+      "raw_input": "prometheus_exporter.collect() 엔드포인트를 만들어서 메트릭 데이터를 외부에 노출하자.",
+      "normalized_input": "Create an endpoint to expose the metric data externally.",
+      "compiled_prompt": "Create an endpoint to expose the metric data externally.",
+      "role2_handoff": "Create an endpoint to expose the metric data externally.",
+      "language": "mixed",
+      "status": "failed",
+      "inference_time_sec": 1.613,
+      "input_prompt_tokens": 25,
+      "normalized_input_tokens": 10,
+      "compiled_prompt_tokens": 10,
+      "token_reduction_rate": 60,
+      "translation_token_reduction_rate": 60,
+      "compression_token_reduction_rate": 0,
+      "validation_errors": [
+        "required_literal_missing:prometheus_exporter.collect()"
+      ],
+      "repair_actions": [],
+      "debug": {
+        "masked_text": "__PH_0001__ 엔드포인트를 만들어서 메트릭 데이터를 외부에 노출하자.",
+        "placeholders": [
+          {
+            "placeholder": "__PH_0001__",
+            "original": "prometheus_exporter.collect()",
+            "kind": "function_call"
+          }
+        ],
+        "spans": [
+          {
+            "kind": "paragraph",
+            "text": "Create an endpoint to expose the metric data externally.",
+            "translate": true
+          }
+        ],
+        "fallback_span_count": 1
+      }
+    }
+  ]
+}
