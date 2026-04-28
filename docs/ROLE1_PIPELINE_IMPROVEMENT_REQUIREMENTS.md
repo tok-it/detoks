@@ -258,6 +258,7 @@ P2:
 
 - `slash_token`과 `directory_path` 계열 보호 규칙에서 한글이 섞인 일반 표현을 과보호하지 않도록 조정했다.
 - placeholder가 포함된 span에는 정확한 placeholder 목록을 system prompt와 fallback prompt에 명시적으로 주입했다.
+- placeholder count/order mismatch도 item 단위 재시도 조건에 포함해, placeholder가 통째로 사라진 경우 추가 재번역을 수행하도록 했다.
 - 관련 unit test를 추가해 `블루/그린`, `ROI(투자 대비 효과)`, placeholder 힌트 전달을 회귀 테스트로 고정했다.
 
 ## 비목표
