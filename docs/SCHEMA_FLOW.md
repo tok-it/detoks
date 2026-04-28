@@ -52,7 +52,7 @@ type CompiledPrompt = {
   normalized_input: string;
   compressed_prompt: string;
   language: "ko" | "en" | "mixed";
-  compression_provider: "nlp_adapter";
+  compression_provider: "kompress";
   inference_time_sec?: number;
   validation_errors?: string[];
   repair_actions?: string[];
@@ -91,15 +91,19 @@ type Role2PromptInput = {
 5. clean
 6. validate
 7. repair
-8. fallback
-9. conservative compression
-10. `CompiledPrompt`
-11. `Role2PromptInput`
+8. translation fallback
+9. Kompress compression on natural-language body
+10. compression validate
+11. invalid하면 `normalized_input`을 `compressed_prompt`로 사용
+12. `CompiledPrompt`
+13. `Role2PromptInput`
 
 **Role 1 내부 batch artifact:**
 - `run_metadata` + `results[]` 구조를 사용한다.
 - `debug` mode에서는 `masked_text`, `placeholders`, `spans`, `fallback_span_count`를 item debug metadata로 남긴다.
 - batch result는 Role 1 내부 기록용이며 공식 Role 2.1 handoff는 계속 `Role2PromptInput.compiled_prompt` 하나다.
+- `scripts/verify-role1.ts` 검증 산출물은 각 item에 `raw_input` 다음 `ph_masked_input`을 추가로 기록한다.
+- `ph_masked_input`은 번역 단계와 동일한 보호 구간 마스킹 결과이며 `debug` 여부와 무관하게 항상 출력된다.
 
 ---
 

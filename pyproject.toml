@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "Role 1 Python modules for prompt compilation and request analysis in detoks."
 requires-python = "==3.13.*"
 dependencies = [
+  "headroom-ai[ml]==0.13.1",
   "pydantic==2.13.3",
 ]
 

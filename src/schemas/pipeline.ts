@@ -70,6 +70,7 @@ export const SessionUserRequestSchema = UserRequestSchema.extend({
 });
 
 export const PromptCompressionProviderValues = [
+  "kompress",
   "nlp_adapter",
   "llm",
   "small_model",
@@ -103,7 +104,7 @@ export const CompiledPromptSchema = z.object({
   normalized_input: z.string(),
   compressed_prompt: z.string(),
   language: z.enum(["ko", "en", "mixed"]),
-  compression_provider: z.literal("nlp_adapter"),
+  compression_provider: z.literal("kompress"),
   inference_time_sec: z.number().min(0).optional(),
   validation_errors: z.array(z.string()).optional(),
   repair_actions: z.array(z.string()).optional(),
@@ -126,7 +127,7 @@ export const PromptCompileResponseSchema = z.object({
   normalized_input: z.string(),
   compressed_prompt: z.string(),
   language: z.enum(["ko", "en", "mixed"]),
-  compression_provider: z.literal("nlp_adapter"),
+  compression_provider: z.literal("kompress"),
   inference_time_sec: z.number().min(0).optional(),
   validation_errors: z.array(z.string()).optional(),
   repair_actions: z.array(z.string()).optional(),

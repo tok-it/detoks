@@ -44,32 +44,32 @@ This document defines the current `python/llama-server` runtime contract used by
 
 ## Default Configuration
 
-| Key                          | Default                                        | Description                                          |
-| ---------------------------- | ---------------------------------------------- | ---------------------------------------------------- |
-| `LLAMA_SERVER_HOST`          | `127.0.0.1`                                    | Bind host                                            |
-| `LLAMA_SERVER_PORT`          | `12370`                                        | Bind port                                            |
-| `LLAMA_SERVER_API_PREFIX`    | `/v1`                                          | API prefix                                           |
-| `LLAMA_SERVER_HEALTH_PATH`   | `/health`                                      | Health endpoint path                                 |
-| `LOCAL_LLM_MODEL_NAME`       | `gemma-4-E2B-it-heretic-ara-GGUF`              | Default model alias returned to clients              |
-| `REQUEST_TIMEOUT`            | `30`                                           | Upstream timeout in seconds                          |
-| `LLAMA_SERVER_API_KEY`       | unset                                          | Optional Bearer auth for inbound requests            |
-| `LLAMA_CPP_API_BASE`         | unset                                          | Upstream OpenAI-compatible llama.cpp base URL        |
-| `LLAMA_CPP_API_KEY`          | unset                                          | Optional Bearer auth for upstream requests           |
-| `LLAMA_SERVER_RESPONSE_TEXT` | unset                                          | Mock response text for local/serverless verification |
-| `LOCAL_LLM_API_BASE`         | `http://127.0.0.1:12370/v1`                   | TypeScript Role 1 local LLM API base                 |
-| `LOCAL_LLM_AUTO_START`       | `1`                                            | Auto-start local llama.cpp server for Role 1         |
-| `LOCAL_LLM_SERVER_BINARY`    | `llama-server`                                 | llama.cpp server executable                          |
-| `LOCAL_LLM_SERVER_HOST`      | `127.0.0.1`                                    | Auto-start bind host                                 |
-| `LOCAL_LLM_SERVER_PORT`      | `12370`                                        | Auto-start bind port                                 |
-| `LOCAL_LLM_DEVICE`           | unset                                          | Optional llama.cpp device selector, e.g. `none`      |
-| `LOCAL_LLM_GPU_LAYERS`       | `all`                                          | llama.cpp GPU offload layer count                    |
-| `LOCAL_LLM_CONTEXT_SIZE`     | `4096`                                         | llama.cpp prompt context size                        |
-| `LOCAL_LLM_MAX_TOKENS`       | `512`                                          | Maximum generated tokens per Role 1 translation span |
-| `LOCAL_LLM_REASONING`        | `off`                                          | llama.cpp reasoning mode for chat templates          |
-| `LOCAL_LLM_HF_REPO`          | `mradermacher/gemma-4-E2B-it-heretic-ara-GGUF:Q4_K_S` | Hugging Face GGUF repo and quant used when no model path exists |
-| `LOCAL_LLM_HF_FILE`          | `gemma-4-E2B-it-heretic-ara.Q4_K_S.gguf`       | Exact Hugging Face GGUF file                         |
-| `LOCAL_LLM_MODEL_PATH`       | unset                                          | Optional local GGUF model path                       |
-| `LOCAL_LLM_MODEL_URL`        | unset                                          | Optional download URL when model path is missing     |
+| Key                          | Default                                           | Description                                                     |
+| ---------------------------- | ------------------------------------------------- | --------------------------------------------------------------- |
+| `LLAMA_SERVER_HOST`          | `127.0.0.1`                                       | Bind host                                                       |
+| `LLAMA_SERVER_PORT`          | `12370`                                           | Bind port                                                       |
+| `LLAMA_SERVER_API_PREFIX`    | `/v1`                                             | API prefix                                                      |
+| `LLAMA_SERVER_HEALTH_PATH`   | `/health`                                         | Health endpoint path                                            |
+| `LOCAL_LLM_MODEL_NAME`       | `mradermacher/supergemma4-e4b-abliterated-GGUF:Q4_K_S` | Default model id and alias requested by Role 1 clients      |
+| `REQUEST_TIMEOUT`            | `30`                                              | Upstream timeout in seconds                                     |
+| `LLAMA_SERVER_API_KEY`       | unset                                             | Optional Bearer auth for inbound requests                       |
+| `LLAMA_CPP_API_BASE`         | unset                                             | Upstream OpenAI-compatible llama.cpp base URL                   |
+| `LLAMA_CPP_API_KEY`          | unset                                             | Optional Bearer auth for upstream requests                      |
+| `LLAMA_SERVER_RESPONSE_TEXT` | unset                                             | Mock response text for local/serverless verification            |
+| `LOCAL_LLM_API_BASE`         | `http://127.0.0.1:12370/v1`                       | TypeScript Role 1 local LLM API base                            |
+| `LOCAL_LLM_AUTO_START`       | `1`                                               | Auto-start local llama.cpp server for Role 1                    |
+| `LOCAL_LLM_SERVER_BINARY`    | `llama-server`                                    | llama.cpp server executable                                     |
+| `LOCAL_LLM_SERVER_HOST`      | `127.0.0.1`                                       | Auto-start bind host                                            |
+| `LOCAL_LLM_SERVER_PORT`      | `12370`                                           | Auto-start bind port                                            |
+| `LOCAL_LLM_DEVICE`           | unset                                             | Optional llama.cpp device selector, e.g. `none`                 |
+| `LOCAL_LLM_GPU_LAYERS`       | `all`                                             | llama.cpp GPU offload layer count                               |
+| `LOCAL_LLM_CONTEXT_SIZE`     | `4096`                                            | llama.cpp prompt context size                                   |
+| `LOCAL_LLM_MAX_TOKENS`       | `512`                                             | Maximum generated tokens per Role 1 translation span            |
+| `LOCAL_LLM_REASONING`        | `off`                                             | llama.cpp reasoning mode for chat templates                     |
+| `LOCAL_LLM_HF_REPO`          | `mradermacher/supergemma4-e4b-abliterated-GGUF:Q4_K_S` | Hugging Face GGUF repo and quant used when no model path exists |
+| `LOCAL_LLM_HF_FILE`          | `supergemma4-e4b-abliterated.Q4_K_S.gguf`         | Exact Hugging Face GGUF file                                    |
+| `LOCAL_LLM_MODEL_PATH`       | unset                                             | Optional local GGUF model path                                  |
+| `LOCAL_LLM_MODEL_URL`        | unset                                             | Optional download URL when model path is missing                |
 
 <!-- 한국어 설명: 기본 모델명은 현재 로컬 서버 기본값입니다. Python 서버는 upstream 프록시 또는 mock 응답 모드로 동작하고, TypeScript Role 1 경로는 필요 시 llama.cpp `llama-server`를 로컬에서 자동 실행합니다. -->
 
@@ -123,6 +123,8 @@ Condition:
 Behavior:
 
 - If `LOCAL_LLM_API_BASE` health check is already ready, reuse the running server
+- Before reusing an already-running local server, query `/v1/models` and verify that the expected `LOCAL_LLM_MODEL_NAME` is present
+- If another model is already running on the same port, fail explicitly instead of silently reusing the wrong server
 - If `LOCAL_LLM_MODEL_PATH` exists, start `llama-server -m <path>`
 - If `LOCAL_LLM_MODEL_PATH` is missing and `LOCAL_LLM_MODEL_URL` is set, download the GGUF file first
 - If no local model path is set, start `llama-server -hf <LOCAL_LLM_HF_REPO> --hf-file <LOCAL_LLM_HF_FILE>` and let llama.cpp handle Hugging Face GGUF download/cache
@@ -151,7 +153,7 @@ Response:
 ```json
 {
 	"ok": true,
-	"model": "mradermacher/gemma-4-E2B-it-heretic-ara-GGUF",
+	"model": "mradermacher/supergemma4-e4b-abliterated-GGUF:Q4_K_S",
 	"backend": "configured"
 }
 ```
@@ -172,7 +174,7 @@ Required request shape:
 
 ```json
 {
-	"model": "mradermacher/gemma-4-E2B-it-heretic-ara-GGUF",
+	"model": "mradermacher/supergemma4-e4b-abliterated-GGUF:Q4_K_S",
 	"messages": [
 		{
 			"role": "user",
@@ -199,7 +201,7 @@ Successful response shape:
 	"id": "chatcmpl-...",
 	"object": "chat.completion",
 	"created": 1710000000,
-	"model": "mradermacher/gemma-4-E2B-it-heretic-ara-GGUF",
+	"model": "mradermacher/supergemma4-e4b-abliterated-GGUF:Q4_K_S",
 	"choices": [
 		{
 			"index": 0,

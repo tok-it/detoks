@@ -7,10 +7,14 @@ import {
   type Role2PromptInput,
 } from "../../schemas/pipeline.js";
 import { loadRole1Policies, loadRole1RuntimeConfig } from "./config.js";
-import { compress_prompt } from "./compression.js";
+import {
+  compress_prompt,
+  type CompressTextImplementation,
+} from "./compression.js";
 import { translate_to_english } from "../translate/translate.js";
 
-const SUPPORTED_COMPRESSION_PROVIDER = "nlp_adapter";
+const SUPPORTED_COMPRESSION_PROVIDER = "kompress";
+const LEGACY_COMPRESSION_PROVIDER = "nlp_adapter";
 
 function detectLanguage(rawInput: string): "ko" | "en" | "mixed" {
   const hasKorean = /[가-힣]/.test(rawInput);
@@ -41,6 +45,7 @@ export interface CompilePromptOptions {
   cwd?: string;
   env?: NodeJS.ProcessEnv;
   fetchImplementation?: typeof fetch;
+  compressionImplementation?: CompressTextImplementation;
 }
 
 export async function compilePrompt(
@@ -57,7 +62,10 @@ export async function compilePrompt(
   });
   const provider = request.compression_provider ?? SUPPORTED_COMPRESSION_PROVIDER;
 
-  if (provider !== SUPPORTED_COMPRESSION_PROVIDER) {
+  if (
+    provider !== SUPPORTED_COMPRESSION_PROVIDER &&
+    provider !== LEGACY_COMPRESSION_PROVIDER
+  ) {
     throw new Error(`Unsupported prompt compression provider: ${provider}`);
   }
 
@@ -74,10 +82,16 @@ export async function compilePrompt(
             : {}),
         });
   const translatedOutput = translationResult?.text ?? normalizedInput;
-  const compressionResult = compress_prompt(translatedOutput, {
+  const compressionResult = await compress_prompt(translatedOutput, {
     policies,
+    config: runtimeConfig,
+    ...(options.cwd ? { cwd: options.cwd } : {}),
+    ...(options.env ? { env: options.env } : {}),
     ...(runtimeConfig.localLlmModelName
       ? { localLlmModelName: runtimeConfig.localLlmModelName }
+      : {}),
+    ...(options.compressionImplementation
+      ? { compressionImplementation: options.compressionImplementation }
       : {}),
   });
   const repairActions = [

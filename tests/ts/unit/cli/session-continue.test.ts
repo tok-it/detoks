@@ -93,7 +93,7 @@ describe("runSessionContinueCommand", () => {
       promptLanguage: "en",
       promptInferenceTimeSec: 0,
       promptValidationErrors: [],
-      promptRepairActions: ["compressed_with_nlp_adapter"],
+      promptRepairActions: ["compressed_with_kompress"],
     });
 
     await expect(
@@ -119,7 +119,7 @@ describe("runSessionContinueCommand", () => {
       promptLanguage: "en",
       promptInferenceTimeSec: 0,
       promptValidationErrors: [],
-      promptRepairActions: ["compressed_with_nlp_adapter"],
+      promptRepairActions: ["compressed_with_kompress"],
     });
 
     expect(executeRequest).toHaveBeenCalledWith({

@@ -1,4 +1,9 @@
-import type { Role1Policies } from "./config.js";
+import type { Role1Policies, Role1RuntimeConfig } from "./config.js";
+import {
+  compressTextWithKompress,
+  type KompressClientOptions,
+  type KompressClientResult,
+} from "./kompress-client.js";
 import {
   collect_preservable_literals,
   mask_protected_segments,
@@ -17,8 +22,6 @@ const LEADING_FILLER_PATTERNS: readonly RegExp[] = [
 const INLINE_FILLER_PATTERNS: ReadonlyArray<[pattern: RegExp, replacement: string]> = [
   [/\bplease\b/gi, ""],
   [/\bkindly\b/gi, ""],
-  [/\bjust\b/gi, ""],
-  [/\b(?:basically|actually)\b/gi, ""],
   [/\s{2,}/g, " "],
 ];
 
@@ -26,17 +29,28 @@ const ACTION_STARTER_REGEX =
   /\b(find|locate|trace|follow|show|read|search|explore|inspect|analyze|investigate|explain|review|compare|assess|evaluate|create|build|generate|scaffold|implement|add|make|modify|update|change|fix|patch|edit|refactor|rename|rewrite|remove|replace|improve|optimi[sz]e|tune|correct|test|validate|verify|confirm|ensure|lint|typecheck|run|execute|deploy|start|launch|restart|stop|install|migrate|seed|serve|document|summari[sz]e|describe|write|prepare|plan|design|outline|propose|check)\b/i;
 
 const PLACEHOLDER_REGEX = /__PH_\d{4}__/g;
-const SENTENCE_SPLIT_REGEX = /(?<=[.!?])\s+/;
 
 export interface CompressPromptOptions {
   policies: Role1Policies;
+  config: Pick<
+    Role1RuntimeConfig,
+    "kompressPythonBin" | "kompressModelId" | "kompressStartupTimeout" | "requestTimeout"
+  >;
   localLlmModelName?: string;
+  cwd?: string;
+  env?: NodeJS.ProcessEnv;
+  compressionImplementation?: CompressTextImplementation;
 }
 
 export interface CompressPromptResult {
   compressed_prompt: string;
   repair_actions: string[];
 }
+
+export type CompressTextImplementation = (
+  text: string,
+  options: KompressClientOptions,
+) => Promise<KompressClientResult>;
 
 function normalizeWhitespace(text: string): string {
   return text
@@ -46,22 +60,6 @@ function normalizeWhitespace(text: string): string {
     .replace(/\s+\)/g, ")")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
-}
-
-function stripLeadingFillers(text: string): string {
-  let output = text.trim();
-
-  for (const pattern of LEADING_FILLER_PATTERNS) {
-    output = output.replace(pattern, "");
-  }
-
-  return output.trim();
-}
-
-function stripInlineFillers(text: string): string {
-  return INLINE_FILLER_PATTERNS.reduce((output, [pattern, replacement]) => {
-    return output.replace(pattern, replacement);
-  }, text);
 }
 
 function preserveTerminalPunctuation(source: string, compressed: string): string {
@@ -96,40 +94,119 @@ function restoreImperativeCase(source: string, compressed: string): string {
   return compressed;
 }
 
-function dedupeSentences(text: string): string {
-  const seen = new Set<string>();
-  const sentences = text
-    .split(SENTENCE_SPLIT_REGEX)
-    .map((sentence) => sentence.trim())
-    .filter(Boolean);
+function shouldUseKompress(text: string): boolean {
+  const withoutPlaceholders = text.replace(PLACEHOLDER_REGEX, " ").trim();
+  if (!/[A-Za-z]/.test(withoutPlaceholders)) {
+    return false;
+  }
 
-  const deduped = sentences.filter((sentence) => {
-    const key = sentence
-      .toLowerCase()
-      .replace(/[^\w\s]/g, "")
-      .replace(/\s+/g, " ")
-      .trim();
+  const wordCount = withoutPlaceholders
+    .split(/\s+/)
+    .map((word) => word.trim())
+    .filter(Boolean).length;
 
-    if (!key || seen.has(key)) {
-      return false;
-    }
-
-    seen.add(key);
-    return true;
-  });
-
-  return deduped.join(" ");
+  return wordCount >= 10;
 }
 
-function compressBody(body: string): string {
+function normalizeShortBody(text: string): string {
+  let output = text.trim();
+
+  for (const pattern of LEADING_FILLER_PATTERNS) {
+    output = output.replace(pattern, "");
+  }
+
+  output = INLINE_FILLER_PATTERNS.reduce((next, [pattern, replacement]) => {
+    return next.replace(pattern, replacement);
+  }, output);
+  output = normalizeWhitespace(output);
+  output = restoreImperativeCase(text, output);
+  output = preserveTerminalPunctuation(text, output);
+
+  return output;
+}
+
+async function compressNaturalLanguageSegment(
+  segment: string,
+  options: CompressPromptOptions,
+): Promise<string> {
+  const source = segment.trim();
+  if (!source) {
+    return source;
+  }
+
+  if (!shouldUseKompress(source)) {
+    return normalizeShortBody(source);
+  }
+
+  const compressText = options.compressionImplementation ?? compressTextWithKompress;
+  const result = await compressText(source, {
+    ...(options.cwd ? { cwd: options.cwd } : {}),
+    ...(options.env ? { env: options.env } : {}),
+    ...(options.config.kompressPythonBin
+      ? { pythonBin: options.config.kompressPythonBin }
+      : {}),
+    ...(options.config.kompressModelId
+      ? { modelId: options.config.kompressModelId }
+      : {}),
+    ...(options.config.requestTimeout
+      ? { requestTimeoutMs: options.config.requestTimeout }
+      : {}),
+    ...(options.config.kompressStartupTimeout
+      ? { startupTimeoutMs: options.config.kompressStartupTimeout }
+      : {}),
+  });
+
+  let output = normalizeWhitespace(result.compressed);
+  output = restoreImperativeCase(source, output);
+  output = preserveTerminalPunctuation(source, output);
+
+  return output;
+}
+
+function isExactPlaceholder(text: string): boolean {
+  return /^__PH_\d{4}__$/.test(text);
+}
+
+async function compressBody(
+  body: string,
+  options: CompressPromptOptions,
+): Promise<string> {
   const source = body.trim();
   if (!source) {
     return source;
   }
 
-  let output = stripLeadingFillers(source);
-  output = stripInlineFillers(output);
-  output = dedupeSentences(output);
+  const parts = source.split(/(__PH_\d{4}__)/g);
+
+  if (parts.length === 1) {
+    return await compressNaturalLanguageSegment(source, options);
+  }
+
+  let output = "";
+
+  for (const part of parts) {
+    if (!part) {
+      continue;
+    }
+
+    if (isExactPlaceholder(part)) {
+      output += part;
+      continue;
+    }
+
+    const leadingWhitespace = part.match(/^\s*/)?.[0] ?? "";
+    const trailingWhitespace = part.match(/\s*$/)?.[0] ?? "";
+    const core = part.trim();
+
+    if (!core) {
+      output += part;
+      continue;
+    }
+
+    const compressedSegment = await compressNaturalLanguageSegment(core, options);
+    output += `${leadingWhitespace}${compressedSegment}${trailingWhitespace}`;
+  }
+
   output = normalizeWhitespace(output);
   output = restoreImperativeCase(source, output);
   output = preserveTerminalPunctuation(source, output);
@@ -212,21 +289,27 @@ function isMissingCriticalLiteral(
     .some((literal) => !normalizedOutput.includes(normalizeLiteralText(literal)));
 }
 
-function compressMaskedText(maskedText: string): string {
+async function compressMaskedText(
+  maskedText: string,
+  options: CompressPromptOptions,
+): Promise<string> {
   const lines = maskedText.split("\n");
 
-  return lines
-    .map((line) => {
+  const compressedLines = await Promise.all(
+    lines.map(async (line) => {
       const trimmed = line.trim();
       if (!trimmed) {
         return "";
       }
 
       const { prefix, body } = splitMarkdownPrefix(line);
-      const compressedBody = compressBody(body);
+      const compressedBody = await compressBody(body, options);
 
       return compressedBody ? `${prefix}${compressedBody}` : "";
-    })
+    }),
+  );
+
+  return compressedLines
     .join("\n")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
@@ -242,17 +325,17 @@ function buildMaskOptions(
   };
 }
 
-export function compress_prompt(
+export async function compress_prompt(
   normalized_input: string,
   options: CompressPromptOptions,
-): CompressPromptResult {
+): Promise<CompressPromptResult> {
   const maskOptions = buildMaskOptions(options);
   const requiredLiterals = collect_preservable_literals(
     normalized_input,
     maskOptions,
   );
   const masked = mask_protected_segments(normalized_input, maskOptions);
-  const compressedMaskedText = compressMaskedText(masked.masked_text);
+  const compressedMaskedText = await compressMaskedText(masked.masked_text, options);
 
   if (isUnsafeCompression(masked.masked_text, compressedMaskedText)) {
     return {
@@ -282,6 +365,6 @@ export function compress_prompt(
 
   return {
     compressed_prompt: restored,
-    repair_actions: ["compressed_with_nlp_adapter"],
+    repair_actions: ["compressed_with_kompress"],
   };
 }

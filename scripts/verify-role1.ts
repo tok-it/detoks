@@ -4,7 +4,11 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { get_encoding } from "tiktoken";
 import { runBatchPromptPipeline } from "../src/core/pipeline/batch.js";
-import { loadRole1RuntimeConfig } from "../src/core/prompt/config.js";
+import {
+  loadRole1Policies,
+  loadRole1RuntimeConfig,
+} from "../src/core/prompt/config.js";
+import { mask_protected_segments } from "../src/core/translate/masking.js";
 
 interface VerifyOptions {
   prompt?: string;
@@ -22,6 +26,7 @@ interface BatchInput {
 interface VerificationItem {
   index: number;
   raw_input: string;
+  ph_masked_input: string;
   normalized_input: string;
   compiled_prompt: string;
   role2_handoff: string;
@@ -234,6 +239,7 @@ async function main(): Promise<void> {
       ...(options.debug ? { PIPELINE_MODE: "debug" } : {}),
     },
   });
+  const policies = loadRole1Policies();
   const inputs = loadInputs(options);
 
   console.log(
@@ -263,6 +269,13 @@ async function main(): Promise<void> {
   try {
     const results: VerificationItem[] = batchResult.results.map((item, index) => {
       const inputPromptTokens = encodeTokenCount(encoding, item.raw_input);
+      const phMaskedInput = mask_protected_segments(item.raw_input, {
+        protected_terms: policies.protectedTerms,
+        preferred_translations: policies.preferredTranslations,
+        model_names: runtimeConfig.localLlmModelName
+          ? [runtimeConfig.localLlmModelName]
+          : [],
+      }).masked_text;
       const normalizedInput = item.normalized_input ?? "";
       const normalizedInputTokens = encodeTokenCount(encoding, normalizedInput);
       const compiledPrompt = item.compiled_prompt ?? "";
@@ -271,6 +284,7 @@ async function main(): Promise<void> {
       return {
         index: options.index !== undefined ? options.index : index,
         raw_input: item.raw_input,
+        ph_masked_input: phMaskedInput,
         normalized_input: normalizedInput,
         compiled_prompt: compiledPrompt,
         role2_handoff: item.role2_handoff ?? "",
@@ -307,6 +321,7 @@ async function main(): Promise<void> {
             status: item.status,
             language: item.language,
             raw_input: item.raw_input,
+            ph_masked_input: item.ph_masked_input,
             normalized_input: item.normalized_input,
             compiled_prompt: item.compiled_prompt,
             role2_handoff: item.role2_handoff,
