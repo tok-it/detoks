@@ -96,14 +96,6 @@ export const runReplCommand = async (baseArgs: CliArgs): Promise<void> => {
     `detoks repl started (adapter=${baseArgs.adapter}, executionMode=${baseArgs.executionMode}, verbose=${String(baseArgs.verbose)}, session=${sessionId}). stub = simulated output; real = adapter's real execution path. type "exit" to quit.\n`,
   );
 
-  // 현재 세션의 이전 입력 번역 로그 표시 (P3)
-  const currentLog = await SessionStateManager.readCurrentSessionLog();
-  if (currentLog) {
-    output.write("\n=== Previous input translations ===\n");
-    output.write(currentLog);
-    output.write("=== End of translations ===\n\n");
-  }
-
   try {
     while (true) {
       let line: string;
