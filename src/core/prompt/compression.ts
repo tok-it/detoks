@@ -125,11 +125,11 @@ function normalizeShortBody(text: string): string {
   return output;
 }
 
-async function compressBody(
-  body: string,
+async function compressNaturalLanguageSegment(
+  segment: string,
   options: CompressPromptOptions,
 ): Promise<string> {
-  const source = body.trim();
+  const source = segment.trim();
   if (!source) {
     return source;
   }
@@ -157,6 +157,57 @@ async function compressBody(
   });
 
   let output = normalizeWhitespace(result.compressed);
+  output = restoreImperativeCase(source, output);
+  output = preserveTerminalPunctuation(source, output);
+
+  return output;
+}
+
+function isExactPlaceholder(text: string): boolean {
+  return /^__PH_\d{4}__$/.test(text);
+}
+
+async function compressBody(
+  body: string,
+  options: CompressPromptOptions,
+): Promise<string> {
+  const source = body.trim();
+  if (!source) {
+    return source;
+  }
+
+  const parts = source.split(/(__PH_\d{4}__)/g);
+
+  if (parts.length === 1) {
+    return await compressNaturalLanguageSegment(source, options);
+  }
+
+  let output = "";
+
+  for (const part of parts) {
+    if (!part) {
+      continue;
+    }
+
+    if (isExactPlaceholder(part)) {
+      output += part;
+      continue;
+    }
+
+    const leadingWhitespace = part.match(/^\s*/)?.[0] ?? "";
+    const trailingWhitespace = part.match(/\s*$/)?.[0] ?? "";
+    const core = part.trim();
+
+    if (!core) {
+      output += part;
+      continue;
+    }
+
+    const compressedSegment = await compressNaturalLanguageSegment(core, options);
+    output += `${leadingWhitespace}${compressedSegment}${trailingWhitespace}`;
+  }
+
+  output = normalizeWhitespace(output);
   output = restoreImperativeCase(source, output);
   output = preserveTerminalPunctuation(source, output);
 

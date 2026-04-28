@@ -4,7 +4,7 @@ import os
 
 from pydantic import BaseModel, ConfigDict, Field
 
-DEFAULT_MODEL_NAME = "mradermacher/gemma-4-E2B-it-heretic-ara-GGUF"
+DEFAULT_MODEL_NAME = "mradermacher/supergemma4-e4b-abliterated-GGUF"
 
 
 class LlamaServerConfig(BaseModel):

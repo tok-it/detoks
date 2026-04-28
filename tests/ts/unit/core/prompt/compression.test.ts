@@ -39,6 +39,13 @@ describe("compress_prompt", () => {
   });
 
   it("파일명, 경로, 명령어, 숫자 토큰은 보존한다", async () => {
+    const compressionImplementation = vi.fn(async (text: string) => ({
+      compressed: text
+        .replace(/^Please /i, "")
+        .replace(", and keep ", ", keep "),
+      compression_ratio: 0.63,
+      tokens_saved: 4,
+    }));
     const result = await compress_prompt(
       "Please update src/api/user.ts, run npm test -- --runInBand 2 times, and keep REST API v2 unchanged.",
       {
@@ -49,19 +56,16 @@ describe("compress_prompt", () => {
           kompressStartupTimeout: 120000,
           requestTimeout: 30000,
         },
-        compressionImplementation: vi.fn(async (text: string) => ({
-          compressed: text
-            .replace(/^Please /i, "")
-            .replace(", and keep ", ", keep "),
-          compression_ratio: 0.63,
-          tokens_saved: 4,
-        })),
+        compressionImplementation,
       },
     );
 
     expect(result.compressed_prompt).toContain("src/api/user.ts");
     expect(result.compressed_prompt).toContain("npm test -- --runInBand 2");
     expect(result.compressed_prompt).toContain("REST API v2");
+    for (const [text] of compressionImplementation.mock.calls) {
+      expect(text).not.toContain("__PH_");
+    }
   });
 
   it("짧은 입력은 모델 호출 없이 안전하게 fallback 한다", async () => {
@@ -110,9 +114,18 @@ describe("compress_prompt", () => {
     expect(result.compressed_prompt).toContain("unittest.mock.patch");
   });
 
-  it("필수 literal이 누락되면 normalized_input으로 fallback 한다", async () => {
+  it("placeholder가 포함되어도 Kompress에는 자연어 segment만 전달한다", async () => {
+    const compressionImplementation = vi.fn(async (text: string) => ({
+      compressed: text.replace(
+        /then describe in detail how the deployment team should verify the risky changes before shipping this release\./i,
+        "then describe release verification for risky changes.",
+      ),
+      compression_ratio: 0.51,
+      tokens_saved: 8,
+    }));
+
     const result = await compress_prompt(
-      "Please update src/api/user.ts and run npm test -- --runInBand 2 times.",
+      "Please update src/api/user.ts and run npm test -- --runInBand 2 times, then describe in detail how the deployment team should verify the risky changes before shipping this release.",
       {
         policies: defaultPolicies,
         config: {
@@ -121,21 +134,16 @@ describe("compress_prompt", () => {
           kompressStartupTimeout: 120000,
           requestTimeout: 30000,
         },
-        compressionImplementation: vi.fn(async (text: string) => ({
-          compressed: text
-            .replace(/^Please /i, "")
-            .replace(/run .*? times\./i, "run tests."),
-          compression_ratio: 0.42,
-          tokens_saved: 5,
-        })),
+        compressionImplementation,
       },
     );
 
-    expect(result.compressed_prompt).toBe(
-      "Please update src/api/user.ts and run npm test -- --runInBand 2 times.",
-    );
-    expect(result.repair_actions).toContain(
-      "compression_fallback_to_normalized_input",
-    );
+    expect(compressionImplementation).toHaveBeenCalled();
+    for (const [text] of compressionImplementation.mock.calls) {
+      expect(text).not.toContain("__PH_");
+    }
+    expect(result.compressed_prompt).toContain("src/api/user.ts");
+    expect(result.compressed_prompt).toContain("npm test -- --runInBand 2");
+    expect(result.compressed_prompt).toContain("release verification for risky changes");
   });
 });

@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
+import { existsSync } from "node:fs";
 import { dirname, delimiter, resolve } from "node:path";
 import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
@@ -64,6 +65,12 @@ interface WorkerHandle {
   startup: Promise<void>;
 }
 
+interface LauncherCandidate {
+  command: string;
+  args: string[];
+  key: string;
+}
+
 let activeWorker: WorkerHandle | null = null;
 
 function buildWorkerKey(options: KompressClientOptions): string {
@@ -74,7 +81,56 @@ function buildWorkerKey(options: KompressClientOptions): string {
   });
 }
 
+function buildLauncherCandidates(
+  options: KompressClientOptions,
+): LauncherCandidate[] {
+  const cwd = options.cwd ?? process.cwd();
+  const explicitPythonBin = options.pythonBin;
+  const basePythonBin = explicitPythonBin ?? DEFAULT_PYTHON_BIN;
+
+  if (explicitPythonBin && explicitPythonBin !== DEFAULT_PYTHON_BIN) {
+    return [
+      {
+        command: "uv",
+        args: ["run", "--python", explicitPythonBin, "python"],
+        key: `uv:${explicitPythonBin}`,
+      },
+      {
+        command: explicitPythonBin,
+        args: [],
+        key: explicitPythonBin,
+      },
+    ];
+  }
+
+  const candidates: LauncherCandidate[] = [];
+  const localVenvPython = resolve(cwd, ".venv/bin/python");
+  if (existsSync(localVenvPython)) {
+    candidates.push({
+      command: localVenvPython,
+      args: [],
+      key: localVenvPython,
+    });
+  }
+
+  candidates.push(
+    {
+      command: "uv",
+      args: ["run", "--python", basePythonBin, "python"],
+      key: `uv:${basePythonBin}`,
+    },
+    {
+      command: DEFAULT_PYTHON_BIN,
+      args: [],
+      key: DEFAULT_PYTHON_BIN,
+    },
+  );
+
+  return candidates;
+}
+
 function buildWorkerEnv(options: KompressClientOptions): NodeJS.ProcessEnv {
+  const cwd = options.cwd ?? process.cwd();
   const baseEnv = {
     ...process.env,
     ...options.env,
@@ -88,6 +144,7 @@ function buildWorkerEnv(options: KompressClientOptions): NodeJS.ProcessEnv {
     ...baseEnv,
     PYTHONPATH: pythonPathEntries.join(delimiter),
     KOMPRESS_MODEL_ID: options.modelId ?? DEFAULT_MODEL_ID,
+    UV_CACHE_DIR: baseEnv.UV_CACHE_DIR ?? resolve(cwd, ".state/uv-cache"),
   };
 }
 
@@ -113,10 +170,13 @@ function killWorker(worker: WorkerHandle): void {
   resetWorker(worker);
 }
 
-function createWorker(options: KompressClientOptions): WorkerHandle {
+function createWorker(
+  options: KompressClientOptions,
+  launcher: LauncherCandidate,
+): WorkerHandle {
   const child = spawn(
-    options.pythonBin ?? DEFAULT_PYTHON_BIN,
-    ["-u", "-m", "llama_server.kompress_worker"],
+    launcher.command,
+    [...launcher.args, "-u", "-m", "llama_server.kompress_worker"],
     {
       cwd: options.cwd ?? process.cwd(),
       env: buildWorkerEnv(options),
@@ -135,7 +195,7 @@ function createWorker(options: KompressClientOptions): WorkerHandle {
     startupReject = reject;
   });
   const worker: WorkerHandle = {
-    key: buildWorkerKey(options),
+    key: `${buildWorkerKey(options)}:${launcher.key}`,
     child,
     pending,
     stderrBuffer: "",
@@ -236,12 +296,31 @@ async function ensureWorker(
   options: KompressClientOptions,
 ): Promise<WorkerHandle> {
   const nextKey = buildWorkerKey(options);
-  if (activeWorker && activeWorker.key !== nextKey) {
+  if (activeWorker && !activeWorker.key.startsWith(`${nextKey}:`)) {
     killWorker(activeWorker);
   }
 
   if (!activeWorker) {
-    activeWorker = createWorker(options);
+    const startupErrors: string[] = [];
+    const launchers = buildLauncherCandidates(options);
+
+    for (const launcher of launchers) {
+      const worker = createWorker(options, launcher);
+      try {
+        await worker.startup;
+        activeWorker = worker;
+        return worker;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        startupErrors.push(`${launcher.key}: ${message}`);
+        logger.warn(`Kompress worker launcher failed: ${launcher.key} (${message})`);
+        killWorker(worker);
+      }
+    }
+
+    throw new Error(
+      `Kompress worker failed to start with any launcher: ${startupErrors.join(" | ")}`,
+    );
   }
 
   await activeWorker.startup;

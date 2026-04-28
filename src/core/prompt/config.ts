@@ -6,9 +6,10 @@ const DEFAULT_REQUEST_TIMEOUT = 30_000;
 const DEFAULT_TRANSLATION_MAX_ATTEMPTS = 5;
 const DEFAULT_TEMPERATURE = 0;
 const DEFAULT_LOCAL_LLM_API_BASE = "http://127.0.0.1:12370/v1";
-const DEFAULT_LOCAL_LLM_MODEL_NAME = "gemma-4-E2B-it-heretic-ara-GGUF";
-const DEFAULT_LOCAL_LLM_HF_REPO = "mradermacher/gemma-4-E2B-it-heretic-ara-GGUF:Q4_K_S";
-const DEFAULT_LOCAL_LLM_HF_FILE = "gemma-4-E2B-it-heretic-ara.Q4_K_S.gguf";
+const DEFAULT_LOCAL_LLM_MODEL_NAME = "supergemma4-e4b-abliterated-GGUF";
+const DEFAULT_LOCAL_LLM_HF_REPO =
+	"mradermacher/supergemma4-e4b-abliterated-GGUF:Q4_K_S";
+const DEFAULT_LOCAL_LLM_HF_FILE = "supergemma4-e4b-abliterated.Q4_K_S.gguf";
 const DEFAULT_LOCAL_LLM_SERVER_BINARY = "llama-server";
 const DEFAULT_LOCAL_LLM_SERVER_HOST = "127.0.0.1";
 const DEFAULT_LOCAL_LLM_SERVER_PORT = 12370;
@@ -250,14 +251,11 @@ export function loadRole1RuntimeConfig(
 			pickEnv("LOCAL_LLM_REASONING") ?? DEFAULT_LOCAL_LLM_REASONING,
 		localLlmModelPath: pickEnv("LOCAL_LLM_MODEL_PATH"),
 		localLlmModelUrl: pickEnv("LOCAL_LLM_MODEL_URL"),
-		localLlmHfRepo:
-			pickEnv("LOCAL_LLM_HF_REPO") ?? DEFAULT_LOCAL_LLM_HF_REPO,
-		localLlmHfFile:
-			pickEnv("LOCAL_LLM_HF_FILE") ?? DEFAULT_LOCAL_LLM_HF_FILE,
+		localLlmHfRepo: pickEnv("LOCAL_LLM_HF_REPO") ?? DEFAULT_LOCAL_LLM_HF_REPO,
+		localLlmHfFile: pickEnv("LOCAL_LLM_HF_FILE") ?? DEFAULT_LOCAL_LLM_HF_FILE,
 		kompressPythonBin:
 			pickEnv("KOMPRESS_PYTHON_BIN") ?? DEFAULT_KOMPRESS_PYTHON_BIN,
-		kompressModelId:
-			pickEnv("KOMPRESS_MODEL_ID") ?? DEFAULT_KOMPRESS_MODEL_ID,
+		kompressModelId: pickEnv("KOMPRESS_MODEL_ID") ?? DEFAULT_KOMPRESS_MODEL_ID,
 		kompressStartupTimeout: parseNumber(
 			env.KOMPRESS_STARTUP_TIMEOUT,
 			DEFAULT_KOMPRESS_STARTUP_TIMEOUT,
