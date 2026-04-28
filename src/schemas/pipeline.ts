@@ -217,6 +217,8 @@ export const ExecutionResultSchema = z.object({
 export const CompressedExecutionResultSchema = z.object({
   summary: z.string(),
   status: z.enum(["completed", "failed"]).optional(),
+  success: z.boolean().optional(),
+  type: z.enum(RequestCategoryValues).optional(),
   _compressed: z.literal(true),
 }).passthrough();
 

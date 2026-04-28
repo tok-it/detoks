@@ -66,11 +66,23 @@ export class ContextCompressor {
         compressed[id] = result;
       } else {
         // 오래된 완료 작업은 압축
-        compressed[id] = {
+        const compressedResult: any = {
           summary: result.summary || 'Summary preserved after compression',
           status: 'success' in result && result.success ? 'completed' : 'failed',
           _compressed: true
         };
+
+        // type 필드 보존 (P1 개선안)
+        if ('type' in result && result.type) {
+          compressedResult.type = result.type;
+        }
+
+        // success 필드 보존
+        if ('success' in result) {
+          compressedResult.success = result.success;
+        }
+
+        compressed[id] = compressedResult;
       }
     }
 
@@ -105,11 +117,23 @@ export class ContextCompressor {
       
       for (const [id, result] of Object.entries(state.task_results)) {
         if (!result) continue;
-        compressed[id] = {
+        const compressedResult: any = {
           summary: result.summary || 'Summary preserved after compression',
           status: 'success' in result && result.success ? 'completed' : 'failed',
           _compressed: true
         };
+
+        // type 필드 보존 (P1 개선안)
+        if ('type' in result && result.type) {
+          compressedResult.type = result.type;
+        }
+
+        // success 필드 보존
+        if ('success' in result) {
+          compressedResult.success = result.success;
+        }
+
+        compressed[id] = compressedResult;
       }
 
       return {
