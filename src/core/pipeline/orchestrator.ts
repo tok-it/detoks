@@ -530,6 +530,7 @@ export const orchestratePipeline = async (
       PipelineTracer.startStage(`Executor:${task.id}`);
       const execResult = await executeWithAdapter({
         adapter: request.adapter,
+        ...(request.model !== undefined ? { model: request.model } : {}),
         mode: request.mode,
         executionMode: request.executionMode,
         prompt,

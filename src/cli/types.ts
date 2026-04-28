@@ -31,6 +31,7 @@ export interface CliArgs {
   newSessionId?: string;
   checkpointId?: string;
   inputFile?: string;
+  model?: string;
   adapter: Adapter;
   executionMode: ExecutionMode;
   verbose: boolean;

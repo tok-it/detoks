@@ -409,7 +409,7 @@ describe("detoks CLI smoke", () => {
       expect(replRun.stdout).toContain("detoks repl started");
       expect(replRun.stdout).toContain("executionMode=stub");
       expect(replRun.stdout).toContain("verbose=false");
-      expect(replRun.stdout).toContain('type "exit" to quit.');
+      expect(replRun.stdout).toContain('type "/help" for REPL help and "exit" to quit.');
       expect(replRun.stdout).toContain("detoks> ");
       expect(replRun.stdout.trimEnd()).toMatch(/detoks repl closed\.$/);
     } finally {
@@ -428,9 +428,24 @@ describe("detoks CLI smoke", () => {
       expect(replRun.stdout).toContain("detoks repl started");
       expect(replRun.stdout).toContain("executionMode=stub");
       expect(replRun.stdout).toContain("verbose=true");
-      expect(replRun.stdout).toContain('type "exit" to quit.');
+      expect(replRun.stdout).toContain('type "/help" for REPL help and "exit" to quit.');
       expect(replRun.stdout).toContain("detoks> ");
       expect(replRun.stdout.trimEnd()).toMatch(/detoks repl closed\.$/);
+    } finally {
+      rmSync(repoReplRegistryPath, { force: true });
+    }
+  });
+
+  it("supports /exit as a repl builtin exit command", () => {
+    rmSync(repoReplRegistryPath, { force: true });
+    try {
+      const replRun = runCliWithInput(["repl"], "/exit\n");
+
+      expect(replRun.error).toBeUndefined();
+      expect(replRun.status).toBe(0);
+      expect(replRun.stderr).toBe("");
+      expect(replRun.stdout).toContain("detoks repl started");
+      expect(replRun.stdout).toContain("detoks repl closed.");
     } finally {
       rmSync(repoReplRegistryPath, { force: true });
     }

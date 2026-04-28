@@ -68,6 +68,7 @@ yarn.lock
 *~
 
 # Project-specific
+.repl-session.json
 .devlogs/
 daily-reports/
 .prompts/

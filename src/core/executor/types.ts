@@ -4,6 +4,7 @@ export interface AdapterExecutionRequest {
   mode: InteractionMode;
   prompt: string;
   verbose: boolean;
+  model?: string;
   cwd?: string;
   sessionId?: string;
 }

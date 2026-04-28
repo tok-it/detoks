@@ -34,6 +34,8 @@ describe("parseCliArgs", () => {
       "repl",
       "--adapter",
       "gemini",
+      "--model",
+      "gemini-2.5-pro",
       "--execution-mode",
       "real",
       "--verbose",
@@ -41,6 +43,7 @@ describe("parseCliArgs", () => {
     expect(parsed).toEqual({
       mode: "repl",
       adapter: "gemini",
+      model: "gemini-2.5-pro",
       executionMode: "real",
       verbose: true,
       trace: false,
@@ -278,7 +281,7 @@ describe("parseCliArgs", () => {
     expect(usage).toContain('detoks "summarize the current repo status"');
     expect(usage).toContain("detoks --file tests/data/row_data.json --verbose");
     expect(usage).toContain("--file <path>");
-    expect(usage).toContain("detoks repl --adapter codex --execution-mode stub");
+    expect(usage).toContain("detoks repl --adapter codex --model gpt-5 --execution-mode stub");
     expect(usage).toContain("Session / checkpoint commands:");
     expect(usage).toContain("detoks session list");
     expect(usage).toContain("detoks session continue <session-id>");
@@ -295,6 +298,7 @@ describe("parseCliArgs", () => {
     expect(usage).toContain("detoks checkpoint restore session_2026_04_27_checkpoint_001");
     expect(usage).toContain("Local LLM env (read from current cwd .env / .env.local):");
     expect(usage).toContain("LOCAL_LLM_API_BASE, LOCAL_LLM_API_KEY, LOCAL_LLM_MODEL_NAME");
+    expect(usage).toContain("--model <name>");
     expect(usage).toContain("--session <id>");
     expect(usage).toContain("Execution mode:");
     expect(usage).toContain("stub = simulated output for fast, safe CLI testing");
@@ -305,7 +309,15 @@ describe("parseCliArgs", () => {
   it("documents execution mode differences in repl help", () => {
     const usage = getCliUsage("repl");
     expect(usage).toContain("Example:");
-    expect(usage).toContain("detoks repl --adapter codex --execution-mode stub");
+    expect(usage).toContain("detoks repl --adapter codex --model gpt-5 --execution-mode stub");
+    expect(usage).toContain("type /help to show REPL help inside the REPL");
+    expect(usage).toContain("type /login to open an arrow-key adapter chooser and start a login flow");
+    expect(usage).toContain("type /session to inspect the current REPL session and runtime settings");
+    expect(usage).toContain("type /adapter codex|gemini to change the adapter for later prompts");
+    expect(usage).toContain("type /model or /model <name> to inspect or change the adapter model for later prompts");
+    expect(usage).toContain("type /verbose on|off to change concise vs full output inside the REPL");
+    expect(usage).toContain("--model <name>");
+    expect(usage).toContain("type exit, quit, .exit, /exit, or /quit to leave the REPL");
     expect(usage).toContain("execution-mode controls whether prompts use simulated or real execution");
     expect(usage).toContain("stub = simulated output for fast, safe CLI testing");
     expect(usage).toContain("real = runs the adapter's real execution path");

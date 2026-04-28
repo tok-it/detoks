@@ -2,6 +2,7 @@
 
 import { formatBatchSuccess, formatError, formatFailedResult, formatSuccess } from "./format.js";
 import { getCliUsage, parseCliArgs, toNormalizedRequest } from "./parse.js";
+import { formatTerminalHelp } from "./terminal-style.js";
 import { runCheckpointListCommand } from "./commands/checkpoint-list.js";
 import { runCheckpointShowCommand } from "./commands/checkpoint-show.js";
 import { runBatchCommand } from "./commands/run-batch.js";
@@ -36,7 +37,12 @@ const main = async (): Promise<void> => {
   const args = parseCliArgs(process.argv.slice(2));
 
   if (args.showHelp) {
-    console.log(getCliUsage(args.helpTopic ?? "main"));
+    console.log(
+      formatTerminalHelp(getCliUsage(args.helpTopic ?? "main"), {
+        isTTY: Boolean(process.stdout.isTTY),
+        env: process.env,
+      }),
+    );
     return;
   }
 

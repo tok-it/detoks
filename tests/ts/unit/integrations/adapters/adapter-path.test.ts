@@ -12,11 +12,14 @@ describe("adapter subprocess path", () => {
         mode: "run",
         prompt: "hello codex",
         verbose: false,
+        model: "gpt-5",
       }),
     ).toEqual({
       command: "codex",
       args: [
         "exec",
+        "--model",
+        "gpt-5",
         "-",
         "--sandbox",
         "workspace-write",
@@ -35,11 +38,12 @@ describe("adapter subprocess path", () => {
         mode: "run",
         prompt: "hello gemini",
         verbose: true,
+        model: "gemini-2.5-pro",
         cwd: "/tmp",
       }),
     ).toEqual({
       command: "gemini",
-      args: [],
+      args: ["--model", "gemini-2.5-pro"],
       cwd: "/tmp",
       input: "hello gemini",
     });
@@ -53,6 +57,7 @@ describe("adapter subprocess path", () => {
         mode: "run",
         prompt: "hello subprocess",
         verbose: false,
+        model: "gpt-5",
       },
       {
         executionMode: "real",
@@ -62,7 +67,7 @@ describe("adapter subprocess path", () => {
 
     expect(result.success).toBe(true);
     expect(result.rawOutput).toBe(
-      "[stub:subprocess] codex exec - --sandbox workspace-write --skip-git-repo-check --color never",
+      "[stub:subprocess] codex exec --model gpt-5 - --sandbox workspace-write --skip-git-repo-check --color never",
     );
     expect(result.exitCode).toBe(0);
   });

@@ -28,6 +28,7 @@ describe("adapter execution modes", () => {
         mode: "run",
         prompt: "real prompt",
         verbose: false,
+        model: "gpt-5",
         cwd: "/workspace",
       },
       {
@@ -41,6 +42,8 @@ describe("adapter execution modes", () => {
         command: "codex",
         args: [
           "exec",
+          "--model",
+          "gpt-5",
           "-",
           "--sandbox",
           "workspace-write",
@@ -65,6 +68,7 @@ describe("adapter execution modes", () => {
         mode: "run",
         prompt: "real prompt",
         verbose: true,
+        model: "gemini-2.5-pro",
         cwd: "/tmp",
       },
       {
@@ -76,7 +80,7 @@ describe("adapter execution modes", () => {
     expect(capturedRequests).toEqual([
       {
         command: "gemini",
-        args: [],
+        args: ["--model", "gemini-2.5-pro"],
         cwd: "/tmp",
         input: "real prompt",
       },
