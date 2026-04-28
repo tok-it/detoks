@@ -226,9 +226,17 @@ function cleanWhitespace(text: string): string {
 }
 
 function normalizeCauseAction(text: string): string {
-  return text.replace(
+  const sinceProblem = text.replace(
     /^(?:and\s+)?since\s+there\s+seems\s+to\s+be\s+a\s+problem\s+due\s+to\s+(.+?),\s*(?:please\s+)?fix\s+that\s+bug\.?$/i,
     "fix the bug due to $1.",
+  );
+  if (sinceProblem !== text) {
+    return sinceProblem;
+  }
+
+  return text.replace(
+    /^(?:and\s+)?(?:probably\s+)?the\s+problem\s+is\s+caused\s+by\s+(.+?),\s*so\s+fix\s+that\s+bug\.?$/i,
+    "fix the bug caused by $1.",
   );
 }
 

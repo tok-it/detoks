@@ -58,4 +58,14 @@ describe("TaskCandidateExtractor", () => {
       ["t4"],
     ]);
   });
+
+  it("preserves cause context from translated problem statements", () => {
+    const result = TaskCandidateExtractor.extractSentences(
+      "And probably the problem is caused by duplicate validation logic, so fix that bug.",
+    );
+
+    expect(result.sentences).toEqual([
+      "fix the bug caused by duplicate validation logic.",
+    ]);
+  });
 });
