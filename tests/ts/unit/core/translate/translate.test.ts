@@ -365,9 +365,86 @@ describe("translate_to_english", () => {
       "Exact placeholders that must be preserved verbatim",
     );
     expect(firstBody.messages[0].content).toContain("__PH_0001__");
+    expect(secondBody.messages[0].content).toContain(
+      "Fallback Correction Mode",
+    );
+    expect(secondBody.messages[0].content).toContain(
+      "Non-Negotiable Placeholder Rules",
+    );
+    expect(secondBody.messages[0].content).toContain(
+      "Every placeholder from the source input must appear in the output exactly as written.",
+    );
     expect(secondBody.messages[0].content).toContain("__PH_0001__");
     expect(result.text).toContain("__PH_0001__");
     expect(result.validation_errors).toEqual([]);
+  });
+
+  it("최종 retry는 placeholder를 잃은 결과보다 placeholder를 보존한 결과를 우선한다", async () => {
+    const fetchImplementation = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            choices: [
+              {
+                message: {
+                  content: "__PH_0001__ 서비스 뒤가 느려",
+                },
+              },
+            ],
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json",
+            },
+          },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            choices: [
+              {
+                message: {
+                  content: "The service behind the gateway is slow.",
+                },
+              },
+            ],
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json",
+            },
+          },
+        ),
+      );
+
+    const result = await translate_to_english("API 뒤 서비스가 느려", {
+      config: {
+        localLlmApiBase: "http://127.0.0.1:1234/v1",
+        localLlmApiKey: "test-key",
+        localLlmModelName: "local-model",
+        pipelineMode: "safe",
+        requestTimeout: 30000,
+        translationMaxAttempts: 1,
+        temperature: 0,
+      },
+      policies: {
+        protectedTerms: [],
+        preferredTranslations: {},
+        forbiddenPatterns: [],
+      },
+      fetchImplementation,
+    });
+
+    expect(fetchImplementation).toHaveBeenCalledTimes(2);
+    expect(result.text).toBe("API 서비스 뒤가 느려");
+    expect(result.span_results[0]!.validation_errors).not.toContain(
+      "placeholder_count_mismatch",
+    );
+    expect(result.validation_errors).toContain("korean_text_remaining");
   });
 
   it("placeholder가 통째로 사라지면 item 단위로 재시도한다", async () => {
