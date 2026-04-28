@@ -96,11 +96,16 @@ export const runReplCommand = async (baseArgs: CliArgs): Promise<void> => {
     `detoks repl started (adapter=${baseArgs.adapter}, executionMode=${baseArgs.executionMode}, verbose=${String(baseArgs.verbose)}, session=${sessionId}). stub = simulated output; real = adapter's real execution path. type "exit" to quit.\n`,
   );
 
+  const isTTY = Boolean(input.isTTY && output.isTTY);
+
   try {
     while (true) {
       let line: string;
       try {
-        line = (await rl.question("detoks> ")).trim();
+        if (!isTTY) {
+          output.write("detoks> ");
+        }
+        line = (await rl.question(isTTY ? "detoks> " : "")).trim();
       } catch (error) {
         if (error instanceof Error && error.message === "readline was closed") {
           break;

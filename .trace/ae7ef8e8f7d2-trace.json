@@ -1,0 +1,132 @@
+{
+  "sessionId": "ae7ef8e8f7d2",
+  "startTime": "2026-04-25T00:29:02.399Z",
+  "entries": [
+    {
+      "timestamp": "2026-04-25T00:29:02.356Z",
+      "stage": "PromptCompiler",
+      "phase": "input",
+      "role": "role1",
+      "dataType": "UserRequest",
+      "data": {
+        "raw_input": "파이썬으로 버블 정렬 알고리즘 짜줘"
+      },
+      "schemaValid": true,
+      "memoryMb": 13.019546508789062
+    },
+    {
+      "timestamp": "2026-04-25T00:29:02.394Z",
+      "stage": "PromptCompiler",
+      "phase": "output",
+      "role": "role1",
+      "dataType": "CompiledPrompt",
+      "data": {
+        "raw_input": "파이썬으로 버블 정렬 알고리즘 짜줘",
+        "normalized_input": "Create bubble sort function in Python",
+        "compressed_prompt": "Create bubble sort function in Python",
+        "language": "ko",
+        "compression_provider": "nlp_adapter",
+        "inference_time_sec": 0.034,
+        "validation_errors": []
+      },
+      "schemaValid": true,
+      "durationMs": 38,
+      "memoryMb": 14.175094604492188
+    },
+    {
+      "timestamp": "2026-04-25T00:29:02.394Z",
+      "stage": "TaskGraphBuilder",
+      "phase": "input",
+      "role": "role2.1",
+      "dataType": "Role2PromptInput",
+      "data": {
+        "compiled_prompt": "Create bubble sort function in Python"
+      },
+      "schemaValid": true,
+      "memoryMb": 14.17962646484375
+    },
+    {
+      "timestamp": "2026-04-25T00:29:02.396Z",
+      "stage": "TaskGraphBuilder",
+      "phase": "output",
+      "role": "role2.1",
+      "dataType": "TaskGraph",
+      "data": {
+        "tasks": [
+          {
+            "id": "t1",
+            "type": "create",
+            "status": "pending",
+            "title": "Create bubble sort function in Python",
+            "input_hash": "2dde571529eaf450",
+            "depends_on": []
+          }
+        ]
+      },
+      "schemaValid": true,
+      "durationMs": 2,
+      "memoryMb": 14.419967651367188
+    },
+    {
+      "timestamp": "2026-04-25T00:29:02.396Z",
+      "stage": "ContextOptimizer",
+      "phase": "output",
+      "role": "role2.2",
+      "dataType": "ExecutionContext",
+      "data": {
+        "session_id": "ae7ef8e8f7d2",
+        "active_task_id": "t1",
+        "shared_context": {
+          "session_id": "ae7ef8e8f7d2",
+          "failed_task_ids": [
+            "t1"
+          ]
+        },
+        "selected_context": {},
+        "context_summary": "No previous task context available."
+      },
+      "schemaValid": true,
+      "durationMs": 0,
+      "memoryMb": 14.4566650390625
+    },
+    {
+      "timestamp": "2026-04-25T00:29:02.396Z",
+      "stage": "Executor:t1",
+      "phase": "input",
+      "role": "role3",
+      "dataType": "ExecutionRequest",
+      "data": {
+        "task_id": "t1",
+        "type": "create",
+        "prompt": "[CREATE] Create bubble sort function in Python\n\nContext: No previous task context available."
+      },
+      "schemaValid": true,
+      "memoryMb": 14.458602905273438
+    },
+    {
+      "timestamp": "2026-04-25T00:29:02.396Z",
+      "stage": "Executor:t1",
+      "phase": "output",
+      "role": "role3",
+      "dataType": "ExecutionResult",
+      "data": {
+        "task_id": "t1",
+        "success": true,
+        "raw_output": "[stub:codex] [CREATE] Create bubble sort function in Python\n\nContext: No previous task context available."
+      },
+      "schemaValid": true,
+      "durationMs": 0,
+      "memoryMb": 14.468780517578125
+    }
+  ],
+  "summary": {
+    "totalDurationMs": 40,
+    "stageTimings": {
+      "PromptCompiler": 38,
+      "TaskGraphBuilder": 2,
+      "ContextOptimizer:t1": 0,
+      "Executor:t1": 0
+    },
+    "totalMemoryMb": 14.468780517578125
+  }
+}
