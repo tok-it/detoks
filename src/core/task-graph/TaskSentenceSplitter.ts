@@ -211,6 +211,8 @@ export class TaskSentenceSplitter {
         const suffix = source.slice(offset + match.length);
         const previous = prefix.at(-1);
         return (previous && /[+\-*/=]/.test(previous)) ||
+          /\b(?:plus|minus|times|over)\s*$/i.test(prefix) ||
+          /\b(?:multiplied|divided)\s+by\s*$/i.test(prefix) ||
           /\d+[.)]$/.test(prefix) ||
           /^\d+[.)]\s+\d\b/.test(suffix)
           ? match
@@ -256,6 +258,10 @@ export class TaskSentenceSplitter {
       const normalized = this.stripLeadingConnector(next);
       const isConditionalClause =
         /^(?:if|unless|when|until|provided|assuming)\b/i.test(current.trim());
+      if (/^(?:first|second|third|fourth|fifth|next|then|finally)$/i.test(current.trim())) {
+        current = normalized;
+        continue;
+      }
       if (
         this.startsWithAction(normalized) &&
         !this.looksLikeDescriptiveFragment(normalized) &&

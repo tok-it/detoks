@@ -212,6 +212,30 @@ describe("TaskSentenceSplitter", () => {
     expect(result.sentences).toEqual(["Build module and run-time config"]);
   });
 
+  it("does not treat arithmetic words before numbers as numbered-list items", () => {
+    const result = TaskSentenceSplitter.split(
+      "Calculate the result of 4 plus 5. Next, calculate the result of 10 minus 3. Finally, summarize it.",
+    );
+
+    expect(result.sentences).toEqual([
+      "Calculate the result of 4 plus 5.",
+      "calculate the result of 10 minus 3.",
+      "summarize it.",
+    ]);
+  });
+
+  it("does not emit ordering markers as standalone tasks", () => {
+    const result = TaskSentenceSplitter.split(
+      "First, create an addition design. Next, create a subtraction design. Finally, verify the result.",
+    );
+
+    expect(result.sentences).toEqual([
+      "create an addition design.",
+      "create a subtraction design.",
+      "verify the result.",
+    ]);
+  });
+
   describe("integration with TaskGraphProcessor", () => {
     it("create → validate: sequential dependency", () => {
       const compiled = TaskSentenceSplitter.split("Create a new endpoint and test it");
