@@ -155,7 +155,7 @@
 
 수용 기준:
 
-- 과도한 축약으로 의미 손실이 발생한 케이스는 `compressed_with_nlp_adapter` 대신 fallback 된다.
+- 과도한 축약으로 의미 손실이 발생한 케이스는 `compressed_with_kompress` 대신 fallback 된다.
 - 압축 성공은 길이 절감이 아니라 의미 보존을 전제로 한다.
 
 ### 요구사항 5. 검증 지표 분리

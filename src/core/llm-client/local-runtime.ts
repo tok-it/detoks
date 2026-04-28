@@ -17,6 +17,13 @@ function healthUrlFromApiBase(apiBase: string): string {
   return `${url.origin}/health`;
 }
 
+function modelsUrlFromApiBase(apiBase: string): string {
+  return new URL(
+    "models",
+    apiBase.endsWith("/") ? apiBase : `${apiBase}/`,
+  ).toString();
+}
+
 function formatBytes(bytes: number): string {
   const units = ["B", "KB", "MB", "GB"];
   let value = bytes;
@@ -62,6 +69,74 @@ async function waitForServerReady(
   }
 
   throw new Error(`llama.cpp server did not become ready within ${timeoutMs}ms`);
+}
+
+async function fetchLoadedModelIds(apiBase: string): Promise<string[]> {
+  try {
+    const response = await fetch(modelsUrlFromApiBase(apiBase));
+    if (!response.ok || typeof response.json !== "function") {
+      return [];
+    }
+
+    const payload = (await response.json()) as Record<string, unknown>;
+    const modelIds = new Set<string>();
+
+    if (Array.isArray(payload.data)) {
+      for (const item of payload.data) {
+        if (!item || typeof item !== "object") {
+          continue;
+        }
+
+        if ("id" in item && typeof item.id === "string") {
+          modelIds.add(item.id);
+        }
+
+        if ("aliases" in item && Array.isArray(item.aliases)) {
+          item.aliases
+            .filter((alias: unknown): alias is string => typeof alias === "string")
+            .forEach((alias: string) => modelIds.add(alias));
+        }
+      }
+    }
+
+    if (Array.isArray(payload.models)) {
+      for (const item of payload.models) {
+        if (!item || typeof item !== "object") {
+          continue;
+        }
+
+        if ("name" in item && typeof item.name === "string") {
+          modelIds.add(item.name);
+        }
+
+        if ("model" in item && typeof item.model === "string") {
+          modelIds.add(item.model);
+        }
+      }
+    }
+
+    return [...modelIds];
+  } catch {
+    return [];
+  }
+}
+
+async function assertExpectedServerModel(
+  apiBase: string,
+  expectedModelName: string | undefined,
+): Promise<void> {
+  if (!expectedModelName) {
+    return;
+  }
+
+  const loadedModelIds = await fetchLoadedModelIds(apiBase);
+  if (loadedModelIds.length === 0 || loadedModelIds.includes(expectedModelName)) {
+    return;
+  }
+
+  throw new Error(
+    `llama.cpp server at ${apiBase} is already running with model(s): ${loadedModelIds.join(", ")}. Expected ${expectedModelName}. Stop the running server or change LOCAL_LLM_SERVER_PORT.`,
+  );
 }
 
 async function downloadModel(modelUrl: string, modelPath: string): Promise<void> {
@@ -220,6 +295,7 @@ async function startLocalServer(config: Role1RuntimeConfig): Promise<void> {
   }
 
   if (await isServerReady(apiBase)) {
+    await assertExpectedServerModel(apiBase, config.localLlmModelName);
     return;
   }
 
@@ -227,6 +303,7 @@ async function startLocalServer(config: Role1RuntimeConfig): Promise<void> {
 
   try {
     await startServerProcess(config, apiBase);
+    await assertExpectedServerModel(apiBase, config.localLlmModelName);
   } catch (error) {
     if (!shouldRetryWithoutGpu(config)) {
       throw error;
@@ -242,6 +319,7 @@ async function startLocalServer(config: Role1RuntimeConfig): Promise<void> {
       },
       apiBase,
     );
+    await assertExpectedServerModel(apiBase, config.localLlmModelName);
   }
 }
 

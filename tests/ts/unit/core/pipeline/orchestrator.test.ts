@@ -196,6 +196,11 @@ describe("orchestratePipeline", () => {
         raw_input:
           "Can you please update src/api/user.ts and run npm test -- --runInBand 2 times?",
       },
+      compressionImplementation: vi.fn(async (text: string) => ({
+        compressed: text.replace(/^Can you please /i, ""),
+        compression_ratio: 0.56,
+        tokens_saved: 4,
+      })),
     });
 
     expect(result.ok).toBe(true);
@@ -205,7 +210,7 @@ describe("orchestratePipeline", () => {
     expect(result.promptLanguage).toBe("en");
     expect(result.promptInferenceTimeSec).toBe(0);
     expect(result.promptValidationErrors).toEqual([]);
-    expect(result.promptRepairActions).toContain("compressed_with_nlp_adapter");
+    expect(result.promptRepairActions).toContain("compressed_with_kompress");
   });
 
   it("bridges Korean input through the local LLM request contract when runtime overrides are provided", async () => {

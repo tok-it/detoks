@@ -252,6 +252,9 @@ export const orchestratePipeline = async (
         ...(request.fetchImplementation
           ? { fetchImplementation: request.fetchImplementation }
           : {}),
+        ...(request.compressionImplementation
+          ? { compressionImplementation: request.compressionImplementation }
+          : {}),
       },
     );
     role2PromptInput = createRole2PromptInput(compiledPrompt);

@@ -27,7 +27,7 @@ type CompiledPrompt = {
 	normalized_input: string;
 	compressed_prompt: string;
 	language: "ko" | "en" | "mixed";
-	compression_provider: "nlp_adapter";
+	compression_provider: "kompress";
 	inference_time_sec?: number;
 	validation_errors?: string[];
 	repair_actions?: string[];
@@ -49,7 +49,7 @@ type CompiledPrompt = {
 ```
 
 **책임:** Role 1 (AI Prompt Engineer)  
-**설명:** 자연어를 정규화하고 압축한 결과. 공식 Role 2.1 handoff는 `compressed_prompt`만 사용하고, 나머지 필드는 Role 1 내부 검증/디버그 metadata다.
+**설명:** 자연어를 정규화하고 Kompress 기반으로 압축한 결과. 공식 Role 2.1 handoff는 `compressed_prompt`만 사용하고, 나머지 필드는 Role 1 내부 검증/디버그 metadata다.
 
 ---
 
@@ -98,6 +98,37 @@ type BatchPipelineResult = {
 
 **책임:** Role 1 (AI Prompt Engineer)  
 **설명:** Role 1 batch 처리 결과 기록용 내부 schema. 실패 item도 drop하지 않고 `results[]`에 유지한다.
+
+---
+
+## 3-2. Role1 Verification Artifact
+
+```ts
+type VerificationItem = {
+	index: number;
+	raw_input: string;
+	ph_masked_input: string;
+	normalized_input: string;
+	compiled_prompt: string;
+	role2_handoff: string;
+	language: "ko" | "en" | "mixed";
+	status: "completed" | "failed";
+	inference_time_sec: number;
+	input_prompt_tokens: number;
+	normalized_input_tokens: number;
+	compiled_prompt_tokens: number;
+	token_reduction_rate: number | null;
+	translation_token_reduction_rate: number | null;
+	compression_token_reduction_rate: number | null;
+	validation_errors: string[];
+	repair_actions: string[];
+	error?: string;
+	debug?: CompiledPrompt["debug"];
+};
+```
+
+**책임:** Role 1 검증 스크립트 (`scripts/verify-role1.ts`)  
+**설명:** 검증용 JSON 산출물의 item schema. `ph_masked_input`은 번역 단계와 동일한 PH 마스킹 규칙으로 계산되며 `debug` 모드가 아니어도 항상 기록된다.
 
 ---
 
