@@ -1,4 +1,5 @@
 import type { UserRequest } from "../../schemas/pipeline.js";
+import type { ProjectInfo } from "../state/SessionStateManager.js";
 import type { TraceLog } from "../utils/PipelineTracer.js";
 
 export const AdapterValues = ["codex", "gemini"] as const;
@@ -14,6 +15,7 @@ export interface PipelineExecutionRequest {
   verbose: boolean;
   trace?: boolean;
   userRequest: UserRequest;
+  projectInfo?: ProjectInfo;
   env?: NodeJS.ProcessEnv;
   fetchImplementation?: typeof fetch;
 }

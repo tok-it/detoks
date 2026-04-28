@@ -2,6 +2,19 @@ import { describe, expect, it } from "vitest";
 import { getCliUsage, parseCliArgs } from "../../../../src/cli/parse.js";
 
 describe("parseCliArgs", () => {
+  it("treats an empty invocation as a main help request", () => {
+    const parsed = parseCliArgs([]);
+    expect(parsed).toEqual({
+      mode: "run",
+      adapter: "codex",
+      executionMode: "stub",
+      verbose: false,
+      trace: false,
+      showHelp: true,
+      helpTopic: "main",
+    });
+  });
+
   it("parses one-shot mode with defaults", () => {
     const parsed = parseCliArgs(["hello detoks"]);
     expect(parsed).toEqual({
@@ -259,11 +272,14 @@ describe("parseCliArgs", () => {
 
   it("documents execution mode differences in main help", () => {
     const usage = getCliUsage("main");
+    expect(usage).toContain("DeToks CLI Guide");
+    expect(usage).toContain("Quick start:");
     expect(usage).toContain("Examples:");
     expect(usage).toContain('detoks "summarize the current repo status"');
     expect(usage).toContain("detoks --file tests/data/row_data.json --verbose");
     expect(usage).toContain("--file <path>");
     expect(usage).toContain("detoks repl --adapter codex --execution-mode stub");
+    expect(usage).toContain("Session / checkpoint commands:");
     expect(usage).toContain("detoks session list");
     expect(usage).toContain("detoks session continue <session-id>");
     expect(usage).toContain("detoks session continue session_2026_04_27");

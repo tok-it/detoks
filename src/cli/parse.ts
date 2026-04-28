@@ -21,10 +21,19 @@ const TRACE_HELP =
 const SESSION_FLAG_HELP =
   "  --session <id>                Resume or use a specific session id";
 const CLI_USAGE_MAIN = [
+  "DeToks CLI Guide",
+  "",
+  "Quick start:",
+  '  detoks "summarize the current repo status"',
+  "  detoks repl",
+  "  detoks session list",
+  "",
   "Usage:",
   '  detoks "<prompt>" [--adapter codex|gemini] [--execution-mode stub|real] [--session <id>] [--verbose] [--trace]',
   "  detoks --file <path> [--verbose]",
   "  detoks repl [--adapter codex|gemini] [--execution-mode stub|real] [--session <id>] [--verbose]",
+  "",
+  "Session / checkpoint commands:",
   "  detoks session list",
   "  detoks session continue <session-id>",
   "  detoks session reset <session-id>",
@@ -223,6 +232,18 @@ const assertPrompt = (prompt: string | undefined): string => {
 };
 
 export const parseCliArgs = (argv: string[]): CliArgs => {
+  if (argv.length === 0) {
+    return {
+      mode: "run",
+      adapter: DEFAULT_ADAPTER,
+      executionMode: DEFAULT_EXECUTION_MODE,
+      verbose: false,
+      trace: false,
+      showHelp: true,
+      helpTopic: "main",
+    };
+  }
+
   const positionals: string[] = [];
   let adapter: CliArgs["adapter"] = DEFAULT_ADAPTER;
   let executionMode: CliArgs["executionMode"] = DEFAULT_EXECUTION_MODE;
