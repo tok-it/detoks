@@ -205,6 +205,7 @@ const CLI_USAGE_REPL = [
   "",
   "REPL notes:",
   "  - type a prompt and press Enter to run it",
+  "  - the prompt shows the current source as detoks[<adapter>[:<model>]]",
   "  - if a saved project REPL session exists, startup uses an arrow-key chooser to continue it or start fresh",
   "  - type /help to show REPL help inside the REPL",
   "  - type /login to open an arrow-key adapter chooser and start a login flow",

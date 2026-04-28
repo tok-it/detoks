@@ -28,10 +28,10 @@ describe("terminal style", () => {
     expect(style.prompt("detoks> ")).toBe("\x1b[1m\x1b[36mdetoks> \x1b[0m");
     expect(style.selected("❯ codex")).toBe("\x1b[1m\x1b[36m❯ codex\x1b[0m");
     expect(style.adapterBadge("codex", { model: "gpt-5", executionMode: "real" })).toBe(
-      "\x1b[1m\x1b[36m◆ CODEX · gpt-5 · real\x1b[0m",
+      "\x1b[1m\x1b[36m◆ CODEX[gpt-5] · real\x1b[0m",
     );
     expect(style.adapterBadge("gemini", { model: "gemini-2.5-pro", executionMode: "real" })).toBe(
-      "\x1b[1m\x1b[35m◆ GEMINI · gemini-2.5-pro · real\x1b[0m",
+      "\x1b[1m\x1b[35m◆ GEMINI[gemini-2.5-pro] · real\x1b[0m",
     );
   });
 
@@ -40,7 +40,7 @@ describe("terminal style", () => {
     expect(style.success("✓ done")).toBe("✓ done");
     expect(style.muted("hint")).toBe("hint");
     expect(style.adapterBadge("codex", { model: "gpt-5", executionMode: "real" })).toBe(
-      "◆ CODEX · gpt-5 · real",
+      "◆ CODEX[gpt-5] · real",
     );
   });
 

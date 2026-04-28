@@ -36,6 +36,17 @@ export interface ReplRuntimeState {
   verbose: boolean;
 }
 
+export const getReplPromptLabel = (state: ReplRuntimeState): string =>
+  `detoks[${[state.adapter, ...(state.model ? [state.model] : [])].join(":")}]> `;
+
+export const getReplSourceBadgeKey = (state: ReplRuntimeState): string =>
+  [state.adapter, state.model ?? "", state.executionMode].join("::");
+
+export const shouldEmitReplSourceBadge = (
+  state: ReplRuntimeState,
+  lastBadgeKey: string | null,
+): boolean => getReplSourceBadgeKey(state) !== lastBadgeKey;
+
 export const getReplBuiltinCommand = (line: string): ReplBuiltinCommand | null => {
   if (HELP_COMMANDS.has(line)) {
     return { kind: "help" };
@@ -526,6 +537,7 @@ export const runReplCommand = async (baseArgs: CliArgs): Promise<void> => {
     executionMode: baseArgs.executionMode,
     verbose: baseArgs.verbose,
   };
+  let lastSourceBadgeKey: string | null = null;
 
   const isTTY = Boolean(input.isTTY && output.isTTY);
 
@@ -533,10 +545,11 @@ export const runReplCommand = async (baseArgs: CliArgs): Promise<void> => {
     while (true) {
       let line: string;
       try {
+        const promptLabel = terminal.prompt(getReplPromptLabel(replState));
         if (!isTTY) {
-          output.write(terminal.prompt("detoks> "));
+          output.write(promptLabel);
         }
-        line = (await rl.question(isTTY ? terminal.prompt("detoks> ") : "")).trim();
+        line = (await rl.question(isTTY ? promptLabel : "")).trim();
       } catch (error) {
         if (error instanceof Error && error.message === "readline was closed") {
           break;
@@ -604,13 +617,15 @@ export const runReplCommand = async (baseArgs: CliArgs): Promise<void> => {
           { mode: "repl", sessionId },
         );
         const result = await runCommand(request);
-
-        output.write(
-          `${terminal.adapterBadge(replState.adapter, {
-            ...(replState.model !== undefined ? { model: replState.model } : {}),
-            executionMode: replState.executionMode,
-          })}\n`,
-        );
+        if (shouldEmitReplSourceBadge(replState, lastSourceBadgeKey)) {
+          output.write(
+            `${terminal.adapterBadge(replState.adapter, {
+              ...(replState.model !== undefined ? { model: replState.model } : {}),
+              executionMode: replState.executionMode,
+            })}\n`,
+          );
+          lastSourceBadgeKey = getReplSourceBadgeKey(replState);
+        }
 
         // 번역 표시 (P3): concise 모드에서 translation 발생 시 결과 앞에 표시
         // (verbose 모드는 compiledPrompt가 JSON에 이미 포함됨)
@@ -629,12 +644,15 @@ export const runReplCommand = async (baseArgs: CliArgs): Promise<void> => {
           );
         }
       } catch (error) {
-        output.write(
-          `${terminal.adapterBadge(replState.adapter, {
-            ...(replState.model !== undefined ? { model: replState.model } : {}),
-            executionMode: replState.executionMode,
-          })}\n`,
-        );
+        if (shouldEmitReplSourceBadge(replState, lastSourceBadgeKey)) {
+          output.write(
+            `${terminal.adapterBadge(replState.adapter, {
+              ...(replState.model !== undefined ? { model: replState.model } : {}),
+              executionMode: replState.executionMode,
+            })}\n`,
+          );
+          lastSourceBadgeKey = getReplSourceBadgeKey(replState);
+        }
         output.write(`${formatError(error, baseArgs.verbose)}\n`);
       }
     }
