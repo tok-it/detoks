@@ -136,12 +136,8 @@ describe("buildLlamaServerArgs", () => {
 				translationMaxAttempts: 5,
 				temperature: 0,
 			}),
-<<<<<<< HEAD
-		).rejects.toThrow("Expected mradermacher/supergemma4-e4b-abliterated-GGUF:Q4_K_S");
-=======
 		).rejects.toThrow(
 			"Expected mradermacher/gemma-4-e2b-it-heretic-ara-GGUF:Q4_K_S",
 		);
->>>>>>> origin/dev
 	});
 });

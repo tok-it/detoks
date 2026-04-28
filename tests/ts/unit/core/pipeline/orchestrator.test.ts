@@ -211,8 +211,6 @@ describe("orchestratePipeline", () => {
     expect(result.promptInferenceTimeSec).toBe(0);
     expect(result.promptValidationErrors).toEqual([]);
     expect(result.promptRepairActions).toContain("compressed_with_kompress");
-<<<<<<< HEAD
-=======
   });
 
   it("builds the Role 2.1 graph from normalized input before compression", async () => {
@@ -237,7 +235,6 @@ describe("orchestratePipeline", () => {
     expect(result.taskRecords).toHaveLength(2);
     expect(result.rawOutput).toContain("[CREATE] create a new file");
     expect(result.rawOutput).toContain("[VALIDATE] test it");
->>>>>>> origin/dev
   });
 
   it("bridges Korean input through the local LLM request contract when runtime overrides are provided", async () => {

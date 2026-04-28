@@ -55,8 +55,8 @@ export class ContextCompressor {
    */
   private static calculateTokenThreshold(adapter: string = 'gemini'): number {
     const policy = COMPRESSION_POLICIES[adapter] || COMPRESSION_POLICIES.gemini;
-    const safeContext = policy.contextWindow * policy.safeMargin;
-    const threshold = safeContext - policy.systemOverhead;
+    const safeContext = policy!.contextWindow * policy!.safeMargin;
+    const threshold = safeContext - policy!.systemOverhead;
     return Math.max(threshold, this.DEFAULT_TOKEN_THRESHOLD);
   }
 
