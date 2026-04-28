@@ -15,7 +15,15 @@ describe("adapter subprocess path", () => {
       }),
     ).toEqual({
       command: "codex",
-      args: [],
+      args: [
+        "exec",
+        "-",
+        "--sandbox",
+        "workspace-write",
+        "--skip-git-repo-check",
+        "--color",
+        "never",
+      ],
       input: "hello codex",
     });
   });
@@ -53,7 +61,9 @@ describe("adapter subprocess path", () => {
     );
 
     expect(result.success).toBe(true);
-    expect(result.rawOutput).toBe("[stub:subprocess] codex");
+    expect(result.rawOutput).toBe(
+      "[stub:subprocess] codex exec - --sandbox workspace-write --skip-git-repo-check --color never",
+    );
     expect(result.exitCode).toBe(0);
   });
 });

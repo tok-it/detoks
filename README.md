@@ -146,3 +146,39 @@ npm run add:py:dev -- <package>
 - Python 의존성 추가는 `uv`가 설치되어 있어야 합니다.
 - TypeScript 팀원은 기존 `npm i`, `npm install -D`, `npm install`을 그대로 사용합니다.
 - Python 팀원만 `npm run add:py*` 또는 `uv add` 계열을 사용합니다.
+
+---
+
+## Windows: WSL Ubuntu 실행
+
+Windows native 실행은 지원하지 않는다. Windows 사용자는 WSL Ubuntu에서 실행한다.
+
+### 1. 최초 1회
+
+```powershell
+winget install llama.cpp
+wsl.exe -e bash -lc "curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash"
+wsl.exe -e bash -lc ". ~/.nvm/nvm.sh && nvm install v24.15.0 && nvm alias default v24.15.0"
+wsl.exe -e bash -lc "cd /mnt/c/detoks && . ~/.nvm/nvm.sh && nvm use v24.15.0 >/dev/null && npm install"
+```
+
+### 2. 실행
+
+```powershell
+$LLAMA_SERVER = (Get-Command llama-server).Source
+Start-Process -FilePath $LLAMA_SERVER -ArgumentList @("-hf","mradermacher/gemma-4-E2B-it-heretic-ara-GGUF:Q4_K_S","--hf-file","gemma-4-E2B-it-heretic-ara.Q4_K_S.gguf","--alias","gemma-4-E2B-it-heretic-ara-GGUF","--host","0.0.0.0","--port","12371","--gpu-layers","all","--ctx-size","4096","--reasoning","off") -WindowStyle Hidden
+$WSL_HOST = wsl.exe -e bash -lc "ip route | awk '/default/ {print `$3; exit}'"
+wsl.exe -e bash -lc "cd /mnt/c/detoks && . ~/.nvm/nvm.sh && nvm use v24.15.0 >/dev/null && LOCAL_LLM_API_BASE=http://$WSL_HOST:12371/v1 LOCAL_LLM_AUTO_START=0 npm run cli -- '사용자 프롬프트 입력' --execution-mode real --verbose --trace"
+```
+
+변경 파일 확인:
+
+```powershell
+wsl.exe -e bash -lc "cd /mnt/c/detoks && git status --short"
+```
+
+### 문제 확인
+
+- `bash: --execution-mode: command not found`: 명령을 한 줄로 실행한다.
+- `esbuild for another platform`: WSL에서 `npm install`을 다시 실행한다.
+- `curl: Failed to connect`: `llama-server` 실행 여부를 확인한다.

@@ -39,7 +39,15 @@ describe("adapter execution modes", () => {
     expect(capturedRequests).toEqual([
       {
         command: "codex",
-        args: [],
+        args: [
+          "exec",
+          "-",
+          "--sandbox",
+          "workspace-write",
+          "--skip-git-repo-check",
+          "--color",
+          "never",
+        ],
         cwd: "/workspace",
         input: "real prompt",
       },
