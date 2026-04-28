@@ -98,6 +98,4 @@ scripts/generate-daily-reports.py
 Thumbs.db
 tests/ts/integration/
 tests/integration/
-tests/data
-tmp
 graphify-out
