@@ -96,6 +96,14 @@ export const runReplCommand = async (baseArgs: CliArgs): Promise<void> => {
     `detoks repl started (adapter=${baseArgs.adapter}, executionMode=${baseArgs.executionMode}, verbose=${String(baseArgs.verbose)}, session=${sessionId}). stub = simulated output; real = adapter's real execution path. type "exit" to quit.\n`,
   );
 
+  // 현재 세션의 이전 입력 번역 로그 표시 (P3)
+  const currentLog = await SessionStateManager.readCurrentSessionLog();
+  if (currentLog) {
+    output.write("\n=== Previous input translations ===\n");
+    output.write(currentLog);
+    output.write("=== End of translations ===\n\n");
+  }
+
   try {
     while (true) {
       let line: string;
@@ -122,6 +130,15 @@ export const runReplCommand = async (baseArgs: CliArgs): Promise<void> => {
         );
         const result = await runCommand(request);
         output.write(`${formatSuccess(result, baseArgs.verbose)}\n`);
+
+        // 입력 번역 로깅 (P3)
+        if (result.compiledPrompt && result.compiledPrompt !== line) {
+          await SessionStateManager.logInputTranslation(
+            sessionId,
+            line,
+            result.compiledPrompt,
+          );
+        }
       } catch (error) {
         output.write(`${formatError(error, baseArgs.verbose)}\n`);
       }
@@ -135,6 +152,8 @@ export const runReplCommand = async (baseArgs: CliArgs): Promise<void> => {
       cwd,
     );
     rl.close();
+    // 현재 세션 로그 정리 (P3)
+    await SessionStateManager.clearCurrentSessionLog();
     output.write("detoks repl closed.\n");
   }
 };
