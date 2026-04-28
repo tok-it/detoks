@@ -58,4 +58,36 @@ describe("TaskCandidateExtractor", () => {
       ["t4"],
     ]);
   });
+
+  it("preserves cause context from translated problem statements", () => {
+    const result = TaskCandidateExtractor.extractSentences(
+      "And probably the problem is caused by duplicate validation logic, so fix that bug.",
+    );
+
+    expect(result.sentences).toEqual([
+      "fix the bug caused by duplicate validation logic.",
+    ]);
+  });
+
+  it("extracts five executable tasks from alternate discourse-heavy input", () => {
+    const result = TaskCandidateExtractor.extractSentences(
+      [
+        "This is not something that needs to be handled immediately, so organize it in order when you have time.",
+        "If possible, first find where the module related to payment processing is scattered in the project.",
+        "Next, trace and explain the order in which data passes through the router, handler, domain service, and data layer from the shopping cart to payment approval.",
+        "And probably because the cache expiration conditions do not match, the amount seems to be left with old values, so fix that defect.",
+        "After fixing it, run smoke tests and related regression tests to verify that the same symptoms do not occur again.",
+        "Finally, omit the parts I spoke about in length, and organize the changes made and the results of the commands checked in the work note.",
+        "The tone can be simplified, but maintain this order.",
+      ].join("\n"),
+    );
+
+    expect(result.sentences).toEqual([
+      "find where the module related to payment processing is scattered in the project.",
+      "trace and explain the order in which data passes through the router, handler, domain service, and data layer from the shopping cart to payment approval.",
+      "fix the defect because the cache expiration conditions do not match, the amount seems to be left with old values.",
+      "run smoke tests and related regression tests to verify that the same symptoms do not occur again.",
+      "organize the changes made and the results of the commands checked in the work note.",
+    ]);
+  });
 });
