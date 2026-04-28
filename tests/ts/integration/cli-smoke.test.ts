@@ -1,8 +1,7 @@
 import { spawnSync } from "node:child_process";
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { resolve } from "node:path";
+import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { describe, expect, it, vi } from "vitest";
 
@@ -10,6 +9,7 @@ const repoRoot = process.cwd();
 const cliEntry = resolve(repoRoot, "src/cli/index.ts");
 const tsxLoader = resolve(repoRoot, "node_modules/tsx/dist/loader.mjs");
 const tsxLoaderUrl = pathToFileURL(tsxLoader).href;
+const repoReplRegistryPath = join(repoRoot, ".repl-session.json");
 
 vi.setConfig({ testTimeout: 30_000 });
 
@@ -49,6 +49,13 @@ const runCliFromCwd = (cwd: string, args: string[]) =>
   spawnSync(process.execPath, ["--import", tsxLoaderUrl, cliEntry, ...args], {
     cwd,
     encoding: "utf8",
+  });
+
+const runCliWithInputFromCwd = (cwd: string, args: string[], input: string) =>
+  spawnSync(process.execPath, ["--import", tsxLoaderUrl, cliEntry, ...args], {
+    cwd,
+    encoding: "utf8",
+    input,
   });
 
 const findInstalledBinary = (command: "codex" | "gemini"): string | undefined => {
@@ -304,6 +311,19 @@ const runLiveLocalLlmSmoke = () => {
 };
 
 describe("detoks CLI smoke", () => {
+  it("prints the main CLI guide for an empty invocation", () => {
+    const emptyRun = runCli([]);
+
+    expect(emptyRun.error).toBeUndefined();
+    expect(emptyRun.status).toBe(0);
+    expect(emptyRun.stderr).toBe("");
+    expect(emptyRun.stdout).toContain("DeToks CLI Guide");
+    expect(emptyRun.stdout).toContain("Quick start:");
+    expect(emptyRun.stdout).toContain('detoks "summarize the current repo status"');
+    expect(emptyRun.stdout).toContain("detoks repl");
+    expect(emptyRun.stdout).toContain("detoks session list");
+  });
+
   it("keeps default stdout concise and verbose stdout full", () => {
     const defaultRun = runCli(["hello detoks"]);
     const verboseRun = runCli(["hello detoks", "--verbose"]);
@@ -379,31 +399,41 @@ describe("detoks CLI smoke", () => {
   });
 
   it("shows start and close messages for repl in default mode", () => {
-    const replRun = runCliWithInput(["repl"], "exit\n");
+    rmSync(repoReplRegistryPath, { force: true });
+    try {
+      const replRun = runCliWithInput(["repl"], "exit\n");
 
-    expect(replRun.error).toBeUndefined();
-    expect(replRun.status).toBe(0);
-    expect(replRun.stderr).toBe("");
-    expect(replRun.stdout).toContain("detoks repl started");
-    expect(replRun.stdout).toContain("executionMode=stub");
-    expect(replRun.stdout).toContain("verbose=false");
-    expect(replRun.stdout).toContain('type "exit" to quit.');
-    expect(replRun.stdout).toContain("detoks> ");
-    expect(replRun.stdout.trimEnd()).toMatch(/detoks repl closed\.$/);
+      expect(replRun.error).toBeUndefined();
+      expect(replRun.status).toBe(0);
+      expect(replRun.stderr).toBe("");
+      expect(replRun.stdout).toContain("detoks repl started");
+      expect(replRun.stdout).toContain("executionMode=stub");
+      expect(replRun.stdout).toContain("verbose=false");
+      expect(replRun.stdout).toContain('type "exit" to quit.');
+      expect(replRun.stdout).toContain("detoks> ");
+      expect(replRun.stdout.trimEnd()).toMatch(/detoks repl closed\.$/);
+    } finally {
+      rmSync(repoReplRegistryPath, { force: true });
+    }
   });
 
   it("shows verbose=true in repl start message for verbose mode", () => {
-    const replRun = runCliWithInput(["repl", "--verbose"], "exit\n");
+    rmSync(repoReplRegistryPath, { force: true });
+    try {
+      const replRun = runCliWithInput(["repl", "--verbose"], "exit\n");
 
-    expect(replRun.error).toBeUndefined();
-    expect(replRun.status).toBe(0);
-    expect(replRun.stderr).toBe("");
-    expect(replRun.stdout).toContain("detoks repl started");
-    expect(replRun.stdout).toContain("executionMode=stub");
-    expect(replRun.stdout).toContain("verbose=true");
-    expect(replRun.stdout).toContain('type "exit" to quit.');
-    expect(replRun.stdout).toContain("detoks> ");
-    expect(replRun.stdout.trimEnd()).toMatch(/detoks repl closed\.$/);
+      expect(replRun.error).toBeUndefined();
+      expect(replRun.status).toBe(0);
+      expect(replRun.stderr).toBe("");
+      expect(replRun.stdout).toContain("detoks repl started");
+      expect(replRun.stdout).toContain("executionMode=stub");
+      expect(replRun.stdout).toContain("verbose=true");
+      expect(replRun.stdout).toContain('type "exit" to quit.');
+      expect(replRun.stdout).toContain("detoks> ");
+      expect(replRun.stdout.trimEnd()).toMatch(/detoks repl closed\.$/);
+    } finally {
+      rmSync(repoReplRegistryPath, { force: true });
+    }
   });
 
   it("runs batch file input and keeps default stdout concise", () => {
@@ -878,6 +908,73 @@ describe("detoks CLI smoke", () => {
       );
     } finally {
       rmSync(sessionPath, { force: true });
+    }
+  });
+
+  it("stores detected project metadata in saved session state", () => {
+    const cwd = mkdtempSync(join(tmpdir(), "detoks-cli-project-meta-"));
+    const sessionId = `session_cli_project_${Date.now()}`;
+
+    try {
+      writeFileSync(join(cwd, "package.json"), JSON.stringify({ name: "project-meta-app" }), "utf8");
+
+      const run = runCliFromCwd(cwd, ["hello detoks", "--session", sessionId]);
+
+      expect(run.error).toBeUndefined();
+      expect(run.status).toBe(0);
+      expect(run.stderr).toBe("");
+
+      const savedSession = JSON.parse(
+        readFileSync(join(cwd, ".state", "sessions", `${sessionId}.json`), "utf8"),
+      );
+      expect(savedSession.shared_context.project_id).toBe("project-meta-app");
+      expect(savedSession.shared_context.project_name).toBe("project-meta-app");
+      expect(savedSession.shared_context.project_path).toBe(realpathSync(cwd));
+    } finally {
+      rmSync(cwd, { force: true, recursive: true });
+    }
+  });
+
+  it("stores the last repl session per project in the registry file", () => {
+    const cwd = mkdtempSync(join(tmpdir(), "detoks-cli-repl-registry-"));
+
+    try {
+      writeFileSync(join(cwd, "package.json"), JSON.stringify({ name: "repl-registry-app" }), "utf8");
+
+      const firstRun = runCliWithInputFromCwd(cwd, ["repl"], "hello from repl\nexit\n");
+
+      expect(firstRun.error).toBeUndefined();
+      expect(firstRun.status).toBe(0);
+      expect(firstRun.stderr).toBe("");
+
+      const registryAfterFirstRun = JSON.parse(
+        readFileSync(join(cwd, ".repl-session.json"), "utf8"),
+      );
+      const firstSessionId = registryAfterFirstRun.last_session?.session_id as string | undefined;
+      expect(firstSessionId).toBeTruthy();
+      expect(registryAfterFirstRun.last_session).toMatchObject({
+        project_id: "repl-registry-app",
+        session_id: firstSessionId,
+        adapter: "codex",
+        execution_mode: "stub",
+      });
+
+      const secondRun = runCliWithInputFromCwd(cwd, ["repl"], "exit\n");
+
+      expect(secondRun.error).toBeUndefined();
+      expect(secondRun.status).toBe(0);
+      expect(secondRun.stderr).toBe("");
+      const registryAfterSecondRun = JSON.parse(
+        readFileSync(join(cwd, ".repl-session.json"), "utf8"),
+      );
+      expect(registryAfterSecondRun.last_session).toMatchObject({
+        project_id: "repl-registry-app",
+        adapter: "codex",
+        execution_mode: "stub",
+      });
+      expect(registryAfterSecondRun.last_session.session_id).toMatch(/^repl-[A-Za-z0-9]{16}$/);
+    } finally {
+      rmSync(cwd, { force: true, recursive: true });
     }
   });
 

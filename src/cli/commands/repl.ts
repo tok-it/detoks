@@ -4,7 +4,9 @@ import { stdin as input, stdout as output } from "node:process";
 import { formatError, formatSuccess } from "../format.js";
 import { toNormalizedRequest } from "../parse.js";
 import type { CliArgs } from "../types.js";
+import { ProjectDetector } from "../ProjectDetector.js";
 import { SessionStateManager } from "../../core/state/SessionStateManager.js";
+import { ReplRegistry, type ReplSession } from "../repl/ReplRegistry.js";
 import { runCommand } from "./run.js";
 
 const EXIT_COMMANDS = new Set(["exit", "quit", ".exit"]);
@@ -20,17 +22,92 @@ async function allocateReplSessionId(): Promise<string> {
   throw new Error("Unable to allocate a unique REPL session id after 10 attempts");
 }
 
+interface ResolveReplSessionIdOptions {
+  explicitSessionId: string | undefined;
+  lastSession: ReplSession | null;
+  canPromptForResume: boolean;
+  hasStoredSession: (sessionId: string) => Promise<boolean>;
+  allocateSessionId: () => Promise<string>;
+  promptToResume?: (lastSession: ReplSession) => Promise<boolean>;
+  updateLastResumed: () => Promise<void>;
+}
+
+export const resolveReplSessionId = async ({
+  explicitSessionId,
+  lastSession,
+  canPromptForResume,
+  hasStoredSession,
+  allocateSessionId,
+  promptToResume,
+  updateLastResumed,
+}: ResolveReplSessionIdOptions): Promise<string> => {
+  if (explicitSessionId) {
+    return explicitSessionId;
+  }
+
+  if (!lastSession || !(await hasStoredSession(lastSession.session_id))) {
+    return allocateSessionId();
+  }
+
+  const shouldResume = canPromptForResume
+    ? await (promptToResume?.(lastSession) ?? Promise.resolve(false))
+    : true;
+
+  if (shouldResume) {
+    await updateLastResumed();
+    return lastSession.session_id;
+  }
+
+  return allocateSessionId();
+};
+
 export const runReplCommand = async (baseArgs: CliArgs): Promise<void> => {
+  const cwd = process.cwd();
+  const project = await ProjectDetector.detect(cwd);
+  const lastSession = await ReplRegistry.loadLastSession(project.projectId, cwd);
   const rl = createInterface({ input, output });
-  const sessionId = await allocateReplSessionId();
+  const sessionId = await resolveReplSessionId({
+    explicitSessionId: baseArgs.sessionId,
+    lastSession,
+    canPromptForResume: Boolean(input.isTTY && output.isTTY),
+    hasStoredSession: (existingSessionId) => SessionStateManager.sessionExists(existingSessionId),
+    allocateSessionId: allocateReplSessionId,
+    promptToResume: async (existingSession) => {
+      const response = (
+        await rl.question(
+          `Found existing session: ${existingSession.session_id} (last used ${existingSession.last_resumed_at})\nContinue previous session? (y/N): `,
+        )
+      )
+        .trim()
+        .toLowerCase();
+
+      if (response === "y" || response === "yes") {
+        output.write(`Resuming session: ${existingSession.session_id}\n`);
+        return true;
+      }
+
+      output.write("Starting a new session.\n");
+      return false;
+    },
+    updateLastResumed: () => ReplRegistry.updateLastResumed(cwd),
+  });
 
   output.write(
-    `detoks repl started (adapter=${baseArgs.adapter}, executionMode=${baseArgs.executionMode}, verbose=${String(baseArgs.verbose)}). stub = simulated output; real = adapter's real execution path. type "exit" to quit.\n`,
+    `detoks repl started (adapter=${baseArgs.adapter}, executionMode=${baseArgs.executionMode}, verbose=${String(baseArgs.verbose)}, session=${sessionId}). stub = simulated output; real = adapter's real execution path. type "exit" to quit.\n`,
   );
 
   try {
     while (true) {
-      const line = (await rl.question("detoks> ")).trim();
+      let line: string;
+      try {
+        output.write("detoks> ");
+        line = (await rl.question("")).trim();
+      } catch (error) {
+        if (error instanceof Error && error.message === "readline was closed") {
+          break;
+        }
+        throw error;
+      }
       if (!line) {
         continue;
       }
@@ -50,6 +127,13 @@ export const runReplCommand = async (baseArgs: CliArgs): Promise<void> => {
       }
     }
   } finally {
+    await ReplRegistry.saveSession(
+      project.projectId,
+      sessionId,
+      baseArgs.adapter,
+      baseArgs.executionMode,
+      cwd,
+    );
     rl.close();
     output.write("detoks repl closed.\n");
   }
