@@ -161,6 +161,81 @@ describe("TaskSentenceSplitter", () => {
     ]);
   });
 
+  it("does not treat arithmetic results as numbered-list items", () => {
+    const result = TaskSentenceSplitter.split("Create the result of 4 + 5. Also check it.");
+
+    expect(result.sentences).toEqual([
+      "Create the result of 4 + 5.",
+      "Also check it.",
+    ]);
+  });
+
+  it("preserves arithmetic expressions while splitting follow-up tasks", () => {
+    const result = TaskSentenceSplitter.split(
+      "Make a calculator with Python. First, make it so that only addition and subtraction are possible, and then create the result of 4 + 5. Also, check if it works correctly.",
+    );
+
+    expect(result.sentences).toContain("create the result of 4 + 5.");
+    expect(result.sentences).not.toContain("create the result of 4 +");
+  });
+
+  it("does not treat spaced decimal-like values as numbered-list items", () => {
+    const result = TaskSentenceSplitter.split("Update version 3. 10 config. Verify it.");
+
+    expect(result.sentences).toEqual([
+      "Update version 3. 10 config.",
+      "Verify it.",
+    ]);
+  });
+
+  it("keeps common abbreviations with the following phrase", () => {
+    const result = TaskSentenceSplitter.split("Document e.g. Add tests as an example. Verify it.");
+
+    expect(result.sentences).toEqual([
+      "Document e.g. Add tests as an example.",
+      "Verify it.",
+    ]);
+  });
+
+  it("keeps descriptive comma fragments that look like noun phrases", () => {
+    const result = TaskSentenceSplitter.split("Create a module, test data included, and document it");
+
+    expect(result.sentences).toEqual([
+      "Create a module, test data included",
+      "document it",
+    ]);
+  });
+
+  it("does not split hyphenated descriptors as follow-up actions", () => {
+    const result = TaskSentenceSplitter.split("Build module and run-time config");
+
+    expect(result.sentences).toEqual(["Build module and run-time config"]);
+  });
+
+  it("does not treat arithmetic words before numbers as numbered-list items", () => {
+    const result = TaskSentenceSplitter.split(
+      "Calculate the result of 4 plus 5. Next, calculate the result of 10 minus 3. Finally, summarize it.",
+    );
+
+    expect(result.sentences).toEqual([
+      "Calculate the result of 4 plus 5.",
+      "calculate the result of 10 minus 3.",
+      "summarize it.",
+    ]);
+  });
+
+  it("does not emit ordering markers as standalone tasks", () => {
+    const result = TaskSentenceSplitter.split(
+      "First, create an addition design. Next, create a subtraction design. Finally, verify the result.",
+    );
+
+    expect(result.sentences).toEqual([
+      "create an addition design.",
+      "create a subtraction design.",
+      "verify the result.",
+    ]);
+  });
+
   describe("integration with TaskGraphProcessor", () => {
     it("create → validate: sequential dependency", () => {
       const compiled = TaskSentenceSplitter.split("Create a new endpoint and test it");
