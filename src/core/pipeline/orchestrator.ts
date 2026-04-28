@@ -2,8 +2,8 @@ import { randomInt } from "node:crypto";
 import { DAGValidator } from "../task-graph/DAGValidator.js";
 import { DependencyResolver } from "../task-graph/DependencyResolver.js";
 import { ParallelClassifier } from "../task-graph/ParallelClassifier.js";
+import { TaskCandidateExtractor } from "../task-graph/TaskCandidateExtractor.js";
 import { TaskGraphProcessor } from "../task-graph/TaskGraphProcessor.js";
-import { TaskSentenceSplitter } from "../task-graph/TaskSentenceSplitter.js";
 import { compilePrompt, createRole2PromptInput } from "../prompt/compiler.js";
 import { ContextBuilder } from "../context/ContextBuilder.js";
 import { SessionStateManager } from "../state/SessionStateManager.js";
@@ -300,7 +300,7 @@ export const orchestratePipeline = async (
     dataType: "Role2PromptInput", data: role2PromptInput,
   });
   PipelineTracer.startStage("TaskGraphBuilder");
-  const compiledSentences = TaskSentenceSplitter.split(role2PromptInput.compiled_prompt);
+  const compiledSentences = TaskCandidateExtractor.extractSentences(role2PromptInput.compiled_prompt);
   const graph = TaskGraphProcessor.process(compiledSentences);
   await PipelineTracer.trace({
     sessionId, stage: "TaskGraphBuilder", role: "role2.1", phase: "output",
