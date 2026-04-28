@@ -535,6 +535,7 @@ export const orchestratePipeline = async (
         executionMode: request.executionMode,
         prompt,
         verbose: request.verbose,
+        taskType: task.type,
         ...(request.userRequest.cwd ? { cwd: request.userRequest.cwd } : {}),
         sessionId,
       });

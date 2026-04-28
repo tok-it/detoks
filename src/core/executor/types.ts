@@ -1,10 +1,12 @@
 import type { Adapter, ExecutionMode, InteractionMode } from "../pipeline/types.js";
+import type { RequestCategory } from "../../schemas/pipeline.js";
 
 export interface AdapterExecutionRequest {
   mode: InteractionMode;
   prompt: string;
   verbose: boolean;
   model?: string;
+  taskType?: RequestCategory;
   cwd?: string;
   sessionId?: string;
 }

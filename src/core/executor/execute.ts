@@ -26,6 +26,7 @@ export const executeWithAdapter = async (request: ExecutorRequest): Promise<Exec
     prompt: request.prompt,
     verbose: request.verbose,
     ...(request.model !== undefined ? { model: request.model } : {}),
+    ...(request.taskType !== undefined ? { taskType: request.taskType } : {}),
     ...(request.cwd !== undefined ? { cwd: request.cwd } : {}),
     ...(request.sessionId !== undefined ? { sessionId: request.sessionId } : {}),
   }, {
