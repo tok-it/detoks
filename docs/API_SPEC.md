@@ -180,10 +180,10 @@ type PromptCompileRequest = {
 ### Provider Types
 
 ```ts
-type PromptCompressionProvider = "nlp_adapter" | "llm" | "small_model";
+type PromptCompressionProvider = "kompress" | "nlp_adapter" | "llm" | "small_model";
 ```
 
-`nlp_adapter` is the only supported v1 provider. `llm` and `small_model` are reserved extension values and must return an unsupported-provider error if selected in v1.
+`kompress` is the official v1 provider. `nlp_adapter` is accepted only as a legacy request alias and is normalized to `kompress` in the response. `llm` and `small_model` are reserved extension values and must return an unsupported-provider error if selected in v1.
 
 ### Response
 
@@ -195,7 +195,7 @@ type PromptCompileResponse = {
   normalized_input: string;
   compressed_prompt: string;
   language: "ko" | "en" | "mixed";
-  compression_provider: "nlp_adapter";
+  compression_provider: "kompress";
   inference_time_sec?: number;
   validation_errors?: string[];
   repair_actions?: string[];
@@ -230,27 +230,27 @@ type PromptCompileResponse = {
 
 ### Prompt Compression Strategy
 
-v1 prompt compression uses a conservative `nlp_adapter` implementation that preserves protected code-like units and applies rule-based shortening. It does not use LLM-based prompt engineering or a small language model for compression.
+v1 prompt compression uses `Kompress` (`chopratejas/kompress-base`) on translated English natural-language spans while preserving protected code-like units through masking. It does not use LLM-based prompt engineering or the old rule-based path as the primary compressor.
 
 Flow:
 
 1. mask protected segments
 2. translate Korean input to English
-3. preserve code, paths, commands, JSON keys, API names, model names, and Markdown units through masking
-4. remove duplicate sentences, filler phrases, and low-information wording conservatively
-5. validate placeholder order and action-signal preservation
-6. produce `compressed_prompt`
-7. if compression is unsafe, fall back to `normalized_input`
+3. validate and repair translated output
+4. preserve code, paths, commands, JSON keys, API names, model names, and Markdown units through masking
+5. run Kompress on the remaining natural-language body only
+6. validate placeholder order and action-signal preservation
+7. if compression is unsafe, use `normalized_input` as `compressed_prompt`
 
 Compression rules:
 
 - code blocks, inline code, shell commands, paths, URLs, JSON keys, API names, and model names must not be compressed
 - Markdown headings, bullets, and numbered lists should be preserved as much as possible
 - filenames, paths, commands, options, numeric constraints, error messages, forbidden conditions, completion criteria, and test requirements must be preserved
-- if compression loses placeholders, action signals, or becomes too aggressive, the pipeline must fall back to `normalized_input`
+- if compression loses placeholders, action signals, or becomes too aggressive, the pipeline must use `normalized_input` directly without retrying Kompress
 - `llm` and `small_model` providers are extension points only and must not be used by v1 compression
 
-<!-- 한국어 설명: v1 압축은 번역 후 영어 텍스트를 대상으로 하며, 보호 구간 마스킹과 보수적 규칙 기반 축약을 사용합니다. LLM 및 소형 모델 압축은 추후 확장 지점으로만 남깁니다. -->
+<!-- 한국어 설명: v1 압축은 번역 검증/보정이 끝난 영어 텍스트를 대상으로 하며, 자연어 body에만 Kompress를 적용합니다. Kompress 결과가 안전하지 않으면 재생성하지 않고 `normalized_input`을 그대로 사용합니다. -->
 
 ### Role 1 Batch Result Artifact
 

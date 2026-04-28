@@ -1,4 +1,5 @@
 import type { UserRequest } from "../../schemas/pipeline.js";
+import type { CompressTextImplementation } from "../prompt/compression.js";
 import type { TraceLog } from "../utils/PipelineTracer.js";
 
 export const AdapterValues = ["codex", "gemini"] as const;
@@ -16,6 +17,7 @@ export interface PipelineExecutionRequest {
   userRequest: UserRequest;
   env?: NodeJS.ProcessEnv;
   fetchImplementation?: typeof fetch;
+  compressionImplementation?: CompressTextImplementation;
 }
 
 export interface PipelineStageStatus {

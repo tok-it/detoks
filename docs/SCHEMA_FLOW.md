@@ -52,7 +52,7 @@ type CompiledPrompt = {
   normalized_input: string;
   compressed_prompt: string;
   language: "ko" | "en" | "mixed";
-  compression_provider: "nlp_adapter";
+  compression_provider: "kompress";
   inference_time_sec?: number;
   validation_errors?: string[];
   repair_actions?: string[];
@@ -91,10 +91,12 @@ type Role2PromptInput = {
 5. clean
 6. validate
 7. repair
-8. fallback
-9. conservative compression
-10. `CompiledPrompt`
-11. `Role2PromptInput`
+8. translation fallback
+9. Kompress compression on natural-language body
+10. compression validate
+11. invalid하면 `normalized_input`을 `compressed_prompt`로 사용
+12. `CompiledPrompt`
+13. `Role2PromptInput`
 
 **Role 1 내부 batch artifact:**
 - `run_metadata` + `results[]` 구조를 사용한다.

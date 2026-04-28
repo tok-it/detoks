@@ -20,7 +20,7 @@ describe("compilePrompt", () => {
     expect(PromptCompileResponseSchema.parse(compiled)).toEqual(compiled);
     expect(Role2PromptInputSchema.parse(handoff)).toEqual(handoff);
     expect(compiled.normalized_input).toBe("Find the auth module.\n\nAnalyze the flow.");
-    expect(compiled.compression_provider).toBe("nlp_adapter");
+    expect(compiled.compression_provider).toBe("kompress");
     expect(handoff.compiled_prompt).toBe(compiled.compressed_prompt);
   });
 
@@ -36,13 +36,19 @@ describe("compilePrompt", () => {
     const compiled = await compilePrompt({
       raw_input:
         "Can you please update src/api/user.ts and run npm test -- --runInBand 2 times?",
+    }, {
+      compressionImplementation: vi.fn(async (text: string) => ({
+        compressed: text.replace(/^Can you please /i, ""),
+        compression_ratio: 0.56,
+        tokens_saved: 4,
+      })),
     });
 
     expect(compiled.language).toBe("en");
     expect(compiled.compressed_prompt).toBe(
       "Update src/api/user.ts and run npm test -- --runInBand 2 times?",
     );
-    expect(compiled.repair_actions ?? []).toContain("compressed_with_nlp_adapter");
+    expect(compiled.repair_actions ?? []).toContain("compressed_with_kompress");
   });
 
   it("지원하지 않는 압축 provider는 오류를 반환한다", async () => {
@@ -52,6 +58,15 @@ describe("compilePrompt", () => {
         compression_provider: "llm",
       }),
     ).rejects.toThrow("Unsupported prompt compression provider: llm");
+  });
+
+  it("legacy nlp_adapter provider 요청도 Kompress로 처리한다", async () => {
+    const compiled = await compilePrompt({
+      raw_input: "Create a new endpoint",
+      compression_provider: "nlp_adapter",
+    });
+
+    expect(compiled.compression_provider).toBe("kompress");
   });
 
   it("한국어 입력은 번역 경계를 통해 영문 normalized_input을 만든다", async () => {
@@ -87,6 +102,11 @@ describe("compilePrompt", () => {
           TRANSLATION_MAX_ATTEMPTS: "1",
         },
         fetchImplementation,
+        compressionImplementation: vi.fn(async () => ({
+          compressed: "Create a new file",
+          compression_ratio: 1,
+          tokens_saved: 0,
+        })),
       },
     );
 
@@ -150,13 +170,16 @@ describe("compilePrompt", () => {
           TRANSLATION_MAX_ATTEMPTS: "1",
         },
         fetchImplementation,
+        compressionImplementation: vi.fn(async () => ({
+          compressed: "새 파일을 생성해",
+          compression_ratio: 1,
+          tokens_saved: 0,
+        })),
       },
     );
 
     expect(fetchImplementation).toHaveBeenCalledTimes(2);
     expect(compiled.validation_errors).toContain("korean_text_remaining");
-    expect(compiled.repair_actions ?? []).toContain(
-      "compression_fallback_to_normalized_input",
-    );
+    expect(compiled.compressed_prompt).toBe("새 파일을 생성해");
   });
 });

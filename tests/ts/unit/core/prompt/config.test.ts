@@ -45,6 +45,9 @@ describe("loadRole1RuntimeConfig", () => {
       "mradermacher/gemma-4-E2B-it-heretic-ara-GGUF:Q4_K_S",
     );
     expect(config.localLlmHfFile).toBe("gemma-4-E2B-it-heretic-ara.Q4_K_S.gguf");
+    expect(config.kompressPythonBin).toBe("python3");
+    expect(config.kompressModelId).toBe("chopratejas/kompress-base");
+    expect(config.kompressStartupTimeout).toBe(120000);
   });
 
   it(".env와 legacy alias를 함께 읽는다", () => {
@@ -59,6 +62,9 @@ describe("loadRole1RuntimeConfig", () => {
         "REQUEST_TIMEOUT=15000",
         "TRANSLATION_MAX_ATTEMPTS=7",
         "TEMPERATURE=0.2",
+        "KOMPRESS_PYTHON_BIN=python3.13",
+        "KOMPRESS_MODEL_ID=chopratejas/kompress-small",
+        "KOMPRESS_STARTUP_TIMEOUT=45000",
       ].join("\n"),
       "utf8",
     );
@@ -72,6 +78,9 @@ describe("loadRole1RuntimeConfig", () => {
     expect(config.requestTimeout).toBe(15000);
     expect(config.translationMaxAttempts).toBe(7);
     expect(config.temperature).toBe(0.2);
+    expect(config.kompressPythonBin).toBe("python3.13");
+    expect(config.kompressModelId).toBe("chopratejas/kompress-small");
+    expect(config.kompressStartupTimeout).toBe(45000);
   });
 
   it("LOCAL_LLM_* env가 legacy alias보다 우선한다", () => {

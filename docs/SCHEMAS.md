@@ -27,7 +27,7 @@ type CompiledPrompt = {
 	normalized_input: string;
 	compressed_prompt: string;
 	language: "ko" | "en" | "mixed";
-	compression_provider: "nlp_adapter";
+	compression_provider: "kompress";
 	inference_time_sec?: number;
 	validation_errors?: string[];
 	repair_actions?: string[];
@@ -49,7 +49,7 @@ type CompiledPrompt = {
 ```
 
 **책임:** Role 1 (AI Prompt Engineer)  
-**설명:** 자연어를 정규화하고 압축한 결과. 공식 Role 2.1 handoff는 `compressed_prompt`만 사용하고, 나머지 필드는 Role 1 내부 검증/디버그 metadata다.
+**설명:** 자연어를 정규화하고 Kompress 기반으로 압축한 결과. 공식 Role 2.1 handoff는 `compressed_prompt`만 사용하고, 나머지 필드는 Role 1 내부 검증/디버그 metadata다.
 
 ---
 
