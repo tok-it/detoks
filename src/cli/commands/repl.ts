@@ -135,6 +135,12 @@ export const runReplCommand = async (baseArgs: CliArgs): Promise<void> => {
             result.compiledPrompt,
           );
         }
+
+        // Translation 로그 표시 (Role 3)
+        const translationLog = await SessionStateManager.readCurrentSessionLog();
+        if (translationLog) {
+          output.write(`\n--- Translation Log ---\n${translationLog}\n`);
+        }
       } catch (error) {
         output.write(`${formatError(error, baseArgs.verbose)}\n`);
       }
