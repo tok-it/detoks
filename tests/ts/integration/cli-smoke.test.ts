@@ -410,7 +410,7 @@ describe("detoks CLI smoke", () => {
       expect(replRun.stdout).toContain("executionMode=stub");
       expect(replRun.stdout).toContain("verbose=false");
       expect(replRun.stdout).toContain('type "/help" for REPL help and "exit" to quit.');
-      expect(replRun.stdout).toContain("detoks> ");
+      expect(replRun.stdout).toContain("detoks[codex]> ");
       expect(replRun.stdout.trimEnd()).toMatch(/detoks repl closed\.$/);
     } finally {
       rmSync(repoReplRegistryPath, { force: true });
@@ -429,7 +429,7 @@ describe("detoks CLI smoke", () => {
       expect(replRun.stdout).toContain("executionMode=stub");
       expect(replRun.stdout).toContain("verbose=true");
       expect(replRun.stdout).toContain('type "/help" for REPL help and "exit" to quit.');
-      expect(replRun.stdout).toContain("detoks> ");
+      expect(replRun.stdout).toContain("detoks[codex]> ");
       expect(replRun.stdout.trimEnd()).toMatch(/detoks repl closed\.$/);
     } finally {
       rmSync(repoReplRegistryPath, { force: true });
