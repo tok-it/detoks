@@ -40,6 +40,15 @@ describe("TaskSentenceSplitter", () => {
     ]);
   });
 
+  it("splits polite create-and-validate follow-up requests", () => {
+    const result = TaskSentenceSplitter.split("Can you create a new file and test it");
+
+    expect(result.sentences).toEqual([
+      "create a new file",
+      "test it",
+    ]);
+  });
+
   it("splits analyze-and-plan follow-up requests", () => {
     const result = TaskSentenceSplitter.split("Analyze the issue and propose a plan");
 
@@ -239,6 +248,14 @@ describe("TaskSentenceSplitter", () => {
   describe("integration with TaskGraphProcessor", () => {
     it("create → validate: sequential dependency", () => {
       const compiled = TaskSentenceSplitter.split("Create a new endpoint and test it");
+      const graph = TaskGraphProcessor.process(compiled);
+
+      expect(graph.tasks.map((t) => t.type)).toEqual(["create", "validate"]);
+      expect(graph.tasks[1]!.depends_on).toEqual(["t1"]);
+    });
+
+    it("polite create → validate: sequential dependency", () => {
+      const compiled = TaskSentenceSplitter.split("Can you create a new file and test it");
       const graph = TaskGraphProcessor.process(compiled);
 
       expect(graph.tasks.map((t) => t.type)).toEqual(["create", "validate"]);

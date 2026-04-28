@@ -361,7 +361,7 @@ export class TaskSentenceSplitter {
   private static cleanClause(text: string): string {
     return text
       .trim()
-      .replace(/^(?:can you please|could you please|would you please|please)\s+/i, "")
+      .replace(/^(?:(?:can|could|would)\s+you\s+(?:please\s+)?|please\s+)/i, "")
       .replace(/^\d+[.)]\s*/, "") // "1. " / "1) " 제거
       .replace(/^[,;:\-]+/, "") // 선행 구두점 제거
       .replace(/[ \t]+/g, " ") // 중복 공백 제거
