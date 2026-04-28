@@ -604,6 +604,13 @@ export const runReplCommand = async (baseArgs: CliArgs): Promise<void> => {
           { mode: "repl", sessionId },
         );
         const result = await runCommand(request);
+
+        // 번역 표시 (P3): concise 모드에서 translation 발생 시 결과 앞에 표시
+        // (verbose 모드는 compiledPrompt가 JSON에 이미 포함됨)
+        if (!replState.verbose && result.compiledPrompt && result.compiledPrompt !== line) {
+          output.write(`${terminal.muted(`[translated] ${result.compiledPrompt}`)}\n`);
+        }
+
         output.write(`${formatSuccess(result, replState.verbose)}\n`);
 
         // 입력 번역 로깅 (P3)
