@@ -101,6 +101,37 @@ type BatchPipelineResult = {
 
 ---
 
+## 3-2. Role1 Verification Artifact
+
+```ts
+type VerificationItem = {
+	index: number;
+	raw_input: string;
+	ph_masked_input: string;
+	normalized_input: string;
+	compiled_prompt: string;
+	role2_handoff: string;
+	language: "ko" | "en" | "mixed";
+	status: "completed" | "failed";
+	inference_time_sec: number;
+	input_prompt_tokens: number;
+	normalized_input_tokens: number;
+	compiled_prompt_tokens: number;
+	token_reduction_rate: number | null;
+	translation_token_reduction_rate: number | null;
+	compression_token_reduction_rate: number | null;
+	validation_errors: string[];
+	repair_actions: string[];
+	error?: string;
+	debug?: CompiledPrompt["debug"];
+};
+```
+
+**책임:** Role 1 검증 스크립트 (`scripts/verify-role1.ts`)  
+**설명:** 검증용 JSON 산출물의 item schema. `ph_masked_input`은 번역 단계와 동일한 PH 마스킹 규칙으로 계산되며 `debug` 모드가 아니어도 항상 기록된다.
+
+---
+
 ## 4. AnalyzedRequest
 
 ```ts

@@ -286,6 +286,10 @@ type BatchPipelineResult = {
 
 The `verify:role1` script may emit an additional verification artifact with:
 
+- per-item `raw_input`
+- per-item `ph_masked_input`
+- per-item `normalized_input`
+- per-item `compiled_prompt`
 - `summary.completed_count`
 - `summary.failed_count`
 - `summary.average_inference_time_sec`
@@ -293,6 +297,7 @@ The `verify:role1` script may emit an additional verification artifact with:
 - per-item `input_prompt_tokens`, `compiled_prompt_tokens`, `token_reduction_rate`
 
 Token metrics in the verification artifact are measured with `tiktoken` using `o200k_base`.
+`ph_masked_input` uses the same placeholder masking rules as the translation stage and is included even when `pipeline_mode` is not `debug`.
 
 ---
 

@@ -102,6 +102,8 @@ type Role2PromptInput = {
 - `run_metadata` + `results[]` 구조를 사용한다.
 - `debug` mode에서는 `masked_text`, `placeholders`, `spans`, `fallback_span_count`를 item debug metadata로 남긴다.
 - batch result는 Role 1 내부 기록용이며 공식 Role 2.1 handoff는 계속 `Role2PromptInput.compiled_prompt` 하나다.
+- `scripts/verify-role1.ts` 검증 산출물은 각 item에 `raw_input` 다음 `ph_masked_input`을 추가로 기록한다.
+- `ph_masked_input`은 번역 단계와 동일한 보호 구간 마스킹 결과이며 `debug` 여부와 무관하게 항상 출력된다.
 
 ---
 
