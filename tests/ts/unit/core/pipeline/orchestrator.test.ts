@@ -108,6 +108,7 @@ describe("orchestratePipeline", () => {
           }),
         }),
       }),
+      undefined,
     );
   });
 
@@ -143,6 +144,7 @@ describe("orchestratePipeline", () => {
           }),
         }),
       }),
+      undefined,
     );
     expect(saveSessionSpy).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -154,6 +156,7 @@ describe("orchestratePipeline", () => {
           }),
         }),
       }),
+      undefined,
     );
   });
 
@@ -335,6 +338,7 @@ describe("orchestratePipeline", () => {
       expect.objectContaining({
         completed_task_ids: ["t1", "t2"],
       }),
+      undefined,
     );
   });
 
@@ -401,6 +405,7 @@ describe("orchestratePipeline", () => {
           ],
         }),
       }),
+      undefined,
     );
   });
 
