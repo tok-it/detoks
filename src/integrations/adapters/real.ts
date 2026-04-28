@@ -14,7 +14,7 @@ export const executeAdapterViaSubprocess = async (
 
   return {
     success: !result.timedOut && result.exitCode === 0,
-    rawOutput: result.stdout,
+    rawOutput: result.stdout || result.stderr,
     exitCode: result.exitCode,
     ...(result.stderr.length > 0 ? { stderr: result.stderr } : {}),
   };
