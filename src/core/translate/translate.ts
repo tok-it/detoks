@@ -142,6 +142,17 @@ function containsKorean(text: string): boolean {
 	return /[가-힣]/.test(text);
 }
 
+function formatPlaceholderGuidance(placeholders: readonly string[]): string {
+	if (placeholders.length === 0) {
+		return "";
+	}
+
+	return `\n\nExact placeholders that must be preserved verbatim:
+${placeholders.map((placeholder) => `- ${placeholder}`).join("\n")}
+
+Never delete, translate, split, or paraphrase these tokens.`;
+}
+
 function collectRequiredTerms(
 	sourceText: string,
 	preferredTranslations: Role1Policies["preferredTranslations"],
@@ -192,10 +203,13 @@ async function translate_span(
 		previous_output: string;
 		validation_errors: string[];
 	},
+	placeholderTokens: readonly string[] = [],
 ): Promise<LlmCompletionResponse | null> {
 	if (!span.translate || !containsKorean(span.text)) {
 		return null;
 	}
+
+	const placeholderGuidance = formatPlaceholderGuidance(placeholderTokens);
 
 	return complete_chat(
 		{
@@ -204,7 +218,7 @@ async function translate_span(
 					role: "system",
 					content:
 						promptType === "fallback" || promptType === "final_retry"
-							? `${TRANSLATION_SYSTEM_PROMPT}
+							? `${TRANSLATION_SYSTEM_PROMPT}${placeholderGuidance}
 
 Return only the corrected English translation.
 
@@ -232,7 +246,7 @@ Pay special attention to:
 - dropped acronyms
 - omitted parenthetical meanings
 - rewritten framework/class names`
-							: TRANSLATION_SYSTEM_PROMPT,
+							: `${TRANSLATION_SYSTEM_PROMPT}${placeholderGuidance}`,
 				},
 				{
 					role: "user",
@@ -287,11 +301,15 @@ async function runTranslationPass(
 	const spanResults: TranslationSpanResult[] = [];
 
 	for (const span of spans) {
+		const placeholderTokens = masked.placeholders
+			.filter((entry) => span.text.includes(entry.placeholder))
+			.map((entry) => entry.placeholder);
 		const llmResponse = await translate_span(
 			span,
 			options,
 			initialPromptType,
 			finalRetryContext,
+			placeholderTokens,
 		);
 		if (!llmResponse) {
 			translatedSpans.push(span);
@@ -312,9 +330,6 @@ async function runTranslationPass(
 		}
 		inferenceTimeSec += llmResponse.inference_time_sec ?? 0;
 
-		const placeholderTokens = masked.placeholders
-			.filter((entry) => span.text.includes(entry.placeholder))
-			.map((entry) => entry.placeholder);
 		const requiredTerms = collectRequiredTerms(
 			span.text,
 			options.policies.preferredTranslations,
@@ -363,7 +378,7 @@ async function runTranslationPass(
 			const fallbackResponse = await translate_span(span, options, "fallback", {
 				previous_output: repaired.output,
 				validation_errors: validationErrors,
-			});
+			}, placeholderTokens);
 			attempts += 1;
 
 			if (fallbackResponse) {

@@ -292,49 +292,82 @@ describe("translate_to_english", () => {
     expect(result.validation_errors).toEqual([]);
   });
 
-  it("복원 이후 한글이 다시 남으면 최종 validation 오류를 남긴다", async () => {
-    const fetchImplementation = vi.fn(async () => {
-      return new Response(
-        JSON.stringify({
-          choices: [
-            {
-              message: {
-                content: "Review __PH_0001__ deployment first",
+  it("placeholder가 포함된 span은 정확한 placeholder 힌트를 프롬프트에 포함한다", async () => {
+    const fetchImplementation = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            choices: [
+              {
+                message: {
+                  content: "Let's create an endpoint and expose the metric data externally.",
+                },
               },
+            ],
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json",
             },
-          ],
-        }),
-        {
-          status: 200,
-          headers: {
-            "content-type": "application/json",
           },
-        },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            choices: [
+              {
+                message: {
+                  content: "Let's create __PH_0001__ endpoint and expose the metric data externally.",
+                },
+              },
+            ],
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json",
+            },
+          },
+        ),
       );
-    });
 
-    const result = await translate_to_english("블루/그린 배포를 먼저 검토해", {
-      config: {
-        localLlmApiBase: "http://127.0.0.1:1234/v1",
-        localLlmApiKey: "test-key",
-        localLlmModelName: "local-model",
-        pipelineMode: "safe",
-        requestTimeout: 30000,
-        translationMaxAttempts: 1,
-        temperature: 0,
+    const result = await translate_to_english(
+      "__PH_0001__ 엔드포인트를 만들어서 메트릭 데이터를 외부에 노출하자.",
+      {
+        config: {
+          localLlmApiBase: "http://127.0.0.1:1234/v1",
+          localLlmApiKey: "test-key",
+          localLlmModelName: "local-model",
+          pipelineMode: "safe",
+          requestTimeout: 30000,
+          translationMaxAttempts: 2,
+          temperature: 0,
+        },
+        policies: {
+          protectedTerms: [],
+          preferredTranslations: {},
+          forbiddenPatterns: [],
+        },
+        fetchImplementation,
       },
-      policies: {
-        protectedTerms: [],
-        preferredTranslations: {},
-        forbiddenPatterns: [],
-      },
-      fetchImplementation,
-    });
+    );
 
     expect(fetchImplementation).toHaveBeenCalledTimes(2);
-    expect(result.text).toBe("Review 블루/그린 deployment first");
-    expect(result.validation_errors).toContain("korean_text_remaining");
-    expect(result.validation_errors).toContain("source_korean_copied");
+    const firstCall = fetchImplementation.mock.calls[0]!;
+    const secondCall = fetchImplementation.mock.calls[1]!;
+    const firstBody = JSON.parse(String(firstCall[1]?.body));
+    const secondBody = JSON.parse(String(secondCall[1]?.body));
+
+    expect(firstBody.messages[0].content).toContain(
+      "Exact placeholders that must be preserved verbatim",
+    );
+    expect(firstBody.messages[0].content).toContain("__PH_0001__");
+    expect(secondBody.messages[0].content).toContain("__PH_0001__");
+    expect(result.text).toContain("__PH_0001__");
+    expect(result.validation_errors).toEqual([]);
   });
 
   it("최종 validation에서 literal 누락이 나면 item 단위로 한 번 더 재호출한다", async () => {
