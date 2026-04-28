@@ -179,6 +179,39 @@ describe("TaskSentenceSplitter", () => {
     expect(result.sentences).not.toContain("create the result of 4 +");
   });
 
+  it("does not treat spaced decimal-like values as numbered-list items", () => {
+    const result = TaskSentenceSplitter.split("Update version 3. 10 config. Verify it.");
+
+    expect(result.sentences).toEqual([
+      "Update version 3. 10 config.",
+      "Verify it.",
+    ]);
+  });
+
+  it("keeps common abbreviations with the following phrase", () => {
+    const result = TaskSentenceSplitter.split("Document e.g. Add tests as an example. Verify it.");
+
+    expect(result.sentences).toEqual([
+      "Document e.g. Add tests as an example.",
+      "Verify it.",
+    ]);
+  });
+
+  it("keeps descriptive comma fragments that look like noun phrases", () => {
+    const result = TaskSentenceSplitter.split("Create a module, test data included, and document it");
+
+    expect(result.sentences).toEqual([
+      "Create a module, test data included",
+      "document it",
+    ]);
+  });
+
+  it("does not split hyphenated descriptors as follow-up actions", () => {
+    const result = TaskSentenceSplitter.split("Build module and run-time config");
+
+    expect(result.sentences).toEqual(["Build module and run-time config"]);
+  });
+
   describe("integration with TaskGraphProcessor", () => {
     it("create → validate: sequential dependency", () => {
       const compiled = TaskSentenceSplitter.split("Create a new endpoint and test it");

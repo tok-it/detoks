@@ -127,13 +127,13 @@ const FOLLOW_UP_STARTERS = [
 
 // 문자열 앞부분이 액션 동사로 시작하는지 검사하는 정규식
 const ACTION_STARTER_REGEX = new RegExp(
-  `^(?:${ACTION_STARTERS.map(escapeRegex).join("|")})\\b`,
+  `^(?:${ACTION_STARTERS.map(escapeRegex).join("|")})(?=\\s|$)`,
   "i",
 );
 
 // 문자열 앞부분이 후속 액션 동사로 시작하는지 검사하는 정규식
 const FOLLOW_UP_STARTER_REGEX = new RegExp(
-  `^(?:${FOLLOW_UP_STARTERS.map(escapeRegex).join("|")})\\b`,
+  `^(?:${FOLLOW_UP_STARTERS.map(escapeRegex).join("|")})(?=\\s|$)`,
   "i",
 );
 
@@ -206,9 +206,15 @@ export class TaskSentenceSplitter {
     const expanded = text
       .replace(/(^|\n)\s*[-*•◦]\s+/g, "$1") // 글머리 기호 제거
       .replace(/(^|\n)\s*\d+[.)]\s+/g, "$1") // "1. " / "1) " 형태 번호 제거
-      .replace(/\s+(?=\d+[.)]\s+)/g, (match, offset, source) => {
-        const previous = source.slice(0, offset).trimEnd().at(-1);
-        return previous && /[+\-*/=]/.test(previous) ? match : "\n";
+      .replace(/\s+(?=\d+[.)]\s+[A-Z])/g, (match, offset, source) => {
+        const prefix = source.slice(0, offset).trimEnd();
+        const suffix = source.slice(offset + match.length);
+        const previous = prefix.at(-1);
+        return (previous && /[+\-*/=]/.test(previous)) ||
+          /\d+[.)]$/.test(prefix) ||
+          /^\d+[.)]\s+\d\b/.test(suffix)
+          ? match
+          : "\n";
       }); // 번호 앞 공백을 줄바꿈으로 변환하되 수식은 보존
 
     return expanded
@@ -221,7 +227,9 @@ export class TaskSentenceSplitter {
   private static splitSegment(segment: string): string[] {
     const sentenceParts = segment
       // 문장 종결 부호 뒤에 대문자/숫자가 오면 분리 (lookbehind/lookahead 사용)
-      .split(/(?<=[.!?;])\s+(?=[A-Z0-9])/)
+      .split(
+        /(?<!e\.g\.)(?<!i\.e\.)(?<!etc\.)(?<!vs\.)(?<=[.!?;])\s+(?=[A-Z])|(?<=[!?;])\s+(?=\d)/,
+      )
       .map((part) => part.trim())
       .filter(Boolean);
 
@@ -248,7 +256,11 @@ export class TaskSentenceSplitter {
       const normalized = this.stripLeadingConnector(next);
       const isConditionalClause =
         /^(?:if|unless|when|until|provided|assuming)\b/i.test(current.trim());
-      if (this.startsWithAction(normalized) && !isConditionalClause) {
+      if (
+        this.startsWithAction(normalized) &&
+        !this.looksLikeDescriptiveFragment(normalized) &&
+        !isConditionalClause
+      ) {
         results.push(current);
         current = normalized;
       } else {
@@ -322,6 +334,8 @@ export class TaskSentenceSplitter {
       return [this.cleanClause(segment)].filter(Boolean);
     if (!this.startsWithFollowUpAction(right))
       return [this.cleanClause(segment)].filter(Boolean);
+    if (this.looksLikeDescriptiveFragment(right))
+      return [this.cleanClause(segment)].filter(Boolean);
     // "find and add" 같은 compound verb 방지: left에 object(동사 외 단어)가 있어야 분리
     if (left.trim().split(/\s+/).length < 2)
       return [this.cleanClause(segment)].filter(Boolean);
@@ -359,6 +373,12 @@ export class TaskSentenceSplitter {
     return (
       FOLLOW_UP_STARTER_REGEX.test(trimmed) ||
       /^run\s+\w+\s+(?:test|tests)\b/i.test(trimmed)
+    );
+  }
+
+  private static looksLikeDescriptiveFragment(text: string): boolean {
+    return /^(?:test\s+data\b|run-?time\b|runtime\b|build\s+time\b|compile\s+time\b)/i.test(
+      text.trim(),
     );
   }
 }
