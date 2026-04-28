@@ -39,14 +39,14 @@ describe('🔥 State & Context Engine Stress Tests', () => {
 
   describe('1️⃣ ContextCompressor: Large Data Compression (>3000 tokens)', () => {
     it('should compress task results when total tokens exceed TOKEN_THRESHOLD', () => {
-      // Generate large task results that exceed 3000 token threshold
-      // TOKEN_THRESHOLD = 3000, estimatedTokens = bytes/4, so need >12000 bytes
-      const largeOutput = 'x'.repeat(2000); // 2000 bytes per task
+      // Generate large task results to exceed haiku adapter threshold (85K tokens)
+      // estimatedTokens = bytes/4, so need >340,000 bytes total to exceed 85K tokens
+      const largeOutput = 'x'.repeat(50000); // 50KB per task
       const tasks: Record<string, any> = {};
       const completedIds: string[] = [];
 
-      // Create 6 tasks to exceed 3000 tokens (12000 bytes) and ensure old tasks get compressed
-      for (let i = 1; i <= 6; i++) {
+      // Create 7 tasks to exceed 85K tokens (350KB bytes) and ensure old tasks get compressed
+      for (let i = 1; i <= 7; i++) {
         const taskId = `task_old_${i}`;
         tasks[taskId] = {
           summary: `Old task result ${i}`,
@@ -66,7 +66,8 @@ describe('🔥 State & Context Engine Stress Tests', () => {
         updated_at: new Date().toISOString()
       };
 
-      const compressed = ContextCompressor.compress(state);
+      // Use 'haiku' adapter for lower threshold (85K) to test compression
+      const compressed = ContextCompressor.compress(state, 'haiku');
 
       // Verify compression occurred
       const originalSize = JSON.stringify(state).length;
@@ -76,7 +77,7 @@ describe('🔥 State & Context Engine Stress Tests', () => {
       console.log(`  Compressed state size: ${compressedSize} bytes`);
       console.log(`  Compression ratio: ${((compressedSize / originalSize) * 100).toFixed(1)}%`);
 
-      // With 6 tasks and keepDetailCount=3, last 3 stay detailed, first 3 get compressed
+      // With 7 tasks and keepDetailCount=3, last 3 stay detailed, first 4 get compressed
       expect(compressedSize).toBeLessThan(originalSize);
       expect(compressed.task_results).toBeDefined();
 
@@ -103,7 +104,8 @@ describe('🔥 State & Context Engine Stress Tests', () => {
         updated_at: new Date().toISOString()
       };
 
-      const compressed = ContextCompressor.compress(state);
+      // Use 'haiku' adapter for lower threshold to test compression
+      const compressed = ContextCompressor.compress(state, 'haiku');
 
       expect(compressed.shared_context.session_id).toBe('compress_test_002');
       expect(compressed.completed_task_ids).toContain('critical_task');

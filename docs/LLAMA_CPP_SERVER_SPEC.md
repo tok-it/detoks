@@ -70,6 +70,7 @@ This document defines the current `python/llama-server` runtime contract used by
 | `LOCAL_LLM_HF_FILE`          | `gemma-4-e2b-it-heretic-ara.Q4_K_S.gguf`              | Exact Hugging Face GGUF file                                    |
 | `LOCAL_LLM_MODEL_PATH`       | unset                                                 | Optional local GGUF model path                                  |
 | `LOCAL_LLM_MODEL_URL`        | unset                                                 | Optional download URL when model path is missing                |
+>>>>>>> origin/dev
 
 <!-- 한국어 설명: 기본 모델명은 현재 로컬 서버 기본값입니다. Python 서버는 upstream 프록시 또는 mock 응답 모드로 동작하고, TypeScript Role 1 경로는 필요 시 llama.cpp `llama-server`를 로컬에서 자동 실행합니다. -->
 
@@ -153,7 +154,11 @@ Response:
 ```json
 {
 	"ok": true,
+<<<<<<< HEAD
+	"model": "mradermacher/supergemma4-e4b-abliterated-GGUF:Q4_K_S",
+=======
 	"model": "mradermacher/gemma-4-e2b-it-heretic-ara-GGUF:Q4_K_S",
+>>>>>>> origin/dev
 	"backend": "configured"
 }
 ```
@@ -174,7 +179,11 @@ Required request shape:
 
 ```json
 {
+<<<<<<< HEAD
+	"model": "mradermacher/supergemma4-e4b-abliterated-GGUF:Q4_K_S",
+=======
 	"model": "mradermacher/gemma-4-e2b-it-heretic-ara-GGUF:Q4_K_S",
+>>>>>>> origin/dev
 	"messages": [
 		{
 			"role": "user",
@@ -201,7 +210,11 @@ Successful response shape:
 	"id": "chatcmpl-...",
 	"object": "chat.completion",
 	"created": 1710000000,
+<<<<<<< HEAD
+	"model": "mradermacher/supergemma4-e4b-abliterated-GGUF:Q4_K_S",
+=======
 	"model": "mradermacher/gemma-4-e2b-it-heretic-ara-GGUF:Q4_K_S",
+>>>>>>> origin/dev
 	"choices": [
 		{
 			"index": 0,

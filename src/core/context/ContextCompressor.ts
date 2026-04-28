@@ -5,22 +5,76 @@ import { ContextProcessingError } from '../errors/StateErrors.js';
  * ContextCompressor
  * 컨텍스트 과부하 시 정보를 압축하고 최적화합니다.
  * .gemini/skill.md의 'Automatic Compression' 및 'Minimal Information' 원칙을 수행합니다.
+ *
+ * 임계값 정책:
+ * - 데이터 기반 동적 계산 (docs/COMPRESSION_THRESHOLD_ANALYSIS.md 참고)
+ * - 어댑터별 context window 고려
+ * - 50% 안전 마진 + 15K 오버헤드 적용
  */
+
+interface CompressionPolicy {
+  adapter: string;
+  contextWindow: number;
+  safeMargin: number;
+  systemOverhead: number;
+}
+
+const COMPRESSION_POLICIES: Record<string, CompressionPolicy> = {
+  gemini: {
+    adapter: 'gemini',
+    contextWindow: 1_000_000,
+    safeMargin: 0.5,
+    systemOverhead: 15_000,
+  },
+  claude: {
+    adapter: 'claude',
+    contextWindow: 1_000_000,
+    safeMargin: 0.5,
+    systemOverhead: 15_000,
+  },
+  haiku: {
+    adapter: 'haiku',
+    contextWindow: 200_000,
+    safeMargin: 0.5,
+    systemOverhead: 15_000,
+  },
+  codex: {
+    adapter: 'codex',
+    contextWindow: 400_000,
+    safeMargin: 0.5,
+    systemOverhead: 15_000,
+  },
+};
+
 export class ContextCompressor {
-  private static readonly TOKEN_THRESHOLD = 3000; // 압축 트리거 임계치 (예시값)
+  private static readonly DEFAULT_TOKEN_THRESHOLD = 85_000; // Claude Haiku 기준 (최소값)
+
+  /**
+   * 동적 임계값을 계산합니다.
+   * context_window * 0.5 (50% 안전 마진) - 15K (시스템 오버헤드)
+   */
+  private static calculateTokenThreshold(adapter: string = 'gemini'): number {
+    const policy = COMPRESSION_POLICIES[adapter] || COMPRESSION_POLICIES.gemini;
+    const safeContext = policy!.contextWindow * policy!.safeMargin;
+    const threshold = safeContext - policy!.systemOverhead;
+    return Math.max(threshold, this.DEFAULT_TOKEN_THRESHOLD);
+  }
 
   /**
    * 세션 상태의 컨텍스트를 분석하고 필요시 압축을 수행합니다.
+   * @param state 세션 상태
+   * @param adapter 현재 사용 중인 어댑터 (기본값: gemini)
    */
-  static compress(state: SessionState): SessionState {
+  static compress(state: SessionState, adapter: string = 'gemini'): SessionState {
     if (!state) {
       throw new ContextProcessingError('Invalid state provided to ContextCompressor.compress');
     }
 
     try {
       const currentStateSize = this.estimateTokenUsage(state);
+      const tokenThreshold = this.calculateTokenThreshold(adapter);
 
-      if (currentStateSize <= this.TOKEN_THRESHOLD) {
+      if (currentStateSize <= tokenThreshold) {
         return state;
       }
 
