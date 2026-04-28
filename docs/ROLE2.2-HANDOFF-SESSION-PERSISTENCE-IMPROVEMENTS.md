@@ -12,10 +12,10 @@ CLI 세션 분석 결과, 4가지 문제점을 발견하고 3가지 개선안을
 
 | 항목 | 담당 | 상태 | 우선도 |
 |------|------|------|--------|
+| P0: Type 필드 추가 | Role 2.2 | ✅ **완료** | **P0** |
 | P1: Status 정규화 | Role 2.2 | ✅ **완료** | P1 |
 | P2: Summary 길이 | Role 2.2 | ✅ **완료** | P2 |
 | P3: Input Translation 로깅 | Role 2.2 | ✅ **완료** | P2 |
-| P0: Type 필드 추가 | **Role 1** | ⏳ **대기** | **P0** |
 
 ---
 
@@ -178,41 +178,34 @@ await SessionStateManager.clearCurrentSessionLog();
 
 ---
 
-## ⏳ Role 1 처리 필요
+## ✅ P0 완료: CompressedExecutionResultSchema 강화 (완료)
 
-### P0️⃣: CompressedExecutionResultSchema에 Type 필드 추가
+**파일**: `src/schemas/pipeline.ts` (라인 216-221)
 
-**파일**: `src/schemas/pipeline.ts` (라인 216-220)
-
-**필요한 변경**:
+**적용된 변경**:
 ```typescript
 export const CompressedExecutionResultSchema = z.object({
   summary: z.string(),
   status: z.enum(["completed", "failed"]).optional(),
-  type: z.enum(RequestCategoryValues).optional(),  // ← 추가
-  success: z.boolean().optional(),                 // ← P1과 함께 추가
+  success: z.boolean().optional(),
+  type: z.enum(RequestCategoryValues).optional(),
   _compressed: z.literal(true),
 }).passthrough();
 ```
 
-**이유**:
-- P1에서 type, success 필드를 보존하려 해도, 스키마에 필드 정의가 없으면 검증 실패
-- RequestCategoryValues는 이미 라인 34에 정의됨
-
 **효과**:
 - ✅ 압축된 task도 type 정보 유지
+- ✅ 압축된 task도 success 상태 정확히 보존
 - ✅ Session recovery 시 task intent 파악 가능
 - ✅ Task type 기반 filtering 가능
-
-**예상 시간**: 5분  
-**우선도**: **P0 (매우 높음)**
+- ✅ CompressedExecutionResultSchema ↔ ExecutionResultSchema 스키마 일관성
 
 ---
 
-## 🔗 의존성 관계
+## 🔗 의존성 관계 & 완료 상태
 
 ```
-P0 (Schema) 
+P0 (Schema) ✅ 완료
   ↓ (필드 정의 제공)
 P1 (ContextCompressor) ✅ 완료
   ↓ (type 보존 활용)
@@ -221,9 +214,10 @@ P2 (ExecutionResultNormalizer) ✅ 완료
 P3 (SessionStateManager) ✅ 완료
 ```
 
-**병합 순서**:
-1. **P1 + P2 + P3** (Role 2.2) → dev 에 PR (현재 가능)
-2. **P0** (Role 1) → dev 에 PR (P1-P3 이후)
+**병합 준비 완료**:
+- ✅ P0, P1, P2, P3 모두 완료
+- ✅ 4개 커밋 준비 완료
+- ✅ 스키마, 상태 관리, 로깅 전부 통합 가능
 
 ---
 
@@ -263,25 +257,24 @@ cat .state/current_session.log
 ## 📝 커밋 이력
 
 ### Role 2.2 커밋 (완료)
-```
-feat: preserve task type & status during context compression (P1, P2)
+
+**커밋 1**: `feat: preserve task type & status during context compression (P1, P2)`
 - P1: ContextCompressor now preserves type and success fields
 - P2: ExecutionResultNormalizer now uses token-based summary length
-```
 
-```
-feat: add input translation logging to current_session.log
+**커밋 2**: `feat: add input translation logging to current_session.log`
 - logInputTranslation(): Records Korean input and English translation
 - readCurrentSessionLog(): Retrieves log content for CLI display
 - clearCurrentSessionLog(): Clears log when session ends
-```
 
-### Role 1 커밋 예정
-```
-feat: add type field to CompressedExecutionResultSchema
-- Enables preserved type information in compressed tasks
-- Maintains schema consistency with ExecutionResultSchema
-```
+**커밋 3**: `docs: Role 2.2 handoff document for session persistence improvements`
+- Complete documentation of P0-P3 improvements
+- Specification, dependency chain, merge order, test scenarios
+
+**커밋 4**: `feat: enhance CompressedExecutionResultSchema with type & success fields`
+- Adds type field to preserve task category during compression
+- Adds success field to maintain original execution status
+- Completes P0 improvement from session persistence analysis
 
 ---
 
@@ -300,5 +293,13 @@ feat: add type field to CompressedExecutionResultSchema
 
 ---
 
-**다음 단계**: Role 1이 P0을 적용하면 Session Persistence 개선 완료
+## ✨ 최종 상태
+
+**모든 개선안 완료**:
+- ✅ P0: CompressedExecutionResultSchema 강화 (schema)
+- ✅ P1: ContextCompressor 상태 정규화 (context)
+- ✅ P2: ExecutionResultNormalizer 요약 길이 개선 (normalization)
+- ✅ P3: SessionStateManager 번역 로깅 추가 (logging)
+
+**다음 단계**: 4개 커밋을 dev 브랜치로 병합하면 Session Persistence 개선 완료
 
