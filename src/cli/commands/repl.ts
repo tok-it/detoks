@@ -100,8 +100,7 @@ export const runReplCommand = async (baseArgs: CliArgs): Promise<void> => {
     while (true) {
       let line: string;
       try {
-        output.write("detoks> ");
-        line = (await rl.question("")).trim();
+        line = (await rl.question("detoks> ")).trim();
       } catch (error) {
         if (error instanceof Error && error.message === "readline was closed") {
           break;
