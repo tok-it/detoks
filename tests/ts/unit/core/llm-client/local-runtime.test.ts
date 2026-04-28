@@ -1,5 +1,12 @@
-import { describe, expect, it } from "vitest";
-import { buildLlamaServerArgs } from "../../../../../src/core/llm-client/local-runtime.js";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+	buildLlamaServerArgs,
+	ensureLocalLlmRuntime,
+} from "../../../../../src/core/llm-client/local-runtime.js";
+
+afterEach(() => {
+	vi.restoreAllMocks();
+});
 
 describe("buildLlamaServerArgs", () => {
 	it("GGUF 경로가 있으면 해당 파일을 모델로 로드한다", () => {
@@ -91,5 +98,44 @@ describe("buildLlamaServerArgs", () => {
 		expect(args).toContain("none");
 		expect(args).toContain("--gpu-layers");
 		expect(args).toContain("0");
+	});
+
+	it("이미 떠 있는 서버가 다른 모델이면 명확한 에러를 던진다", async () => {
+		const fetchMock = vi
+			.fn<typeof fetch>()
+			.mockResolvedValueOnce({
+				ok: true,
+			} as Response)
+			.mockResolvedValueOnce({
+				ok: true,
+				json: async () => ({
+					data: [
+						{
+							id: "gemma-4-E2B-it-heretic-ara-GGUF",
+							aliases: ["gemma-4-E2B-it-heretic-ara-GGUF"],
+						},
+					],
+				}),
+			} as Response);
+
+		vi.stubGlobal("fetch", fetchMock);
+
+		await expect(
+			ensureLocalLlmRuntime({
+				localLlmApiBase: "http://127.0.0.1:12370/v1",
+				localLlmModelName:
+					"mradermacher/supergemma4-e4b-abliterated-GGUF:Q4_K_S",
+				localLlmAutoStart: true,
+				localLlmServerHost: "127.0.0.1",
+				localLlmServerPort: 12370,
+				localLlmGpuLayers: "all",
+				localLlmContextSize: 4096,
+				localLlmReasoning: "off",
+				pipelineMode: "safe",
+				requestTimeout: 30000,
+				translationMaxAttempts: 5,
+				temperature: 0,
+			}),
+		).rejects.toThrow("Expected mradermacher/supergemma4-e4b-abliterated-GGUF:Q4_K_S");
 	});
 });

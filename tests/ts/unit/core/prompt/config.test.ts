@@ -32,7 +32,9 @@ describe("loadRole1RuntimeConfig", () => {
 		expect(config.temperature).toBe(0);
 		expect(config.localLlmApiBase).toBe("http://127.0.0.1:12370/v1");
 		expect(config.localLlmApiKey).toBeUndefined();
-		expect(config.localLlmModelName).toBe("supergemma4-e4b-abliterated-GGUF");
+		expect(config.localLlmModelName).toBe(
+			"mradermacher/supergemma4-e4b-abliterated-GGUF:Q4_K_S",
+		);
 		expect(config.localLlmAutoStart).toBe(true);
 		expect(config.localLlmServerBinary).toBe("llama-server");
 		expect(config.localLlmServerHost).toBe("127.0.0.1");
