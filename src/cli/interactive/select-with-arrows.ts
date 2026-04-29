@@ -74,7 +74,7 @@ export const selectWithArrows = async (
         // Enter
         input.removeListener("data", handleKeyPress);
         input.setRawMode(originalRawMode);
-        input.pause();
+        input.resume(); // readline이 stdin을 다시 사용할 수 있도록 resume
 
         const selected = options[selectedIndex];
         output.write("\n");
@@ -91,7 +91,7 @@ export const selectWithArrows = async (
         // ESC - 취소
         input.removeListener("data", handleKeyPress);
         input.setRawMode(originalRawMode);
-        input.pause();
+        input.resume(); // readline이 stdin을 다시 사용할 수 있도록 resume
         output.write("\x1b8"); // 저장된 커서 위치로 복원
         output.write("\x1b[J"); // 커서 아래 모두 지움
         output.write(colors.muted("(취소)\n\n"));
@@ -100,8 +100,7 @@ export const selectWithArrows = async (
       } else if (str === "") {
         // Ctrl+C
         input.removeListener("data", handleKeyPress);
-        input.setRawMode(originalRawMode);
-        input.pause();
+        input.setRawMode(false);
         output.write("\n");
         process.exit(0);
       }
