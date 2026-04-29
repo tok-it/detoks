@@ -31,6 +31,20 @@ describe("TaskSentenceSplitter", () => {
     ]);
   });
 
+  it("drops directive lead-ins before numbered task lists", () => {
+    const result = TaskSentenceSplitter.split(
+      "Please process these five tasks sequentially, gradually, but reduce unnecessary words.\n1. Find exactly where the code related to authentication is in the project.\n2. Analyze in detail the flow from the login request starting on the screen to the controller, service, and repository.\n3. Fix the bug that appears due to redundant validation logic in the actual code.\n4. After the fix, run regression tests and related unit tests to confirm that it has been corrected properly.\n5. Finally, document the reason for the change and the test results confirmed in the work notes.",
+    );
+
+    expect(result.sentences).toEqual([
+      "Find exactly where the code related to authentication is in the project.",
+      "Analyze in detail the flow from the login request starting on the screen to the controller, service, and repository.",
+      "Fix the bug that appears due to redundant validation logic in the actual code.",
+      "run regression tests and related unit tests to confirm that it has been corrected properly.",
+      "document the reason for the change and the test results confirmed in the work notes.",
+    ]);
+  });
+
   it("splits create-and-validate follow-up requests", () => {
     const result = TaskSentenceSplitter.split("Create a new endpoint and test it");
 

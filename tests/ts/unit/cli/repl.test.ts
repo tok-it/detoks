@@ -207,6 +207,56 @@ describe("repl builtin command routing", () => {
       }),
     ).toBe("detoks[gemini]> ");
   });
+
+  it("tracks source badge emission on first response and source changes", () => {
+    const initialState = {
+      adapter: "codex" as const,
+      model: "gpt-5",
+      executionMode: "stub" as const,
+      verbose: false,
+    };
+
+    expect(getReplSourceBadgeKey(initialState)).toBe("codex::gpt-5::stub");
+    expect(shouldEmitReplSourceBadge(initialState, null)).toBe(true);
+    expect(shouldEmitReplSourceBadge(initialState, "codex::gpt-5::stub")).toBe(false);
+    expect(
+      shouldEmitReplSourceBadge(
+        { ...initialState, adapter: "gemini" as const },
+        "codex::gpt-5::stub",
+      ),
+    ).toBe(true);
+    expect(
+      shouldEmitReplSourceBadge(
+        { ...initialState, model: "gpt-5.1" },
+        "codex::gpt-5::stub",
+      ),
+    ).toBe(true);
+    expect(
+      shouldEmitReplSourceBadge(
+        { ...initialState, executionMode: "real" as const },
+        "codex::gpt-5::stub",
+      ),
+    ).toBe(true);
+  });
+
+  it("builds the repl prompt label from the current source", () => {
+    expect(
+      getReplPromptLabel({
+        adapter: "codex",
+        model: "gpt-5",
+        executionMode: "stub",
+        verbose: false,
+      }),
+    ).toBe("detoks[codex:gpt-5]> ");
+
+    expect(
+      getReplPromptLabel({
+        adapter: "gemini",
+        executionMode: "real",
+        verbose: true,
+      }),
+    ).toBe("detoks[gemini]> ");
+  });
 });
 
 describe("resolveReplSessionId", () => {

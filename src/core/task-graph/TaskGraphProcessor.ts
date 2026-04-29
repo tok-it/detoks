@@ -42,6 +42,8 @@ export class TaskGraphProcessor {
     { type: "execute",  pattern: /\bmake\s+use\s+of\b/i },
     // make a note/notes → document
     { type: "document", pattern: /\bmake\s+(?:a\s+)?notes?\b/i },
+    { type: "document", pattern: /\borganize\b.*\b(changes?|results?|commands?)\b.*\b(work\s+notes?|notes?)\b/i },
+    { type: "analyze",  pattern: /\btrace\b.*\bexplain\b.*\b(order|how|flow|passes?|through)\b/i },
     // make a plan/roadmap → plan
     { type: "plan",     pattern: /\bmake\s+(?:a\s+)?(?:plan|roadmap)\b/i },
   ];
