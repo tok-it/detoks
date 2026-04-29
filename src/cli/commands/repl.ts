@@ -38,8 +38,8 @@ const formatProgressEvent = (event: PipelineProgressEvent): string => {
 };
 
 export const runReplCommand = async (baseArgs: CliArgs): Promise<void> => {
-  // 저장된 설정 로드 및 환경변수 적용
-  loadAndApplyConfig();
+  // 저장된 설정 로드 및 환경변수 적용 (CLI adapter에 맞는 모델만 로드)
+  loadAndApplyConfig(baseArgs.adapter as "codex" | "gemini");
 
   await runModelSetupIfNeeded();
 
