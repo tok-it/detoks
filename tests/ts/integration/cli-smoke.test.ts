@@ -87,8 +87,14 @@ const realBinarySmokeTargets: Array<"codex" | "gemini"> = runAllRealBinarySmokeT
     : installedRealAdapters[0]
       ? [installedRealAdapters[0]]
       : [];
-const realBinarySmokePrompt =
-  process.env.DETOKS_REAL_BINARY_SMOKE_PROMPT ?? "detoks installed binary smoke";
+const defaultRealBinarySmokePromptByAdapter: Record<"codex" | "gemini", string> = {
+  codex: "Reply with OK only.",
+  gemini: "Reply with OK only.",
+};
+const getRealBinarySmokePrompt = (adapter: "codex" | "gemini") =>
+  process.env[`DETOKS_REAL_BINARY_SMOKE_${adapter.toUpperCase()}_PROMPT`] ??
+  process.env.DETOKS_REAL_BINARY_SMOKE_PROMPT ??
+  defaultRealBinarySmokePromptByAdapter[adapter];
 const parsedRealBinarySmokeTimeoutMs = Number.parseInt(
   process.env.DETOKS_REAL_BINARY_SMOKE_TIMEOUT_MS ?? "",
   10,
@@ -191,6 +197,7 @@ const runAdapterRawOutputSmoke = (adapter: "codex" | "gemini", prompt: string) =
 };
 
 const runInstalledRealAdapterSmoke = (adapter: "codex" | "gemini") => {
+  const realBinarySmokePrompt = getRealBinarySmokePrompt(adapter);
   const defaultRun = runCliWithEnvAndTimeout(
     [
       realBinarySmokePrompt,

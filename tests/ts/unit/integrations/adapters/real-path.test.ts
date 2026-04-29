@@ -44,6 +44,7 @@ describe("adapter execution modes", () => {
           "exec",
           "--model",
           "gpt-5",
+          "--ephemeral",
           "-",
           "--sandbox",
           "workspace-write",

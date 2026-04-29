@@ -12,6 +12,7 @@ export class CodexStubAdapter implements CliAdapter {
       args: [
         "exec",
         ...(request.model ? ["--model", request.model] : []),
+        "--ephemeral",
         "-",
         "--sandbox",
         "workspace-write",

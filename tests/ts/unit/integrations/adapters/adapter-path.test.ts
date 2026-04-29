@@ -20,6 +20,7 @@ describe("adapter subprocess path", () => {
         "exec",
         "--model",
         "gpt-5",
+        "--ephemeral",
         "-",
         "--sandbox",
         "workspace-write",
@@ -67,7 +68,7 @@ describe("adapter subprocess path", () => {
 
     expect(result.success).toBe(true);
     expect(result.rawOutput).toBe(
-      "[stub:subprocess] codex exec --model gpt-5 - --sandbox workspace-write --skip-git-repo-check --color never",
+      "[stub:subprocess] codex exec --model gpt-5 --ephemeral - --sandbox workspace-write --skip-git-repo-check --color never",
     );
     expect(result.exitCode).toBe(0);
   });

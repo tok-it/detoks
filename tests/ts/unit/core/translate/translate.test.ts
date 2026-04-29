@@ -14,6 +14,61 @@ describe("clean_translation", () => {
 });
 
 describe("translate_to_english", () => {
+  it("기술 번역용 시스템 프롬프트를 local LLM 요청에 포함한다", async () => {
+    const fetchImplementation = vi.fn(async () => {
+      return new Response(
+        JSON.stringify({
+          choices: [
+            {
+              message: {
+                content: "Create a file",
+              },
+            },
+          ],
+        }),
+        {
+          status: 200,
+          headers: {
+            "content-type": "application/json",
+          },
+        },
+      );
+    });
+
+    await translate_to_english("파일을 생성해", {
+      config: {
+        localLlmApiBase: "http://127.0.0.1:1234/v1",
+        localLlmApiKey: "test-key",
+        localLlmModelName: "local-model",
+        pipelineMode: "safe",
+        requestTimeout: 30000,
+        translationMaxAttempts: 1,
+        temperature: 0,
+      },
+      policies: {
+        protectedTerms: [],
+        preferredTranslations: {},
+        forbiddenPatterns: [],
+      },
+      fetchImplementation,
+    });
+
+    const firstFetchCall = fetchImplementation.mock.calls[0] as
+      | [unknown, RequestInit | undefined]
+      | undefined;
+
+    expect(firstFetchCall).toBeDefined();
+
+    const requestBody = JSON.parse(String(firstFetchCall?.[1]?.body ?? ""));
+    const systemPrompt = requestBody.messages[0]?.content as string;
+
+    expect(systemPrompt).toContain("Role 1 of detoks");
+    expect(systemPrompt).toContain("technical translator");
+    expect(systemPrompt).toContain("Output English only.");
+    expect(systemPrompt).toContain("Preserve all technical literals exactly as written");
+    expect(systemPrompt).toContain("Do not analyze, plan, summarize, or compress");
+  });
+
   it("placeholder를 보존하면서 한국어 span만 번역한다", async () => {
     const fetchImplementation = vi.fn(async () => {
       return new Response(

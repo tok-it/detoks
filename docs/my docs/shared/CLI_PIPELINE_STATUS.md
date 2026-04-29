@@ -167,7 +167,7 @@ CLI Input
 - `real` 경로는 subprocess boundary를 타도록 설계됨
 - executor가 `executionMode=real`일 때 실제 subprocess runner를 선택하도록 연결됨
 - adapter별 model pass-through 추가:
-  - codex: `codex exec --model <name> - ...`
+  - codex: `codex exec --model <name> --ephemeral - ...`
   - gemini: `gemini --model <name>`
 
 관련 파일:
@@ -182,6 +182,7 @@ CLI Input
 - stub subprocess runner 존재
 - real subprocess runner 존재
 - CLI smoke에서 codex/gemini real 실행 시 stdout/rawOutput 일치 계약을 검증함
+- opt-in installed real smoke가 adapter별 prompt override/default 정책(`DETOKS_REAL_BINARY_SMOKE_CODEX_PROMPT`, `DETOKS_REAL_BINARY_SMOKE_GEMINI_PROMPT`)을 지원함
 - real smoke/batch smoke temp dir cleanup까지 반영됨
 
 한계:
