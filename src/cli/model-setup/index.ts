@@ -17,6 +17,13 @@ const isModelDownloaded = (model: TranslationModel): boolean => {
 };
 
 export const runModelSetupIfNeeded = async (cwd: string = process.cwd()): Promise<void> => {
+  const canPrompt =
+    Boolean(process.stdin.isTTY) && Boolean(process.stdout.isTTY);
+
+  if (!canPrompt) {
+    return;
+  }
+
   // 이미 설정된 모델이 있으면 건너뛰기
   const modelName = process.env.LOCAL_LLM_MODEL_NAME || process.env.MODEL_NAME;
   if (modelName) {

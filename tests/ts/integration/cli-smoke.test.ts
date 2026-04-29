@@ -418,7 +418,7 @@ describe("detoks CLI smoke", () => {
       promptValidationErrors: [],
       promptRepairActions: [],
       rawOutput:
-        "[stub:codex] [EXECUTE] hello detoks\n\nContext: No previous task context available.",
+        "[stub:codex] [EXECUTE] hello detoks\n\nContext: Project: detoks\n\nNo previous task context available.",
     });
     expect(verboseJson.stages).toHaveLength(5);
     expect(verboseJson).toHaveProperty("rawOutput");
