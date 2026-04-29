@@ -108,7 +108,7 @@ describe("runSessionContinueCommand", () => {
       promptLanguage: "en",
       promptInferenceTimeSec: 0,
       promptValidationErrors: [],
-      promptRepairActions: ["compressed_with_kompress"],
+      promptRepairActions: ["compressed_with_nlp_adapter"],
     });
     const onResumeOverview = vi.fn();
 
@@ -145,7 +145,7 @@ describe("runSessionContinueCommand", () => {
       promptLanguage: "en",
       promptInferenceTimeSec: 0,
       promptValidationErrors: [],
-      promptRepairActions: ["compressed_with_kompress"],
+      promptRepairActions: ["compressed_with_nlp_adapter"],
     });
 
     expect(onResumeOverview).toHaveBeenCalledWith({

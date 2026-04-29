@@ -8,11 +8,6 @@ import type { SessionShowOutput } from "./commands/session-show.js";
 import type { SessionListOutput } from "./commands/session-list.js";
 import type { SessionResumeOverview, SessionTaskLogEntry } from "./session-summary.js";
 
-const defaultTerminalStyleOptions = (): TerminalStyleOptions => ({
-  isTTY: Boolean(process.stdout.isTTY),
-  env: process.env,
-});
-
 function toPromptMetadata(result: CliExecutionResult) {
   return {
     ...(result.promptLanguage ? { promptLanguage: result.promptLanguage } : {}),
@@ -29,25 +24,12 @@ function toPromptMetadata(result: CliExecutionResult) {
   };
 }
 
-const toTraceSection = (
-  result: Pick<CliExecutionResult, "traceLog" | "traceFilePath">,
-  terminalStyleOptions: TerminalStyleOptions,
-): string => {
-  const traceText = result.traceLog
-    ? PipelineTracer.formatAsMarkdown(result.traceLog)
+export const formatSuccess = (result: CliExecutionResult, verbose: boolean): string => {
+  const traceSection = result.traceLog
+    ? "\n\n" + PipelineTracer.formatAsMarkdown(result.traceLog)
     : result.traceFilePath
       ? `\n\n[추적 로그 저장 → ${result.traceFilePath}]`
       : "";
-
-  return traceText ? `\n\n${formatTerminalTrace(traceText, terminalStyleOptions)}` : "";
-};
-
-export const formatSuccess = (
-  result: CliExecutionResult,
-  verbose: boolean,
-  terminalStyleOptions: TerminalStyleOptions = defaultTerminalStyleOptions(),
-): string => {
-  const traceSection = toTraceSection(result, terminalStyleOptions);
 
   if (verbose) {
     const { traceLog, ...rest } = result;
@@ -75,7 +57,6 @@ export const formatSuccess = (
 export const formatFailedResult = (
   result: CliExecutionResult,
   verbose: boolean,
-  terminalStyleOptions: TerminalStyleOptions = defaultTerminalStyleOptions(),
 ): string => {
   const traceSection = result.traceLog
     ? "\n\n" + PipelineTracer.formatAsMarkdown(result.traceLog)

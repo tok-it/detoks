@@ -1,14 +1,13 @@
-import { randomInt } from "node:crypto";
+import { createHash } from "node:crypto";
 import { DAGValidator } from "../task-graph/DAGValidator.js";
 import { DependencyResolver } from "../task-graph/DependencyResolver.js";
 import { ParallelClassifier } from "../task-graph/ParallelClassifier.js";
-import { TaskCandidateExtractor } from "../task-graph/TaskCandidateExtractor.js";
 import { TaskGraphProcessor } from "../task-graph/TaskGraphProcessor.js";
+import { TaskSentenceSplitter } from "../task-graph/TaskSentenceSplitter.js";
 import { compilePrompt, createRole2PromptInput } from "../prompt/compiler.js";
 import { ContextBuilder } from "../context/ContextBuilder.js";
 import { SessionStateManager } from "../state/SessionStateManager.js";
 import { executeWithAdapter } from "../executor/execute.js";
-import { validate_adapter_output } from "../guardrails/validator.js";
 import { logger } from "../utils/logger.js";
 import { PipelineTracer } from "../utils/PipelineTracer.js";
 import { translateVisibleText } from "../utils/visibleText.js";
@@ -22,116 +21,12 @@ import type {
   TaskExecutionRecord,
 } from "./types.js";
 
-const SESSION_VERSION = "1";
-
-const SESSION_ID_CHARSET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-const SESSION_ID_LENGTH = 24;
-
 function generateSessionId(): string {
-  return Array.from(
-    { length: SESSION_ID_LENGTH },
-    () => SESSION_ID_CHARSET[randomInt(SESSION_ID_CHARSET.length)]!,
-  ).join("");
-}
-
-async function allocateSessionId(): Promise<string> {
-  for (let attempt = 0; attempt < 10; attempt += 1) {
-    const sessionId = generateSessionId();
-    if (!(await SessionStateManager.sessionExists(sessionId))) {
-      return sessionId;
-    }
-  }
-  throw new Error("Unable to allocate a unique session id after 10 attempts");
-}
-
-function taskResultRawOutput(result: TaskResult | undefined): string {
-  return result && "raw_output" in result && typeof result.raw_output === "string"
-    ? result.raw_output
-    : "";
-}
-
-function taskIdNumber(taskId: string): number | null {
-  const match = /^t(\d+)$/u.exec(taskId);
-  if (!match) {
-    return null;
-  }
-
-  const parsed = Number(match[1]);
-  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : null;
-}
-
-function nextTaskIdOffset(state: SessionState): number {
-  const taskIds = new Set<string>([
-    ...state.completed_task_ids,
-    ...Object.keys(state.task_results),
-  ]);
-  if (state.current_task_id) {
-    taskIds.add(state.current_task_id);
-  }
-
-  let max = 0;
-  for (const taskId of taskIds) {
-    const number = taskIdNumber(taskId);
-    if (number && number > max) {
-      max = number;
-    }
-  }
-
-  return max;
-}
-
-function retargetTaskGraphIds(graph: TaskGraph, offset: number): TaskGraph {
-  if (offset <= 0) {
-    return graph;
-  }
-
-  const idMap = new Map<string, string>();
-  graph.tasks.forEach((task, index) => {
-    idMap.set(task.id, `t${offset + index + 1}`);
-  });
-
-  graph.tasks.forEach((task) => {
-    task.id = idMap.get(task.id) ?? task.id;
-    task.depends_on = task.depends_on.map((depId) => idMap.get(depId) ?? depId);
-  });
-
-  return graph;
-}
-
-function appendSessionInputHistory(
-  state: SessionState,
-  nextRawInput: string,
-): SessionState {
-  const existingHistory = Array.isArray(state.shared_context.input_history)
-    ? state.shared_context.input_history.filter((entry): entry is string => typeof entry === "string")
-    : [];
-  const previousRawInput =
-    typeof state.shared_context.raw_input === "string"
-      ? state.shared_context.raw_input
-      : undefined;
-  const nextHistory = [...existingHistory];
-
-  if (previousRawInput && !nextHistory.includes(previousRawInput)) {
-    nextHistory.push(previousRawInput);
-  }
-  if (!nextHistory.includes(nextRawInput)) {
-    nextHistory.push(nextRawInput);
-  }
-
-  return {
-    ...state,
-    shared_context: {
-      ...state.shared_context,
-      raw_input: nextRawInput,
-      input_history: nextHistory,
-    },
-    updated_at: new Date().toISOString(),
-  };
+  return createHash("sha256").update(String(Date.now())).digest("hex").slice(0, 12);
 }
 
 function initSessionState(sessionId: string, rawInput: string): SessionState {
   return {
-    version: SESSION_VERSION,
     shared_context: { session_id: sessionId, raw_input: rawInput },
     task_results: {},
     current_task_id: null,
@@ -140,11 +35,29 @@ function initSessionState(sessionId: string, rawInput: string): SessionState {
   };
 }
 
+function applyProjectInfo(
+  state: SessionState,
+  projectInfo: PipelineExecutionRequest["projectInfo"],
+): SessionState {
+  if (!projectInfo) {
+    return state;
+  }
+
+  return {
+    ...state,
+    shared_context: {
+      ...state.shared_context,
+      project_id: projectInfo.projectId,
+      project_path: projectInfo.projectPath,
+      project_name: projectInfo.projectName,
+    },
+  };
+}
+
 function markTaskCompleted(
   state: SessionState,
   taskId: string,
   rawOutput: string,
-  taskType?: RequestCategory,
 ): SessionState {
   return {
     ...state,
@@ -157,7 +70,6 @@ function markTaskCompleted(
         success: true,
         summary: rawOutput.slice(0, 200),
         raw_output: rawOutput,
-        ...(taskType ? { type: taskType } : {}),
       },
     },
     updated_at: new Date().toISOString(),
@@ -168,7 +80,6 @@ function markTaskFailed(
   state: SessionState,
   taskId: string,
   rawOutput: string,
-  taskType?: RequestCategory,
 ): SessionState {
   return {
     ...state,
@@ -180,7 +91,6 @@ function markTaskFailed(
         success: false,
         summary: rawOutput.slice(0, 200),
         raw_output: rawOutput,
-        ...(taskType ? { type: taskType } : {}),
       },
     },
     updated_at: new Date().toISOString(),
@@ -191,12 +101,10 @@ function collectTaskOutputText(state: SessionState): {
   rawOutputText: string;
   summaryText: string;
 } {
-  const taskResults = Object.values(state.task_results ?? {}).filter(
-    (result): result is {
-      raw_output?: unknown;
-      summary?: unknown;
-    } => !!result && typeof result === "object",
-  );
+  const taskResults = Object.values(state.task_results ?? {}) as Array<{
+    raw_output?: unknown;
+    summary?: unknown;
+  }>;
 
   const rawOutputText = taskResults
     .map((result) => (typeof result.raw_output === "string" ? result.raw_output : ""))
@@ -271,9 +179,6 @@ function inferPromptFailureNextAction(errorMessage: string): string {
     errorMessage.includes("LOCAL_LLM_API_BASE") ||
     errorMessage.includes("LOCAL_LLM_MODEL_NAME") ||
     errorMessage.includes("MODEL_NAME") ||
-    errorMessage.includes("llama.cpp server") ||
-    errorMessage.includes("llama-server") ||
-    errorMessage.includes("GGUF model") ||
     errorMessage.includes("fetch support")
   ) {
     return "Role 1 로컬 LLM 실행 설정(LOCAL_LLM_API_BASE, LOCAL_LLM_MODEL_NAME)을 맞춘 뒤 다시 시도하세요.";
@@ -313,7 +218,7 @@ async function emitProgress(
 export const orchestratePipeline = async (
   request: PipelineExecutionRequest,
 ): Promise<PipelineExecutionResult> => {
-  const sessionId = request.userRequest.session_id ?? (await allocateSessionId());
+  const sessionId = request.userRequest.session_id ?? generateSessionId();
   PipelineTracer.clear();
 
   // ── Step 1: Prompt compile + Role 2.1 handoff 생성 (Role 1) ──────────────
@@ -402,7 +307,7 @@ export const orchestratePipeline = async (
     dataType: "Role2PromptInput", data: role2PromptInput,
   });
   PipelineTracer.startStage("TaskGraphBuilder");
-  const compiledSentences = TaskCandidateExtractor.extractSentences(role2PromptInput.compiled_prompt);
+  const compiledSentences = TaskSentenceSplitter.split(role2PromptInput.compiled_prompt);
   const graph = TaskGraphProcessor.process(compiledSentences);
   await PipelineTracer.trace({
     sessionId, stage: "TaskGraphBuilder", role: "role2.1", phase: "output",
@@ -489,11 +394,7 @@ export const orchestratePipeline = async (
   });
   let state: SessionState;
   const taskRecords: TaskExecutionRecord[] = [];
-  const outputWarnings: string[] = [];
   const failedTaskIds = new Set<string>();
-
-  PipelineTracer.startStage("SessionLoader");
-  let graphTaskIds = graph.tasks.map((t) => t.id);
 
   if (await SessionStateManager.sessionExists(sessionId)) {
     logger.info(`기존 세션을 불러옵니다: ${sessionId}`);
@@ -516,25 +417,13 @@ export const orchestratePipeline = async (
   } else {
     state = initSessionState(sessionId, request.userRequest.raw_input);
   }
+  state = applyProjectInfo(state, request.projectInfo);
   await emitProgress(request, {
     stage: "State Manager",
     status: "end",
     message: "State Manager: 세션 상태 준비 완료",
   });
 
-  await PipelineTracer.trace({
-    sessionId,
-    stage: "SessionLoader",
-    role: "role2.2",
-    phase: "output",
-    dataType: "SessionState",
-    data: {
-      session_id: state.shared_context.session_id,
-      completed_task_count: state.completed_task_ids.length,
-      next_task_id: state.current_task_id,
-    },
-    durationMs: PipelineTracer.endStage("SessionLoader"),
-  });
   // ── Step 6: 실행 루프 ────────────────────────────────────────────────────
   for (const { stage, tasks } of stages) {
     logger.info(`단계 ${stage} 실행 중 — 작업 ${tasks.length}개`);
@@ -553,7 +442,7 @@ export const orchestratePipeline = async (
         taskRecords.push({
           taskId: task.id,
           status: "completed",
-          rawOutput: taskResultRawOutput(state.task_results[task.id]),
+          rawOutput: previousResult?.raw_output ?? "",
         });
         continue;
       }
@@ -562,16 +451,6 @@ export const orchestratePipeline = async (
       const blockedBy = task.depends_on.find((depId) => failedTaskIds.has(depId));
       if (blockedBy) {
         failedTaskIds.add(task.id);
-        const rawOutput = `Skipped because dependency [${blockedBy}] failed`;
-        state = markTaskFailed(state, task.id, rawOutput, task.type);
-        state = {
-          ...state,
-          shared_context: {
-            ...state.shared_context,
-            failed_task_ids: Array.from(failedTaskIds),
-          },
-        };
-        await SessionStateManager.saveSession(state, request.projectInfo);
         taskRecords.push({ taskId: task.id, status: "skipped", rawOutput: "", blockedBy });
         logger.warn(`작업 [${task.id}] 건너뜀 — 의존성 [${blockedBy}] 실패`);
         await emitProgress(request, {
@@ -624,12 +503,10 @@ export const orchestratePipeline = async (
       PipelineTracer.startStage(`Executor:${task.id}`);
       const execResult = await executeWithAdapter({
         adapter: request.adapter,
-        ...(request.model !== undefined ? { model: request.model } : {}),
         mode: request.mode,
         executionMode: request.executionMode,
         prompt,
         verbose: request.verbose,
-        taskType: task.type,
         ...(request.userRequest.cwd ? { cwd: request.userRequest.cwd } : {}),
         sessionId,
       });
@@ -647,7 +524,7 @@ export const orchestratePipeline = async (
         taskRecords.push({ taskId: task.id, status: "failed", rawOutput: execResult.rawOutput });
         await PipelineTracer.trace({
           sessionId, stage: `Executor:${task.id}`, role: "role3", phase: "output",
-          dataType: "ExecutionResult", data: { task_id: task.id, type: task.type, success: false, raw_output: execResult.rawOutput },
+          dataType: "ExecutionResult", data: { task_id: task.id, success: false, raw_output: execResult.rawOutput },
           durationMs: PipelineTracer.endStage(`Executor:${task.id}`),
         });
         await emitProgress(request, {
@@ -661,7 +538,7 @@ export const orchestratePipeline = async (
         // 성공 — 세션 상태 갱신 및 저장 (Role 2.2)
         await PipelineTracer.trace({
           sessionId, stage: `Executor:${task.id}`, role: "role3", phase: "output",
-          dataType: "ExecutionResult", data: { task_id: task.id, type: task.type, success: true, raw_output: execResult.rawOutput },
+          dataType: "ExecutionResult", data: { task_id: task.id, success: true, raw_output: execResult.rawOutput },
           durationMs: PipelineTracer.endStage(`Executor:${task.id}`),
         });
         await emitProgress(request, {
@@ -755,7 +632,6 @@ export const orchestratePipeline = async (
     promptInferenceTimeSec: compiledPrompt.inference_time_sec ?? 0,
     promptValidationErrors: compiledPrompt.validation_errors ?? [],
     promptRepairActions: compiledPrompt.repair_actions ?? [],
-    ...(outputWarnings.length > 0 ? { outputWarnings } : {}),
     ...(request.trace ? { traceLog: PipelineTracer.getTrace(sessionId) } : {}),
     ...(traceFilePath ? { traceFilePath } : {}),
   };

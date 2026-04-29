@@ -2,19 +2,6 @@ import { describe, expect, it } from "vitest";
 import { getCliUsage, parseCliArgs } from "../../../../src/cli/parse.js";
 
 describe("parseCliArgs", () => {
-  it("treats an empty invocation as a main help request", () => {
-    const parsed = parseCliArgs([]);
-    expect(parsed).toEqual({
-      mode: "run",
-      adapter: "codex",
-      executionMode: "stub",
-      verbose: false,
-      trace: false,
-      showHelp: true,
-      helpTopic: "main",
-    });
-  });
-
   it("parses one-shot mode with defaults", () => {
     const parsed = parseCliArgs(["hello detoks"]);
     expect(parsed).toEqual({
@@ -34,8 +21,6 @@ describe("parseCliArgs", () => {
       "repl",
       "--adapter",
       "gemini",
-      "--model",
-      "gemini-2.5-pro",
       "--execution-mode",
       "real",
       "--verbose",
@@ -43,21 +28,8 @@ describe("parseCliArgs", () => {
     expect(parsed).toEqual({
       mode: "repl",
       adapter: "gemini",
-      model: "gemini-2.5-pro",
       executionMode: "real",
       verbose: true,
-      trace: false,
-      showHelp: false,
-      helpTopic: "repl",
-    });
-  });
-
-  it("parses repl mode without an adapter so startup can prompt for one", () => {
-    const parsed = parseCliArgs(["repl"]);
-    expect(parsed).toEqual({
-      mode: "repl",
-      executionMode: "stub",
-      verbose: false,
       trace: false,
       showHelp: false,
       helpTopic: "repl",
@@ -347,9 +319,8 @@ describe("parseCliArgs", () => {
     expect(usage).toContain("detoks                         인자 없이 실행하면 대화형 REPL로 진입합니다");
     expect(usage).toContain("detoks repl [--adapter codex|gemini] [--execution-mode stub|real] [--session <id>] [--verbose]");
     expect(usage).toContain("detoks --file tests/data/row_data.json --verbose");
-    expect(usage).toContain("--file <경로>");
-    expect(usage).toContain("detoks repl --adapter codex --model gpt-5 --execution-mode stub");
-    expect(usage).toContain("세션 / 체크포인트 명령어:");
+    expect(usage).toContain("--file <path>");
+    expect(usage).toContain("detoks repl --adapter codex --execution-mode stub");
     expect(usage).toContain("detoks session list");
     expect(usage).toContain("detoks session list --human");
     expect(usage).toContain("detoks session show <session-id> [--human]");
@@ -357,20 +328,19 @@ describe("parseCliArgs", () => {
     expect(usage).toContain("detoks session show session_2026_04_27 --human");
     expect(usage).toContain("detoks session continue <session-id>");
     expect(usage).toContain("detoks session continue session_2026_04_27");
-    expect(usage).toContain("detoks session reset <세션-id>");
+    expect(usage).toContain("detoks session reset <session-id>");
     expect(usage).toContain("detoks session reset session_2026_04_27");
-    expect(usage).toContain("detoks session fork <원본-세션-id> <새-세션-id>");
+    expect(usage).toContain("detoks session fork <source-session-id> <new-session-id>");
     expect(usage).toContain("detoks session fork session_2026_04_27 session_2026_04_27_fork");
-    expect(usage).toContain("detoks checkpoint list <세션-id>");
-    expect(usage).toContain("detoks checkpoint show <체크포인트-id>");
+    expect(usage).toContain("detoks checkpoint list <session-id>");
+    expect(usage).toContain("detoks checkpoint show <checkpoint-id>");
     expect(usage).toContain("detoks checkpoint list session_2026_04_27");
     expect(usage).toContain("detoks checkpoint show session_2026_04_27_checkpoint_001");
-    expect(usage).toContain("detoks checkpoint restore <체크포인트-id>");
+    expect(usage).toContain("detoks checkpoint restore <checkpoint-id>");
     expect(usage).toContain("detoks checkpoint restore session_2026_04_27_checkpoint_001");
     expect(usage).toContain("인자 없이 실행하면 대화형 REPL로 진입합니다");
     expect(usage).toContain("로컬 LLM 환경 변수(현재 cwd의 .env / .env.local에서 읽음):");
     expect(usage).toContain("LOCAL_LLM_API_BASE, LOCAL_LLM_API_KEY, LOCAL_LLM_MODEL_NAME");
-    expect(usage).toContain("--model <이름>");
     expect(usage).toContain("--session <id>");
     expect(usage).toContain("실행 모드:");
     expect(usage).toContain("stub = 빠르고 안전한 CLI 테스트를 위한 모의 출력");
@@ -440,7 +410,7 @@ describe("parseCliArgs", () => {
     expect(usage).toContain("세션 상태와 모든 task 결과를 삭제합니다");
     expect(usage).toContain("위험합니다. 되돌릴 수 없습니다");
     expect(usage).toContain("mutatesState");
-    expect(usage).toContain("종료 코드 1");
+    expect(usage).toContain("exit code 1");
     expect(usage).toContain("reset=true");
   });
 
@@ -469,7 +439,7 @@ describe("parseCliArgs", () => {
     expect(usage).toContain("세션을 이 체크포인트 시점의 상태로 복원합니다");
     expect(usage).toContain("이 체크포인트 이후의 task 결과는 잘려 나갑니다");
     expect(usage).toContain("mutatesState");
-    expect(usage).toContain("종료 코드 1");
+    expect(usage).toContain("exit code 1");
     expect(usage).toContain("restored=true");
   });
 

@@ -6,8 +6,6 @@ import {
   formatSuccess,
 } from "../../../../src/cli/format.js";
 
-const colorTty = { isTTY: true, env: { FORCE_COLOR: "1" } };
-
 describe("formatSuccess", () => {
   const result = {
     ok: true,

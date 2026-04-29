@@ -26,7 +26,6 @@ export interface CliArgs {
     | "checkpoint-list"
     | "checkpoint-show"
     | "checkpoint-restore";
-    
   prompt?: string;
   sessionId?: string;
   newSessionId?: string;

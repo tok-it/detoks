@@ -252,20 +252,8 @@ const assertPrompt = (prompt: string | undefined): string => {
 };
 
 export const parseCliArgs = (argv: string[]): CliArgs => {
-  if (argv.length === 0) {
-    return {
-      mode: "run",
-      adapter: DEFAULT_ADAPTER,
-      executionMode: DEFAULT_EXECUTION_MODE,
-      verbose: false,
-      trace: false,
-      showHelp: true,
-      helpTopic: "main",
-    };
-  }
-
   const positionals: string[] = [];
-  let adapter: CliArgs["adapter"] | undefined;
+  let adapter: CliArgs["adapter"] = DEFAULT_ADAPTER;
   let executionMode: CliArgs["executionMode"] = DEFAULT_EXECUTION_MODE;
   let sessionId: string | undefined;
   let inputFile: string | undefined;
@@ -317,7 +305,7 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
               : "main";
       return {
         mode: "run",
-        adapter: adapter ?? DEFAULT_ADAPTER,
+        adapter,
         executionMode,
         verbose,
         trace,
@@ -345,25 +333,6 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
         throw new Error(`지원하지 않는 adapter: ${inline}. codex 또는 gemini를 사용하세요.`);
       }
       adapter = inline;
-      continue;
-    }
-
-    if (current === "--model") {
-      const next = argv[i + 1];
-      if (!next) {
-        throw new Error("--model 값이 필요합니다. 사용법은 `detoks --help`를 참고하세요.");
-      }
-      model = next;
-      i += 1;
-      continue;
-    }
-
-    if (current.startsWith("--model=")) {
-      const inline = current.split("=")[1] ?? "";
-      if (!inline) {
-        throw new Error("--model 값이 필요합니다. 사용법은 `detoks --help`를 참고하세요.");
-      }
-      model = inline;
       continue;
     }
 
@@ -491,7 +460,7 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
         mode: "run",
         command: "session-continue",
         sessionId: sessionIdFromPos,
-        adapter: adapter ?? DEFAULT_ADAPTER,
+        adapter,
         executionMode,
         verbose,
         trace,
@@ -509,7 +478,7 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
         mode: "run",
         command: "session-reset",
         sessionId: sessionIdToReset,
-        adapter: adapter ?? DEFAULT_ADAPTER,
+        adapter,
         executionMode,
         verbose,
         trace,
@@ -529,7 +498,7 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
         command: "session-fork",
         sessionId: sourceSessionId,
         newSessionId,
-        adapter: adapter ?? DEFAULT_ADAPTER,
+        adapter,
         executionMode,
         verbose,
         trace,
@@ -555,7 +524,7 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
         mode: "run",
         command: "checkpoint-list",
         sessionId,
-        adapter: adapter ?? DEFAULT_ADAPTER,
+        adapter,
         executionMode,
         verbose,
         trace,
@@ -573,7 +542,7 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
         mode: "run",
         command: "checkpoint-show",
         checkpointId,
-        adapter: adapter ?? DEFAULT_ADAPTER,
+        adapter,
         executionMode,
         verbose,
         trace,
@@ -591,7 +560,7 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
         mode: "run",
         command: "checkpoint-restore",
         checkpointId,
-        adapter: adapter ?? DEFAULT_ADAPTER,
+        adapter,
         executionMode,
         verbose,
         trace,
@@ -612,16 +581,7 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
         `REPL 모드는 프롬프트 인수를 받지 않습니다. ${topicHelpHint("detoks repl --help")}`,
       );
     }
-    return {
-      mode: "repl",
-      ...(adapter !== undefined ? { adapter } : {}),
-      ...(model !== undefined ? { model } : {}),
-      executionMode,
-      verbose,
-      trace,
-      showHelp: false,
-      helpTopic: "repl",
-    };
+    return { mode: "repl", adapter, executionMode, verbose, trace, showHelp: false, helpTopic: "repl" };
   }
 
   if (inputFile) {
@@ -631,8 +591,7 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
     return {
       mode: "run",
       inputFile,
-      adapter: adapter ?? DEFAULT_ADAPTER,
-      ...(model !== undefined ? { model } : {}),
+      adapter,
       executionMode,
       verbose,
       trace,
@@ -645,9 +604,8 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
   return {
     mode: "run",
     prompt,
-    ...(sessionId !== undefined ? { sessionId } : {}),
-    adapter: adapter ?? DEFAULT_ADAPTER,
-    ...(model !== undefined ? { model } : {}),
+    ...(sessionId ? { sessionId } : {}),
+    adapter,
     executionMode,
     verbose,
     trace,
@@ -710,8 +668,7 @@ export const toNormalizedRequest = (
 
   return {
     mode,
-    adapter: args.adapter ?? DEFAULT_ADAPTER,
-    ...(args.model !== undefined ? { model: args.model } : {}),
+    adapter: args.adapter,
     executionMode: args.executionMode,
     verbose: args.verbose,
     trace: args.trace,

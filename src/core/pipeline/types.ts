@@ -1,6 +1,6 @@
 import type { UserRequest } from "../../schemas/pipeline.js";
-import type { CompressTextImplementation } from "../prompt/compression.js";
 import type { ProjectInfo } from "../state/SessionStateManager.js";
+import type { CompressTextImplementation } from "../prompt/compression.js";
 import type { TraceLog } from "../utils/PipelineTracer.js";
 import type { TokenMetricsSnapshot } from "../utils/tokenMetrics.js";
 
@@ -29,6 +29,8 @@ export interface PipelineExecutionRequest {
   executionMode: ExecutionMode;
   verbose: boolean;
   trace?: boolean;
+  projectInfo?: ProjectInfo;
+  compressionImplementation?: CompressTextImplementation;
   userRequest: UserRequest;
   env?: NodeJS.ProcessEnv;
   fetchImplementation?: typeof fetch;
@@ -36,16 +38,16 @@ export interface PipelineExecutionRequest {
 }
 
 export interface PipelineStageStatus {
-	name: string;
-	owner: "role1" | "role2.1" | "role2.2" | "role3";
-	status: "ready" | "stubbed" | "completed" | "failed";
+  name: string;
+  owner: "role1" | "role2.1" | "role2.2" | "role3";
+  status: "ready" | "stubbed" | "completed" | "failed";
 }
 
 export interface TaskExecutionRecord {
-	taskId: string;
-	status: "completed" | "failed" | "skipped";
-	rawOutput: string;
-	blockedBy?: string;
+  taskId: string;
+  status: "completed" | "failed" | "skipped";
+  rawOutput: string;
+  blockedBy?: string;
 }
 
 export interface PipelineExecutionResult {

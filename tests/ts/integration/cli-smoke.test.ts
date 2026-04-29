@@ -1,17 +1,13 @@
 import { spawnSync } from "node:child_process";
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
-import { pathToFileURL } from "node:url";
-import { describe, expect, it, vi } from "vitest";
+import { join } from "node:path";
+import { resolve } from "node:path";
+import { describe, expect, it } from "vitest";
 
 const repoRoot = process.cwd();
 const cliEntry = resolve(repoRoot, "src/cli/index.ts");
 const tsxLoader = resolve(repoRoot, "node_modules/tsx/dist/loader.mjs");
-const tsxLoaderUrl = pathToFileURL(tsxLoader).href;
-const repoReplRegistryPath = join(repoRoot, ".repl-session.json");
-
-vi.setConfig({ testTimeout: 30_000 });
 
 const runCli = (args: string[]) =>
   spawnSync(process.execPath, ["--import", "tsx", cliEntry, ...args], {
@@ -46,7 +42,7 @@ const runCliWithEnvAndTimeout = (
   });
 
 const runCliFromCwd = (cwd: string, args: string[]) =>
-  spawnSync(process.execPath, ["--import", tsxLoaderUrl, cliEntry, ...args], {
+  spawnSync(process.execPath, ["--import", tsxLoader, cliEntry, ...args], {
     cwd,
     encoding: "utf8",
   });
@@ -382,19 +378,6 @@ const runLiveLocalLlmSmoke = () => {
 };
 
 describe("detoks CLI smoke", () => {
-  it("prints the main CLI guide for an empty invocation", () => {
-    const emptyRun = runCli([]);
-
-    expect(emptyRun.error).toBeUndefined();
-    expect(emptyRun.status).toBe(0);
-    expect(emptyRun.stderr).toBe("");
-    expect(emptyRun.stdout).toContain("DeToks CLI 가이드");
-    expect(emptyRun.stdout).toContain("빠른 시작:");
-    expect(emptyRun.stdout).toContain('detoks "현재 저장소 상태를 요약해줘"');
-    expect(emptyRun.stdout).toContain("detoks repl");
-    expect(emptyRun.stdout).toContain("detoks session list");
-  });
-
   it("keeps default stdout concise and verbose stdout full", () => {
     const defaultRun = runCli(["hello detoks", "--execution-mode", "stub"]);
     const verboseRun = runCli(["hello detoks", "--execution-mode", "stub", "--verbose"]);
@@ -547,9 +530,7 @@ describe("detoks CLI smoke", () => {
   });
 
   it("shows start and close messages for repl in default mode", () => {
-    rmSync(repoReplRegistryPath, { force: true });
-    try {
-      const replRun = runCliWithInput(["repl"], "exit\n");
+    const replRun = runCliWithInput(["repl"], "exit\n");
 
     expect(replRun.error).toBeUndefined();
     expect(replRun.status).toBe(0);
@@ -563,9 +544,7 @@ describe("detoks CLI smoke", () => {
   });
 
   it("shows verbose=true in repl start message for verbose mode", () => {
-    rmSync(repoReplRegistryPath, { force: true });
-    try {
-      const replRun = runCliWithInput(["repl", "--verbose"], "exit\n");
+    const replRun = runCliWithInput(["repl", "--verbose"], "exit\n");
 
     expect(replRun.error).toBeUndefined();
     expect(replRun.status).toBe(0);
@@ -841,7 +820,6 @@ describe("detoks CLI smoke", () => {
       writeFileSync(
         sessionPath,
         JSON.stringify({
-          version: "1",
           shared_context: {
             session_id: sessionId,
             raw_input: "Find the auth module. Test the auth module.",
@@ -1428,8 +1406,6 @@ describe("detoks CLI smoke", () => {
         [
           "LOCAL_LLM_API_BASE=http://127.0.0.1:1234/v1",
           "LOCAL_LLM_API_KEY=test-key",
-          "LOCAL_LLM_MODEL_NAME=",
-          "LOCAL_LLM_AUTO_START=0",
         ].join("\n"),
         "utf8",
       );

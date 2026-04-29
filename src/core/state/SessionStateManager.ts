@@ -1,8 +1,7 @@
 import { promises as fs } from 'fs';
 import { join } from 'path';
-import { randomUUID } from 'crypto';
 import { ZodError } from 'zod';
-import type { SessionState, Checkpoint, TaskResult } from '../../schemas/pipeline.js';
+import type { SessionState, Checkpoint } from '../../schemas/pipeline.js';
 import { SessionStateSchema, CheckpointSchema } from '../../schemas/pipeline.js';
 import { StateValidator } from './StateValidator.js';
 import { ExecutionResultNormalizer } from './ExecutionResultNormalizer.js';
@@ -11,85 +10,17 @@ import { StateIOError, StateValidationError } from '../errors/StateErrors.js';
 import { logger } from '../utils/logger.js';
 import { translateVisibleText } from '../utils/visibleText.js';
 
+const STATE_DIR = '.state';
+const SESSIONS_DIR = join(STATE_DIR, 'sessions');
+const CHECKPOINTS_DIR = join(STATE_DIR, 'checkpoints');
+
 export interface ProjectInfo {
   projectId: string;
   projectPath: string;
   projectName: string;
 }
 
-const STATE_DIR = '.state';
-const SESSIONS_DIR = join(STATE_DIR, 'sessions');
-const CHECKPOINTS_DIR = join(STATE_DIR, 'checkpoints');
-const CURRENT_SESSION_LOG = join(STATE_DIR, 'current_session.log');
-
-const LOCK_TIMEOUT_MS = 5000;
-const LOCK_RETRY_MS = 100;
-const CHECKPOINT_SEPARATOR = '_checkpoint_';
-
-function checkpointBelongsToSession(checkpointId: string, sessionId: string): boolean {
-  return checkpointId.startsWith(`${sessionId}${CHECKPOINT_SEPARATOR}`);
-}
-
-function hasFailed(result: TaskResult): boolean {
-  if ('success' in result) {
-    return result.success === false;
-  }
-  return result.status === 'failed';
-}
-
 export class SessionStateManager {
-  private static lockPath(sessionId: string): string {
-    return join(SESSIONS_DIR, `${sessionId}.lock`);
-  }
-
-  private static async acquireLock(sessionId: string): Promise<void> {
-    const lockPath = this.lockPath(sessionId);
-    const deadline = Date.now() + LOCK_TIMEOUT_MS;
-
-    while (Date.now() < deadline) {
-      try {
-        const fd = await fs.open(lockPath, 'wx');
-        await fd.close();
-        return;
-      } catch (error: any) {
-        if (error.code !== 'EEXIST') throw error;
-        await new Promise<void>((resolve) => setTimeout(resolve, LOCK_RETRY_MS));
-      }
-    }
-
-    // 타임아웃 — 스테일 락으로 간주하고 강제 제거 후 재시도
-    try {
-      const stat = await fs.stat(lockPath);
-      if (Date.now() - stat.mtimeMs < LOCK_TIMEOUT_MS) {
-        throw new StateIOError(`Failed to acquire lock for session [${sessionId}]`, { sessionId });
-      }
-
-      const stalePath = `${lockPath}.stale-${process.pid}-${randomUUID()}`;
-      logger.warn(`[SessionStateManager] Stale lock detected for session [${sessionId}], moving aside.`);
-      await fs.rename(lockPath, stalePath);
-      const fd = await fs.open(lockPath, 'wx');
-      await fd.close();
-      await fs.unlink(stalePath).catch(() => undefined);
-    } catch (error: any) {
-      if (error.code === 'ENOENT' || error.code === 'EEXIST') {
-        return this.acquireLock(sessionId);
-      }
-      if (error instanceof StateIOError) throw error;
-      throw new StateIOError(`Failed to acquire lock for session [${sessionId}]`, {
-        sessionId,
-        originalError: error.message,
-      });
-    }
-  }
-
-  private static async releaseLock(sessionId: string): Promise<void> {
-    try {
-      await fs.unlink(this.lockPath(sessionId));
-    } catch {
-      // 이미 제거된 경우 무시
-    }
-  }
-
   private static ensureDirectories = async () => {
     try {
       await fs.mkdir(SESSIONS_DIR, { recursive: true });
@@ -102,60 +33,32 @@ export class SessionStateManager {
     }
   };
 
-  static async saveSession(state: SessionState, projectInfo?: ProjectInfo): Promise<void> {
+  static async saveSession(state: SessionState): Promise<void> {
     const sessionId = state.shared_context?.session_id as string || 'default';
-    await this.ensureDirectories();
-    await this.acquireLock(sessionId);
     try {
-      // 0. 메타데이터 업데이트 - 원본 변경하지 않기
-      const now = new Date().toISOString();
-      const stateToSave: SessionState = {
-        ...state,
-        shared_context: {
-          ...state.shared_context,
-          ...(projectInfo && {
-            project_id: projectInfo.projectId,
-            project_path: projectInfo.projectPath,
-            project_name: projectInfo.projectName,
-          }),
-          last_modified_at: now,
-          created_at: state.shared_context.created_at || now,
-        },
-      };
+      await this.ensureDirectories();
 
       // 1. 자동 정규화: task_results의 원시 데이터를 표준 스키마로 보정
-      const normalizedTaskResults = { ...stateToSave.task_results };
-      for (const [taskId, result] of Object.entries(normalizedTaskResults)) {
-        const res = result as Record<string, unknown>;
+      for (const [taskId, result] of Object.entries(state.task_results)) {
+        const res = result as any;
         // 이미 정규화된 데이터가 아니라면(예: summary가 없거나 raw_output만 있다면) 보정 시도
-        if (!('_compressed' in res) && (!res.task_id || !res.summary)) {
-          normalizedTaskResults[taskId] = ExecutionResultNormalizer.normalize(taskId, res);
+        if (!res.task_id || !res.summary) {
+          state.task_results[taskId] = ExecutionResultNormalizer.normalize(taskId, res);
         }
       }
 
       // 2. 자동 실패 트래킹: shared_context.failed_task_ids 동기화
-      const failedIds = new Set<string>(
-        Array.isArray(stateToSave.shared_context.failed_task_ids)
-          ? stateToSave.shared_context.failed_task_ids.filter((id): id is string => typeof id === 'string')
-          : [],
-      );
-      for (const [taskId, result] of Object.entries(normalizedTaskResults)) {
-        if (hasFailed(result)) {
+      const failedIds = new Set<string>();
+      for (const [taskId, result] of Object.entries(state.task_results)) {
+        const res = result as any;
+        if (res.success === false) {
           failedIds.add(taskId);
-        } else {
-          failedIds.delete(taskId);
         }
       }
+      state.shared_context.failed_task_ids = Array.from(failedIds);
 
       // 3. 자동 압축: 토큰 임계 초과 시 오래된 결과 압축
-      const compressedState = ContextCompressor.compress({
-        ...stateToSave,
-        task_results: normalizedTaskResults,
-        shared_context: {
-          ...stateToSave.shared_context,
-          failed_task_ids: Array.from(failedIds),
-        },
-      });
+      const compressedState = ContextCompressor.compress(state);
 
       // 4. 최종 무결성 검증
       const validated = StateValidator.validate(compressedState);
@@ -168,15 +71,11 @@ export class SessionStateManager {
         sessionId,
         originalError: error.message
       });
-    } finally {
-      await this.releaseLock(sessionId);
     }
   }
 
   static async loadSession(sessionId: string): Promise<SessionState> {
     const filePath = join(SESSIONS_DIR, `${sessionId}.json`);
-    await this.ensureDirectories();
-    await this.acquireLock(sessionId);
     try {
       const data = await fs.readFile(filePath, 'utf-8');
       const parsed = JSON.parse(data);
@@ -185,7 +84,7 @@ export class SessionStateManager {
       if (error instanceof StateValidationError) throw error;
       if (error instanceof SyntaxError) {
         throw new StateIOError(`Session file [${sessionId}] is corrupted`, {
-          sessionId, path: filePath, originalError: (error as Error).message
+          sessionId, path: filePath, originalError: error.message
         });
       }
       const nodeError = error as NodeJS.ErrnoException;
@@ -202,8 +101,6 @@ export class SessionStateManager {
       throw new StateIOError(`Failed to load session [${sessionId}]`, {
         sessionId, path: filePath, originalError: error instanceof Error ? error.message : String(error)
       });
-    } finally {
-      await this.releaseLock(sessionId);
     }
   }
 
@@ -244,18 +141,7 @@ export class SessionStateManager {
     });
 
     await this.saveSession(forked);
-    await this.copyCheckpointsForFork(sourceSessionId, newSessionId);
     return forked;
-  }
-
-  private static async copyCheckpointsForFork(sourceSessionId: string, newSessionId: string): Promise<void> {
-    const checkpoints = await this.listCheckpoints(sourceSessionId);
-    for (const checkpoint of checkpoints) {
-      await this.createCheckpoint({
-        ...checkpoint,
-        id: `${newSessionId}${checkpoint.id.slice(sourceSessionId.length)}`,
-      });
-    }
   }
 
   static async listSessions(): Promise<Array<{
@@ -265,8 +151,6 @@ export class SessionStateManager {
     completedTaskCount: number;
     taskResultCount: number;
     nextAction: string | null;
-    failedTaskCount: number;
-    checkpointCount: number;
   }>> {
     try {
       const files = await fs.readdir(SESSIONS_DIR);
@@ -277,8 +161,6 @@ export class SessionStateManager {
         completedTaskCount: number;
         taskResultCount: number;
         nextAction: string | null;
-        failedTaskCount: number;
-        checkpointCount: number;
       }> = [];
 
       for (const file of files) {
@@ -287,18 +169,13 @@ export class SessionStateManager {
         try {
           const data = await fs.readFile(join(SESSIONS_DIR, file), 'utf-8');
           const state = SessionStateSchema.parse(JSON.parse(data));
-          const sessionId = file.slice(0, -'.json'.length);
           sessions.push({
-            id: sessionId,
+            id: file.slice(0, -'.json'.length),
             updatedAt: state.updated_at ?? null,
             currentTaskId: state.current_task_id ?? null,
             completedTaskCount: state.completed_task_ids.length,
             taskResultCount: Object.keys(state.task_results).length,
             nextAction: state.next_action ?? null,
-            failedTaskCount: Array.isArray(state.shared_context.failed_task_ids)
-              ? state.shared_context.failed_task_ids.filter((id) => typeof id === 'string').length
-              : Object.values(state.task_results).filter(hasFailed).length,
-            checkpointCount: (await this.listCheckpoints(sessionId)).length,
           });
         } catch (e) {
           logger.info(
@@ -380,7 +257,7 @@ export class SessionStateManager {
             const data = await fs.readFile(join(CHECKPOINTS_DIR, file), 'utf-8');
             const parsed = JSON.parse(data);
             const checkpoint = CheckpointSchema.parse(parsed);
-            if (checkpointBelongsToSession(checkpoint.id, sessionId)) {
+            if (checkpoint.id.startsWith(sessionId)) {
               checkpoints.push(checkpoint);
             }
           } catch (e) {
@@ -425,58 +302,6 @@ export class SessionStateManager {
         sessionId,
         originalError: error.message
       });
-    }
-  }
-
-  /**
-   * 현재 세션의 input 번역 결과를 로그 파일에 기록합니다.
-   * CLI에서 사용자가 확인할 수 있도록 임시 로그로 관리합니다.
-   */
-  static async logInputTranslation(
-    sessionId: string,
-    koreanInput: string,
-    englishTranslation: string
-  ): Promise<void> {
-    try {
-      await this.ensureDirectories();
-      const timestamp = new Date().toISOString();
-      const logEntry = `[${timestamp}] Session: ${sessionId}
-KO: ${koreanInput}
-EN: ${englishTranslation}
----
-`;
-      await fs.appendFile(CURRENT_SESSION_LOG, logEntry, 'utf-8');
-    } catch (error: any) {
-      logger.warn(`Failed to log input translation for session [${sessionId}]`, error);
-      // 로깅 실패가 세션 저장을 방해하지 않도록 에러를 던지지 않음
-    }
-  }
-
-  /**
-   * 현재 세션 로그를 읽습니다.
-   */
-  static async readCurrentSessionLog(): Promise<string> {
-    try {
-      return await fs.readFile(CURRENT_SESSION_LOG, 'utf-8');
-    } catch (error: any) {
-      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-        return '';
-      }
-      logger.warn(`Failed to read current session log`, error);
-      return '';
-    }
-  }
-
-  /**
-   * 현재 세션 로그를 초기화합니다.
-   */
-  static async clearCurrentSessionLog(): Promise<void> {
-    try {
-      await fs.unlink(CURRENT_SESSION_LOG);
-    } catch (error: any) {
-      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
-        logger.warn(`Failed to clear current session log`, error);
-      }
     }
   }
 }
