@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+from pathlib import Path
 from typing import cast
+
+import pytest
 
 from llama_server.backend import BackendCompletionResult, InferenceBackend
 from llama_server.config import load_llama_server_config
@@ -24,13 +27,34 @@ def test_load_llama_server_config_defaults() -> None:
     assert config.port == 12370
     assert config.api_prefix == "/v1"
     assert config.health_path == "/health"
-    assert config.model_name == "mradermacher/supergemma4-e4b-abliterated-GGUF:Q4_K_S"
+    assert config.model_name == "mradermacher/gemma-4-e2b-it-heretic-ara-GGUF:Q4_K_S"
 
 
 def test_load_llama_server_config_reads_local_llm_model_name() -> None:
     config = load_llama_server_config({"LOCAL_LLM_MODEL_NAME": "detoks-local"})
 
     assert config.model_name == "detoks-local"
+
+
+def test_load_llama_server_config_reads_dotenv_files(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / ".env").write_text(
+        "LLAMA_SERVER_HOST=0.0.0.0\nLOCAL_LLM_MODEL_NAME=dotenv-model\n",
+        encoding="utf-8",
+    )
+    (tmp_path / ".env.local").write_text(
+        "LLAMA_SERVER_PORT=4321\nLOCAL_LLM_MODEL_NAME=local-override\n",
+        encoding="utf-8",
+    )
+
+    config = load_llama_server_config()
+
+    assert config.host == "0.0.0.0"
+    assert config.port == 4321
+    assert config.model_name == "local-override"
 
 
 def test_build_health_response_reports_backend_state() -> None:
@@ -41,7 +65,7 @@ def test_build_health_response_reports_backend_state() -> None:
     assert response.status_code == 200
     assert response.body == {
         "ok": True,
-        "model": "mradermacher/supergemma4-e4b-abliterated-GGUF:Q4_K_S",
+        "model": "mradermacher/gemma-4-e2b-it-heretic-ara-GGUF:Q4_K_S",
         "backend": "stub",
     }
 

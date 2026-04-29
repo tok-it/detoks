@@ -24,7 +24,7 @@ export const runCheckpointShowCommand = async (
     ok: true,
     mode: "checkpoint-show",
     mutatesState: false,
-    message: `Checkpoint ${checkpoint.id} loaded.`,
+    message: `체크포인트 ${checkpoint.id}을(를) 불러왔습니다.`,
     checkpoint: {
       id: checkpoint.id,
       title: checkpoint.title,

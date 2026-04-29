@@ -421,8 +421,8 @@ async function runTranslationPass(
 					status = "fallback_succeeded";
 				} else {
 					status = "failed";
-					validationErrors = fallbackRepairedValidation.validation_errors;
-					finalText = fallbackRepaired.output;
+					validationErrors = repairedValidation.validation_errors;
+					finalText = repaired.output;
 				}
 			} else {
 				status = "failed";

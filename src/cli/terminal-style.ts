@@ -58,11 +58,10 @@ export const createTerminalStyle = (options: TerminalStyleOptions) => {
       adapter: AdapterName,
       options?: { model?: string; executionMode?: string },
     ) => {
-      const label = [
-        `◆ ${adapter.toUpperCase()}`,
-        ...(options?.model ? [options.model] : []),
-        ...(options?.executionMode ? [options.executionMode] : []),
-      ].join(" · ");
+      const sourceLabel = `◆ ${adapter.toUpperCase()}${options?.model ? `[${options.model}]` : ""}`;
+      const label = [sourceLabel, ...(options?.executionMode ? [options.executionMode] : [])].join(
+        " · ",
+      );
       return wrap(enabled, label, ANSI.bold, adapterAccent(adapter));
     },
   };

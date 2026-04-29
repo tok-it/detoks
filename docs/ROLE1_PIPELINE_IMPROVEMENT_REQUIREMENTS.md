@@ -241,19 +241,25 @@ P2:
 
 이번 검증에서 남은 후속 작업:
 
-- `ROI(투자 대비 효과)`처럼 영문 토큰과 한글 설명이 섞인 괄호형 표현이 과보호되어 최종 복원 후 한글이 남는 케이스를 줄여야 한다.
 - `prometheus_exporter.collect()`처럼 필수 literal이 누락된 경우 fallback 이후에도 복구되지 않는 케이스를 줄여야 한다.
 - 이를 위해 retry prompt에 `required_literals`를 명시적으로 주입하거나, 혼합 괄호 표현을 high-confidence literal 후보에서 제외하는 추가 보정이 필요하다.
 
 대표 실패 케이스:
 
-- `index 36`
-  - `ROI(투자 대비 효과)`가 placeholder로 보호된 뒤 한글 설명이 최종 결과에 남아 `korean_text_remaining`, `source_korean_copied`로 실패
 - `index 84`
   - `prometheus_exporter.collect()`가 번역 출력에서 누락되어 `required_literal_missing:prometheus_exporter.collect()`로 실패
 - `tests/ts/unit/core/guardrails`
 - `tests/ts/unit/core/prompt`
 - `tests/ts/integration`
+
+## 2026-04-28 실제 반영
+
+이번 반영에서 처리한 사항:
+
+- `slash_token`과 `directory_path` 계열 보호 규칙에서 한글이 섞인 일반 표현을 과보호하지 않도록 조정했다.
+- placeholder가 포함된 span에는 정확한 placeholder 목록을 system prompt와 fallback prompt에 명시적으로 주입했다.
+- placeholder count/order mismatch도 item 단위 재시도 조건에 포함해, placeholder가 통째로 사라진 경우 추가 재번역을 수행하도록 했다.
+- 관련 unit test를 추가해 `블루/그린`, `ROI(투자 대비 효과)`, placeholder 힌트 전달을 회귀 테스트로 고정했다.
 
 ## 비목표
 
