@@ -31,6 +31,7 @@ describe("runSessionContinueCommand", () => {
       canContinue: false,
       resumeStarted: false,
       mutatesState: false,
+      resumeOverview: null,
       message: "세션 session_resume를 찾지 못했습니다. 다시 시작하지 않았습니다.",
       nextAction: null,
     });
@@ -56,6 +57,14 @@ describe("runSessionContinueCommand", () => {
       canContinue: false,
       resumeStarted: false,
       mutatesState: false,
+      resumeOverview: {
+        summary: null,
+        nextAction: "원본 입력을 복구하세요",
+        currentTaskId: "t1",
+        completedTaskCount: 0,
+        taskResultCount: 0,
+        updatedAt: "2026-04-27T00:00:00.000Z",
+      },
       message: "세션 session_resume에 저장된 raw_input이 없습니다. 다시 시작하지 않았습니다.",
       nextAction: "원본 입력을 복구하세요",
     });
@@ -68,7 +77,14 @@ describe("runSessionContinueCommand", () => {
         session_id: "session_resume",
         raw_input: "Find the auth module. Test the auth module.",
       },
-      task_results: {},
+      task_results: {
+        t1: {
+          task_id: "t1",
+          success: true,
+          summary: "previous raw",
+          raw_output: "previous raw",
+        },
+      },
       current_task_id: "t2",
       completed_task_ids: ["t1"],
       next_action: "남은 작업을 이어서 진행하세요",
@@ -94,9 +110,12 @@ describe("runSessionContinueCommand", () => {
       promptValidationErrors: [],
       promptRepairActions: ["compressed_with_kompress"],
     });
+    const onResumeOverview = vi.fn();
 
     await expect(
-      runSessionContinueCommand(baseRequest, executeRequest),
+      runSessionContinueCommand(baseRequest, executeRequest, {
+        onResumeOverview,
+      }),
     ).resolves.toEqual({
       ok: true,
       mode: "session-continue",
@@ -104,6 +123,14 @@ describe("runSessionContinueCommand", () => {
       canContinue: true,
       resumeStarted: true,
       mutatesState: true,
+      resumeOverview: {
+        summary: "previous raw",
+        nextAction: "남은 작업을 이어서 진행하세요",
+        currentTaskId: "t2",
+        completedTaskCount: 1,
+        taskResultCount: 1,
+        updatedAt: "2026-04-27T00:00:00.000Z",
+      },
       message: "세션 session_resume를 저장된 raw_input으로 다시 시작했습니다.",
       adapter: "codex",
       summary: "2개 작업을 모두 완료했습니다",
@@ -121,6 +148,14 @@ describe("runSessionContinueCommand", () => {
       promptRepairActions: ["compressed_with_kompress"],
     });
 
+    expect(onResumeOverview).toHaveBeenCalledWith({
+      summary: "previous raw",
+      nextAction: "남은 작업을 이어서 진행하세요",
+      currentTaskId: "t2",
+      completedTaskCount: 1,
+      taskResultCount: 1,
+      updatedAt: "2026-04-27T00:00:00.000Z",
+    });
     expect(executeRequest).toHaveBeenCalledWith({
       ...baseRequest,
       userRequest: {

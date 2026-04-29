@@ -19,6 +19,7 @@ export interface CliArgs {
   mode: CliMode;
   command?:
     | "session-list"
+    | "session-show"
     | "session-continue"
     | "session-fork"
     | "session-reset"
@@ -41,6 +42,7 @@ export interface CliArgs {
     | "main"
     | "repl"
     | "session-list"
+    | "session-show"
     | "session-continue"
     | "session-reset"
     | "session-fork"

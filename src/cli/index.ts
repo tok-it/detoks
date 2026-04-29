@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { formatBatchSuccess, formatError, formatFailedResult, formatSessionListHuman, formatSuccess } from "./format.js";
+import { formatBatchSuccess, formatError, formatFailedResult, formatSessionListHuman, formatSessionResumeOverview, formatSessionShowHuman, formatSuccess } from "./format.js";
 import { getCliUsage, parseCliArgs, toNormalizedRequest } from "./parse.js";
 import { formatTerminalHelp } from "./terminal-style.js";
 import { runCheckpointListCommand } from "./commands/checkpoint-list.js";
@@ -9,6 +9,7 @@ import { runBatchCommand } from "./commands/run-batch.js";
 import { runCommand } from "./commands/run.js";
 import { runSessionListCommand } from "./commands/session-list.js";
 import { runSessionContinueCommand } from "./commands/session-continue.js";
+import { runSessionShowCommand } from "./commands/session-show.js";
 import { runSessionResetCommand } from "./commands/session-reset.js";
 import { runSessionForkCommand } from "./commands/session-fork.js";
 import { runCheckpointRestoreCommand } from "./commands/checkpoint-restore.js";
@@ -67,12 +68,26 @@ const main = async (): Promise<void> => {
     return;
   }
 
+  if (args.command === "session-show") {
+    const result = await runSessionShowCommand(args.sessionId ?? "", {
+      includeRawOutput: args.verbose,
+    });
+    console.log(args.human ? formatSessionShowHuman(result) : JSON.stringify(result, null, 2));
+    return;
+  }
+
   if (args.command === "session-continue") {
     const request = toNormalizedRequest(args, {
       prompt: "[session continue]",
       ...(args.sessionId ? { sessionId: args.sessionId } : {}),
     });
-    const result = await runSessionContinueCommand(request, runOneShotCommand);
+    const result = await runSessionContinueCommand(request, runOneShotCommand, {
+      onResumeOverview: (overview) => {
+        console.error(
+          formatSessionResumeOverview(overview, request.userRequest.session_id ?? ""),
+        );
+      },
+    });
     console.log(JSON.stringify(result, null, 2));
     if (result.resumeStarted && !result.ok) {
       process.exitCode = 1;

@@ -1,4 +1,5 @@
-import { stdin as input, stdout as output } from "node:process";
+import { stdin as defaultInput, stdout as defaultOutput } from "node:process";
+import { emitKeypressEvents } from "node:readline";
 import { colors } from "../colors.js";
 
 export interface SelectOption {
@@ -6,19 +7,99 @@ export interface SelectOption {
   label: string;
 }
 
+export interface SelectWithArrowsStreams {
+  input?: typeof defaultInput;
+  output?: typeof defaultOutput;
+  onOpen?: () => void;
+  onClose?: () => void;
+}
+
+type KeyInfo = {
+  name?: string;
+  ctrl?: boolean;
+};
+
+const ENTER_ALT_SCREEN = "\x1b[?1049h";
+const EXIT_ALT_SCREEN = "\x1b[?1049l";
+const HIDE_CURSOR = "\x1b[?25l";
+const SHOW_CURSOR = "\x1b[?25h";
+const CLEAR_SCREEN_AND_HOME = "\x1b[2J\x1b[H";
+
+const clamp = (value: number, min: number, max: number): number =>
+  Math.min(Math.max(value, min), max);
+
+const normalizeVisibleText = (value: string): string =>
+  value.replace(/\s+/g, " ").trim();
+
+const isWideCodePoint = (codePoint: number): boolean =>
+  codePoint >= 0x1100 &&
+  (
+    codePoint <= 0x115f ||
+    codePoint === 0x2329 ||
+    codePoint === 0x232a ||
+    (codePoint >= 0x2e80 && codePoint <= 0xa4cf && codePoint !== 0x303f) ||
+    (codePoint >= 0xac00 && codePoint <= 0xd7a3) ||
+    (codePoint >= 0xf900 && codePoint <= 0xfaff) ||
+    (codePoint >= 0xfe10 && codePoint <= 0xfe19) ||
+    (codePoint >= 0xfe30 && codePoint <= 0xfe6f) ||
+    (codePoint >= 0xff00 && codePoint <= 0xff60) ||
+    (codePoint >= 0xffe0 && codePoint <= 0xffe6) ||
+    (codePoint >= 0x1f300 && codePoint <= 0x1f64f) ||
+    (codePoint >= 0x1f900 && codePoint <= 0x1f9ff)
+  );
+
+const measureDisplayWidth = (value: string): number =>
+  Array.from(value).reduce((width, char) => {
+    const codePoint = char.codePointAt(0) ?? 0;
+    return width + (isWideCodePoint(codePoint) ? 2 : 1);
+  }, 0);
+
+const truncateVisibleText = (value: string, maxWidth: number): string => {
+  const normalized = normalizeVisibleText(value);
+
+  if (maxWidth <= 0) {
+    return "";
+  }
+
+  if (measureDisplayWidth(normalized) <= maxWidth) {
+    return normalized;
+  }
+
+  if (maxWidth === 1) {
+    return "…";
+  }
+
+  let width = 0;
+  let result = "";
+
+  for (const char of normalized) {
+    const charWidth = isWideCodePoint(char.codePointAt(0) ?? 0) ? 2 : 1;
+    if (width + charWidth > maxWidth - 1) {
+      break;
+    }
+
+    result += char;
+    width += charWidth;
+  }
+
+  return `${result.trimEnd()}…`;
+};
+
 export const selectWithArrows = async (
   options: SelectOption[],
   title: string,
+  streams: SelectWithArrowsStreams = {},
 ): Promise<string | null> => {
+  const input = streams.input ?? defaultInput;
+  const output = streams.output ?? defaultOutput;
+
   if (options.length === 0) {
     output.write(colors.warning("선택 가능한 항목이 없습니다.\n\n"));
     return null;
   }
 
-  let selectedIndex = 0;
-
-  // stdin이 TTY가 아니면 첫 번째 옵션 선택
-  if (!input.isTTY) {
+  // TTY가 아니면 대화형 UI를 띄우지 않고 첫 번째 옵션을 선택한다.
+  if (!input.isTTY || !output.isTTY) {
     const firstOption = options[0];
     if (firstOption) {
       output.write(colors.success(`✓ 선택: ${firstOption.label}\n\n`));
@@ -27,93 +108,125 @@ export const selectWithArrows = async (
     return null;
   }
 
-  // stdin을 raw mode로 설정
   const originalRawMode = input.isRaw;
-  input.setRawMode(true);
-  input.resume();
+  let selectedIndex = 0;
+  let cleanedUp = false;
+  let resolveSelection: (value: string | null) => void = () => undefined;
 
-  // 초기 UI 렌더링 (커서 위치 기준점 이후부터 출력)
   const renderMenu = () => {
-    output.write(`${colors.title(title)}\n`);
-    for (let i = 0; i < options.length; i++) {
-      const option = options[i];
-      if (option) {
-        if (i === selectedIndex) {
-          output.write(
-            `${colors.success("▶")} ${colors.boldText(option.label)}\n`,
-          );
-        } else {
-          output.write(`  ${colors.muted(option.label)}\n`);
-        }
-      }
-    }
-    output.write(
-      `\n${colors.muted("↑↓ 화살표로 선택, Enter로 확정, ESC로 취소")}\n`,
-    );
+    const terminalRows = Math.max(1, output.rows ?? 24);
+    const terminalColumns = Math.max(20, output.columns ?? 80);
+    const compactMode = terminalRows <= 8 || terminalColumns <= 40;
+    const maxVisibleOptions = Math.max(1, terminalRows - (compactMode ? 4 : 5));
+    const needsWindow = options.length > maxVisibleOptions;
+    const windowStart = needsWindow
+      ? clamp(
+          selectedIndex - Math.floor(maxVisibleOptions / 2),
+          0,
+          Math.max(0, options.length - maxVisibleOptions),
+        )
+      : 0;
+    const windowEnd = needsWindow
+      ? windowStart + maxVisibleOptions
+      : options.length;
+    const visibleOptions = options.slice(windowStart, windowEnd);
+    const maxLabelWidth = Math.max(8, terminalColumns - 8);
+    const titleWidth = Math.max(8, terminalColumns - 2);
+    const rangeText = compactMode
+      ? `${windowStart + 1}-${windowEnd}/${options.length}`
+      : `표시 ${windowStart + 1}-${windowEnd} / ${options.length}`;
+    const footerText = compactMode
+      ? "↑↓ 선택 · Enter 확정 · ESC 취소"
+      : "↑↓ 화살표로 선택, Enter로 확정, ESC로 취소";
+
+    const lines = [
+      "",
+      colors.title(truncateVisibleText(title, titleWidth)),
+      needsWindow
+        ? colors.muted(truncateVisibleText(rangeText, terminalColumns))
+        : null,
+      ...visibleOptions.map((option, index) => {
+        const actualIndex = windowStart + index;
+        const visibleLabel = truncateVisibleText(option.label, maxLabelWidth);
+        return actualIndex === selectedIndex
+          ? `${colors.success("▶")} ${colors.boldText(visibleLabel)}`
+          : `  ${colors.muted(visibleLabel)}`;
+      }),
+      "",
+      colors.muted(truncateVisibleText(footerText, terminalColumns)),
+      "",
+    ].filter((line): line is string => line !== null);
+
+    output.write(CLEAR_SCREEN_AND_HOME);
+    output.write(lines.join("\n"));
   };
 
-  // 기준점 저장 후 초기 렌더링
-  output.write("\n");
-  output.write("\x1b7"); // 커서 위치 저장
-  renderMenu();
+  const cleanup = () => {
+    if (cleanedUp) {
+      return;
+    }
 
-  return new Promise((resolve) => {
-    let lastIndex = selectedIndex;
+    cleanedUp = true;
+    input.removeListener("keypress", handleKeyPress);
 
-    const handleKeyPress = (chunk: Buffer) => {
-      const str = chunk.toString("utf8");
+    if (typeof input.setRawMode === "function") {
+      input.setRawMode(originalRawMode);
+    }
 
-      // 화살표 키: ESC + [ + A(위) 또는 B(아래)
-      if (str === "\x1b[A") {
-        // 위 화살표
-        selectedIndex = (selectedIndex - 1 + options.length) % options.length;
-      } else if (str === "\x1b[B") {
-        // 아래 화살표
-        selectedIndex = (selectedIndex + 1) % options.length;
-      } else if (str === "\r" || str === "\n") {
-        // Enter
-        input.removeListener("data", handleKeyPress);
-        input.setRawMode(originalRawMode);
-        input.resume(); // readline이 stdin을 다시 사용할 수 있도록 resume
+    input.resume();
+    output.write(EXIT_ALT_SCREEN);
+    output.write(SHOW_CURSOR);
+    streams.onClose?.();
+  };
 
-        const selected = options[selectedIndex];
+  const handleKeyPress = (_str: string, key?: KeyInfo) => {
+    if (!key) {
+      return;
+    }
+
+    if (key.ctrl && key.name === "c") {
+      cleanup();
+      output.write("\n");
+      process.exit(0);
+    }
+
+    if (key.name === "up") {
+      selectedIndex = (selectedIndex - 1 + options.length) % options.length;
+    } else if (key.name === "down") {
+      selectedIndex = (selectedIndex + 1) % options.length;
+    } else if (key.name === "return" || key.name === "enter") {
+      const selected = options[selectedIndex];
+      cleanup();
+      if (selected) {
         output.write("\n");
-        if (selected) {
-          output.write(
-            colors.success(`✓ 선택: ${selected.label}\n\n`),
-          );
-          resolve(selected.value);
-        } else {
-          resolve(null);
-        }
-        return;
-      } else if (str === "\x1b") {
-        // ESC - 취소
-        input.removeListener("data", handleKeyPress);
-        input.setRawMode(originalRawMode);
-        input.resume(); // readline이 stdin을 다시 사용할 수 있도록 resume
-        output.write("\x1b8"); // 저장된 커서 위치로 복원
-        output.write("\x1b[J"); // 커서 아래 모두 지움
-        output.write(colors.muted("(취소)\n\n"));
-        resolve(null);
-        return;
-      } else if (str === "") {
-        // Ctrl+C
-        input.removeListener("data", handleKeyPress);
-        input.setRawMode(false);
-        output.write("\n");
-        process.exit(0);
+        output.write(colors.success(`✓ 선택: ${selected.label}\n\n`));
+        resolveSelection(selected.value);
+      } else {
+        resolveSelection(null);
       }
+      return;
+    } else if (key.name === "escape") {
+      cleanup();
+      output.write("\n");
+      output.write(colors.muted("(취소)\n\n"));
+      resolveSelection(null);
+      return;
+    } else {
+      return;
+    }
 
-      // 선택이 변경되면 저장된 커서 위치로 돌아가서 다시 렌더링
-      if (selectedIndex !== lastIndex) {
-        lastIndex = selectedIndex;
-        output.write("\x1b8"); // 저장된 커서 위치로 복원
-        output.write("\x1b[J"); // 커서 아래 모두 지움
-        renderMenu();
-      }
-    };
+    renderMenu();
+  };
 
-    input.on("data", handleKeyPress);
+  return await new Promise((resolve) => {
+    resolveSelection = resolve;
+    emitKeypressEvents(input);
+    input.setRawMode(true);
+    input.resume();
+    streams.onOpen?.();
+    output.write(ENTER_ALT_SCREEN);
+    output.write(HIDE_CURSOR);
+    renderMenu();
+    input.on("keypress", handleKeyPress);
   });
 };

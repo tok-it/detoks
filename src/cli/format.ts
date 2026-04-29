@@ -4,7 +4,9 @@ import { translateVisibleText } from "../core/utils/visibleText.js";
 import { colors } from "./colors.js";
 import type { CliBatchExecutionResult, CliExecutionResult } from "./types.js";
 import type { HomeDashboardOutput, HomeSessionPreview } from "./commands/home.js";
+import type { SessionShowOutput } from "./commands/session-show.js";
 import type { SessionListOutput } from "./commands/session-list.js";
+import type { SessionResumeOverview, SessionTaskLogEntry } from "./session-summary.js";
 
 const defaultTerminalStyleOptions = (): TerminalStyleOptions => ({
   isTTY: Boolean(process.stdout.isTTY),
@@ -125,6 +127,102 @@ export const formatBatchSuccess = (
     null,
     2,
   );
+};
+
+export const formatSessionResumeOverview = (
+  overview: SessionResumeOverview,
+  sessionId: string,
+): string => {
+  const lines = [
+    colors.title(`세션 ${sessionId} 재진입 요약`),
+    "",
+    overview.summary
+      ? `${colors.muted("최근 요약:")} ${translateVisibleText(overview.summary)}`
+      : `${colors.muted("최근 요약:")} 없음`,
+    overview.nextAction
+      ? `${colors.warning("다음 작업:")} ${colors.warning(translateVisibleText(overview.nextAction))}`
+      : null,
+    `${colors.info("진행 현황:")} 완료된 작업 ${overview.completedTaskCount}, 작업 결과 ${overview.taskResultCount}`,
+    overview.currentTaskId
+      ? `${colors.warning("현재 작업:")} ${colors.warning(overview.currentTaskId)}`
+      : null,
+    overview.updatedAt
+      ? `${colors.info("업데이트:")} ${overview.updatedAt}`
+      : null,
+  ].filter((line): line is string => line !== null);
+
+  return lines.join("\n");
+};
+
+const formatSessionShowTask = (
+  task: SessionTaskLogEntry,
+  index: number,
+): string => {
+  const status =
+    task.success === true
+      ? colors.success("성공")
+      : task.success === false
+        ? colors.error("실패")
+        : colors.warning("상태 미상");
+
+  const output = task.rawOutput ?? task.rawOutputPreview;
+
+  const parts = [
+    `${index + 1}. ${colors.boldText(task.taskId)}`,
+    `   ${colors.info("상태:")} ${status}`,
+    task.summary ? `   ${colors.muted("요약:")} ${translateVisibleText(task.summary)}` : null,
+    output ? `   ${colors.muted("출력:")} ${translateVisibleText(output)}` : null,
+  ].filter((line): line is string => line !== null);
+
+  return parts.join("\n");
+};
+
+export const formatSessionShowHuman = (result: SessionShowOutput): string => {
+  const lines = [
+    colors.title(`detoks 세션 ${result.sessionId}`),
+    "",
+    translateVisibleText(result.message),
+    "",
+  ];
+
+  if (!result.hasSession || !result.overview) {
+    lines.push(colors.info("저장된 세션 요약이 없습니다."));
+    return lines.join("\n");
+  }
+
+  lines.push(
+    colors.header("세션 요약:"),
+    result.overview.summary
+      ? `  ${colors.muted("최근 요약:")} ${translateVisibleText(result.overview.summary)}`
+      : `  ${colors.muted("최근 요약:")} 없음`,
+    result.overview.nextAction
+      ? `  ${colors.warning("다음 작업:")} ${colors.warning(translateVisibleText(result.overview.nextAction))}`
+      : `  ${colors.warning("다음 작업:")} 없음`,
+    `  ${colors.info("진행 현황:")} 완료 ${result.overview.completedTaskCount}개 / 결과 ${result.overview.taskResultCount}개`,
+    result.overview.currentTaskId
+      ? `  ${colors.warning("현재 작업:")} ${colors.warning(result.overview.currentTaskId)}`
+      : `  ${colors.warning("현재 작업:")} 없음`,
+    "",
+  );
+  if (result.overview.updatedAt) {
+    lines.push(`  ${colors.info("업데이트:")} ${result.overview.updatedAt}`, "");
+  }
+
+  if (result.taskResults.length > 0) {
+    lines.push(colors.header("저장된 작업 결과:"));
+    lines.push(
+      ...result.taskResults.flatMap((task, index) => [
+        formatSessionShowTask(task, index),
+        "",
+      ]),
+    );
+  } else {
+    lines.push(colors.info("저장된 작업 결과가 없습니다."), "");
+  }
+
+  lines.push(colors.info("팁: 전체 JSON을 보려면 --verbose를 사용하세요."));
+
+  return lines.join("\n");
 };
 
 export const formatError = (error: unknown, verbose: boolean): string => {

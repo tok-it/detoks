@@ -1,6 +1,7 @@
 import { SessionStateManager } from "../../core/state/SessionStateManager.js";
 import type { TaskExecutionRecord } from "../../core/pipeline/types.js";
 import type { CliExecutionResult, NormalizedCliRequest } from "../types.js";
+import { deriveSessionResumeOverview, type SessionResumeOverview } from "../session-summary.js";
 import { runCommand } from "./run.js";
 
 interface SessionContinueUnavailableOutput {
@@ -10,6 +11,7 @@ interface SessionContinueUnavailableOutput {
   canContinue: false;
   resumeStarted: false;
   mutatesState: false;
+  resumeOverview: SessionResumeOverview | null;
   message: string;
   nextAction: string | null;
 }
@@ -21,6 +23,7 @@ interface SessionContinueResumedOutput {
   canContinue: true;
   resumeStarted: true;
   mutatesState: true;
+  resumeOverview: SessionResumeOverview;
   message: string;
   adapter: CliExecutionResult["adapter"];
   summary: string;
@@ -40,9 +43,14 @@ export type SessionContinueOutput =
   | SessionContinueUnavailableOutput
   | SessionContinueResumedOutput;
 
+interface SessionContinueCommandOptions {
+  onResumeOverview?: (overview: SessionResumeOverview) => void;
+}
+
 export const runSessionContinueCommand = async (
   request: NormalizedCliRequest,
   executeRequest: (request: NormalizedCliRequest) => Promise<CliExecutionResult> = runCommand,
+  options: SessionContinueCommandOptions = {},
 ): Promise<SessionContinueOutput> => {
   const sessionId = request.userRequest.session_id ?? "";
   const exists = await SessionStateManager.sessionExists(sessionId);
@@ -55,12 +63,15 @@ export const runSessionContinueCommand = async (
       canContinue: false,
       resumeStarted: false,
       mutatesState: false,
+      resumeOverview: null,
       message: `세션 ${sessionId}를 찾지 못했습니다. 다시 시작하지 않았습니다.`,
       nextAction: null,
     };
   }
 
   const session = await SessionStateManager.loadSession(sessionId);
+  const resumeOverview = deriveSessionResumeOverview(session);
+  options.onResumeOverview?.(resumeOverview);
   const nextAction = session.next_action ?? null;
   const rawInput =
     typeof session.shared_context.raw_input === "string"
@@ -75,6 +86,7 @@ export const runSessionContinueCommand = async (
       canContinue: false,
       resumeStarted: false,
       mutatesState: false,
+      resumeOverview,
       message: `세션 ${sessionId}에 저장된 raw_input이 없습니다. 다시 시작하지 않았습니다.`,
       nextAction,
     };
@@ -96,6 +108,7 @@ export const runSessionContinueCommand = async (
     canContinue: true,
     resumeStarted: true,
     mutatesState: true,
+    resumeOverview,
     message: `세션 ${result.sessionId}를 저장된 raw_input으로 다시 시작했습니다.`,
     adapter: result.adapter,
     summary: result.summary,

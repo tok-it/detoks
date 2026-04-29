@@ -454,7 +454,7 @@ describe("detoks CLI smoke", () => {
       expect(replRun.stdout).toContain("detoks repl 시작");
       expect(replRun.stdout).toContain("executionMode=real");
       expect(replRun.stdout).toContain("verbose=false");
-      expect(replRun.stdout).toContain('종료하려면 "exit"를 입력하세요.');
+      expect(replRun.stdout).toContain('명령어 목록을 보려면 "/help"를 입력하세요.');
       expect(replRun.stdout).toContain("detoks> ");
       expect(replRun.stdout.trimEnd()).toMatch(/detoks repl 종료\.$/);
     } finally {
@@ -508,7 +508,7 @@ describe("detoks CLI smoke", () => {
       expect(replRun.stdout).toContain("detoks repl 시작");
       expect(replRun.stdout).toContain("executionMode=real");
       expect(replRun.stdout).toContain("verbose=false");
-      expect(replRun.stdout).toContain('종료하려면 "exit"를 입력하세요.');
+      expect(replRun.stdout).toContain('명령어 목록을 보려면 "/help"를 입력하세요.');
       expect(replRun.stdout).toContain("detoks> ");
       expect(replRun.stdout).not.toContain("최근 세션:");
       expect(replRun.stdout).not.toContain(sessionId);
@@ -557,7 +557,7 @@ describe("detoks CLI smoke", () => {
     expect(replRun.stdout).toContain("detoks repl 시작");
     expect(replRun.stdout).toContain("executionMode=real");
     expect(replRun.stdout).toContain("verbose=false");
-    expect(replRun.stdout).toContain('종료하려면 "exit"를 입력하세요.');
+    expect(replRun.stdout).toContain('명령어 목록을 보려면 "/help"를 입력하세요.');
     expect(replRun.stdout).toContain("detoks> ");
     expect(replRun.stdout.trimEnd()).toMatch(/detoks repl 종료\.$/);
   });
@@ -573,7 +573,7 @@ describe("detoks CLI smoke", () => {
     expect(replRun.stdout).toContain("detoks repl 시작");
     expect(replRun.stdout).toContain("executionMode=real");
     expect(replRun.stdout).toContain("verbose=true");
-    expect(replRun.stdout).toContain('종료하려면 "exit"를 입력하세요.');
+    expect(replRun.stdout).toContain('명령어 목록을 보려면 "/help"를 입력하세요.');
     expect(replRun.stdout).toContain("detoks> ");
     expect(replRun.stdout.trimEnd()).toMatch(/detoks repl 종료\.$/);
   });
@@ -741,9 +741,94 @@ describe("detoks CLI smoke", () => {
       canContinue: false,
       resumeStarted: false,
       mutatesState: false,
+      resumeOverview: null,
       message: `세션 ${missingSessionId}를 찾지 못했습니다. 다시 시작하지 않았습니다.`,
       nextAction: null,
     });
+  });
+
+  it("shows a saved session with JSON and human-readable outputs", () => {
+    const sessionId = `session_cli_show_${Date.now()}`;
+    const sessionDir = join(repoRoot, ".state", "sessions");
+    const sessionPath = join(sessionDir, `${sessionId}.json`);
+
+    try {
+      mkdirSync(sessionDir, { recursive: true });
+      writeFileSync(
+        sessionPath,
+        JSON.stringify({
+          shared_context: {
+            session_id: sessionId,
+          },
+          task_results: {
+            t1: {
+              task_id: "t1",
+              success: true,
+              summary: "첫 번째 작업 완료",
+              raw_output: "[stub:codex] first output",
+            },
+            t2: {
+              task_id: "t2",
+              success: false,
+              summary: "두 번째 작업 실패",
+              raw_output: "[stub:codex] second output",
+            },
+          },
+          current_task_id: "t2",
+          completed_task_ids: ["t1"],
+          next_action: "다음 작업을 확인하세요",
+          updated_at: "2026-04-27T00:00:00.000Z",
+        }),
+        "utf8",
+      );
+
+      const jsonRun = runCli(["session", "show", sessionId]);
+      expect(jsonRun.error).toBeUndefined();
+      expect(jsonRun.status).toBe(0);
+      expect(jsonRun.stderr).toBe("");
+      expect(parseCliJson(jsonRun.stdout)).toEqual({
+        ok: true,
+        mode: "session-show",
+        sessionId,
+        hasSession: true,
+        mutatesState: false,
+        message: `세션 ${sessionId}의 저장된 작업 결과를 불러왔습니다.`,
+        overview: {
+          summary: "첫 번째 작업 완료",
+          nextAction: "다음 작업을 확인하세요",
+          currentTaskId: "t2",
+          completedTaskCount: 1,
+          taskResultCount: 2,
+          updatedAt: "2026-04-27T00:00:00.000Z",
+        },
+        taskResults: [
+          {
+            taskId: "t1",
+            success: true,
+            summary: "첫 번째 작업 완료",
+            rawOutputPreview: "[stub:codex] first output",
+          },
+          {
+            taskId: "t2",
+            success: false,
+            summary: "두 번째 작업 실패",
+            rawOutputPreview: "[stub:codex] second output",
+          },
+        ],
+      });
+
+      const humanRun = runCli(["session", "show", sessionId, "--human"]);
+      expect(humanRun.error).toBeUndefined();
+      expect(humanRun.status).toBe(0);
+      expect(humanRun.stderr).toBe("");
+      expect(humanRun.stdout).toContain(`detoks 세션 ${sessionId}`);
+      expect(humanRun.stdout).toContain("최근 요약: 첫 번째 작업 완료");
+      expect(humanRun.stdout).toContain("저장된 작업 결과:");
+      expect(humanRun.stdout).toContain("첫 번째 작업 완료");
+      expect(humanRun.stdout).toContain("[stub:codex] second output");
+    } finally {
+      rmSync(sessionPath, { force: true });
+    }
   });
 
   it("resumes a saved session and skips already completed tasks", () => {
@@ -781,7 +866,8 @@ describe("detoks CLI smoke", () => {
 
       expect(continueRun.error).toBeUndefined();
       expect(continueRun.status).toBe(0);
-      expect(continueRun.stderr).toBe("");
+      expect(continueRun.stderr).toContain(`세션 ${sessionId} 재진입 요약`);
+      expect(continueRun.stderr).toContain("최근 요약: previous raw");
 
       const output = parseCliJson(continueRun.stdout);
       expect(output).toMatchObject({
@@ -791,6 +877,14 @@ describe("detoks CLI smoke", () => {
         canContinue: true,
         resumeStarted: true,
         mutatesState: true,
+        resumeOverview: {
+          summary: "previous raw",
+          nextAction: "남은 검증을 다시 시작하세요",
+          currentTaskId: "t2",
+          completedTaskCount: 1,
+          taskResultCount: 1,
+          updatedAt: "2026-04-27T00:00:00.000Z",
+        },
         message: `세션 ${sessionId}를 저장된 raw_input으로 다시 시작했습니다.`,
         adapter: "codex",
         summary: "2개 작업을 모두 완료했습니다",
