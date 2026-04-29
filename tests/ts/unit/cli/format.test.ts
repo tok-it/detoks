@@ -33,12 +33,14 @@ describe("formatSuccess", () => {
       adapter: "codex",
       summary: "stub executor accepted prompt (12 chars)",
       nextAction: "connect core pipeline modules behind this boundary",
+      stages: [
+        { name: "Prompt Compiler", owner: "role1", status: "stubbed" },
+      ],
       promptLanguage: "en",
       promptInferenceTimeSec: 0,
       promptValidationErrors: [],
       promptRepairActions: [],
     });
-    expect(formatted).not.toHaveProperty("stages");
     expect(formatted).not.toHaveProperty("rawOutput");
   });
 
