@@ -42,6 +42,7 @@ export class TaskGraphProcessor {
     { type: "execute",  pattern: /\bmake\s+use\s+of\b/i },
     // make a note/notes → document
     { type: "document", pattern: /\bmake\s+(?:a\s+)?notes?\b/i },
+    { type: "modify",   pattern: /\borganize\b.*\b(logic|code|functions?|services?|class(?:es)?|modules?|validation|duplicated?|redundan[ct]?)\b/i },
     { type: "document", pattern: /\borganize\b.*\b(changes?|results?|commands?)\b.*\b(work\s+notes?|notes?)\b/i },
     { type: "analyze",  pattern: /\btrace\b.*\bexplain\b.*\b(order|how|flow|passes?|through)\b/i },
     // make a plan/roadmap → plan
@@ -123,7 +124,7 @@ export class TaskGraphProcessor {
         /\b(run|execute)\s+(the\s+)?(tests?|checks?|validation|verifications?)\b/,
         /\b(run|execute)\s+(the\s+)?(lint|linter|typecheck|type-check|qa|smoke\s+tests?)\b/,
         /\b(make\s+sure|ensure|verify|confirm)\b/,
-        /\b(test|tests|validate|verify|assert|confirm|ensure|check\s+if)\b/,
+        /\b(test|tests|validate|verify|assert|confirm|ensure|check\s+(?:if|whether|that))\b/,
         /\b(lint|typecheck|smoke\s+test|qa)\b/,
         /\b(pass|passes|passing|fail|fails|failing)\b/,
       ],
