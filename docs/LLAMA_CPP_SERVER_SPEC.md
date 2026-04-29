@@ -64,13 +64,15 @@ This document defines the current `python/llama-server` runtime contract used by
 | `LOCAL_LLM_DEVICE`           | unset                                                 | Optional llama.cpp device selector, e.g. `none`                 |
 | `LOCAL_LLM_GPU_LAYERS`       | `all`                                                 | llama.cpp GPU offload layer count                               |
 | `LOCAL_LLM_CONTEXT_SIZE`     | `4096`                                                | llama.cpp prompt context size                                   |
+| `LOCAL_LLM_TOP_K`            | `40`                                                  | llama.cpp top-k sampling                                        |
+| `LOCAL_LLM_TOP_P`            | `0.95`                                                | llama.cpp top-p sampling                                        |
+| `LOCAL_LLM_SLEEP_IDLE_SECONDS` | `1200`                                              | Idle seconds before the local model is unloaded                 |
 | `LOCAL_LLM_MAX_TOKENS`       | `512`                                                 | Maximum generated tokens per Role 1 translation span            |
 | `LOCAL_LLM_REASONING`        | `off`                                                 | llama.cpp reasoning mode for chat templates                     |
 | `LOCAL_LLM_HF_REPO`          | `mradermacher/gemma-4-e2b-it-heretic-ara-GGUF:Q4_K_S` | Hugging Face GGUF repo and quant used when no model path exists |
 | `LOCAL_LLM_HF_FILE`          | `gemma-4-e2b-it-heretic-ara.Q4_K_S.gguf`              | Exact Hugging Face GGUF file                                    |
 | `LOCAL_LLM_MODEL_PATH`       | unset                                                 | Optional local GGUF model path                                  |
 | `LOCAL_LLM_MODEL_URL`        | unset                                                 | Optional download URL when model path is missing                |
->>>>>>> origin/dev
 
 <!-- 한국어 설명: 기본 모델명은 현재 로컬 서버 기본값입니다. Python 서버는 upstream 프록시 또는 mock 응답 모드로 동작하고, TypeScript Role 1 경로는 필요 시 llama.cpp `llama-server`를 로컬에서 자동 실행합니다. -->
 
@@ -123,17 +125,21 @@ Condition:
 
 Behavior:
 
+- The launcher re-reads `.env` and `.env.local` on each startup, so updated sampling or model values are applied on the next run
 - If `LOCAL_LLM_API_BASE` health check is already ready, reuse the running server
 - Before reusing an already-running local server, query `/v1/models` and verify that the expected `LOCAL_LLM_MODEL_NAME` is present
-- If another model is already running on the same port, fail explicitly instead of silently reusing the wrong server
+- If another model or mismatched launch args are already running on the same port, stop the existing server and relaunch with the current env values
 - If `LOCAL_LLM_MODEL_PATH` exists, start `llama-server -m <path>`
 - If `LOCAL_LLM_MODEL_PATH` is missing and `LOCAL_LLM_MODEL_URL` is set, download the GGUF file first
 - If no local model path is set, start `llama-server -hf <LOCAL_LLM_HF_REPO> --hf-file <LOCAL_LLM_HF_FILE>` and let llama.cpp handle Hugging Face GGUF download/cache
 - Pass `--gpu-layers <LOCAL_LLM_GPU_LAYERS>`, default `all`, so Metal/GPU offload is requested on supported llama.cpp builds
 - If GPU startup fails before readiness, retry once with `--device none --gpu-layers 0`
 - Pass `--ctx-size <LOCAL_LLM_CONTEXT_SIZE>`, default `4096`, instead of inheriting very large model context defaults
+- Pass `--top-k <LOCAL_LLM_TOP_K>`, default `40`, to control local sampling
+- Pass `--top-p <LOCAL_LLM_TOP_P>`, default `0.95`, to control nucleus sampling
 - Role 1 chat completion requests include `max_tokens`, capped by `LOCAL_LLM_MAX_TOKENS`
 - Pass `--reasoning off` by default so Gemma chat templates do not spend translation budget on hidden reasoning
+- Pass `--sleep-idle-seconds <LOCAL_LLM_SLEEP_IDLE_SECONDS>`, default `1200`, so the model is unloaded after 20 minutes of idle time
 - The default Hugging Face GGUF quant is explicitly `Q4_K_S`
 - The server is opened on `LOCAL_LLM_SERVER_HOST:LOCAL_LLM_SERVER_PORT`, default `127.0.0.1:12370`
 
@@ -154,11 +160,7 @@ Response:
 ```json
 {
 	"ok": true,
-<<<<<<< HEAD
-	"model": "mradermacher/supergemma4-e4b-abliterated-GGUF:Q4_K_S",
-=======
 	"model": "mradermacher/gemma-4-e2b-it-heretic-ara-GGUF:Q4_K_S",
->>>>>>> origin/dev
 	"backend": "configured"
 }
 ```
@@ -179,11 +181,7 @@ Required request shape:
 
 ```json
 {
-<<<<<<< HEAD
-	"model": "mradermacher/supergemma4-e4b-abliterated-GGUF:Q4_K_S",
-=======
 	"model": "mradermacher/gemma-4-e2b-it-heretic-ara-GGUF:Q4_K_S",
->>>>>>> origin/dev
 	"messages": [
 		{
 			"role": "user",
@@ -210,11 +208,7 @@ Successful response shape:
 	"id": "chatcmpl-...",
 	"object": "chat.completion",
 	"created": 1710000000,
-<<<<<<< HEAD
-	"model": "mradermacher/supergemma4-e4b-abliterated-GGUF:Q4_K_S",
-=======
 	"model": "mradermacher/gemma-4-e2b-it-heretic-ara-GGUF:Q4_K_S",
->>>>>>> origin/dev
 	"choices": [
 		{
 			"index": 0,

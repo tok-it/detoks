@@ -41,6 +41,9 @@ describe("loadRole1RuntimeConfig", () => {
 		expect(config.localLlmServerPort).toBe(12370);
 		expect(config.localLlmGpuLayers).toBe("all");
 		expect(config.localLlmContextSize).toBe(4096);
+		expect(config.localLlmTopK).toBe(40);
+		expect(config.localLlmTopP).toBe(0.95);
+		expect(config.localLlmSleepIdleSeconds).toBe(1200);
 		expect(config.localLlmMaxTokens).toBe(512);
 		expect(config.localLlmReasoning).toBe("off");
 		expect(config.localLlmHfRepo).toBe(
@@ -66,6 +69,9 @@ describe("loadRole1RuntimeConfig", () => {
 				"REQUEST_TIMEOUT=15000",
 				"TRANSLATION_MAX_ATTEMPTS=7",
 				"TEMPERATURE=0.2",
+				"LOCAL_LLM_TOP_K=12",
+				"LOCAL_LLM_TOP_P=0.88",
+				"LOCAL_LLM_SLEEP_IDLE_SECONDS=900",
 				"KOMPRESS_PYTHON_BIN=python3.13",
 				"KOMPRESS_MODEL_ID=chopratejas/kompress-small",
 				"KOMPRESS_STARTUP_TIMEOUT=45000",
@@ -82,6 +88,9 @@ describe("loadRole1RuntimeConfig", () => {
 		expect(config.requestTimeout).toBe(15000);
 		expect(config.translationMaxAttempts).toBe(7);
 		expect(config.temperature).toBe(0.2);
+		expect(config.localLlmTopK).toBe(12);
+		expect(config.localLlmTopP).toBe(0.88);
+		expect(config.localLlmSleepIdleSeconds).toBe(900);
 		expect(config.kompressPythonBin).toBe("python3.13");
 		expect(config.kompressModelId).toBe("chopratejas/kompress-small");
 		expect(config.kompressStartupTimeout).toBe(45000);
@@ -131,6 +140,32 @@ describe("loadRole1RuntimeConfig", () => {
 
 		expect(config.pipelineMode).toBe("debug");
 		expect(config.requestTimeout).toBe(2000);
+	});
+
+	it(".env를 다시 읽어 최신 top-k, top-p, sleep-idle 값을 반영한다", () => {
+		const cwd = createTempDir();
+		writeFileSync(
+			join(cwd, ".env"),
+			"LOCAL_LLM_TOP_K=24\nLOCAL_LLM_TOP_P=0.7\nLOCAL_LLM_SLEEP_IDLE_SECONDS=1800",
+			"utf8",
+		);
+
+		const firstConfig = loadRole1RuntimeConfig({ cwd, env: {} });
+
+		writeFileSync(
+			join(cwd, ".env"),
+			"LOCAL_LLM_TOP_K=13\nLOCAL_LLM_TOP_P=0.8\nLOCAL_LLM_SLEEP_IDLE_SECONDS=1200",
+			"utf8",
+		);
+
+		const secondConfig = loadRole1RuntimeConfig({ cwd, env: {} });
+
+		expect(firstConfig.localLlmTopK).toBe(24);
+		expect(firstConfig.localLlmTopP).toBe(0.7);
+		expect(firstConfig.localLlmSleepIdleSeconds).toBe(1800);
+		expect(secondConfig.localLlmTopK).toBe(13);
+		expect(secondConfig.localLlmTopP).toBe(0.8);
+		expect(secondConfig.localLlmSleepIdleSeconds).toBe(1200);
 	});
 });
 

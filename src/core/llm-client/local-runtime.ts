@@ -7,6 +7,8 @@ import type { Role1RuntimeConfig } from "../prompt/config.js";
 import { logger } from "../utils/logger.js";
 
 let startupPromise: Promise<void> | null = null;
+let startupSignature: string | null = null;
+let activeServerPid: number | null = null;
 
 function isLocalHost(hostname: string): boolean {
   return ["127.0.0.1", "localhost", "::1"].includes(hostname);
@@ -121,6 +123,14 @@ async function fetchLoadedModelIds(apiBase: string): Promise<string[]> {
   }
 }
 
+function buildStartupSignature(config: Role1RuntimeConfig): string {
+  return JSON.stringify({
+    binary: config.localLlmServerBinary ?? "llama-server",
+    args: buildLlamaServerArgs(config),
+    apiBase: config.localLlmApiBase ?? "",
+  });
+}
+
 async function assertExpectedServerModel(
   apiBase: string,
   expectedModelName: string | undefined,
@@ -137,6 +147,138 @@ async function assertExpectedServerModel(
   throw new Error(
     `llama.cpp server at ${apiBase} is already running with model(s): ${loadedModelIds.join(", ")}. Expected ${expectedModelName}. Stop the running server or change LOCAL_LLM_SERVER_PORT.`,
   );
+}
+
+async function listLlamaServerProcesses(): Promise<Array<{ pid: number; command: string }>> {
+  return await new Promise((resolve) => {
+    const child = spawn("pgrep", ["-af", "llama-server"], {
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    let stdout = "";
+
+    child.stdout.setEncoding("utf8");
+    child.stdout.on("data", (chunk) => {
+      stdout += String(chunk);
+    });
+
+    child.once("error", () => {
+      resolve([]);
+    });
+
+    child.once("close", (code) => {
+      if (code !== 0 && stdout.trim().length === 0) {
+        resolve([]);
+        return;
+      }
+
+      const processes = stdout
+        .split(/\r?\n/u)
+        .map((line) => line.trim())
+        .filter(Boolean)
+        .map((line) => {
+          const spaceIndex = line.indexOf(" ");
+          if (spaceIndex <= 0) {
+            return null;
+          }
+
+          const pid = Number.parseInt(line.slice(0, spaceIndex), 10);
+          if (!Number.isFinite(pid)) {
+            return null;
+          }
+
+          return {
+            pid,
+            command: line.slice(spaceIndex + 1).trim(),
+          };
+        })
+        .filter(
+          (
+            processInfo,
+          ): processInfo is { pid: number; command: string } => processInfo !== null,
+        );
+
+      resolve(processes);
+    });
+  });
+}
+
+function isProcessAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function commandMatchesPort(command: string, port: number): boolean {
+  return (
+    command.includes("llama-server") &&
+    (command.includes(`--port ${port}`) || command.includes(`--port=${port}`))
+  );
+}
+
+async function waitForProcessExit(pid: number, timeoutMs: number): Promise<boolean> {
+  const startedAt = Date.now();
+  while (Date.now() - startedAt < timeoutMs) {
+    if (!isProcessAlive(pid)) {
+      return true;
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+
+  return false;
+}
+
+async function stopExistingServerProcess(port: number): Promise<void> {
+  const processes = (await listLlamaServerProcesses()).filter(({ command }) =>
+    commandMatchesPort(command, port),
+  );
+  const pids = new Set<number>(
+    processes.map(({ pid }) => pid).concat(activeServerPid ? [activeServerPid] : []),
+  );
+
+  if (pids.size === 0) {
+    return;
+  }
+
+  logger.warn(`Stopping existing llama.cpp server on port ${port} before reloading`);
+
+  for (const pid of pids) {
+    try {
+      process.kill(pid, "SIGTERM");
+    } catch {
+      // 이미 종료됐거나 권한이 없으면 무시하고 다음 단계로 진행한다.
+    }
+  }
+
+  const pidsArray = [...pids];
+  const terminated = await Promise.all(
+    pidsArray.map((pid) => waitForProcessExit(pid, 5_000)),
+  );
+
+  if (terminated.every(Boolean)) {
+    activeServerPid = null;
+    return;
+  }
+
+  for (const pid of pidsArray.filter((_, index) => !terminated[index])) {
+    try {
+      process.kill(pid, "SIGKILL");
+    } catch {
+      // 강제 종료가 불가능하면 아래 readiness 확인에서 걸러진다.
+    }
+  }
+
+  const killed = await Promise.all(
+    pidsArray.map((pid) => waitForProcessExit(pid, 5_000)),
+  );
+  if (!killed.every(Boolean)) {
+    throw new Error(`Failed to stop existing llama.cpp server on port ${port}`);
+  }
+
+  activeServerPid = null;
 }
 
 async function downloadModel(modelUrl: string, modelPath: string): Promise<void> {
@@ -230,8 +372,20 @@ export function buildLlamaServerArgs(config: Role1RuntimeConfig): string[] {
     args.push("--ctx-size", String(config.localLlmContextSize));
   }
 
+  if (config.localLlmTopK !== undefined) {
+    args.push("--top-k", String(config.localLlmTopK));
+  }
+
+  if (config.localLlmTopP !== undefined) {
+    args.push("--top-p", String(config.localLlmTopP));
+  }
+
   if (config.localLlmReasoning) {
     args.push("--reasoning", config.localLlmReasoning);
+  }
+
+  if (config.localLlmSleepIdleSeconds !== undefined) {
+    args.push("--sleep-idle-seconds", String(config.localLlmSleepIdleSeconds));
   }
 
   return args;
@@ -250,6 +404,9 @@ async function startServerProcess(
   });
   child.stdout.setEncoding("utf8");
   child.stderr.setEncoding("utf8");
+  if (child.pid) {
+    activeServerPid = child.pid;
+  }
   child.stdout.on("data", (chunk) => {
     String(chunk)
       .trimEnd()
@@ -270,9 +427,15 @@ async function startServerProcess(
     waitForServerReady(apiBase, config.localLlmStartupTimeout ?? 600_000),
     new Promise<never>((_, reject) => {
       child.once("error", (error) => {
+        if (activeServerPid === child.pid) {
+          activeServerPid = null;
+        }
         reject(new Error(`Failed to start llama.cpp server with ${binary}: ${error.message}`));
       });
       child.once("exit", (code) => {
+        if (activeServerPid === child.pid) {
+          activeServerPid = null;
+        }
         reject(new Error(`llama.cpp server exited before becoming ready: ${code ?? "unknown"}`));
       });
     }),
@@ -295,8 +458,15 @@ async function startLocalServer(config: Role1RuntimeConfig): Promise<void> {
   }
 
   if (await isServerReady(apiBase)) {
-    await assertExpectedServerModel(apiBase, config.localLlmModelName);
-    return;
+    try {
+      await assertExpectedServerModel(apiBase, config.localLlmModelName);
+      return;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      logger.warn(`Existing llama.cpp server does not match current model; reloading: ${message}`);
+      await ensureModelFile(config);
+      await stopExistingServerProcess(config.localLlmServerPort ?? 12370);
+    }
   }
 
   await ensureModelFile(config);
@@ -328,10 +498,35 @@ export async function ensureLocalLlmRuntime(config: Role1RuntimeConfig): Promise
     return;
   }
 
-  startupPromise ??= startLocalServer(config).catch((error) => {
-    startupPromise = null;
+  const signature = buildStartupSignature(config);
+  if (startupPromise && startupSignature === signature) {
+    await startupPromise;
+    if (startupPromise !== null && startupSignature === signature) {
+      startupPromise = null;
+    }
+    return;
+  }
+
+  if (startupSignature !== null && startupSignature !== signature) {
+    await stopExistingServerProcess(config.localLlmServerPort ?? 12370);
+  }
+
+  startupSignature = signature;
+  const nextStartupPromise = startLocalServer(config).catch((error) => {
+    if (startupSignature === signature) {
+      startupPromise = null;
+      startupSignature = null;
+    }
     throw error;
   });
 
-  await startupPromise;
+  startupPromise = nextStartupPromise;
+
+  try {
+    await nextStartupPromise;
+  } finally {
+    if (startupPromise === nextStartupPromise) {
+      startupPromise = null;
+    }
+  }
 }
