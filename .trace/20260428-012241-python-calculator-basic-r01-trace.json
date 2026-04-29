@@ -1,0 +1,406 @@
+{
+  "sessionId": "VmT3xRaFqFMSVB9RtxQPp0RF",
+  "startTime": "2026-04-28T01:22:41.257Z",
+  "entries": [
+    {
+      "timestamp": "2026-04-28T01:22:35.192Z",
+      "stage": "PromptCompiler",
+      "phase": "input",
+      "role": "role1",
+      "dataType": "UserRequest",
+      "data": {
+        "raw_input": "파이썬으로 계산기를 만들어줘. 만들 때 덧셈 뺄셈만 가능하도록 먼저 만들면 되고, 만들고 나서 4+5의 결과물을 만들어줘. 그리고 정상 작동하는지 확인도 해줘."
+      },
+      "schemaValid": true,
+      "memoryMb": 14.058113098144531,
+      "estimatedTokens": 87
+    },
+    {
+      "timestamp": "2026-04-28T01:22:41.077Z",
+      "stage": "PromptCompiler",
+      "phase": "output",
+      "role": "role1",
+      "dataType": "CompiledPrompt",
+      "data": {
+        "raw_input": "파이썬으로 계산기를 만들어줘. 만들 때 덧셈 뺄셈만 가능하도록 먼저 만들면 되고, 만들고 나서 4+5의 결과물을 만들어줘. 그리고 정상 작동하는지 확인도 해줘.",
+        "normalized_input": "Make a calculator with Python. First, make it so that only addition and subtraction are possible, and then create the result of 4 + 5. Also, check if it works correctly.",
+        "compressed_prompt": "Make a calculator with Python. First, make it so that only addition and subtraction are possible, and then create the result of 4 + 5. Also, check if it works correctly.",
+        "language": "ko",
+        "compression_provider": "nlp_adapter",
+        "inference_time_sec": 5.835,
+        "validation_errors": []
+      },
+      "schemaValid": true,
+      "durationMs": 5883,
+      "memoryMb": 18.55242156982422,
+      "estimatedTokens": 194
+    },
+    {
+      "timestamp": "2026-04-28T01:22:41.078Z",
+      "stage": "TaskGraphBuilder",
+      "phase": "input",
+      "role": "role2.1",
+      "dataType": "Role2PromptInput",
+      "data": {
+        "compiled_prompt": "Make a calculator with Python. First, make it so that only addition and subtraction are possible, and then create the result of 4 + 5. Also, check if it works correctly."
+      },
+      "schemaValid": true,
+      "memoryMb": 18.554710388183594,
+      "estimatedTokens": 44
+    },
+    {
+      "timestamp": "2026-04-28T01:22:41.105Z",
+      "stage": "TaskGraphBuilder",
+      "phase": "output",
+      "role": "role2.1",
+      "dataType": "TaskGraph",
+      "data": {
+        "tasks": [
+          {
+            "id": "t1",
+            "type": "create",
+            "status": "pending",
+            "title": "Make a calculator with Python.",
+            "input_hash": "dd334d1a6be7b656",
+            "depends_on": []
+          },
+          {
+            "id": "t2",
+            "type": "execute",
+            "status": "pending",
+            "title": "First",
+            "input_hash": "9f63f2f0adbbeba3",
+            "depends_on": [
+              "t1"
+            ]
+          },
+          {
+            "id": "t3",
+            "type": "create",
+            "status": "pending",
+            "title": "make it so that only addition and subtraction are possible,",
+            "input_hash": "43cbb0a686710ba5",
+            "depends_on": [
+              "t2"
+            ]
+          },
+          {
+            "id": "t4",
+            "type": "create",
+            "status": "pending",
+            "title": "create the result of 4 +",
+            "input_hash": "8a9e7fb4255bae8b",
+            "depends_on": []
+          },
+          {
+            "id": "t5",
+            "type": "validate",
+            "status": "pending",
+            "title": "Also, check if it works correctly.",
+            "input_hash": "c182f62835e6915f",
+            "depends_on": [
+              "t4"
+            ]
+          }
+        ]
+      },
+      "schemaValid": true,
+      "durationMs": 26,
+      "memoryMb": 19.24877166748047,
+      "estimatedTokens": 216
+    },
+    {
+      "timestamp": "2026-04-28T01:22:41.107Z",
+      "stage": "DAGValidator",
+      "phase": "output",
+      "role": "role2.1",
+      "dataType": "DAGValidationResult",
+      "data": {
+        "valid": true,
+        "topologicalOrder": [
+          "t1",
+          "t4",
+          "t2",
+          "t5",
+          "t3"
+        ]
+      },
+      "schemaValid": true,
+      "memoryMb": 19.269561767578125,
+      "estimatedTokens": 24
+    },
+    {
+      "timestamp": "2026-04-28T01:22:41.108Z",
+      "stage": "DependencyResolver",
+      "phase": "output",
+      "role": "role2.1",
+      "dataType": "DependencyResolution",
+      "data": {
+        "orderedTasks": [
+          {
+            "taskId": "t1",
+            "type": "create",
+            "title": "Make a calculator with Python.",
+            "dependsOn": [],
+            "resolvedDeps": []
+          },
+          {
+            "taskId": "t4",
+            "type": "create",
+            "title": "create the result of 4 +",
+            "dependsOn": [],
+            "resolvedDeps": []
+          },
+          {
+            "taskId": "t2",
+            "type": "execute",
+            "title": "First",
+            "dependsOn": [
+              "t1"
+            ],
+            "resolvedDeps": [
+              {
+                "taskId": "t1",
+                "type": "create",
+                "title": "Make a calculator with Python."
+              }
+            ]
+          },
+          {
+            "taskId": "t5",
+            "type": "validate",
+            "title": "Also, check if it works correctly.",
+            "dependsOn": [
+              "t4"
+            ],
+            "resolvedDeps": [
+              {
+                "taskId": "t4",
+                "type": "create",
+                "title": "create the result of 4 +"
+              }
+            ]
+          },
+          {
+            "taskId": "t3",
+            "type": "create",
+            "title": "make it so that only addition and subtraction are possible,",
+            "dependsOn": [
+              "t2"
+            ],
+            "resolvedDeps": [
+              {
+                "taskId": "t2",
+                "type": "execute",
+                "title": "First"
+              }
+            ]
+          }
+        ]
+      },
+      "schemaValid": true,
+      "memoryMb": 19.28002166748047,
+      "estimatedTokens": 200
+    },
+    {
+      "timestamp": "2026-04-28T01:22:41.109Z",
+      "stage": "ParallelClassifier",
+      "phase": "output",
+      "role": "role2.1",
+      "dataType": "ParallelClassification",
+      "data": {
+        "stages": [
+          {
+            "stage": 0,
+            "runnableInParallel": [
+              {
+                "taskId": "t1",
+                "type": "create",
+                "title": "Make a calculator with Python.",
+                "dependsOn": []
+              },
+              {
+                "taskId": "t4",
+                "type": "create",
+                "title": "create the result of 4 +",
+                "dependsOn": []
+              }
+            ]
+          },
+          {
+            "stage": 1,
+            "runnableInParallel": [
+              {
+                "taskId": "t2",
+                "type": "execute",
+                "title": "First",
+                "dependsOn": [
+                  "t1"
+                ]
+              },
+              {
+                "taskId": "t5",
+                "type": "validate",
+                "title": "Also, check if it works correctly.",
+                "dependsOn": [
+                  "t4"
+                ]
+              }
+            ]
+          },
+          {
+            "stage": 2,
+            "runnableInParallel": [
+              {
+                "taskId": "t3",
+                "type": "create",
+                "title": "make it so that only addition and subtraction are possible,",
+                "dependsOn": [
+                  "t2"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "schemaValid": true,
+      "memoryMb": 19.292739868164062,
+      "estimatedTokens": 156
+    },
+    {
+      "timestamp": "2026-04-28T01:22:41.112Z",
+      "stage": "SessionLoader",
+      "phase": "output",
+      "role": "role2.2",
+      "dataType": "SessionState",
+      "data": {
+        "session_id": "VmT3xRaFqFMSVB9RtxQPp0RF",
+        "completed_task_count": 0,
+        "next_task_id": null
+      },
+      "schemaValid": true,
+      "durationMs": 2,
+      "memoryMb": 19.33533477783203,
+      "estimatedTokens": 34
+    },
+    {
+      "timestamp": "2026-04-28T01:22:41.114Z",
+      "stage": "ContextOptimizer",
+      "phase": "output",
+      "role": "role2.2",
+      "dataType": "ExecutionContext",
+      "data": {
+        "session_id": "VmT3xRaFqFMSVB9RtxQPp0RF",
+        "active_task_id": "t1",
+        "shared_context": {
+          "session_id": "VmT3xRaFqFMSVB9RtxQPp0RF",
+          "raw_input": "파이썬으로 계산기를 만들어줘. 만들 때 덧셈 뺄셈만 가능하도록 먼저 만들면 되고, 만들고 나서 4+5의 결과물을 만들어줘. 그리고 정상 작동하는지 확인도 해줘."
+        },
+        "selected_context": {},
+        "context_summary": "No previous task context available."
+      },
+      "schemaValid": true,
+      "durationMs": 1,
+      "memoryMb": 19.34636688232422,
+      "estimatedTokens": 154
+    },
+    {
+      "timestamp": "2026-04-28T01:22:41.114Z",
+      "stage": "Executor:t1",
+      "phase": "input",
+      "role": "role3",
+      "dataType": "ExecutionRequest",
+      "data": {
+        "task_id": "t1",
+        "type": "create",
+        "prompt": "[CREATE] Make a calculator with Python.\n\nContext: No previous task context available."
+      },
+      "schemaValid": true,
+      "memoryMb": 19.360031127929688,
+      "estimatedTokens": 33
+    },
+    {
+      "timestamp": "2026-04-28T01:22:41.206Z",
+      "stage": "Executor:t1",
+      "phase": "output",
+      "role": "role3",
+      "dataType": "ExecutionResult",
+      "data": {
+        "task_id": "t1",
+        "type": "create",
+        "success": false,
+        "raw_output": ""
+      },
+      "schemaValid": true,
+      "durationMs": 91,
+      "memoryMb": 17.013809204101562,
+      "estimatedTokens": 19
+    },
+    {
+      "timestamp": "2026-04-28T01:22:41.208Z",
+      "stage": "ContextOptimizer",
+      "phase": "output",
+      "role": "role2.2",
+      "dataType": "ExecutionContext",
+      "data": {
+        "session_id": "VmT3xRaFqFMSVB9RtxQPp0RF",
+        "active_task_id": "t4",
+        "shared_context": {
+          "session_id": "VmT3xRaFqFMSVB9RtxQPp0RF",
+          "raw_input": "파이썬으로 계산기를 만들어줘. 만들 때 덧셈 뺄셈만 가능하도록 먼저 만들면 되고, 만들고 나서 4+5의 결과물을 만들어줘. 그리고 정상 작동하는지 확인도 해줘."
+        },
+        "selected_context": {},
+        "context_summary": "No previous task context available."
+      },
+      "schemaValid": true,
+      "durationMs": 0,
+      "memoryMb": 17.02422332763672,
+      "estimatedTokens": 154
+    },
+    {
+      "timestamp": "2026-04-28T01:22:41.209Z",
+      "stage": "Executor:t4",
+      "phase": "input",
+      "role": "role3",
+      "dataType": "ExecutionRequest",
+      "data": {
+        "task_id": "t4",
+        "type": "create",
+        "prompt": "[CREATE] create the result of 4 +\n\nContext: No previous task context available."
+      },
+      "schemaValid": true,
+      "memoryMb": 17.028640747070312,
+      "estimatedTokens": 35
+    },
+    {
+      "timestamp": "2026-04-28T01:22:41.245Z",
+      "stage": "Executor:t4",
+      "phase": "output",
+      "role": "role3",
+      "dataType": "ExecutionResult",
+      "data": {
+        "task_id": "t4",
+        "type": "create",
+        "success": false,
+        "raw_output": ""
+      },
+      "schemaValid": true,
+      "durationMs": 36,
+      "memoryMb": 19.193214416503906,
+      "estimatedTokens": 19
+    }
+  ],
+  "summary": {
+    "totalDurationMs": 6039,
+    "stageTimings": {
+      "PromptCompiler": 5883,
+      "TaskGraphBuilder": 26,
+      "SessionLoader": 2,
+      "ContextOptimizer:t1": 1,
+      "Executor:t1": 91,
+      "ContextOptimizer:t4": 0,
+      "Executor:t4": 36
+    },
+    "totalMemoryMb": 19.360031127929688
+  }
+}

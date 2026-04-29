@@ -1,0 +1,133 @@
+{
+  "sessionId": "q0zFzHhpVlMQKGrr1wE2sTLf",
+  "startTime": "2026-04-28T04:53:22.261Z",
+  "entries": [
+    {
+      "timestamp": "2026-04-28T04:53:22.212Z",
+      "stage": "PromptCompiler",
+      "phase": "input",
+      "role": "role1",
+      "dataType": "UserRequest",
+      "data": {
+        "raw_input": "Create an addition-only Python function design. Create a subtraction-only Python function design. Calculate the result of 4 plus 5. Calculate the result of 10 minus 3. Write a verification summary stating that only addition and subtraction are supported."
+      },
+      "schemaValid": true,
+      "memoryMb": 13.924354553222656,
+      "estimatedTokens": 54
+    },
+    {
+      "timestamp": "2026-04-28T04:53:22.239Z",
+      "stage": "PromptCompiler",
+      "phase": "output",
+      "role": "role1",
+      "dataType": "CompiledPrompt",
+      "data": {
+        "raw_input": "Create an addition-only Python function design. Create a subtraction-only Python function design. Calculate the result of 4 plus 5. Calculate the result of 10 minus 3. Write a verification summary stating that only addition and subtraction are supported.",
+        "normalized_input": "Create an addition-only Python function design. Create a subtraction-only Python function design. Calculate the result of 4 plus 5. Calculate the result of 10 minus 3. Write a verification summary stating that only addition and subtraction are supported.",
+        "compressed_prompt": "Create an addition-only Python function design. Create a subtraction-only Python function design. Calculate the result of 4 plus 5. Calculate the result of 10 minus 3. Write a verification summary stating that only addition and subtraction are supported.",
+        "language": "en",
+        "compression_provider": "nlp_adapter",
+        "inference_time_sec": 0
+      },
+      "schemaValid": true,
+      "durationMs": 25,
+      "memoryMb": 14.629501342773438,
+      "estimatedTokens": 175
+    },
+    {
+      "timestamp": "2026-04-28T04:53:22.240Z",
+      "stage": "TaskGraphBuilder",
+      "phase": "input",
+      "role": "role2.1",
+      "dataType": "Role2PromptInput",
+      "data": {
+        "compiled_prompt": "Create an addition-only Python function design. Create a subtraction-only Python function design. Calculate the result of 4 plus 5. Calculate the result of 10 minus 3. Write a verification summary stating that only addition and subtraction are supported."
+      },
+      "schemaValid": true,
+      "memoryMb": 14.6318359375,
+      "estimatedTokens": 54
+    },
+    {
+      "timestamp": "2026-04-28T04:53:22.254Z",
+      "stage": "TaskGraphBuilder",
+      "phase": "output",
+      "role": "role2.1",
+      "dataType": "TaskGraph",
+      "data": {
+        "tasks": [
+          {
+            "id": "t1",
+            "type": "create",
+            "status": "pending",
+            "title": "Create an addition-only Python function design.",
+            "input_hash": "a91d0f4c2b1f1df6",
+            "depends_on": []
+          },
+          {
+            "id": "t2",
+            "type": "create",
+            "status": "pending",
+            "title": "Create a subtraction-only Python function design.",
+            "input_hash": "5907c13396a65d42",
+            "depends_on": []
+          },
+          {
+            "id": "t3",
+            "type": "execute",
+            "status": "pending",
+            "title": "Calculate the result of 4 plus 5.",
+            "input_hash": "b4af0b002690d6d4",
+            "depends_on": [
+              "t2"
+            ]
+          },
+          {
+            "id": "t4",
+            "type": "execute",
+            "status": "pending",
+            "title": "Calculate the result of 10 minus 3.",
+            "input_hash": "c82d77d95f74a8cd",
+            "depends_on": []
+          },
+          {
+            "id": "t5",
+            "type": "create",
+            "status": "pending",
+            "title": "Write a verification summary stating that only addition and subtraction are supported.",
+            "input_hash": "d36a4e519a7d480d",
+            "depends_on": [
+              "t4"
+            ]
+          }
+        ]
+      },
+      "schemaValid": true,
+      "durationMs": 13,
+      "memoryMb": 15.293106079101562,
+      "estimatedTokens": 232
+    },
+    {
+      "timestamp": "2026-04-28T04:53:22.255Z",
+      "stage": "DAGValidator",
+      "phase": "output",
+      "role": "role2.1",
+      "dataType": "DAGValidationResult",
+      "data": {
+        "valid": false,
+        "reason": "DISCONNECTED_NODE",
+        "detail": "Task \"t1\" has no dependencies and no dependents — isolated from the graph"
+      },
+      "schemaValid": true,
+      "memoryMb": 15.313140869140625,
+      "estimatedTokens": 32
+    }
+  ],
+  "summary": {
+    "totalDurationMs": 38,
+    "stageTimings": {
+      "PromptCompiler": 25,
+      "TaskGraphBuilder": 13
+    },
+    "totalMemoryMb": 15.313140869140625
+  }
+}

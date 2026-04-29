@@ -1,0 +1,109 @@
+{
+  "rawInput": "다음 다섯 작업을 순서대로 처리해줘: 1) 인증 모듈을 찾아줘. 2) 로그인 흐름을 분석해줘. 3) 버그를 수정해줘. 4) 회귀 테스트를 실행해줘. 5) 변경 내용을 문서화해줘.",
+  "compiled": {
+    "raw_input": "다음 다섯 작업을 순서대로 처리해줘: 1) 인증 모듈을 찾아줘. 2) 로그인 흐름을 분석해줘. 3) 버그를 수정해줘. 4) 회귀 테스트를 실행해줘. 5) 변경 내용을 문서화해줘.",
+    "normalized_input": "Please process the following five tasks in order: 1) Find the authentication module. 2) Analyze the login flow. 3) Fix the bug. 4) Run the regression test. 5) Document the changes.",
+    "compressed_prompt": "Process the following five tasks in order: 1) Find the authentication module. 2) Analyze the login flow. 3) Fix the bug. 4) Run the regression test. 5) Document the changes.",
+    "language": "ko",
+    "compression_provider": "kompress",
+    "inference_time_sec": 8.845,
+    "validation_errors": [],
+    "repair_actions": [
+      "compressed_with_kompress"
+    ]
+  },
+  "role2Handoff": {
+    "compiled_prompt": "Please process the following five tasks in order: 1) Find the authentication module. 2) Analyze the login flow. 3) Fix the bug. 4) Run the regression test. 5) Document the changes."
+  },
+  "sentences": {
+    "sentences": [
+      "Find the authentication module.",
+      "Analyze the login flow.",
+      "Fix the bug.",
+      "Run the regression test.",
+      "Document the changes."
+    ]
+  },
+  "graph": {
+    "tasks": [
+      {
+        "id": "t1",
+        "type": "explore",
+        "status": "pending",
+        "title": "Find the authentication module.",
+        "input_hash": "ed13a8af4c9515ac",
+        "depends_on": []
+      },
+      {
+        "id": "t2",
+        "type": "analyze",
+        "status": "pending",
+        "title": "Analyze the login flow.",
+        "input_hash": "4033a708d33c7469",
+        "depends_on": [
+          "t1"
+        ]
+      },
+      {
+        "id": "t3",
+        "type": "modify",
+        "status": "pending",
+        "title": "Fix the bug.",
+        "input_hash": "bffa431247dda2a8",
+        "depends_on": [
+          "t2"
+        ]
+      },
+      {
+        "id": "t4",
+        "type": "validate",
+        "status": "pending",
+        "title": "Run the regression test.",
+        "input_hash": "0339e26029604538",
+        "depends_on": [
+          "t3"
+        ]
+      },
+      {
+        "id": "t5",
+        "type": "document",
+        "status": "pending",
+        "title": "Document the changes.",
+        "input_hash": "31f169f0469ab874",
+        "depends_on": [
+          "t4"
+        ]
+      }
+    ]
+  },
+  "checks": [
+    {
+      "name": "actual llama translation ran for Korean input",
+      "ok": true
+    },
+    {
+      "name": "normalized input is English",
+      "ok": true
+    },
+    {
+      "name": "compression produced non-empty output",
+      "ok": true
+    },
+    {
+      "name": "role2 handoff uses normalized input before compression",
+      "ok": true
+    },
+    {
+      "name": "sentence splitter creates five tasks",
+      "ok": true
+    },
+    {
+      "name": "task graph classification matches expected workflow",
+      "ok": true
+    },
+    {
+      "name": "dependency chain is sequential",
+      "ok": true
+    }
+  ]
+}

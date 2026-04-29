@@ -1,0 +1,216 @@
+{
+  "sessionId": "KgtGG8RI1XXSACzUr4D28XqG",
+  "startTime": "2026-04-28T01:59:29.117Z",
+  "entries": [
+    {
+      "timestamp": "2026-04-28T01:59:28.550Z",
+      "stage": "PromptCompiler",
+      "phase": "input",
+      "role": "role1",
+      "dataType": "UserRequest",
+      "data": {
+        "raw_input": "say hello"
+      },
+      "schemaValid": true,
+      "memoryMb": 13.718948364257812,
+      "estimatedTokens": 7
+    },
+    {
+      "timestamp": "2026-04-28T01:59:28.569Z",
+      "stage": "PromptCompiler",
+      "phase": "output",
+      "role": "role1",
+      "dataType": "CompiledPrompt",
+      "data": {
+        "raw_input": "say hello",
+        "normalized_input": "say hello",
+        "compressed_prompt": "say hello",
+        "language": "en",
+        "compression_provider": "nlp_adapter",
+        "inference_time_sec": 0
+      },
+      "schemaValid": true,
+      "durationMs": 17,
+      "memoryMb": 14.319206237792969,
+      "estimatedTokens": 37
+    },
+    {
+      "timestamp": "2026-04-28T01:59:28.570Z",
+      "stage": "TaskGraphBuilder",
+      "phase": "input",
+      "role": "role2.1",
+      "dataType": "Role2PromptInput",
+      "data": {
+        "compiled_prompt": "say hello"
+      },
+      "schemaValid": true,
+      "memoryMb": 14.32135009765625,
+      "estimatedTokens": 7
+    },
+    {
+      "timestamp": "2026-04-28T01:59:28.579Z",
+      "stage": "TaskGraphBuilder",
+      "phase": "output",
+      "role": "role2.1",
+      "dataType": "TaskGraph",
+      "data": {
+        "tasks": [
+          {
+            "id": "t1",
+            "type": "execute",
+            "status": "pending",
+            "title": "say hello",
+            "input_hash": "ce4e5e8707c3e2f4",
+            "depends_on": []
+          }
+        ]
+      },
+      "schemaValid": true,
+      "durationMs": 9,
+      "memoryMb": 14.679580688476562,
+      "estimatedTokens": 43
+    },
+    {
+      "timestamp": "2026-04-28T01:59:28.580Z",
+      "stage": "DAGValidator",
+      "phase": "output",
+      "role": "role2.1",
+      "dataType": "DAGValidationResult",
+      "data": {
+        "valid": true,
+        "topologicalOrder": [
+          "t1"
+        ]
+      },
+      "schemaValid": true,
+      "memoryMb": 14.694374084472656,
+      "estimatedTokens": 12
+    },
+    {
+      "timestamp": "2026-04-28T01:59:28.580Z",
+      "stage": "DependencyResolver",
+      "phase": "output",
+      "role": "role2.1",
+      "dataType": "DependencyResolution",
+      "data": {
+        "orderedTasks": [
+          {
+            "taskId": "t1",
+            "type": "execute",
+            "title": "say hello",
+            "dependsOn": [],
+            "resolvedDeps": []
+          }
+        ]
+      },
+      "schemaValid": true,
+      "memoryMb": 14.700515747070312,
+      "estimatedTokens": 28
+    },
+    {
+      "timestamp": "2026-04-28T01:59:28.581Z",
+      "stage": "ParallelClassifier",
+      "phase": "output",
+      "role": "role2.1",
+      "dataType": "ParallelClassification",
+      "data": {
+        "stages": [
+          {
+            "stage": 0,
+            "runnableInParallel": [
+              {
+                "taskId": "t1",
+                "type": "execute",
+                "title": "say hello",
+                "dependsOn": []
+              }
+            ]
+          }
+        ]
+      },
+      "schemaValid": true,
+      "memoryMb": 14.708465576171875,
+      "estimatedTokens": 33
+    },
+    {
+      "timestamp": "2026-04-28T01:59:28.584Z",
+      "stage": "SessionLoader",
+      "phase": "output",
+      "role": "role2.2",
+      "dataType": "SessionState",
+      "data": {
+        "session_id": "KgtGG8RI1XXSACzUr4D28XqG",
+        "completed_task_count": 0,
+        "next_task_id": null
+      },
+      "schemaValid": true,
+      "durationMs": 3,
+      "memoryMb": 13.818878173828125,
+      "estimatedTokens": 34
+    },
+    {
+      "timestamp": "2026-04-28T01:59:28.586Z",
+      "stage": "ContextOptimizer",
+      "phase": "output",
+      "role": "role2.2",
+      "dataType": "ExecutionContext",
+      "data": {
+        "session_id": "KgtGG8RI1XXSACzUr4D28XqG",
+        "active_task_id": "t1",
+        "shared_context": {
+          "session_id": "KgtGG8RI1XXSACzUr4D28XqG",
+          "raw_input": "say hello"
+        },
+        "selected_context": {},
+        "context_summary": "No previous task context available."
+      },
+      "schemaValid": true,
+      "durationMs": 0,
+      "memoryMb": 13.829139709472656,
+      "estimatedTokens": 74
+    },
+    {
+      "timestamp": "2026-04-28T01:59:28.587Z",
+      "stage": "Executor:t1",
+      "phase": "input",
+      "role": "role3",
+      "dataType": "ExecutionRequest",
+      "data": {
+        "task_id": "t1",
+        "type": "execute",
+        "prompt": "[EXECUTE] say hello\n\nContext: No previous task context available."
+      },
+      "schemaValid": true,
+      "memoryMb": 13.846237182617188,
+      "estimatedTokens": 30
+    },
+    {
+      "timestamp": "2026-04-28T01:59:29.114Z",
+      "stage": "Executor:t1",
+      "phase": "output",
+      "role": "role3",
+      "dataType": "ExecutionResult",
+      "data": {
+        "task_id": "t1",
+        "type": "execute",
+        "success": false,
+        "raw_output": ""
+      },
+      "schemaValid": true,
+      "durationMs": 527,
+      "memoryMb": 14.469032287597656,
+      "estimatedTokens": 19
+    }
+  ],
+  "summary": {
+    "totalDurationMs": 556,
+    "stageTimings": {
+      "PromptCompiler": 17,
+      "TaskGraphBuilder": 9,
+      "SessionLoader": 3,
+      "ContextOptimizer:t1": 0,
+      "Executor:t1": 527
+    },
+    "totalMemoryMb": 14.708465576171875
+  }
+}

@@ -1,0 +1,669 @@
+{
+  "sessionId": "thL8WOkvcDKeDjMIswp9AuXf",
+  "startTime": "2026-04-28T04:52:50.556Z",
+  "entries": [
+    {
+      "timestamp": "2026-04-28T04:52:33.797Z",
+      "stage": "PromptCompiler",
+      "phase": "input",
+      "role": "role1",
+      "dataType": "UserRequest",
+      "data": {
+        "raw_input": "파이썬 계산기 작업을 순서대로 진행해줘. 먼저 덧셈만 가능한 함수 설계안을 작성해줘. 다음으로 뺄셈만 가능한 함수 설계안을 작성해줘. 그 다음 4 더하기 5의 결과를 계산해줘. 이어서 10 빼기 3의 결과를 계산해줘. 마지막으로 덧셈과 뺄셈만 지원한다는 검증 요약을 작성해줘."
+      },
+      "schemaValid": true,
+      "memoryMb": 14.152214050292969,
+      "estimatedTokens": 155
+    },
+    {
+      "timestamp": "2026-04-28T04:52:49.963Z",
+      "stage": "PromptCompiler",
+      "phase": "output",
+      "role": "role1",
+      "dataType": "CompiledPrompt",
+      "data": {
+        "raw_input": "파이썬 계산기 작업을 순서대로 진행해줘. 먼저 덧셈만 가능한 함수 설계안을 작성해줘. 다음으로 뺄셈만 가능한 함수 설계안을 작성해줘. 그 다음 4 더하기 5의 결과를 계산해줘. 이어서 10 빼기 3의 결과를 계산해줘. 마지막으로 덧셈과 뺄셈만 지원한다는 검증 요약을 작성해줘.",
+        "normalized_input": "Please proceed with the Python calculator tasks in order. First, create a function design for addition only. Next, create a function design for subtraction only. Then, calculate the result of 4 plus 5. Next, calculate the result of 10 minus 3. Finally, write a verification summary stating that it supports only addition and subtraction.",
+        "compressed_prompt": "Proceed with the Python calculator tasks in order. First, create a function design for addition only. Next, create a function design for subtraction only. Then, calculate the result of 4 plus 5. Next, calculate the result of 10 minus 3. Finally, write a verification summary stating that it supports only addition and subtraction.",
+        "language": "ko",
+        "compression_provider": "nlp_adapter",
+        "inference_time_sec": 16.082,
+        "validation_errors": [],
+        "repair_actions": [
+          "compressed_with_nlp_adapter"
+        ]
+      },
+      "schemaValid": true,
+      "durationMs": 16163,
+      "memoryMb": 17.624099731445312,
+      "estimatedTokens": 330
+    },
+    {
+      "timestamp": "2026-04-28T04:52:49.965Z",
+      "stage": "TaskGraphBuilder",
+      "phase": "input",
+      "role": "role2.1",
+      "dataType": "Role2PromptInput",
+      "data": {
+        "compiled_prompt": "Proceed with the Python calculator tasks in order. First, create a function design for addition only. Next, create a function design for subtraction only. Then, calculate the result of 4 plus 5. Next, calculate the result of 10 minus 3. Finally, write a verification summary stating that it supports only addition and subtraction."
+      },
+      "schemaValid": true,
+      "memoryMb": 17.62757110595703,
+      "estimatedTokens": 73
+    },
+    {
+      "timestamp": "2026-04-28T04:52:50.001Z",
+      "stage": "TaskGraphBuilder",
+      "phase": "output",
+      "role": "role2.1",
+      "dataType": "TaskGraph",
+      "data": {
+        "tasks": [
+          {
+            "id": "t1",
+            "type": "execute",
+            "status": "pending",
+            "title": "Proceed with the Python calculator tasks in order.",
+            "input_hash": "a6aab2a08872d260",
+            "depends_on": []
+          },
+          {
+            "id": "t2",
+            "type": "create",
+            "status": "pending",
+            "title": "create a function design for addition only.",
+            "input_hash": "9b40a6a2f65fd260",
+            "depends_on": [
+              "t1"
+            ]
+          },
+          {
+            "id": "t3",
+            "type": "create",
+            "status": "pending",
+            "title": "create a function design for subtraction only.",
+            "input_hash": "b7d7dfa80bf8528f",
+            "depends_on": []
+          },
+          {
+            "id": "t4",
+            "type": "execute",
+            "status": "pending",
+            "title": "calculate the result of 4 plus 5.",
+            "input_hash": "1fc17697cb7e7e58",
+            "depends_on": [
+              "t3"
+            ]
+          },
+          {
+            "id": "t5",
+            "type": "execute",
+            "status": "pending",
+            "title": "calculate the result of 10 minus 3.",
+            "input_hash": "b9396be9ac6172b2",
+            "depends_on": []
+          },
+          {
+            "id": "t6",
+            "type": "create",
+            "status": "pending",
+            "title": "write a verification summary stating that it supports only addition and subtraction.",
+            "input_hash": "ffca5a4e52b0f7f8",
+            "depends_on": [
+              "t5"
+            ]
+          }
+        ]
+      },
+      "schemaValid": true,
+      "durationMs": 33,
+      "memoryMb": 18.330703735351562,
+      "estimatedTokens": 274
+    },
+    {
+      "timestamp": "2026-04-28T04:52:50.003Z",
+      "stage": "DAGValidator",
+      "phase": "output",
+      "role": "role2.1",
+      "dataType": "DAGValidationResult",
+      "data": {
+        "valid": true,
+        "topologicalOrder": [
+          "t1",
+          "t3",
+          "t5",
+          "t2",
+          "t4",
+          "t6"
+        ]
+      },
+      "schemaValid": true,
+      "memoryMb": 18.352432250976562,
+      "estimatedTokens": 27
+    },
+    {
+      "timestamp": "2026-04-28T04:52:50.006Z",
+      "stage": "DependencyResolver",
+      "phase": "output",
+      "role": "role2.1",
+      "dataType": "DependencyResolution",
+      "data": {
+        "orderedTasks": [
+          {
+            "taskId": "t1",
+            "type": "execute",
+            "title": "Proceed with the Python calculator tasks in order.",
+            "dependsOn": [],
+            "resolvedDeps": []
+          },
+          {
+            "taskId": "t3",
+            "type": "create",
+            "title": "create a function design for subtraction only.",
+            "dependsOn": [],
+            "resolvedDeps": []
+          },
+          {
+            "taskId": "t5",
+            "type": "execute",
+            "title": "calculate the result of 10 minus 3.",
+            "dependsOn": [],
+            "resolvedDeps": []
+          },
+          {
+            "taskId": "t2",
+            "type": "create",
+            "title": "create a function design for addition only.",
+            "dependsOn": [
+              "t1"
+            ],
+            "resolvedDeps": [
+              {
+                "taskId": "t1",
+                "type": "execute",
+                "title": "Proceed with the Python calculator tasks in order."
+              }
+            ]
+          },
+          {
+            "taskId": "t4",
+            "type": "execute",
+            "title": "calculate the result of 4 plus 5.",
+            "dependsOn": [
+              "t3"
+            ],
+            "resolvedDeps": [
+              {
+                "taskId": "t3",
+                "type": "create",
+                "title": "create a function design for subtraction only."
+              }
+            ]
+          },
+          {
+            "taskId": "t6",
+            "type": "create",
+            "title": "write a verification summary stating that it supports only addition and subtraction.",
+            "dependsOn": [
+              "t5"
+            ],
+            "resolvedDeps": [
+              {
+                "taskId": "t5",
+                "type": "execute",
+                "title": "calculate the result of 10 minus 3."
+              }
+            ]
+          }
+        ]
+      },
+      "schemaValid": true,
+      "memoryMb": 18.363021850585938,
+      "estimatedTokens": 255
+    },
+    {
+      "timestamp": "2026-04-28T04:52:50.010Z",
+      "stage": "ParallelClassifier",
+      "phase": "output",
+      "role": "role2.1",
+      "dataType": "ParallelClassification",
+      "data": {
+        "stages": [
+          {
+            "stage": 0,
+            "runnableInParallel": [
+              {
+                "taskId": "t1",
+                "type": "execute",
+                "title": "Proceed with the Python calculator tasks in order.",
+                "dependsOn": []
+              },
+              {
+                "taskId": "t3",
+                "type": "create",
+                "title": "create a function design for subtraction only.",
+                "dependsOn": []
+              },
+              {
+                "taskId": "t5",
+                "type": "execute",
+                "title": "calculate the result of 10 minus 3.",
+                "dependsOn": []
+              }
+            ]
+          },
+          {
+            "stage": 1,
+            "runnableInParallel": [
+              {
+                "taskId": "t2",
+                "type": "create",
+                "title": "create a function design for addition only.",
+                "dependsOn": [
+                  "t1"
+                ]
+              },
+              {
+                "taskId": "t4",
+                "type": "execute",
+                "title": "calculate the result of 4 plus 5.",
+                "dependsOn": [
+                  "t3"
+                ]
+              },
+              {
+                "taskId": "t6",
+                "type": "create",
+                "title": "write a verification summary stating that it supports only addition and subtraction.",
+                "dependsOn": [
+                  "t5"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "schemaValid": true,
+      "memoryMb": 18.375335693359375,
+      "estimatedTokens": 184
+    },
+    {
+      "timestamp": "2026-04-28T04:52:50.023Z",
+      "stage": "SessionLoader",
+      "phase": "output",
+      "role": "role2.2",
+      "dataType": "SessionState",
+      "data": {
+        "session_id": "thL8WOkvcDKeDjMIswp9AuXf",
+        "completed_task_count": 0,
+        "next_task_id": null
+      },
+      "schemaValid": true,
+      "durationMs": 11,
+      "memoryMb": 18.403793334960938,
+      "estimatedTokens": 34
+    },
+    {
+      "timestamp": "2026-04-28T04:52:50.026Z",
+      "stage": "ContextOptimizer",
+      "phase": "output",
+      "role": "role2.2",
+      "dataType": "ExecutionContext",
+      "data": {
+        "session_id": "thL8WOkvcDKeDjMIswp9AuXf",
+        "active_task_id": "t1",
+        "shared_context": {
+          "session_id": "thL8WOkvcDKeDjMIswp9AuXf",
+          "raw_input": "파이썬 계산기 작업을 순서대로 진행해줘. 먼저 덧셈만 가능한 함수 설계안을 작성해줘. 다음으로 뺄셈만 가능한 함수 설계안을 작성해줘. 그 다음 4 더하기 5의 결과를 계산해줘. 이어서 10 빼기 3의 결과를 계산해줘. 마지막으로 덧셈과 뺄셈만 지원한다는 검증 요약을 작성해줘."
+        },
+        "selected_context": {},
+        "context_summary": "No previous task context available."
+      },
+      "schemaValid": true,
+      "durationMs": 1,
+      "memoryMb": 18.88294219970703,
+      "estimatedTokens": 222
+    },
+    {
+      "timestamp": "2026-04-28T04:52:50.028Z",
+      "stage": "Executor:t1",
+      "phase": "input",
+      "role": "role3",
+      "dataType": "ExecutionRequest",
+      "data": {
+        "task_id": "t1",
+        "type": "execute",
+        "prompt": "[EXECUTE] Proceed with the Python calculator tasks in order.\n\nContext: No previous task context available."
+      },
+      "schemaValid": true,
+      "memoryMb": 18.439239501953125,
+      "estimatedTokens": 37
+    },
+    {
+      "timestamp": "2026-04-28T04:52:50.029Z",
+      "stage": "Executor:t1",
+      "phase": "output",
+      "role": "role3",
+      "dataType": "ExecutionResult",
+      "data": {
+        "task_id": "t1",
+        "type": "execute",
+        "success": true,
+        "raw_output": "[stub:codex] [EXECUTE] Proceed with the Python calculator tasks in order.\n\nContext: No previous task conte..."
+      },
+      "schemaValid": true,
+      "durationMs": 1,
+      "memoryMb": 18.451217651367188,
+      "estimatedTokens": 47
+    },
+    {
+      "timestamp": "2026-04-28T04:52:50.122Z",
+      "stage": "ContextOptimizer",
+      "phase": "output",
+      "role": "role2.2",
+      "dataType": "ExecutionContext",
+      "data": {
+        "session_id": "thL8WOkvcDKeDjMIswp9AuXf",
+        "active_task_id": "t3",
+        "shared_context": {
+          "session_id": "thL8WOkvcDKeDjMIswp9AuXf",
+          "raw_input": "파이썬 계산기 작업을 순서대로 진행해줘. 먼저 덧셈만 가능한 함수 설계안을 작성해줘. 다음으로 뺄셈만 가능한 함수 설계안을 작성해줘. 그 다음 4 더하기 5의 결과를 계산해줘. 이어서 10 빼기 3의 결과를 계산해줘. 마지막으로 덧셈과 뺄셈만 지원한다는 검증 요약을 작성해줘."
+        },
+        "selected_context": {
+          "t1": {
+            "summary": "[stub:codex] [EXECUTE] Proceed with the Python calculator tasks in order.\n\nContext: No previous task conte..."
+          }
+        },
+        "context_summary": "Previous Task Results:\n- Task [t1]: [stub:codex] [EXECUTE] Proceed with the Python calculator tasks in order.\n\nContext: No previous task conte..."
+      },
+      "schemaValid": true,
+      "durationMs": 1,
+      "memoryMb": 18.794654846191406,
+      "estimatedTokens": 288
+    },
+    {
+      "timestamp": "2026-04-28T04:52:50.123Z",
+      "stage": "Executor:t3",
+      "phase": "input",
+      "role": "role3",
+      "dataType": "ExecutionRequest",
+      "data": {
+        "task_id": "t3",
+        "type": "create",
+        "prompt": "[CREATE] create a function design for subtraction only.\n\nContext: Previous Task Results:\n- Task [t1]: [stub:codex] [EXECUTE] Proceed with the Python calculator tasks in order.\n\nContext: No previous task conte..."
+      },
+      "schemaValid": true,
+      "memoryMb": 18.797203063964844,
+      "estimatedTokens": 68
+    },
+    {
+      "timestamp": "2026-04-28T04:52:50.124Z",
+      "stage": "Executor:t3",
+      "phase": "output",
+      "role": "role3",
+      "dataType": "ExecutionResult",
+      "data": {
+        "task_id": "t3",
+        "type": "create",
+        "success": true,
+        "raw_output": "[stub:codex] [CREATE] create a function design for subtraction only.\n\nContext: Previous Task Results:\n- Ta..."
+      },
+      "schemaValid": true,
+      "durationMs": 0,
+      "memoryMb": 18.801132202148438,
+      "estimatedTokens": 48
+    },
+    {
+      "timestamp": "2026-04-28T04:52:50.210Z",
+      "stage": "ContextOptimizer",
+      "phase": "output",
+      "role": "role2.2",
+      "dataType": "ExecutionContext",
+      "data": {
+        "session_id": "thL8WOkvcDKeDjMIswp9AuXf",
+        "active_task_id": "t5",
+        "shared_context": {
+          "session_id": "thL8WOkvcDKeDjMIswp9AuXf",
+          "raw_input": "파이썬 계산기 작업을 순서대로 진행해줘. 먼저 덧셈만 가능한 함수 설계안을 작성해줘. 다음으로 뺄셈만 가능한 함수 설계안을 작성해줘. 그 다음 4 더하기 5의 결과를 계산해줘. 이어서 10 빼기 3의 결과를 계산해줘. 마지막으로 덧셈과 뺄셈만 지원한다는 검증 요약을 작성해줘."
+        },
+        "selected_context": {
+          "t1": {
+            "summary": "[stub:codex] [EXECUTE] Proceed with the Python calculator tasks in order.\n\nContext: No previous task conte..."
+          },
+          "t3": {
+            "summary": "[stub:codex] [CREATE] create a function design for subtraction only.\n\nContext: Previous Task Results:\n- Ta..."
+          }
+        },
+        "context_summary": "Previous Task Results:\n- Task [t1]: [stub:codex] [EXECUTE] Proceed with the Python calculator tasks in order.\n\nContext: No previous task conte...\n- Task [t3]: [stub:codex] [CREATE] create a function design for subtraction only.\n\nContext: Previous Task Results:\n- Ta..."
+      },
+      "schemaValid": true,
+      "durationMs": 0,
+      "memoryMb": 18.872039794921875,
+      "estimatedTokens": 359
+    },
+    {
+      "timestamp": "2026-04-28T04:52:50.212Z",
+      "stage": "Executor:t5",
+      "phase": "input",
+      "role": "role3",
+      "dataType": "ExecutionRequest",
+      "data": {
+        "task_id": "t5",
+        "type": "execute",
+        "prompt": "[EXECUTE] calculate the result of 10 minus 3.\n\nContext: Previous Task Results:\n- Task [t1]: [stub:codex] [EXECUTE] Proceed with the Python calculator tasks in order.\n\nContext: No previous task conte...\n- Task [t3]: [stub:codex] [CREATE] create a function design for subtraction only.\n\nContext: Previous Task Results:\n- Ta..."
+      },
+      "schemaValid": true,
+      "memoryMb": 18.875045776367188,
+      "estimatedTokens": 107
+    },
+    {
+      "timestamp": "2026-04-28T04:52:50.213Z",
+      "stage": "Executor:t5",
+      "phase": "output",
+      "role": "role3",
+      "dataType": "ExecutionResult",
+      "data": {
+        "task_id": "t5",
+        "type": "execute",
+        "success": true,
+        "raw_output": "[stub:codex] [EXECUTE] calculate the result of 10 minus 3.\n\nContext: Previous Task Results:\n- Task [t1]: [..."
+      },
+      "schemaValid": true,
+      "durationMs": 0,
+      "memoryMb": 18.879867553710938,
+      "estimatedTokens": 55
+    },
+    {
+      "timestamp": "2026-04-28T04:52:50.287Z",
+      "stage": "ContextOptimizer",
+      "phase": "output",
+      "role": "role2.2",
+      "dataType": "ExecutionContext",
+      "data": {
+        "session_id": "thL8WOkvcDKeDjMIswp9AuXf",
+        "active_task_id": "t2",
+        "shared_context": {
+          "session_id": "thL8WOkvcDKeDjMIswp9AuXf",
+          "raw_input": "파이썬 계산기 작업을 순서대로 진행해줘. 먼저 덧셈만 가능한 함수 설계안을 작성해줘. 다음으로 뺄셈만 가능한 함수 설계안을 작성해줘. 그 다음 4 더하기 5의 결과를 계산해줘. 이어서 10 빼기 3의 결과를 계산해줘. 마지막으로 덧셈과 뺄셈만 지원한다는 검증 요약을 작성해줘."
+        },
+        "selected_context": {
+          "t1": {
+            "summary": "[stub:codex] [EXECUTE] Proceed with the Python calculator tasks in order.\n\nContext: No previous task conte..."
+          }
+        },
+        "context_summary": "Previous Task Results:\n- Task [t1]: [stub:codex] [EXECUTE] Proceed with the Python calculator tasks in order.\n\nContext: No previous task conte..."
+      },
+      "schemaValid": true,
+      "durationMs": 0,
+      "memoryMb": 18.93584442138672,
+      "estimatedTokens": 288
+    },
+    {
+      "timestamp": "2026-04-28T04:52:50.288Z",
+      "stage": "Executor:t2",
+      "phase": "input",
+      "role": "role3",
+      "dataType": "ExecutionRequest",
+      "data": {
+        "task_id": "t2",
+        "type": "create",
+        "prompt": "[CREATE] create a function design for addition only.\n\nContext: Previous Task Results:\n- Task [t1]: [stub:codex] [EXECUTE] Proceed with the Python calculator tasks in order.\n\nContext: No previous task conte..."
+      },
+      "schemaValid": true,
+      "memoryMb": 18.938827514648438,
+      "estimatedTokens": 68
+    },
+    {
+      "timestamp": "2026-04-28T04:52:50.289Z",
+      "stage": "Executor:t2",
+      "phase": "output",
+      "role": "role3",
+      "dataType": "ExecutionResult",
+      "data": {
+        "task_id": "t2",
+        "type": "create",
+        "success": true,
+        "raw_output": "[stub:codex] [CREATE] create a function design for addition only.\n\nContext: Previous Task Results:\n- Task ..."
+      },
+      "schemaValid": true,
+      "durationMs": 0,
+      "memoryMb": 18.94286346435547,
+      "estimatedTokens": 48
+    },
+    {
+      "timestamp": "2026-04-28T04:52:50.378Z",
+      "stage": "ContextOptimizer",
+      "phase": "output",
+      "role": "role2.2",
+      "dataType": "ExecutionContext",
+      "data": {
+        "session_id": "thL8WOkvcDKeDjMIswp9AuXf",
+        "active_task_id": "t4",
+        "shared_context": {
+          "session_id": "thL8WOkvcDKeDjMIswp9AuXf",
+          "raw_input": "파이썬 계산기 작업을 순서대로 진행해줘. 먼저 덧셈만 가능한 함수 설계안을 작성해줘. 다음으로 뺄셈만 가능한 함수 설계안을 작성해줘. 그 다음 4 더하기 5의 결과를 계산해줘. 이어서 10 빼기 3의 결과를 계산해줘. 마지막으로 덧셈과 뺄셈만 지원한다는 검증 요약을 작성해줘."
+        },
+        "selected_context": {
+          "t3": {
+            "summary": "[stub:codex] [CREATE] create a function design for subtraction only.\n\nContext: Previous Task Results:\n- Ta..."
+          }
+        },
+        "context_summary": "Previous Task Results:\n- Task [t3]: [stub:codex] [CREATE] create a function design for subtraction only.\n\nContext: Previous Task Results:\n- Ta..."
+      },
+      "schemaValid": true,
+      "durationMs": 0,
+      "memoryMb": 19.037933349609375,
+      "estimatedTokens": 290
+    },
+    {
+      "timestamp": "2026-04-28T04:52:50.379Z",
+      "stage": "Executor:t4",
+      "phase": "input",
+      "role": "role3",
+      "dataType": "ExecutionRequest",
+      "data": {
+        "task_id": "t4",
+        "type": "execute",
+        "prompt": "[EXECUTE] calculate the result of 4 plus 5.\n\nContext: Previous Task Results:\n- Task [t3]: [stub:codex] [CREATE] create a function design for subtraction only.\n\nContext: Previous Task Results:\n- Ta..."
+      },
+      "schemaValid": true,
+      "memoryMb": 19.04045867919922,
+      "estimatedTokens": 72
+    },
+    {
+      "timestamp": "2026-04-28T04:52:50.380Z",
+      "stage": "Executor:t4",
+      "phase": "output",
+      "role": "role3",
+      "dataType": "ExecutionResult",
+      "data": {
+        "task_id": "t4",
+        "type": "execute",
+        "success": true,
+        "raw_output": "[stub:codex] [EXECUTE] calculate the result of 4 plus 5.\n\nContext: Previous Task Results:\n- Task [t3]: [st..."
+      },
+      "schemaValid": true,
+      "durationMs": 0,
+      "memoryMb": 19.044403076171875,
+      "estimatedTokens": 57
+    },
+    {
+      "timestamp": "2026-04-28T04:52:50.457Z",
+      "stage": "ContextOptimizer",
+      "phase": "output",
+      "role": "role2.2",
+      "dataType": "ExecutionContext",
+      "data": {
+        "session_id": "thL8WOkvcDKeDjMIswp9AuXf",
+        "active_task_id": "t6",
+        "shared_context": {
+          "session_id": "thL8WOkvcDKeDjMIswp9AuXf",
+          "raw_input": "파이썬 계산기 작업을 순서대로 진행해줘. 먼저 덧셈만 가능한 함수 설계안을 작성해줘. 다음으로 뺄셈만 가능한 함수 설계안을 작성해줘. 그 다음 4 더하기 5의 결과를 계산해줘. 이어서 10 빼기 3의 결과를 계산해줘. 마지막으로 덧셈과 뺄셈만 지원한다는 검증 요약을 작성해줘."
+        },
+        "selected_context": {
+          "t5": {
+            "summary": "[stub:codex] [EXECUTE] calculate the result of 10 minus 3.\n\nContext: Previous Task Results:\n- Task [t1]: [..."
+          }
+        },
+        "context_summary": "Previous Task Results:\n- Task [t5]: [stub:codex] [EXECUTE] calculate the result of 10 minus 3.\n\nContext: Previous Task Results:\n- Task [t1]: [..."
+      },
+      "schemaValid": true,
+      "durationMs": 0,
+      "memoryMb": 19.13806915283203,
+      "estimatedTokens": 304
+    },
+    {
+      "timestamp": "2026-04-28T04:52:50.458Z",
+      "stage": "Executor:t6",
+      "phase": "input",
+      "role": "role3",
+      "dataType": "ExecutionRequest",
+      "data": {
+        "task_id": "t6",
+        "type": "create",
+        "prompt": "[CREATE] write a verification summary stating that it supports only addition and subtraction.\n\nContext: Previous Task Results:\n- Task [t5]: [stub:codex] [EXECUTE] calculate the result of 10 minus 3.\n\nContext: Previous Task Results:\n- Task [t1]: [..."
+      },
+      "schemaValid": true,
+      "memoryMb": 19.14069366455078,
+      "estimatedTokens": 81
+    },
+    {
+      "timestamp": "2026-04-28T04:52:50.458Z",
+      "stage": "Executor:t6",
+      "phase": "output",
+      "role": "role3",
+      "dataType": "ExecutionResult",
+      "data": {
+        "task_id": "t6",
+        "type": "create",
+        "success": true,
+        "raw_output": "[stub:codex] [CREATE] write a verification summary stating that it supports only addition and subtraction...."
+      },
+      "schemaValid": true,
+      "durationMs": 0,
+      "memoryMb": 19.144638061523438,
+      "estimatedTokens": 41
+    }
+  ],
+  "summary": {
+    "totalDurationMs": 16210,
+    "stageTimings": {
+      "PromptCompiler": 16163,
+      "TaskGraphBuilder": 33,
+      "SessionLoader": 11,
+      "ContextOptimizer:t1": 1,
+      "Executor:t1": 1,
+      "ContextOptimizer:t3": 1,
+      "Executor:t3": 0,
+      "ContextOptimizer:t5": 0,
+      "Executor:t5": 0,
+      "ContextOptimizer:t2": 0,
+      "Executor:t2": 0,
+      "ContextOptimizer:t4": 0,
+      "Executor:t4": 0,
+      "ContextOptimizer:t6": 0,
+      "Executor:t6": 0
+    },
+    "totalMemoryMb": 19.144638061523438
+  }
+}

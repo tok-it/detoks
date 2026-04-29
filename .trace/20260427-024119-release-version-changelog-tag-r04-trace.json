@@ -1,0 +1,362 @@
+{
+  "sessionId": "c8b77bc8b5e7",
+  "startTime": "2026-04-27T02:41:19.810Z",
+  "entries": [
+    {
+      "timestamp": "2026-04-27T02:41:19.801Z",
+      "stage": "PromptCompiler",
+      "phase": "input",
+      "role": "role1",
+      "dataType": "UserRequest",
+      "data": {
+        "raw_input": "Bump the version in package.json to 0.2.0, update CHANGELOG.md, and create a git tag"
+      },
+      "schemaValid": true,
+      "memoryMb": 14.833869934082031,
+      "estimatedTokens": 30
+    },
+    {
+      "timestamp": "2026-04-27T02:41:19.802Z",
+      "stage": "PromptCompiler",
+      "phase": "output",
+      "role": "role1",
+      "dataType": "CompiledPrompt",
+      "data": {
+        "raw_input": "Bump the version in package.json to 0.2.0, update CHANGELOG.md, and create a git tag",
+        "normalized_input": "Bump the version in package.json to 0.2.0, update CHANGELOG.md, and create a git tag",
+        "compressed_prompt": "Bump the version in package.json to 0.2.0, update CHANGELOG.md, and create a git tag",
+        "language": "en",
+        "compression_provider": "nlp_adapter",
+        "inference_time_sec": 0
+      },
+      "schemaValid": true,
+      "durationMs": 1,
+      "memoryMb": 14.922149658203125,
+      "estimatedTokens": 106
+    },
+    {
+      "timestamp": "2026-04-27T02:41:19.802Z",
+      "stage": "TaskGraphBuilder",
+      "phase": "input",
+      "role": "role2.1",
+      "dataType": "Role2PromptInput",
+      "data": {
+        "compiled_prompt": "Bump the version in package.json to 0.2.0, update CHANGELOG.md, and create a git tag"
+      },
+      "schemaValid": true,
+      "memoryMb": 14.923980712890625,
+      "estimatedTokens": 30
+    },
+    {
+      "timestamp": "2026-04-27T02:41:19.802Z",
+      "stage": "TaskGraphBuilder",
+      "phase": "output",
+      "role": "role2.1",
+      "dataType": "TaskGraph",
+      "data": {
+        "tasks": [
+          {
+            "id": "t1",
+            "type": "execute",
+            "status": "pending",
+            "title": "Bump the version in package.json to 0.2.0",
+            "input_hash": "56ec131c7b082ab0",
+            "depends_on": []
+          },
+          {
+            "id": "t2",
+            "type": "modify",
+            "status": "pending",
+            "title": "update CHANGELOG.md",
+            "input_hash": "c98e7b4811f30bb1",
+            "depends_on": []
+          },
+          {
+            "id": "t3",
+            "type": "create",
+            "status": "pending",
+            "title": "create a git tag",
+            "input_hash": "c8a04e6991ab6fb2",
+            "depends_on": []
+          }
+        ]
+      },
+      "schemaValid": true,
+      "durationMs": 0,
+      "memoryMb": 14.95428466796875,
+      "estimatedTokens": 131
+    },
+    {
+      "timestamp": "2026-04-27T02:41:19.802Z",
+      "stage": "DAGValidator",
+      "phase": "output",
+      "role": "role2.1",
+      "dataType": "DAGValidationResult",
+      "data": {
+        "valid": true,
+        "topologicalOrder": [
+          "t1",
+          "t2",
+          "t3"
+        ]
+      },
+      "schemaValid": true,
+      "memoryMb": 14.973403930664062,
+      "estimatedTokens": 18
+    },
+    {
+      "timestamp": "2026-04-27T02:41:19.803Z",
+      "stage": "DependencyResolver",
+      "phase": "output",
+      "role": "role2.1",
+      "dataType": "DependencyResolution",
+      "data": {
+        "orderedTasks": [
+          {
+            "taskId": "t1",
+            "type": "execute",
+            "title": "Bump the version in package.json to 0.2.0",
+            "dependsOn": [],
+            "resolvedDeps": []
+          },
+          {
+            "taskId": "t2",
+            "type": "modify",
+            "title": "update CHANGELOG.md",
+            "dependsOn": [],
+            "resolvedDeps": []
+          },
+          {
+            "taskId": "t3",
+            "type": "create",
+            "title": "create a git tag",
+            "dependsOn": [],
+            "resolvedDeps": []
+          }
+        ]
+      },
+      "schemaValid": true,
+      "memoryMb": 14.97747802734375,
+      "estimatedTokens": 92
+    },
+    {
+      "timestamp": "2026-04-27T02:41:19.803Z",
+      "stage": "ParallelClassifier",
+      "phase": "output",
+      "role": "role2.1",
+      "dataType": "ParallelClassification",
+      "data": {
+        "stages": [
+          {
+            "stage": 0,
+            "runnableInParallel": [
+              {
+                "taskId": "t1",
+                "type": "execute",
+                "title": "Bump the version in package.json to 0.2.0",
+                "dependsOn": []
+              },
+              {
+                "taskId": "t2",
+                "type": "modify",
+                "title": "update CHANGELOG.md",
+                "dependsOn": []
+              },
+              {
+                "taskId": "t3",
+                "type": "create",
+                "title": "create a git tag",
+                "dependsOn": []
+              }
+            ]
+          }
+        ]
+      },
+      "schemaValid": true,
+      "memoryMb": 14.982795715332031,
+      "estimatedTokens": 87
+    },
+    {
+      "timestamp": "2026-04-27T02:41:19.803Z",
+      "stage": "ContextOptimizer",
+      "phase": "output",
+      "role": "role2.2",
+      "dataType": "ExecutionContext",
+      "data": {
+        "session_id": "c8b77bc8b5e7",
+        "active_task_id": "t1",
+        "shared_context": {
+          "session_id": "c8b77bc8b5e7",
+          "failed_task_ids": [
+            "t1",
+            "t2",
+            "t3"
+          ]
+        },
+        "selected_context": {},
+        "context_summary": "No previous task context available."
+      },
+      "schemaValid": true,
+      "durationMs": 0,
+      "memoryMb": 14.987373352050781,
+      "estimatedTokens": 54
+    },
+    {
+      "timestamp": "2026-04-27T02:41:19.803Z",
+      "stage": "Executor:t1",
+      "phase": "input",
+      "role": "role3",
+      "dataType": "ExecutionRequest",
+      "data": {
+        "task_id": "t1",
+        "type": "execute",
+        "prompt": "[EXECUTE] Bump the version in package.json to 0.2.0\n\nContext: No previous task context available."
+      },
+      "schemaValid": true,
+      "memoryMb": 14.989738464355469,
+      "estimatedTokens": 42
+    },
+    {
+      "timestamp": "2026-04-27T02:41:19.804Z",
+      "stage": "Executor:t1",
+      "phase": "output",
+      "role": "role3",
+      "dataType": "ExecutionResult",
+      "data": {
+        "task_id": "t1",
+        "success": true,
+        "raw_output": "[stub:codex] [EXECUTE] Bump the version in package.json to 0.2.0\n\nContext: No previous task context availa..."
+      },
+      "schemaValid": true,
+      "durationMs": 0,
+      "memoryMb": 14.996086120605469,
+      "estimatedTokens": 50
+    },
+    {
+      "timestamp": "2026-04-27T02:41:19.806Z",
+      "stage": "ContextOptimizer",
+      "phase": "output",
+      "role": "role2.2",
+      "dataType": "ExecutionContext",
+      "data": {
+        "session_id": "c8b77bc8b5e7",
+        "active_task_id": "t2",
+        "shared_context": {
+          "session_id": "c8b77bc8b5e7",
+          "failed_task_ids": [
+            "t1",
+            "t2",
+            "t3"
+          ]
+        },
+        "selected_context": {},
+        "context_summary": "No previous task context available."
+      },
+      "schemaValid": true,
+      "durationMs": 0,
+      "memoryMb": 15.034210205078125,
+      "estimatedTokens": 62
+    },
+    {
+      "timestamp": "2026-04-27T02:41:19.806Z",
+      "stage": "Executor:t2",
+      "phase": "input",
+      "role": "role3",
+      "dataType": "ExecutionRequest",
+      "data": {
+        "task_id": "t2",
+        "type": "modify",
+        "prompt": "[MODIFY] update CHANGELOG.md\n\nContext: No previous task context available."
+      },
+      "schemaValid": true,
+      "memoryMb": 15.036727905273438,
+      "estimatedTokens": 32
+    },
+    {
+      "timestamp": "2026-04-27T02:41:19.806Z",
+      "stage": "Executor:t2",
+      "phase": "output",
+      "role": "role3",
+      "dataType": "ExecutionResult",
+      "data": {
+        "task_id": "t2",
+        "success": true,
+        "raw_output": "[stub:codex] [MODIFY] update CHANGELOG.md\n\nContext: No previous task context available."
+      },
+      "schemaValid": true,
+      "durationMs": 0,
+      "memoryMb": 15.040985107421875,
+      "estimatedTokens": 39
+    },
+    {
+      "timestamp": "2026-04-27T02:41:19.808Z",
+      "stage": "ContextOptimizer",
+      "phase": "output",
+      "role": "role2.2",
+      "dataType": "ExecutionContext",
+      "data": {
+        "session_id": "c8b77bc8b5e7",
+        "active_task_id": "t3",
+        "shared_context": {
+          "session_id": "c8b77bc8b5e7",
+          "failed_task_ids": [
+            "t1",
+            "t2",
+            "t3"
+          ]
+        },
+        "selected_context": {},
+        "context_summary": "No previous task context available."
+      },
+      "schemaValid": true,
+      "durationMs": 0,
+      "memoryMb": 15.08251953125,
+      "estimatedTokens": 65
+    },
+    {
+      "timestamp": "2026-04-27T02:41:19.808Z",
+      "stage": "Executor:t3",
+      "phase": "input",
+      "role": "role3",
+      "dataType": "ExecutionRequest",
+      "data": {
+        "task_id": "t3",
+        "type": "create",
+        "prompt": "[CREATE] create a git tag\n\nContext: No previous task context available."
+      },
+      "schemaValid": true,
+      "memoryMb": 15.084823608398438,
+      "estimatedTokens": 31
+    },
+    {
+      "timestamp": "2026-04-27T02:41:19.809Z",
+      "stage": "Executor:t3",
+      "phase": "output",
+      "role": "role3",
+      "dataType": "ExecutionResult",
+      "data": {
+        "task_id": "t3",
+        "success": true,
+        "raw_output": "[stub:codex] [CREATE] create a git tag\n\nContext: No previous task context available."
+      },
+      "schemaValid": true,
+      "durationMs": 0,
+      "memoryMb": 15.088729858398438,
+      "estimatedTokens": 38
+    }
+  ],
+  "summary": {
+    "totalDurationMs": 1,
+    "stageTimings": {
+      "PromptCompiler": 1,
+      "TaskGraphBuilder": 0,
+      "ContextOptimizer:t1": 0,
+      "Executor:t1": 0,
+      "ContextOptimizer:t2": 0,
+      "Executor:t2": 0,
+      "ContextOptimizer:t3": 0,
+      "Executor:t3": 0
+    },
+    "totalMemoryMb": 15.088729858398438
+  }
+}

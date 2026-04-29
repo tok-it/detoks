@@ -1,0 +1,404 @@
+{
+  "sessionId": "0a3743ac9f03",
+  "startTime": "2026-04-27T02:41:19.914Z",
+  "entries": [
+    {
+      "timestamp": "2026-04-27T02:41:19.907Z",
+      "stage": "PromptCompiler",
+      "phase": "input",
+      "role": "role1",
+      "dataType": "UserRequest",
+      "data": {
+        "raw_input": "Based on the changes in the current branch, write a GitHub Issue description and PR template. Include feature description, reason for change, and testing instructions."
+      },
+      "schemaValid": true,
+      "memoryMb": 18.98998260498047,
+      "estimatedTokens": 35
+    },
+    {
+      "timestamp": "2026-04-27T02:41:19.908Z",
+      "stage": "PromptCompiler",
+      "phase": "output",
+      "role": "role1",
+      "dataType": "CompiledPrompt",
+      "data": {
+        "raw_input": "Based on the changes in the current branch, write a GitHub Issue description and PR template. Include feature description, reason for change, and testing instructions.",
+        "normalized_input": "Based on the changes in the current branch, write a GitHub Issue description and PR template. Include feature description, reason for change, and testing instructions.",
+        "compressed_prompt": "Based on the changes in the current branch, write a GitHub Issue description and PR template. Include feature description, reason for change, and testing instructions.",
+        "language": "en",
+        "compression_provider": "nlp_adapter",
+        "inference_time_sec": 0
+      },
+      "schemaValid": true,
+      "durationMs": 1,
+      "memoryMb": 19.095458984375,
+      "estimatedTokens": 118
+    },
+    {
+      "timestamp": "2026-04-27T02:41:19.908Z",
+      "stage": "TaskGraphBuilder",
+      "phase": "input",
+      "role": "role2.1",
+      "dataType": "Role2PromptInput",
+      "data": {
+        "compiled_prompt": "Based on the changes in the current branch, write a GitHub Issue description and PR template. Include feature description, reason for change, and testing instructions."
+      },
+      "schemaValid": true,
+      "memoryMb": 19.097366333007812,
+      "estimatedTokens": 35
+    },
+    {
+      "timestamp": "2026-04-27T02:41:19.909Z",
+      "stage": "TaskGraphBuilder",
+      "phase": "output",
+      "role": "role2.1",
+      "dataType": "TaskGraph",
+      "data": {
+        "tasks": [
+          {
+            "id": "t1",
+            "type": "execute",
+            "status": "pending",
+            "title": "Based on the changes in the current branch",
+            "input_hash": "869a2cd6e81456a4",
+            "depends_on": []
+          },
+          {
+            "id": "t2",
+            "type": "create",
+            "status": "pending",
+            "title": "write a GitHub Issue description and PR template.",
+            "input_hash": "96b3f5c59b605820",
+            "depends_on": [
+              "t1"
+            ]
+          },
+          {
+            "id": "t3",
+            "type": "modify",
+            "status": "pending",
+            "title": "Include feature description, reason for change, and testing instructions.",
+            "input_hash": "bc1f7c77c417c96b",
+            "depends_on": [
+              "t2"
+            ]
+          }
+        ]
+      },
+      "schemaValid": true,
+      "durationMs": 1,
+      "memoryMb": 19.13646697998047,
+      "estimatedTokens": 140
+    },
+    {
+      "timestamp": "2026-04-27T02:41:19.909Z",
+      "stage": "DAGValidator",
+      "phase": "output",
+      "role": "role2.1",
+      "dataType": "DAGValidationResult",
+      "data": {
+        "valid": true,
+        "topologicalOrder": [
+          "t1",
+          "t2",
+          "t3"
+        ]
+      },
+      "schemaValid": true,
+      "memoryMb": 19.144851684570312,
+      "estimatedTokens": 18
+    },
+    {
+      "timestamp": "2026-04-27T02:41:19.909Z",
+      "stage": "DependencyResolver",
+      "phase": "output",
+      "role": "role2.1",
+      "dataType": "DependencyResolution",
+      "data": {
+        "orderedTasks": [
+          {
+            "taskId": "t1",
+            "type": "execute",
+            "title": "Based on the changes in the current branch",
+            "dependsOn": [],
+            "resolvedDeps": []
+          },
+          {
+            "taskId": "t2",
+            "type": "create",
+            "title": "write a GitHub Issue description and PR template.",
+            "dependsOn": [
+              "t1"
+            ],
+            "resolvedDeps": [
+              {
+                "taskId": "t1",
+                "type": "execute",
+                "title": "Based on the changes in the current branch"
+              }
+            ]
+          },
+          {
+            "taskId": "t3",
+            "type": "modify",
+            "title": "Include feature description, reason for change, and testing instructions.",
+            "dependsOn": [
+              "t2"
+            ],
+            "resolvedDeps": [
+              {
+                "taskId": "t2",
+                "type": "create",
+                "title": "write a GitHub Issue description and PR template."
+              }
+            ]
+          }
+        ]
+      },
+      "schemaValid": true,
+      "memoryMb": 19.149154663085938,
+      "estimatedTokens": 142
+    },
+    {
+      "timestamp": "2026-04-27T02:41:19.909Z",
+      "stage": "ParallelClassifier",
+      "phase": "output",
+      "role": "role2.1",
+      "dataType": "ParallelClassification",
+      "data": {
+        "stages": [
+          {
+            "stage": 0,
+            "runnableInParallel": [
+              {
+                "taskId": "t1",
+                "type": "execute",
+                "title": "Based on the changes in the current branch",
+                "dependsOn": []
+              }
+            ]
+          },
+          {
+            "stage": 1,
+            "runnableInParallel": [
+              {
+                "taskId": "t2",
+                "type": "create",
+                "title": "write a GitHub Issue description and PR template.",
+                "dependsOn": [
+                  "t1"
+                ]
+              }
+            ]
+          },
+          {
+            "stage": 2,
+            "runnableInParallel": [
+              {
+                "taskId": "t3",
+                "type": "modify",
+                "title": "Include feature description, reason for change, and testing instructions.",
+                "dependsOn": [
+                  "t2"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "schemaValid": true,
+      "memoryMb": 19.156082153320312,
+      "estimatedTokens": 116
+    },
+    {
+      "timestamp": "2026-04-27T02:41:19.909Z",
+      "stage": "ContextOptimizer",
+      "phase": "output",
+      "role": "role2.2",
+      "dataType": "ExecutionContext",
+      "data": {
+        "session_id": "0a3743ac9f03",
+        "active_task_id": "t1",
+        "shared_context": {
+          "session_id": "0a3743ac9f03",
+          "failed_task_ids": [
+            "t1",
+            "t2",
+            "t3"
+          ]
+        },
+        "selected_context": {},
+        "context_summary": "No previous task context available."
+      },
+      "schemaValid": true,
+      "durationMs": 0,
+      "memoryMb": 19.160140991210938,
+      "estimatedTokens": 50
+    },
+    {
+      "timestamp": "2026-04-27T02:41:19.910Z",
+      "stage": "Executor:t1",
+      "phase": "input",
+      "role": "role3",
+      "dataType": "ExecutionRequest",
+      "data": {
+        "task_id": "t1",
+        "type": "execute",
+        "prompt": "[EXECUTE] Based on the changes in the current branch\n\nContext: No previous task context available."
+      },
+      "schemaValid": true,
+      "memoryMb": 19.162506103515625,
+      "estimatedTokens": 36
+    },
+    {
+      "timestamp": "2026-04-27T02:41:19.910Z",
+      "stage": "Executor:t1",
+      "phase": "output",
+      "role": "role3",
+      "dataType": "ExecutionResult",
+      "data": {
+        "task_id": "t1",
+        "success": true,
+        "raw_output": "[stub:codex] [EXECUTE] Based on the changes in the current branch\n\nContext: No previous task context avail..."
+      },
+      "schemaValid": true,
+      "durationMs": 0,
+      "memoryMb": 19.166641235351562,
+      "estimatedTokens": 43
+    },
+    {
+      "timestamp": "2026-04-27T02:41:19.911Z",
+      "stage": "ContextOptimizer",
+      "phase": "output",
+      "role": "role2.2",
+      "dataType": "ExecutionContext",
+      "data": {
+        "session_id": "0a3743ac9f03",
+        "active_task_id": "t2",
+        "shared_context": {
+          "session_id": "0a3743ac9f03",
+          "failed_task_ids": [
+            "t1",
+            "t2",
+            "t3"
+          ]
+        },
+        "selected_context": {
+          "t1": {
+            "summary": "[stub:codex] [EXECUTE] Based on the changes in the current branch\n\nContext: No previous task context avail..."
+          }
+        },
+        "context_summary": "Previous Task Results:\n- Task [t1]: [stub:codex] [EXECUTE] Based on the changes in the current branch\n\nContext: No previous task context avail..."
+      },
+      "schemaValid": true,
+      "durationMs": 0,
+      "memoryMb": 19.197532653808594,
+      "estimatedTokens": 124
+    },
+    {
+      "timestamp": "2026-04-27T02:41:19.911Z",
+      "stage": "Executor:t2",
+      "phase": "input",
+      "role": "role3",
+      "dataType": "ExecutionRequest",
+      "data": {
+        "task_id": "t2",
+        "type": "create",
+        "prompt": "[CREATE] write a GitHub Issue description and PR template.\n\nContext: Previous Task Results:\n- Task [t1]: [stub:codex] [EXECUTE] Based on the changes in the current branch\n\nContext: No previous task context avail..."
+      },
+      "schemaValid": true,
+      "memoryMb": 19.200111389160156,
+      "estimatedTokens": 69
+    },
+    {
+      "timestamp": "2026-04-27T02:41:19.911Z",
+      "stage": "Executor:t2",
+      "phase": "output",
+      "role": "role3",
+      "dataType": "ExecutionResult",
+      "data": {
+        "task_id": "t2",
+        "success": true,
+        "raw_output": "[stub:codex] [CREATE] write a GitHub Issue description and PR template.\n\nContext: Previous Task Results:\n-..."
+      },
+      "schemaValid": true,
+      "durationMs": 0,
+      "memoryMb": 19.20421600341797,
+      "estimatedTokens": 44
+    },
+    {
+      "timestamp": "2026-04-27T02:41:19.913Z",
+      "stage": "ContextOptimizer",
+      "phase": "output",
+      "role": "role2.2",
+      "dataType": "ExecutionContext",
+      "data": {
+        "session_id": "0a3743ac9f03",
+        "active_task_id": "t3",
+        "shared_context": {
+          "session_id": "0a3743ac9f03",
+          "failed_task_ids": [
+            "t1",
+            "t2",
+            "t3"
+          ]
+        },
+        "selected_context": {
+          "t2": {
+            "summary": "[stub:codex] [CREATE] write a GitHub Issue description and PR template.\n\nContext: Previous Task Results:\n-..."
+          }
+        },
+        "context_summary": "Previous Task Results:\n- Task [t2]: [stub:codex] [CREATE] write a GitHub Issue description and PR template.\n\nContext: Previous Task Results:\n-..."
+      },
+      "schemaValid": true,
+      "durationMs": 0,
+      "memoryMb": 19.236862182617188,
+      "estimatedTokens": 129
+    },
+    {
+      "timestamp": "2026-04-27T02:41:19.913Z",
+      "stage": "Executor:t3",
+      "phase": "input",
+      "role": "role3",
+      "dataType": "ExecutionRequest",
+      "data": {
+        "task_id": "t3",
+        "type": "modify",
+        "prompt": "[MODIFY] Include feature description, reason for change, and testing instructions.\n\nContext: Previous Task Results:\n- Task [t2]: [stub:codex] [CREATE] write a GitHub Issue description and PR template.\n\nContext: Previous Task Results:\n-..."
+      },
+      "schemaValid": true,
+      "memoryMb": 19.239486694335938,
+      "estimatedTokens": 74
+    },
+    {
+      "timestamp": "2026-04-27T02:41:19.913Z",
+      "stage": "Executor:t3",
+      "phase": "output",
+      "role": "role3",
+      "dataType": "ExecutionResult",
+      "data": {
+        "task_id": "t3",
+        "success": true,
+        "raw_output": "[stub:codex] [MODIFY] Include feature description, reason for change, and testing instructions.\n\nContext: ..."
+      },
+      "schemaValid": true,
+      "durationMs": 0,
+      "memoryMb": 19.24359130859375,
+      "estimatedTokens": 42
+    }
+  ],
+  "summary": {
+    "totalDurationMs": 2,
+    "stageTimings": {
+      "PromptCompiler": 1,
+      "TaskGraphBuilder": 1,
+      "ContextOptimizer:t1": 0,
+      "Executor:t1": 0,
+      "ContextOptimizer:t2": 0,
+      "Executor:t2": 0,
+      "ContextOptimizer:t3": 0,
+      "Executor:t3": 0
+    },
+    "totalMemoryMb": 19.24359130859375
+  }
+}
