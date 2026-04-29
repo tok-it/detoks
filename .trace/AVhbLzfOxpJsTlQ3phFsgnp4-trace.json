@@ -1,0 +1,155 @@
+{
+  "sessionId": "AVhbLzfOxpJsTlQ3phFsgnp4",
+  "startTime": "2026-04-28T04:48:29.506Z",
+  "entries": [
+    {
+      "timestamp": "2026-04-28T04:48:00.388Z",
+      "stage": "PromptCompiler",
+      "phase": "input",
+      "role": "role1",
+      "dataType": "UserRequest",
+      "data": {
+        "raw_input": "파이썬으로 계산기 작업을 진행해줘. 1. 덧셈 함수 설계안을 만들어줘. 2. 뺄셈 함수 설계안을 만들어줘. 3. 4+5 예제 결과를 계산해줘. 4. 10-3 예제 결과를 계산해줘. 5. 덧셈과 뺄셈만 지원한다는 테스트 요약을 작성해줘."
+      },
+      "schemaValid": true,
+      "memoryMb": 14.056968688964844,
+      "estimatedTokens": 135
+    },
+    {
+      "timestamp": "2026-04-28T04:48:29.476Z",
+      "stage": "PromptCompiler",
+      "phase": "output",
+      "role": "role1",
+      "dataType": "CompiledPrompt",
+      "data": {
+        "raw_input": "파이썬으로 계산기 작업을 진행해줘. 1. 덧셈 함수 설계안을 만들어줘. 2. 뺄셈 함수 설계안을 만들어줘. 3. 4+5 예제 결과를 계산해줘. 4. 10-3 예제 결과를 계산해줘. 5. 덧셈과 뺄셈만 지원한다는 테스트 요약을 작성해줘.",
+        "normalized_input": "Please proceed with the calculator work in Python. Create a design proposal for the addition function. Create a design proposal for the subtraction function. Calculate the example result for 4 + 5. Calculate the example result for 4. Calculate the example result for 10-3. Create a test summary that supports only addition and subtraction.",
+        "compressed_prompt": "Proceed with the calculator work in Python. Create a design proposal for the addition function. Create a design proposal for the subtraction function. Calculate the example result for 4 + 5. Calculate the example result for 4. Calculate the example result for 10-3. Create a test summary that supports only addition and subtraction.",
+        "language": "ko",
+        "compression_provider": "nlp_adapter",
+        "inference_time_sec": 29.045,
+        "validation_errors": [],
+        "repair_actions": [
+          "compressed_with_nlp_adapter"
+        ]
+      },
+      "schemaValid": true,
+      "durationMs": 29086,
+      "memoryMb": 16.59416961669922,
+      "estimatedTokens": 306
+    },
+    {
+      "timestamp": "2026-04-28T04:48:29.477Z",
+      "stage": "TaskGraphBuilder",
+      "phase": "input",
+      "role": "role2.1",
+      "dataType": "Role2PromptInput",
+      "data": {
+        "compiled_prompt": "Proceed with the calculator work in Python. Create a design proposal for the addition function. Create a design proposal for the subtraction function. Calculate the example result for 4 + 5. Calculate the example result for 4. Calculate the example result for 10-3. Create a test summary that supports only addition and subtraction."
+      },
+      "schemaValid": true,
+      "memoryMb": 16.600914001464844,
+      "estimatedTokens": 71
+    },
+    {
+      "timestamp": "2026-04-28T04:48:29.498Z",
+      "stage": "TaskGraphBuilder",
+      "phase": "output",
+      "role": "role2.1",
+      "dataType": "TaskGraph",
+      "data": {
+        "tasks": [
+          {
+            "id": "t1",
+            "type": "execute",
+            "status": "pending",
+            "title": "Proceed with the calculator work in Python.",
+            "input_hash": "322248e6f9931bb4",
+            "depends_on": []
+          },
+          {
+            "id": "t2",
+            "type": "create",
+            "status": "pending",
+            "title": "Create a design proposal for the addition function.",
+            "input_hash": "ee0e708d3dd24575",
+            "depends_on": [
+              "t1"
+            ]
+          },
+          {
+            "id": "t3",
+            "type": "create",
+            "status": "pending",
+            "title": "Create a design proposal for the subtraction function.",
+            "input_hash": "dc97e4b05cb9a345",
+            "depends_on": []
+          },
+          {
+            "id": "t4",
+            "type": "execute",
+            "status": "pending",
+            "title": "Calculate the example result for 4 + 5.",
+            "input_hash": "b161672ca7d044d2",
+            "depends_on": [
+              "t3"
+            ]
+          },
+          {
+            "id": "t5",
+            "type": "execute",
+            "status": "pending",
+            "title": "Calculate the example result for",
+            "input_hash": "867b88865f6ff1b4",
+            "depends_on": []
+          },
+          {
+            "id": "t6",
+            "type": "execute",
+            "status": "pending",
+            "title": "Calculate the example result for 10-3.",
+            "input_hash": "4ab257807d329d5e",
+            "depends_on": []
+          },
+          {
+            "id": "t7",
+            "type": "create",
+            "status": "pending",
+            "title": "Create a test summary that supports only addition and subtraction.",
+            "input_hash": "d6f520a0e3f6c2de",
+            "depends_on": [
+              "t6"
+            ]
+          }
+        ]
+      },
+      "schemaValid": true,
+      "durationMs": 19,
+      "memoryMb": 17.278831481933594,
+      "estimatedTokens": 310
+    },
+    {
+      "timestamp": "2026-04-28T04:48:29.500Z",
+      "stage": "DAGValidator",
+      "phase": "output",
+      "role": "role2.1",
+      "dataType": "DAGValidationResult",
+      "data": {
+        "valid": false,
+        "reason": "DISCONNECTED_NODE",
+        "detail": "Task \"t5\" has no dependencies and no dependents — isolated from the graph"
+      },
+      "schemaValid": true,
+      "memoryMb": 17.301925659179688,
+      "estimatedTokens": 32
+    }
+  ],
+  "summary": {
+    "totalDurationMs": 29105,
+    "stageTimings": {
+      "PromptCompiler": 29086,
+      "TaskGraphBuilder": 19
+    },
+    "totalMemoryMb": 17.301925659179688
+  }
+}

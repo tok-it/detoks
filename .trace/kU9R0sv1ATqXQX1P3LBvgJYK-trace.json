@@ -1,0 +1,175 @@
+{
+  "sessionId": "kU9R0sv1ATqXQX1P3LBvgJYK",
+  "startTime": "2026-04-28T04:49:09.815Z",
+  "entries": [
+    {
+      "timestamp": "2026-04-28T04:48:55.865Z",
+      "stage": "PromptCompiler",
+      "phase": "input",
+      "role": "role1",
+      "dataType": "UserRequest",
+      "data": {
+        "raw_input": "파이썬 계산기 작업을 순서대로 진행해줘. 먼저 덧셈만 가능한 함수 설계안을 작성해줘. 다음으로 뺄셈만 가능한 함수 설계안을 작성해줘. 그 다음 4 더하기 5의 결과를 계산해줘. 이어서 10 빼기 3의 결과를 계산해줘. 마지막으로 덧셈과 뺄셈만 지원한다는 검증 요약을 작성해줘."
+      },
+      "schemaValid": true,
+      "memoryMb": 14.044235229492188,
+      "estimatedTokens": 155
+    },
+    {
+      "timestamp": "2026-04-28T04:49:09.773Z",
+      "stage": "PromptCompiler",
+      "phase": "output",
+      "role": "role1",
+      "dataType": "CompiledPrompt",
+      "data": {
+        "raw_input": "파이썬 계산기 작업을 순서대로 진행해줘. 먼저 덧셈만 가능한 함수 설계안을 작성해줘. 다음으로 뺄셈만 가능한 함수 설계안을 작성해줘. 그 다음 4 더하기 5의 결과를 계산해줘. 이어서 10 빼기 3의 결과를 계산해줘. 마지막으로 덧셈과 뺄셈만 지원한다는 검증 요약을 작성해줘.",
+        "normalized_input": "Please proceed with the Python calculator tasks in order. First, create a function design for addition only. Next, create a function design for subtraction only. Then, calculate the result of 4 plus 5. Next, calculate the result of 10 minus 3. Finally, write a verification summary stating that it supports only addition and subtraction.",
+        "compressed_prompt": "Proceed with the Python calculator tasks in order. First, create a function design for addition only. Next, create a function design for subtraction only. Then, calculate the result of 4 plus 5. Next, calculate the result of 10 minus 3. Finally, write a verification summary stating that it supports only addition and subtraction.",
+        "language": "ko",
+        "compression_provider": "nlp_adapter",
+        "inference_time_sec": 13.871,
+        "validation_errors": [],
+        "repair_actions": [
+          "compressed_with_nlp_adapter"
+        ]
+      },
+      "schemaValid": true,
+      "durationMs": 13905,
+      "memoryMb": 17.382850646972656,
+      "estimatedTokens": 330
+    },
+    {
+      "timestamp": "2026-04-28T04:49:09.775Z",
+      "stage": "TaskGraphBuilder",
+      "phase": "input",
+      "role": "role2.1",
+      "dataType": "Role2PromptInput",
+      "data": {
+        "compiled_prompt": "Proceed with the Python calculator tasks in order. First, create a function design for addition only. Next, create a function design for subtraction only. Then, calculate the result of 4 plus 5. Next, calculate the result of 10 minus 3. Finally, write a verification summary stating that it supports only addition and subtraction."
+      },
+      "schemaValid": true,
+      "memoryMb": 17.386207580566406,
+      "estimatedTokens": 73
+    },
+    {
+      "timestamp": "2026-04-28T04:49:09.804Z",
+      "stage": "TaskGraphBuilder",
+      "phase": "output",
+      "role": "role2.1",
+      "dataType": "TaskGraph",
+      "data": {
+        "tasks": [
+          {
+            "id": "t1",
+            "type": "execute",
+            "status": "pending",
+            "title": "Proceed with the Python calculator tasks in order.",
+            "input_hash": "a6aab2a08872d260",
+            "depends_on": []
+          },
+          {
+            "id": "t2",
+            "type": "execute",
+            "status": "pending",
+            "title": "First",
+            "input_hash": "9f63f2f0adbbeba3",
+            "depends_on": []
+          },
+          {
+            "id": "t3",
+            "type": "create",
+            "status": "pending",
+            "title": "create a function design for addition only.",
+            "input_hash": "4e7d813f2cb4acb7",
+            "depends_on": [
+              "t2"
+            ]
+          },
+          {
+            "id": "t4",
+            "type": "execute",
+            "status": "pending",
+            "title": "Next",
+            "input_hash": "9c105339fd364a3a",
+            "depends_on": [
+              "t3"
+            ]
+          },
+          {
+            "id": "t5",
+            "type": "create",
+            "status": "pending",
+            "title": "create a function design for subtraction only.",
+            "input_hash": "718cb203131881bd",
+            "depends_on": [
+              "t4"
+            ]
+          },
+          {
+            "id": "t6",
+            "type": "execute",
+            "status": "pending",
+            "title": "Then, calculate the result of 4 plus",
+            "input_hash": "f8383593104b98a4",
+            "depends_on": [
+              "t5"
+            ]
+          },
+          {
+            "id": "t7",
+            "type": "execute",
+            "status": "pending",
+            "title": "Next, calculate the result of 10 minus",
+            "input_hash": "b12168ac304fbbed",
+            "depends_on": []
+          },
+          {
+            "id": "t8",
+            "type": "execute",
+            "status": "pending",
+            "title": "Finally",
+            "input_hash": "f8260d5bb9b7b4d6",
+            "depends_on": []
+          },
+          {
+            "id": "t9",
+            "type": "create",
+            "status": "pending",
+            "title": "write a verification summary stating that it supports only addition and subtraction.",
+            "input_hash": "dad4ceef1336970a",
+            "depends_on": [
+              "t8"
+            ]
+          }
+        ]
+      },
+      "schemaValid": true,
+      "durationMs": 28,
+      "memoryMb": 18.163803100585938,
+      "estimatedTokens": 376
+    },
+    {
+      "timestamp": "2026-04-28T04:49:09.806Z",
+      "stage": "DAGValidator",
+      "phase": "output",
+      "role": "role2.1",
+      "dataType": "DAGValidationResult",
+      "data": {
+        "valid": false,
+        "reason": "DISCONNECTED_NODE",
+        "detail": "Task \"t1\" has no dependencies and no dependents — isolated from the graph"
+      },
+      "schemaValid": true,
+      "memoryMb": 18.18994140625,
+      "estimatedTokens": 32
+    }
+  ],
+  "summary": {
+    "totalDurationMs": 13933,
+    "stageTimings": {
+      "PromptCompiler": 13905,
+      "TaskGraphBuilder": 28
+    },
+    "totalMemoryMb": 18.18994140625
+  }
+}
