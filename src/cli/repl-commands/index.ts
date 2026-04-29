@@ -196,6 +196,7 @@ export const handleSlashCommand = async (
     modelName: string | undefined;
     verbose: boolean;
     onVerboseToggle: (enabled: boolean) => void;
+    onAdapterChange: (newAdapter: "codex" | "gemini") => Promise<void>;
     onExit: () => Promise<void>;
   },
 ): Promise<boolean> => {
@@ -216,11 +217,9 @@ export const handleSlashCommand = async (
       return await handleTranslationModel();
     }
 
-    case "adapter":
-      output.write(
-        colors.info(`\n현재 어댑터: ${adapter}\n\n`),
-      );
-      return true;
+    case "adapter": {
+      return await handleAdapterSwitch(adapter, state.onAdapterChange);
+    }
 
     case "mode":
       output.write(
@@ -430,6 +429,65 @@ const handleTranslationModel = async (): Promise<boolean> => {
   );
   output.write(
     colors.muted(`  설정 저장됨: ~/.detoks/settings.json\n\n`),
+  );
+
+  return true;
+};
+
+const handleAdapterSwitch = async (
+  currentAdapter: "codex" | "gemini",
+  onAdapterChange: (newAdapter: "codex" | "gemini") => Promise<void>,
+): Promise<boolean> => {
+  output.write(`\n${colors.title("어댑터 선택")}\n\n`);
+
+  const adapters = ["codex", "gemini"] as const;
+  const options = adapters.map((a) => {
+    const status = getAdapterStatus(a);
+    const statusStr = status.authenticated
+      ? colors.success(`✓ 로그인됨 (${status.account || status.authType || "인증됨"})`)
+      : colors.warning(`✗ 미인증`);
+    return {
+      value: a,
+      label: `${a.toUpperCase()} ${statusStr}`,
+    };
+  });
+
+  const selected = await selectWithArrows(options, "어댑터 선택");
+
+  if (!selected) {
+    return true;
+  }
+
+  const newAdapter = selected as "codex" | "gemini";
+
+  if (newAdapter === currentAdapter) {
+    output.write(colors.info(`\n현재 어댑터: ${currentAdapter}\n\n`));
+    return true;
+  }
+
+  const newAdapterStatus = getAdapterStatus(newAdapter);
+
+  if (!newAdapterStatus.authenticated) {
+    output.write(
+      colors.warning(
+        `\n⚠️  ${newAdapter.toUpperCase()}는 인증이 필요합니다.\n\n`,
+      ),
+    );
+    output.write(
+      colors.muted(
+        `다른 터미널에서 다음 명령을 실행한 후 다시 시도하세요:\n`,
+      ),
+    );
+    output.write(colors.info(`  ${newAdapter} login\n\n`));
+    return true;
+  }
+
+  await onAdapterChange(newAdapter);
+
+  output.write(
+    colors.success(
+      `\n✓ 어댑터가 '${newAdapter.toUpperCase()}'로 변경되었습니다.\n\n`,
+    ),
   );
 
   return true;
