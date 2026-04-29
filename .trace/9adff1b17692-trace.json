@@ -1,0 +1,404 @@
+{
+  "sessionId": "9adff1b17692",
+  "startTime": "2026-04-27T02:40:28.877Z",
+  "entries": [
+    {
+      "timestamp": "2026-04-27T02:40:28.871Z",
+      "stage": "PromptCompiler",
+      "phase": "input",
+      "role": "role1",
+      "dataType": "UserRequest",
+      "data": {
+        "raw_input": "Run npm test and if there are any failing tests, analyze the cause and fix them"
+      },
+      "schemaValid": true,
+      "memoryMb": 17.22930908203125,
+      "estimatedTokens": 22
+    },
+    {
+      "timestamp": "2026-04-27T02:40:28.871Z",
+      "stage": "PromptCompiler",
+      "phase": "output",
+      "role": "role1",
+      "dataType": "CompiledPrompt",
+      "data": {
+        "raw_input": "Run npm test and if there are any failing tests, analyze the cause and fix them",
+        "normalized_input": "Run npm test and if there are any failing tests, analyze the cause and fix them",
+        "compressed_prompt": "Run npm test and if there are any failing tests, analyze the cause and fix them",
+        "language": "en",
+        "compression_provider": "nlp_adapter",
+        "inference_time_sec": 0
+      },
+      "schemaValid": true,
+      "durationMs": 0,
+      "memoryMb": 17.30901336669922,
+      "estimatedTokens": 82
+    },
+    {
+      "timestamp": "2026-04-27T02:40:28.872Z",
+      "stage": "TaskGraphBuilder",
+      "phase": "input",
+      "role": "role2.1",
+      "dataType": "Role2PromptInput",
+      "data": {
+        "compiled_prompt": "Run npm test and if there are any failing tests, analyze the cause and fix them"
+      },
+      "schemaValid": true,
+      "memoryMb": 17.310836791992188,
+      "estimatedTokens": 22
+    },
+    {
+      "timestamp": "2026-04-27T02:40:28.872Z",
+      "stage": "TaskGraphBuilder",
+      "phase": "output",
+      "role": "role2.1",
+      "dataType": "TaskGraph",
+      "data": {
+        "tasks": [
+          {
+            "id": "t1",
+            "type": "validate",
+            "status": "pending",
+            "title": "Run npm test and if there are any failing tests",
+            "input_hash": "473cda48f16513a3",
+            "depends_on": []
+          },
+          {
+            "id": "t2",
+            "type": "analyze",
+            "status": "pending",
+            "title": "analyze the cause",
+            "input_hash": "4a2ed0667ed7febf",
+            "depends_on": [
+              "t1"
+            ]
+          },
+          {
+            "id": "t3",
+            "type": "modify",
+            "status": "pending",
+            "title": "fix them",
+            "input_hash": "4fff248be5025a3d",
+            "depends_on": [
+              "t2"
+            ]
+          }
+        ]
+      },
+      "schemaValid": true,
+      "durationMs": 0,
+      "memoryMb": 17.352294921875,
+      "estimatedTokens": 125
+    },
+    {
+      "timestamp": "2026-04-27T02:40:28.872Z",
+      "stage": "DAGValidator",
+      "phase": "output",
+      "role": "role2.1",
+      "dataType": "DAGValidationResult",
+      "data": {
+        "valid": true,
+        "topologicalOrder": [
+          "t1",
+          "t2",
+          "t3"
+        ]
+      },
+      "schemaValid": true,
+      "memoryMb": 17.360679626464844,
+      "estimatedTokens": 18
+    },
+    {
+      "timestamp": "2026-04-27T02:40:28.872Z",
+      "stage": "DependencyResolver",
+      "phase": "output",
+      "role": "role2.1",
+      "dataType": "DependencyResolution",
+      "data": {
+        "orderedTasks": [
+          {
+            "taskId": "t1",
+            "type": "validate",
+            "title": "Run npm test and if there are any failing tests",
+            "dependsOn": [],
+            "resolvedDeps": []
+          },
+          {
+            "taskId": "t2",
+            "type": "analyze",
+            "title": "analyze the cause",
+            "dependsOn": [
+              "t1"
+            ],
+            "resolvedDeps": [
+              {
+                "taskId": "t1",
+                "type": "validate",
+                "title": "Run npm test and if there are any failing tests"
+              }
+            ]
+          },
+          {
+            "taskId": "t3",
+            "type": "modify",
+            "title": "fix them",
+            "dependsOn": [
+              "t2"
+            ],
+            "resolvedDeps": [
+              {
+                "taskId": "t2",
+                "type": "analyze",
+                "title": "analyze the cause"
+              }
+            ]
+          }
+        ]
+      },
+      "schemaValid": true,
+      "memoryMb": 17.364837646484375,
+      "estimatedTokens": 126
+    },
+    {
+      "timestamp": "2026-04-27T02:40:28.873Z",
+      "stage": "ParallelClassifier",
+      "phase": "output",
+      "role": "role2.1",
+      "dataType": "ParallelClassification",
+      "data": {
+        "stages": [
+          {
+            "stage": 0,
+            "runnableInParallel": [
+              {
+                "taskId": "t1",
+                "type": "validate",
+                "title": "Run npm test and if there are any failing tests",
+                "dependsOn": []
+              }
+            ]
+          },
+          {
+            "stage": 1,
+            "runnableInParallel": [
+              {
+                "taskId": "t2",
+                "type": "analyze",
+                "title": "analyze the cause",
+                "dependsOn": [
+                  "t1"
+                ]
+              }
+            ]
+          },
+          {
+            "stage": 2,
+            "runnableInParallel": [
+              {
+                "taskId": "t3",
+                "type": "modify",
+                "title": "fix them",
+                "dependsOn": [
+                  "t2"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "schemaValid": true,
+      "memoryMb": 17.371681213378906,
+      "estimatedTokens": 104
+    },
+    {
+      "timestamp": "2026-04-27T02:40:28.873Z",
+      "stage": "ContextOptimizer",
+      "phase": "output",
+      "role": "role2.2",
+      "dataType": "ExecutionContext",
+      "data": {
+        "session_id": "9adff1b17692",
+        "active_task_id": "t1",
+        "shared_context": {
+          "session_id": "9adff1b17692",
+          "failed_task_ids": [
+            "t1",
+            "t2",
+            "t3"
+          ]
+        },
+        "selected_context": {},
+        "context_summary": "No previous task context available."
+      },
+      "schemaValid": true,
+      "durationMs": 0,
+      "memoryMb": 17.37574005126953,
+      "estimatedTokens": 48
+    },
+    {
+      "timestamp": "2026-04-27T02:40:28.873Z",
+      "stage": "Executor:t1",
+      "phase": "input",
+      "role": "role3",
+      "dataType": "ExecutionRequest",
+      "data": {
+        "task_id": "t1",
+        "type": "validate",
+        "prompt": "[VALIDATE] Run npm test and if there are any failing tests\n\nContext: No previous task context available."
+      },
+      "schemaValid": true,
+      "memoryMb": 17.37811279296875,
+      "estimatedTokens": 38
+    },
+    {
+      "timestamp": "2026-04-27T02:40:28.873Z",
+      "stage": "Executor:t1",
+      "phase": "output",
+      "role": "role3",
+      "dataType": "ExecutionResult",
+      "data": {
+        "task_id": "t1",
+        "success": true,
+        "raw_output": "[stub:codex] [VALIDATE] Run npm test and if there are any failing tests\n\nContext: No previous task context..."
+      },
+      "schemaValid": true,
+      "durationMs": 0,
+      "memoryMb": 17.382217407226562,
+      "estimatedTokens": 44
+    },
+    {
+      "timestamp": "2026-04-27T02:40:28.874Z",
+      "stage": "ContextOptimizer",
+      "phase": "output",
+      "role": "role2.2",
+      "dataType": "ExecutionContext",
+      "data": {
+        "session_id": "9adff1b17692",
+        "active_task_id": "t2",
+        "shared_context": {
+          "session_id": "9adff1b17692",
+          "failed_task_ids": [
+            "t1",
+            "t2",
+            "t3"
+          ]
+        },
+        "selected_context": {
+          "t1": {
+            "summary": "[stub:codex] [VALIDATE] Run npm test and if there are any failing tests\n\nContext: No previous task context..."
+          }
+        },
+        "context_summary": "Previous Task Results:\n- Task [t1]: [stub:codex] [VALIDATE] Run npm test and if there are any failing tests\n\nContext: No previous task context..."
+      },
+      "schemaValid": true,
+      "durationMs": 0,
+      "memoryMb": 17.413131713867188,
+      "estimatedTokens": 124
+    },
+    {
+      "timestamp": "2026-04-27T02:40:28.874Z",
+      "stage": "Executor:t2",
+      "phase": "input",
+      "role": "role3",
+      "dataType": "ExecutionRequest",
+      "data": {
+        "task_id": "t2",
+        "type": "analyze",
+        "prompt": "[ANALYZE] analyze the cause\n\nContext: Previous Task Results:\n- Task [t1]: [stub:codex] [VALIDATE] Run npm test and if there are any failing tests\n\nContext: No previous task context..."
+      },
+      "schemaValid": true,
+      "memoryMb": 17.41565704345703,
+      "estimatedTokens": 67
+    },
+    {
+      "timestamp": "2026-04-27T02:40:28.874Z",
+      "stage": "Executor:t2",
+      "phase": "output",
+      "role": "role3",
+      "dataType": "ExecutionResult",
+      "data": {
+        "task_id": "t2",
+        "success": true,
+        "raw_output": "[stub:codex] [ANALYZE] analyze the cause\n\nContext: Previous Task Results:\n- Task [t1]: [stub:codex] [VALID..."
+      },
+      "schemaValid": true,
+      "durationMs": 0,
+      "memoryMb": 17.419761657714844,
+      "estimatedTokens": 54
+    },
+    {
+      "timestamp": "2026-04-27T02:40:28.876Z",
+      "stage": "ContextOptimizer",
+      "phase": "output",
+      "role": "role2.2",
+      "dataType": "ExecutionContext",
+      "data": {
+        "session_id": "9adff1b17692",
+        "active_task_id": "t3",
+        "shared_context": {
+          "session_id": "9adff1b17692",
+          "failed_task_ids": [
+            "t1",
+            "t2",
+            "t3"
+          ]
+        },
+        "selected_context": {
+          "t2": {
+            "summary": "[stub:codex] [ANALYZE] analyze the cause\n\nContext: Previous Task Results:\n- Task [t1]: [stub:codex] [VALID..."
+          }
+        },
+        "context_summary": "Previous Task Results:\n- Task [t2]: [stub:codex] [ANALYZE] analyze the cause\n\nContext: Previous Task Results:\n- Task [t1]: [stub:codex] [VALID..."
+      },
+      "schemaValid": true,
+      "durationMs": 0,
+      "memoryMb": 17.452178955078125,
+      "estimatedTokens": 147
+    },
+    {
+      "timestamp": "2026-04-27T02:40:28.876Z",
+      "stage": "Executor:t3",
+      "phase": "input",
+      "role": "role3",
+      "dataType": "ExecutionRequest",
+      "data": {
+        "task_id": "t3",
+        "type": "modify",
+        "prompt": "[MODIFY] fix them\n\nContext: Previous Task Results:\n- Task [t2]: [stub:codex] [ANALYZE] analyze the cause\n\nContext: Previous Task Results:\n- Task [t1]: [stub:codex] [VALID..."
+      },
+      "schemaValid": true,
+      "memoryMb": 17.454681396484375,
+      "estimatedTokens": 74
+    },
+    {
+      "timestamp": "2026-04-27T02:40:28.876Z",
+      "stage": "Executor:t3",
+      "phase": "output",
+      "role": "role3",
+      "dataType": "ExecutionResult",
+      "data": {
+        "task_id": "t3",
+        "success": true,
+        "raw_output": "[stub:codex] [MODIFY] fix them\n\nContext: Previous Task Results:\n- Task [t2]: [stub:codex] [ANALYZE] analyz..."
+      },
+      "schemaValid": true,
+      "durationMs": 0,
+      "memoryMb": 17.458786010742188,
+      "estimatedTokens": 57
+    }
+  ],
+  "summary": {
+    "totalDurationMs": 0,
+    "stageTimings": {
+      "PromptCompiler": 0,
+      "TaskGraphBuilder": 0,
+      "ContextOptimizer:t1": 0,
+      "Executor:t1": 0,
+      "ContextOptimizer:t2": 0,
+      "Executor:t2": 0,
+      "ContextOptimizer:t3": 0,
+      "Executor:t3": 0
+    },
+    "totalMemoryMb": 17.458786010742188
+  }
+}
