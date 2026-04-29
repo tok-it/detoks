@@ -2,6 +2,7 @@
 
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { get_encoding } from "tiktoken";
 import { runBatchPromptPipeline } from "../src/core/pipeline/batch.js";
 import {
@@ -17,10 +18,6 @@ interface VerifyOptions {
   index?: number;
   outputPath?: string;
   debug: boolean;
-}
-
-interface BatchInput {
-  data: string[];
 }
 
 interface VerificationItem {
@@ -74,12 +71,13 @@ function getUsage(): string {
   return [
     "Usage:",
     "  npm run verify:role1 -- --prompt \"새 파일을 생성해\"",
+    "  npm run verify:role1 -- --file tests/data/data_ko.jsonl --limit 5",
     "  npm run verify:role1 -- --file tests/data/row_data.json --limit 5",
     "  npm run verify:role1 -- --file tests/data/row_data.json --index 12 --debug --output tmp/role1-result.json",
     "",
     "Options:",
     "  --prompt <text>    단일 프롬프트 수동 검증",
-    "  --file <path>      입력 JSON 파일 경로 (기본: tests/data/row_data.json)",
+    "  --file <path>      입력 JSON/JSONL 파일 경로 (기본: tests/data/row_data.json)",
     "  --limit <n>        앞에서부터 n개만 실행",
     "  --index <n>        0-based 특정 인덱스 1개만 실행",
     "  --output <path>    결과 JSON 저장 경로",
@@ -88,13 +86,52 @@ function getUsage(): string {
   ].join("\n");
 }
 
-function parseArgs(argv: string[]): VerifyOptions {
-  let prompt: string | undefined;
-  let filePath = "tests/data/row_data.json";
-  let limit: number | undefined;
-  let index: number | undefined;
-  let outputPath: string | undefined;
-  let debug = false;
+function isLikelyPathLike(value: string): boolean {
+  return (
+    value.startsWith(".") ||
+    value.includes("/") ||
+    value.includes("\\") ||
+    value.endsWith(".json") ||
+    value.endsWith(".jsonl")
+  );
+}
+
+function parseOptionalInteger(value: string | undefined): number | undefined {
+  if (value === undefined || value.trim().length === 0) {
+    return undefined;
+  }
+
+  const parsed = Number(value);
+  return Number.isNaN(parsed) ? undefined : parsed;
+}
+
+function parseOptionalBoolean(value: string | undefined): boolean {
+  if (value === undefined) {
+    return false;
+  }
+
+  return ["1", "true", "yes", "on"].includes(value.toLowerCase());
+}
+
+export function parseArgs(
+  argv: string[],
+  env: NodeJS.ProcessEnv = process.env,
+): VerifyOptions {
+  const defaultFilePath = "tests/data/row_data.json";
+  const envPrompt = env.npm_config_prompt?.trim();
+  const envFilePath = env.npm_config_file?.trim();
+  const envOutputPath = env.npm_config_output?.trim();
+
+  let prompt = envPrompt || undefined;
+  let filePath = envFilePath || defaultFilePath;
+  let limit = parseOptionalInteger(env.npm_config_limit);
+  let index = parseOptionalInteger(env.npm_config_index);
+  let outputPath = envOutputPath || undefined;
+  let debug = parseOptionalBoolean(env.npm_config_debug);
+  let hasExplicitPrompt = envPrompt !== undefined && envPrompt.length > 0;
+  let hasExplicitFilePath = envFilePath !== undefined && envFilePath.length > 0;
+  let hasExplicitOutputPath =
+    envOutputPath !== undefined && envOutputPath.length > 0;
 
   for (let i = 0; i < argv.length; i += 1) {
     const current = argv[i];
@@ -114,12 +151,14 @@ function parseArgs(argv: string[]): VerifyOptions {
 
     if (current === "--prompt") {
       prompt = argv[i + 1];
+      hasExplicitPrompt = true;
       i += 1;
       continue;
     }
 
     if (current === "--file") {
       filePath = argv[i + 1] ?? filePath;
+      hasExplicitFilePath = true;
       i += 1;
       continue;
     }
@@ -138,13 +177,33 @@ function parseArgs(argv: string[]): VerifyOptions {
 
     if (current === "--output") {
       outputPath = argv[i + 1];
+      hasExplicitOutputPath = true;
       i += 1;
       continue;
     }
 
-    if (!current.startsWith("--") && !prompt) {
-      prompt = current;
-      continue;
+    if (!current.startsWith("--")) {
+      if (current === filePath || current === outputPath) {
+        continue;
+      }
+
+      if (!hasExplicitFilePath && isLikelyPathLike(current)) {
+        filePath = current;
+        hasExplicitFilePath = true;
+        continue;
+      }
+
+      if (!hasExplicitOutputPath && isLikelyPathLike(current)) {
+        outputPath = current;
+        hasExplicitOutputPath = true;
+        continue;
+      }
+
+      if (!hasExplicitPrompt) {
+        prompt = current;
+        hasExplicitPrompt = true;
+        continue;
+      }
     }
 
     throw new Error(`Unknown argument: ${current}`);
@@ -158,29 +217,122 @@ function parseArgs(argv: string[]): VerifyOptions {
     throw new Error("--index must be a non-negative integer");
   }
 
-  return {
-    prompt,
+  const parsedOptions: VerifyOptions = {
     filePath,
-    limit,
-    index,
-    outputPath,
     debug,
   };
+
+  if (prompt !== undefined) {
+    parsedOptions.prompt = prompt;
+  }
+
+  if (limit !== undefined) {
+    parsedOptions.limit = limit;
+  }
+
+    if (index !== undefined) {
+    parsedOptions.index = index;
+  }
+
+  if (outputPath !== undefined) {
+    parsedOptions.outputPath = outputPath;
+  }
+
+  return parsedOptions;
 }
 
-function loadInputs(options: VerifyOptions): string[] {
+function extractInputText(
+  value: unknown,
+  sourcePath: string,
+  location?: string,
+): string {
+  if (typeof value === "string") {
+    return value;
+  }
+
+  if (value && typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    const candidate =
+      record.prompt ?? record.raw_input ?? record.input ?? record.text;
+
+    if (typeof candidate === "string") {
+      return candidate;
+    }
+  }
+
+  const suffix = location ? ` at ${location}` : "";
+  throw new Error(
+    `Invalid input row${suffix} in ${sourcePath}: expected a string or an object with prompt/raw_input/input/text`,
+  );
+}
+
+function parseJsonInput(contents: string, sourcePath: string): string[] {
+  const parsed = JSON.parse(contents) as unknown;
+
+  if (Array.isArray(parsed)) {
+    return parsed.map((item, index) =>
+      extractInputText(item, sourcePath, `item ${index + 1}`),
+    );
+  }
+
+  if (parsed && typeof parsed === "object") {
+    const record = parsed as { data?: unknown; prompt?: unknown };
+
+    if (Array.isArray(record.data)) {
+      return record.data.map((item, index) =>
+        extractInputText(item, sourcePath, `data[${index}]`),
+      );
+    }
+
+    if (typeof record.prompt === "string") {
+      return [record.prompt];
+    }
+  }
+
+  throw new Error(`Invalid input file shape: ${sourcePath}`);
+}
+
+function parseJsonlInput(contents: string, sourcePath: string): string[] {
+  const lines = contents
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+
+  return lines.map((line, index) => {
+    let parsed: unknown;
+
+    try {
+      parsed = JSON.parse(line);
+    } catch {
+      throw new Error(`Invalid JSONL input line ${index + 1} in ${sourcePath}`);
+    }
+
+    return extractInputText(parsed, sourcePath, `line ${index + 1}`);
+  });
+}
+
+export function loadInputs(options: VerifyOptions): string[] {
   if (options.prompt) {
     return [options.prompt];
   }
 
   const absolutePath = resolve(process.cwd(), options.filePath);
-  const parsed = JSON.parse(readFileSync(absolutePath, "utf8")) as BatchInput;
+  const contents = readFileSync(absolutePath, "utf8");
+  let rows: string[];
 
-  if (!Array.isArray(parsed.data)) {
-    throw new Error(`Invalid input file shape: ${absolutePath}`);
+  if (absolutePath.toLowerCase().endsWith(".jsonl")) {
+    rows = parseJsonlInput(contents, absolutePath);
+  } else {
+    try {
+      rows = parseJsonInput(contents, absolutePath);
+    } catch (error) {
+      if (error instanceof SyntaxError) {
+        rows = parseJsonlInput(contents, absolutePath);
+      } else {
+        throw error;
+      }
+    }
   }
-
-  let rows = parsed.data;
 
   if (options.index !== undefined) {
     const item = rows[options.index];
@@ -247,9 +399,9 @@ async function main(): Promise<void> {
       {
         ok: true,
         mode: "role1-verify",
-        model: runtimeConfig.modelName ?? "(not set)",
-        api_base: runtimeConfig.openaiApiBase ?? "(not set)",
-        api_key: maskApiKey(runtimeConfig.openaiApiKey),
+        model: runtimeConfig.localLlmModelName ?? "(not set)",
+        api_base: runtimeConfig.localLlmApiBase ?? "(not set)",
+        api_key: maskApiKey(runtimeConfig.localLlmApiKey),
         pipeline_mode: options.debug ? "debug" : runtimeConfig.pipelineMode,
         input_count: inputs.length,
       },
@@ -262,6 +414,10 @@ async function main(): Promise<void> {
     env: {
       ...process.env,
       ...(options.debug ? { PIPELINE_MODE: "debug" } : {}),
+    },
+    onItemComplete: ({ current, remaining, summary, inferenceTimeMs }) => {
+      console.log(`(${current}/${current + remaining}) Processing ${summary}...`);
+      console.log(`inference : ${inferenceTimeMs}ms`);
     },
   });
   const encoding = get_encoding("o200k_base");
@@ -457,8 +613,10 @@ async function main(): Promise<void> {
   }
 }
 
-main().catch((error) => {
-  const message = error instanceof Error ? error.message : String(error);
-  console.error(JSON.stringify({ ok: false, error: message }, null, 2));
-  process.exitCode = 1;
-});
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  main().catch((error) => {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(JSON.stringify({ ok: false, error: message }, null, 2));
+    process.exitCode = 1;
+  });
+}

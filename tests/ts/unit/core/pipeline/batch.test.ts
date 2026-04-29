@@ -2,6 +2,45 @@ import { describe, expect, it, vi } from "vitest";
 import { runBatchPromptPipeline } from "../../../../../src/core/pipeline/batch.js";
 
 describe("runBatchPromptPipeline", () => {
+  it("progress callback를 아이템 완료마다 호출한다", async () => {
+    const onItemComplete = vi.fn();
+
+    const result = await runBatchPromptPipeline(["Please create a new file"], {
+      env: {
+        PIPELINE_MODE: "safe",
+      },
+      onItemComplete,
+    });
+
+    expect(result.results).toHaveLength(1);
+    expect(onItemComplete).toHaveBeenCalledTimes(1);
+    expect(onItemComplete).toHaveBeenCalledWith({
+      current: 1,
+      remaining: 0,
+      rawInput: "Please create a new file",
+      summary: "Please create a new file",
+      inferenceTimeMs: 0,
+    });
+  });
+
+  it("긴 입력은 progress summary로 잘라서 전달한다", async () => {
+    const onItemComplete = vi.fn();
+    const longPrompt =
+      "Please create a new file and then add detailed validation, logging, rollback handling, monitoring hooks, and a concise summary for operators.";
+
+    await runBatchPromptPipeline([longPrompt], {
+      env: {
+        PIPELINE_MODE: "safe",
+      },
+      onItemComplete,
+    });
+
+    const call = onItemComplete.mock.calls[0]?.[0];
+    expect(call.summary).not.toBe(longPrompt);
+    expect(call.summary.length).toBeLessThan(longPrompt.length);
+    expect(call.summary.endsWith("...")).toBe(true);
+  });
+
   it("batch 결과에 Role 1 / Role 2 handoff를 기록한다", async () => {
     const result = await runBatchPromptPipeline(["Please create a new file"], {
       env: {
