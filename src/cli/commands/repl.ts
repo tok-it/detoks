@@ -6,6 +6,7 @@ import { stdin as input, stdout as output } from "node:process";
 import { formatError, formatSuccess } from "../format.js";
 import { getCliUsage, toNormalizedRequest } from "../parse.js";
 import { createTerminalStyle, formatTerminalHelp } from "../terminal-style.js";
+import { startSpinner } from "../terminal-spinner.js";
 import { AdapterValues, type CliArgs } from "../types.js";
 import { ProjectDetector } from "../ProjectDetector.js";
 import { SessionStateManager } from "../../core/state/SessionStateManager.js";
@@ -132,7 +133,7 @@ async function promptForArrowSelection<const T extends string>(
   initialIndex = 0,
 ): Promise<T | null> {
   if (!input.isTTY || !output.isTTY || typeof input.setRawMode !== "function") {
-    output.write(`${terminal.warning(`! ${title} selection UI requires an interactive TTY.`)}\n`);
+    output.write(`${terminal.warning(`! ${title} 선택 UI는 대화형 TTY가 필요합니다.`)}\n`);
     return null;
   }
 
@@ -141,7 +142,7 @@ async function promptForArrowSelection<const T extends string>(
   const lines = [
     title,
     ...options.map((option, index) => `${index === initialIndex ? "❯" : " "} ${option}`),
-    "Use ↑/↓ and Enter. Press Esc to cancel.",
+    "↑/↓ 키와 Enter를 사용하세요. Esc로 취소합니다.",
   ];
   let selectedIndex = initialIndex;
 
@@ -154,7 +155,7 @@ async function promptForArrowSelection<const T extends string>(
       const row = `${index === selectedIndex ? "❯" : " "} ${option}`;
       output.write(`${index === selectedIndex ? terminal.selected(row) : row}\n`);
     });
-    output.write(`${terminal.muted("Use ↑/↓ and Enter. Press Esc to cancel.")}\n`);
+    output.write(`${terminal.muted("↑/↓ 키와 Enter를 사용하세요. Esc로 취소합니다.")}\n`);
   };
 
   output.write("\n");
@@ -215,7 +216,7 @@ async function promptForLoginAdapterSelection(
   currentAdapter: CliArgs["adapter"] = LOGIN_MENU_OPTIONS[0],
 ): Promise<CliArgs["adapter"] | null> {
   return await promptForArrowSelection(
-    "Select adapter to log in:",
+    "로그인할 어댑터를 선택하세요:",
     LOGIN_MENU_OPTIONS,
     Math.max(0, LOGIN_MENU_OPTIONS.indexOf(currentAdapter)),
   );
@@ -225,7 +226,7 @@ async function promptForReplAdapterSelection(
   currentAdapter: CliArgs["adapter"],
 ): Promise<CliArgs["adapter"] | null> {
   return await promptForArrowSelection(
-    "Select REPL adapter:",
+    "REPL 어댑터를 선택하세요:",
     LOGIN_MENU_OPTIONS,
     Math.max(0, LOGIN_MENU_OPTIONS.indexOf(currentAdapter)),
   );
@@ -233,7 +234,7 @@ async function promptForReplAdapterSelection(
 
 async function promptForVerboseSelection(currentVerbose: boolean): Promise<boolean | null> {
   const selected = await promptForArrowSelection(
-    "Select REPL verbose output:",
+    "REPL 상세 출력을 선택하세요:",
     VERBOSE_MENU_OPTIONS,
     currentVerbose ? 0 : 1,
   );
@@ -246,21 +247,21 @@ async function promptForVerboseSelection(currentVerbose: boolean): Promise<boole
 
 async function promptForResumeSessionSelection(lastSession: ReplSession): Promise<boolean> {
   output.write(
-    `${terminal.title("Found existing session:")} ${terminal.emphasis(lastSession.session_id)} ${terminal.muted(`(last used ${lastSession.last_resumed_at})`)}\n`,
+    `${terminal.title("기존 세션을 찾았습니다:")} ${terminal.emphasis(lastSession.session_id)} ${terminal.muted(`(마지막 사용: ${lastSession.last_resumed_at})`)}\n`,
   );
 
   const selected = await promptForArrowSelection(
-    "Select REPL session mode:",
+    "REPL 세션 모드를 선택하세요:",
     RESUME_SESSION_MENU_OPTIONS,
     1,
   );
 
   if (selected === "continue") {
-    output.write(`${terminal.success(`✓ Resuming session: ${lastSession.session_id}`)}\n`);
+    output.write(`${terminal.success(`✓ 세션을 재개합니다: ${lastSession.session_id}`)}\n`);
     return true;
   }
 
-  output.write(`${terminal.warning("! Starting a new session.")}\n`);
+  output.write(`${terminal.warning("! 새 세션을 시작합니다.")}\n`);
   return false;
 }
 
@@ -355,7 +356,7 @@ export const runReplBuiltinCommand = (
               ok: true,
               mode: "repl",
               adapter: state.adapter,
-              message: "Use /adapter codex or /adapter gemini to change the REPL adapter.",
+              message: "/adapter codex 또는 /adapter gemini 를 입력해 어댑터를 변경하세요.",
             },
             null,
             2,
@@ -376,7 +377,7 @@ export const runReplBuiltinCommand = (
             ok: true,
             mode: "repl",
             adapter: nextState.adapter,
-            message: `REPL adapter set to ${nextState.adapter}.`,
+            message: `REPL 어댑터가 ${nextState.adapter}(으)로 설정되었습니다.`,
           },
           null,
           2,
@@ -395,7 +396,7 @@ export const runReplBuiltinCommand = (
               ok: true,
               mode: "repl",
               ...(state.model !== undefined ? { model: state.model } : {}),
-              message: "Use /model <name> to change the adapter model for later prompts.",
+              message: "/model <이름> 을 입력해 이후 프롬프트의 모델을 변경하세요.",
             },
             null,
             2,
@@ -416,7 +417,7 @@ export const runReplBuiltinCommand = (
             ok: true,
             mode: "repl",
             model: nextState.model,
-            message: `REPL model set to ${nextState.model}.`,
+            message: `REPL 모델이 ${nextState.model}(으)로 설정되었습니다.`,
           },
           null,
           2,
@@ -434,7 +435,7 @@ export const runReplBuiltinCommand = (
             ok: true,
             mode: "repl",
             verbose: state.verbose,
-            message: "Use /verbose on or /verbose off to change verbose output.",
+            message: "/verbose on 또는 /verbose off 를 입력해 상세 출력을 변경하세요.",
           },
           null,
           2,
@@ -455,7 +456,7 @@ export const runReplBuiltinCommand = (
           ok: true,
           mode: "repl",
           verbose: nextState.verbose,
-          message: `REPL verbose set to ${String(nextState.verbose)}.`,
+          message: `REPL 상세 출력이 ${String(nextState.verbose)}(으)로 설정되었습니다.`,
         },
         null,
         2,
@@ -471,7 +472,7 @@ async function allocateReplSessionId(): Promise<string> {
       return sessionId;
     }
   }
-  throw new Error("Unable to allocate a unique REPL session id after 10 attempts");
+  throw new Error("10번 시도 후 고유한 REPL 세션 ID를 할당할 수 없습니다.");
 }
 
 interface ResolveReplSessionIdOptions {
@@ -529,7 +530,7 @@ export const runReplCommand = async (baseArgs: CliArgs): Promise<void> => {
   });
 
   output.write(
-    `${terminal.title("detoks repl started")} (adapter=${terminal.emphasis(baseArgs.adapter)}, executionMode=${terminal.emphasis(baseArgs.executionMode)}, verbose=${terminal.emphasis(String(baseArgs.verbose))}, session=${terminal.emphasis(sessionId)}). ${terminal.muted('stub = simulated output; real = adapter\'s real execution path.')} ${terminal.muted('type "/help" for REPL help and "exit" to quit.')}\n`,
+    `${terminal.title("detoks repl 시작됨")} (adapter=${terminal.emphasis(baseArgs.adapter)}, executionMode=${terminal.emphasis(baseArgs.executionMode)}, verbose=${terminal.emphasis(String(baseArgs.verbose))}, session=${terminal.emphasis(sessionId)}). ${terminal.muted('stub = 시뮬레이션 출력; real = 어댑터 실제 실행 경로.')} ${terminal.muted('"/help" 입력 시 REPL 도움말, "exit" 입력 시 종료.')}\n`,
   );
   let replState: ReplRuntimeState = {
     adapter: baseArgs.adapter,
@@ -564,18 +565,18 @@ export const runReplCommand = async (baseArgs: CliArgs): Promise<void> => {
         if (builtinCommand.kind === "login") {
           const selectedAdapter = await promptForLoginAdapterSelection(replState.adapter);
           if (!selectedAdapter) {
-            output.write(`${terminal.warning("! Login cancelled.")}\n`);
+            output.write(`${terminal.warning("! 로그인이 취소되었습니다.")}\n`);
             continue;
           }
 
           rl.pause();
-          output.write(`${terminal.title(`Starting ${selectedAdapter} login...`)}\n`);
+          output.write(`${terminal.title(`${selectedAdapter} 로그인 시작 중...`)}\n`);
           const exitCode = await runAdapterLoginFlow(selectedAdapter, cwd);
           rl.resume();
           if (exitCode === 0) {
-            output.write(`${terminal.success(`✓ ${selectedAdapter} login flow finished.`)}\n`);
+            output.write(`${terminal.success(`✓ ${selectedAdapter} 로그인이 완료되었습니다.`)}\n`);
           } else {
-            output.write(`${terminal.error(`✗ ${selectedAdapter} login flow exited with code ${exitCode}.`)}\n`);
+            output.write(`${terminal.error(`✗ ${selectedAdapter} 로그인이 종료 코드 ${exitCode}로 종료되었습니다.`)}\n`);
           }
           continue;
         }
@@ -585,7 +586,7 @@ export const runReplCommand = async (baseArgs: CliArgs): Promise<void> => {
         if (builtinCommand.kind === "adapter" && builtinCommand.adapter === undefined) {
           const selectedAdapter = await promptForReplAdapterSelection(replState.adapter);
           if (!selectedAdapter) {
-            output.write(`${terminal.warning("! Adapter selection cancelled.")}\n`);
+            output.write(`${terminal.warning("! 어댑터 선택이 취소되었습니다.")}\n`);
             continue;
           }
           resolvedBuiltinCommand = { kind: "adapter", adapter: selectedAdapter };
@@ -594,7 +595,7 @@ export const runReplCommand = async (baseArgs: CliArgs): Promise<void> => {
         if (builtinCommand.kind === "verbose" && builtinCommand.value === undefined) {
           const selectedVerbose = await promptForVerboseSelection(replState.verbose);
           if (selectedVerbose === null) {
-            output.write(`${terminal.warning("! Verbose selection cancelled.")}\n`);
+            output.write(`${terminal.warning("! 상세 출력 선택이 취소되었습니다.")}\n`);
             continue;
           }
           resolvedBuiltinCommand = { kind: "verbose", value: selectedVerbose };
@@ -616,7 +617,8 @@ export const runReplCommand = async (baseArgs: CliArgs): Promise<void> => {
           { ...baseArgs, ...replState, mode: "run", prompt: line },
           { mode: "repl", sessionId },
         );
-        const result = await runCommand(request);
+        const spinner = startSpinner(isTTY);
+        const result = await runCommand(request).finally(() => spinner.stop());
         if (shouldEmitReplSourceBadge(replState, lastSourceBadgeKey)) {
           output.write(
             `${terminal.adapterBadge(replState.adapter, {
@@ -667,6 +669,6 @@ export const runReplCommand = async (baseArgs: CliArgs): Promise<void> => {
     rl.close();
     // 현재 세션 로그 정리 (P3)
     await SessionStateManager.clearCurrentSessionLog();
-    output.write(`${terminal.muted("detoks repl closed.")}\n`);
+    output.write(`${terminal.muted("detoks repl이 종료되었습니다.")}\n`);
   }
 };

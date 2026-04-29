@@ -16,7 +16,7 @@ describe("runSessionResetCommand", () => {
       sessionId: "missing_session",
       reset: false,
       mutatesState: false,
-      message: "Session missing_session was not found.",
+      message: "세션 missing_session을(를) 찾을 수 없습니다.",
     });
   });
 
@@ -32,7 +32,7 @@ describe("runSessionResetCommand", () => {
       sessionId: "session_to_reset",
       reset: true,
       mutatesState: true,
-      message: "Session session_to_reset has been reset (deleted).",
+      message: "세션 session_to_reset이(가) 초기화(삭제)되었습니다.",
     });
 
     expect(deleteSpy).toHaveBeenCalledWith("session_to_reset");

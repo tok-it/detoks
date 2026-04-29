@@ -31,7 +31,7 @@ describe("runSessionContinueCommand", () => {
       canContinue: false,
       resumeStarted: false,
       mutatesState: false,
-      message: "Session session_resume was not found. No resume was started.",
+      message: "세션 session_resume을(를) 찾을 수 없습니다. 재개를 시작하지 않았습니다.",
       nextAction: null,
     });
   });
@@ -57,7 +57,7 @@ describe("runSessionContinueCommand", () => {
       resumeStarted: false,
       mutatesState: false,
       message:
-        "Session session_resume does not have a stored raw_input. No resume was started.",
+        "세션 session_resume에 저장된 raw_input이 없습니다. 재개를 시작하지 않았습니다.",
       nextAction: "Recover source input",
     });
   });
@@ -105,7 +105,7 @@ describe("runSessionContinueCommand", () => {
       canContinue: true,
       resumeStarted: true,
       mutatesState: true,
-      message: "Session session_resume resumed using stored raw_input.",
+      message: "세션 session_resume이(가) 저장된 raw_input으로 재개되었습니다.",
       adapter: "codex",
       summary: "All 2 task(s) completed",
       nextAction: "Pipeline complete",

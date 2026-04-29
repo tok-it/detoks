@@ -26,7 +26,7 @@ describe("runCheckpointRestoreCommand", () => {
       checkpointId: "_checkpoint_001",
       restored: false,
       mutatesState: false,
-      message: "Checkpoint _checkpoint_001 does not use <session-id>_checkpoint_<checkpoint-id>.",
+      message: "체크포인트 ID _checkpoint_001이(가) <세션-id>_checkpoint_<체크포인트-id> 형식이 아닙니다.",
     });
   });
 
@@ -52,7 +52,7 @@ describe("runCheckpointRestoreCommand", () => {
       restored: false,
       mutatesState: false,
       message:
-        "Target session session_restore for checkpoint session_restore_checkpoint_001 was not found.",
+        "체크포인트 session_restore_checkpoint_001의 대상 세션 session_restore을(를) 찾을 수 없습니다.",
     });
   });
 
@@ -107,7 +107,7 @@ describe("runCheckpointRestoreCommand", () => {
       restored: true,
       mutatesState: true,
       message:
-        "Session session_restore restored to checkpoint session_restore_checkpoint_001.",
+        "세션 session_restore이(가) 체크포인트 session_restore_checkpoint_001(으)로 복원되었습니다.",
     });
 
     expect(saveSpy).toHaveBeenCalledWith({
