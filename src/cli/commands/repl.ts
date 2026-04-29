@@ -6,6 +6,7 @@ import { stdin as input, stdout as output } from "node:process";
 import { formatError, formatSuccess } from "../format.js";
 import { getCliUsage, toNormalizedRequest } from "../parse.js";
 import { createTerminalStyle, formatTerminalHelp } from "../terminal-style.js";
+import { startSpinner } from "../terminal-spinner.js";
 import { AdapterValues, type CliArgs } from "../types.js";
 import { ProjectDetector } from "../ProjectDetector.js";
 import { SessionStateManager } from "../../core/state/SessionStateManager.js";
@@ -616,7 +617,8 @@ export const runReplCommand = async (baseArgs: CliArgs): Promise<void> => {
           { ...baseArgs, ...replState, mode: "run", prompt: line },
           { mode: "repl", sessionId },
         );
-        const result = await runCommand(request);
+        const spinner = startSpinner(isTTY);
+        const result = await runCommand(request).finally(() => spinner.stop());
         if (shouldEmitReplSourceBadge(replState, lastSourceBadgeKey)) {
           output.write(
             `${terminal.adapterBadge(replState.adapter, {

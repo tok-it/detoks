@@ -18,7 +18,7 @@ describe("runSessionListCommand", () => {
       mutatesState: false,
       hasSessions: false,
       sessionCount: 0,
-      message: "No sessions found.",
+      message: "저장된 세션이 없습니다.",
       sessions: [],
     });
     expect(result).not.toHaveProperty("promptLanguage");
@@ -49,7 +49,7 @@ describe("runSessionListCommand", () => {
       mutatesState: false,
       hasSessions: true,
       sessionCount: 1,
-      message: "1 session(s) found.",
+      message: "세션 1개를 찾았습니다.",
       sessions: [
         {
           id: "session_full",
