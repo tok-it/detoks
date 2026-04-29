@@ -1,0 +1,200 @@
+{
+  "sessionId": "6cdbf7e5399a",
+  "startTime": "2026-04-27T02:40:28.861Z",
+  "entries": [
+    {
+      "timestamp": "2026-04-27T02:40:28.857Z",
+      "stage": "PromptCompiler",
+      "phase": "input",
+      "role": "role1",
+      "dataType": "UserRequest",
+      "data": {
+        "raw_input": "Review the code structure in the src/core/pipeline/ directory and refactor to remove duplication"
+      },
+      "schemaValid": true,
+      "memoryMb": 16.642013549804688,
+      "estimatedTokens": 22
+    },
+    {
+      "timestamp": "2026-04-27T02:40:28.858Z",
+      "stage": "PromptCompiler",
+      "phase": "output",
+      "role": "role1",
+      "dataType": "CompiledPrompt",
+      "data": {
+        "raw_input": "Review the code structure in the src/core/pipeline/ directory and refactor to remove duplication",
+        "normalized_input": "Review the code structure in the src/core/pipeline/ directory and refactor to remove duplication",
+        "compressed_prompt": "Review the code structure in the src/core/pipeline/ directory and refactor to remove duplication",
+        "language": "en",
+        "compression_provider": "nlp_adapter",
+        "inference_time_sec": 0
+      },
+      "schemaValid": true,
+      "durationMs": 1,
+      "memoryMb": 16.72734832763672,
+      "estimatedTokens": 82
+    },
+    {
+      "timestamp": "2026-04-27T02:40:28.858Z",
+      "stage": "TaskGraphBuilder",
+      "phase": "input",
+      "role": "role2.1",
+      "dataType": "Role2PromptInput",
+      "data": {
+        "compiled_prompt": "Review the code structure in the src/core/pipeline/ directory and refactor to remove duplication"
+      },
+      "schemaValid": true,
+      "memoryMb": 16.72918701171875,
+      "estimatedTokens": 22
+    },
+    {
+      "timestamp": "2026-04-27T02:40:28.859Z",
+      "stage": "TaskGraphBuilder",
+      "phase": "output",
+      "role": "role2.1",
+      "dataType": "TaskGraph",
+      "data": {
+        "tasks": [
+          {
+            "id": "t1",
+            "type": "modify",
+            "status": "pending",
+            "title": "Review the code structure in the src/core/pipeline/ directory and refactor to remove duplication",
+            "input_hash": "6ef7eebcca245caf",
+            "depends_on": []
+          }
+        ]
+      },
+      "schemaValid": true,
+      "durationMs": 1,
+      "memoryMb": 16.761245727539062,
+      "estimatedTokens": 53
+    },
+    {
+      "timestamp": "2026-04-27T02:40:28.859Z",
+      "stage": "DAGValidator",
+      "phase": "output",
+      "role": "role2.1",
+      "dataType": "DAGValidationResult",
+      "data": {
+        "valid": true,
+        "topologicalOrder": [
+          "t1"
+        ]
+      },
+      "schemaValid": true,
+      "memoryMb": 16.76666259765625,
+      "estimatedTokens": 12
+    },
+    {
+      "timestamp": "2026-04-27T02:40:28.859Z",
+      "stage": "DependencyResolver",
+      "phase": "output",
+      "role": "role2.1",
+      "dataType": "DependencyResolution",
+      "data": {
+        "orderedTasks": [
+          {
+            "taskId": "t1",
+            "type": "modify",
+            "title": "Review the code structure in the src/core/pipeline/ directory and refactor to remove duplication",
+            "dependsOn": [],
+            "resolvedDeps": []
+          }
+        ]
+      },
+      "schemaValid": true,
+      "memoryMb": 16.769615173339844,
+      "estimatedTokens": 43
+    },
+    {
+      "timestamp": "2026-04-27T02:40:28.859Z",
+      "stage": "ParallelClassifier",
+      "phase": "output",
+      "role": "role2.1",
+      "dataType": "ParallelClassification",
+      "data": {
+        "stages": [
+          {
+            "stage": 0,
+            "runnableInParallel": [
+              {
+                "taskId": "t1",
+                "type": "modify",
+                "title": "Review the code structure in the src/core/pipeline/ directory and refactor to remove duplication",
+                "dependsOn": []
+              }
+            ]
+          }
+        ]
+      },
+      "schemaValid": true,
+      "memoryMb": 16.77337646484375,
+      "estimatedTokens": 48
+    },
+    {
+      "timestamp": "2026-04-27T02:40:28.859Z",
+      "stage": "ContextOptimizer",
+      "phase": "output",
+      "role": "role2.2",
+      "dataType": "ExecutionContext",
+      "data": {
+        "session_id": "6cdbf7e5399a",
+        "active_task_id": "t1",
+        "shared_context": {
+          "session_id": "6cdbf7e5399a",
+          "failed_task_ids": [
+            "t1"
+          ]
+        },
+        "selected_context": {},
+        "context_summary": "No previous task context available."
+      },
+      "schemaValid": true,
+      "durationMs": 0,
+      "memoryMb": 16.777679443359375,
+      "estimatedTokens": 50
+    },
+    {
+      "timestamp": "2026-04-27T02:40:28.859Z",
+      "stage": "Executor:t1",
+      "phase": "input",
+      "role": "role3",
+      "dataType": "ExecutionRequest",
+      "data": {
+        "task_id": "t1",
+        "type": "modify",
+        "prompt": "[MODIFY] Review the code structure in the src/core/pipeline/ directory and refactor to remove duplication\n\nContext: No previous task context available."
+      },
+      "schemaValid": true,
+      "memoryMb": 16.780136108398438,
+      "estimatedTokens": 45
+    },
+    {
+      "timestamp": "2026-04-27T02:40:28.860Z",
+      "stage": "Executor:t1",
+      "phase": "output",
+      "role": "role3",
+      "dataType": "ExecutionResult",
+      "data": {
+        "task_id": "t1",
+        "success": true,
+        "raw_output": "[stub:codex] [MODIFY] Review the code structure in the src/core/pipeline/ directory and refactor to remove..."
+      },
+      "schemaValid": true,
+      "durationMs": 0,
+      "memoryMb": 16.78424072265625,
+      "estimatedTokens": 42
+    }
+  ],
+  "summary": {
+    "totalDurationMs": 2,
+    "stageTimings": {
+      "PromptCompiler": 1,
+      "TaskGraphBuilder": 1,
+      "ContextOptimizer:t1": 0,
+      "Executor:t1": 0
+    },
+    "totalMemoryMb": 16.78424072265625
+  }
+}
