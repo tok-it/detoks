@@ -8,6 +8,7 @@ import {
   geminiLogout,
 } from "../adapter-info/index.js";
 import { selectWithArrows } from "../interactive/select-with-arrows.js";
+import { updateAdapterModel } from "../config/config-manager.js";
 
 export interface SlashCommand {
   name: string;
@@ -273,6 +274,12 @@ const handleCodexModels = async (): Promise<boolean> => {
 
   if (selected) {
     process.env.ADAPTER_MODEL = selected;
+    updateAdapterModel("codex", selected);
+    output.write(
+      colors.muted(
+        `  설정 저장됨: ~/.detoks/settings.json\n\n`,
+      ),
+    );
   }
 
   return true;
@@ -295,6 +302,12 @@ const handleGeminiModels = async (): Promise<boolean> => {
 
   if (selected) {
     process.env.ADAPTER_MODEL = selected;
+    updateAdapterModel("gemini", selected);
+    output.write(
+      colors.muted(
+        `  설정 저장됨: ~/.detoks/settings.json\n\n`,
+      ),
+    );
   }
 
   return true;

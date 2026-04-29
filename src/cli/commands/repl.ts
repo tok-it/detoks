@@ -12,6 +12,7 @@ import { colors } from "../colors.js";
 import { runModelSetupIfNeeded } from "../model-setup/index.js";
 import { showHelpMessage, handleSlashCommand } from "../repl-commands/index.js";
 import { buildPrompt } from "../interactive/prompt-builder.js";
+import { loadAndApplyConfig } from "../config/loader.js";
 
 const EXIT_COMMANDS = new Set(["exit", "quit", ".exit", "/exit", "/quit"]);
 const HELP_COMMANDS = new Set(["/help"]);
@@ -37,6 +38,9 @@ const formatProgressEvent = (event: PipelineProgressEvent): string => {
 };
 
 export const runReplCommand = async (baseArgs: CliArgs): Promise<void> => {
+  // 저장된 설정 로드 및 환경변수 적용
+  loadAndApplyConfig();
+
   await runModelSetupIfNeeded();
 
   const rl = createInterface({ input, output });
