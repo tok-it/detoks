@@ -42,9 +42,13 @@ export class TaskGraphProcessor {
     { type: "execute",  pattern: /\bmake\s+use\s+of\b/i },
     // make a note/notes → document
     { type: "document", pattern: /\bmake\s+(?:a\s+)?notes?\b/i },
+    // organize + flow/pipeline → analyze (흐름 파악 요청; organize+code → modify보다 먼저 처리)
+    { type: "analyze",  pattern: /\borganize\b.*\b(flows?|pipeline)\b/i },
     { type: "modify",   pattern: /\borganize\b.*\b(logic|code|functions?|services?|class(?:es)?|modules?|validation|duplicated?|redundan[ct]?)\b/i },
     { type: "document", pattern: /\borganize\b.*\b(changes?|results?|commands?)\b.*\b(work\s+notes?|notes?)\b/i },
     { type: "analyze",  pattern: /\btrace\b.*\bexplain\b.*\b(order|how|flow|passes?|through)\b/i },
+    // check if/whether/that + 코드 품질/중복 → analyze (validate의 check-if 패턴보다 우선)
+    { type: "analyze",  pattern: /\bcheck\s+(?:if|whether|that)\b.*\b(duplicated?|redundan[ct]?|repeated|scatter(?:ed)?|overlap(?:ping)?|similar)\b/i },
     // make a plan/roadmap → plan
     { type: "plan",     pattern: /\bmake\s+(?:a\s+)?(?:plan|roadmap)\b/i },
   ];
