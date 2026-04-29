@@ -71,6 +71,22 @@ const parseCliJson = (output: string) => {
   return JSON.parse(trimmed.slice(jsonStart));
 };
 
+const completedPipelineStages = [
+  { name: "Prompt Compiler", owner: "role1", status: "completed" },
+  { name: "Task Graph Builder", owner: "role2.1", status: "completed" },
+  { name: "Context Optimizer", owner: "role2.2", status: "completed" },
+  { name: "Executor", owner: "role3", status: "ready" },
+  { name: "State Manager", owner: "role2.2", status: "completed" },
+] as const;
+
+const failedPipelineStages = [
+  { name: "Prompt Compiler", owner: "role1", status: "failed" },
+  { name: "Task Graph Builder", owner: "role2.1", status: "failed" },
+  { name: "Context Optimizer", owner: "role2.2", status: "failed" },
+  { name: "Executor", owner: "role3", status: "ready" },
+  { name: "State Manager", owner: "role2.2", status: "failed" },
+] as const;
+
 const findInstalledBinary = (command: "codex" | "gemini"): string | undefined => {
   const result = spawnSync("sh", ["-lc", `command -v ${command}`], {
     cwd: repoRoot,
@@ -188,12 +204,14 @@ const runAdapterRawOutputSmoke = (adapter: "codex" | "gemini", prompt: string) =
       mode: "run",
       adapter,
     });
+    expect(stubJson.stages).toEqual(completedPipelineStages);
     expect(stubJson.rawOutput).toContain(`[stub:${adapter}] [EXECUTE] ${prompt}`);
     expect(realJson).toMatchObject({
       ok: true,
       mode: "run",
       adapter,
     });
+    expect(realJson.stages).toEqual(completedPipelineStages);
     expect(realJson.rawOutput).toContain(`[fake:${adapter}] [EXECUTE] ${prompt}`);
     expect(realJson.rawOutput).not.toBe(stubJson.rawOutput);
     expect(realJson).toHaveProperty("rawOutput");
@@ -243,6 +261,7 @@ const runInstalledRealAdapterSmoke = (adapter: "codex" | "gemini") => {
     mode: "run",
     adapter,
   });
+  expect(defaultJson.stages).toEqual(completedPipelineStages);
   expect(defaultJson).toHaveProperty("summary");
   expect(defaultJson).toHaveProperty("nextAction");
   expect(defaultJson).not.toHaveProperty("rawOutput");
@@ -252,6 +271,7 @@ const runInstalledRealAdapterSmoke = (adapter: "codex" | "gemini") => {
     mode: "run",
     adapter,
   });
+  expect(verboseJson.stages).toEqual(completedPipelineStages);
   expect(verboseJson).toHaveProperty("rawOutput");
   expect(verboseJson.rawOutput).not.toContain(`[fake:${adapter}]`);
   expect(verboseJson.rawOutput).not.toContain(`[stub:${adapter}]`);
@@ -298,6 +318,7 @@ const runLiveLocalLlmSmoke = () => {
     promptLanguage: "ko",
     promptValidationErrors: [],
   });
+  expect(defaultJson.stages).toEqual(completedPipelineStages);
   expect(defaultJson).toHaveProperty("summary");
   expect(defaultJson).toHaveProperty("nextAction");
   expect(defaultJson).toHaveProperty("promptInferenceTimeSec");
@@ -311,6 +332,7 @@ const runLiveLocalLlmSmoke = () => {
     promptLanguage: "ko",
     promptValidationErrors: [],
   });
+  expect(verboseJson.stages).toEqual(completedPipelineStages);
   expect(verboseJson).toHaveProperty("summary");
   expect(verboseJson).toHaveProperty("nextAction");
   expect(verboseJson).toHaveProperty("promptInferenceTimeSec");
@@ -357,12 +379,12 @@ describe("detoks CLI smoke", () => {
       adapter: "codex",
       summary: "1개 작업을 모두 완료했습니다",
       nextAction: "파이프라인이 완료되었습니다.",
+      stages: completedPipelineStages,
       promptLanguage: "en",
       promptInferenceTimeSec: 0,
       promptValidationErrors: [],
       promptRepairActions: [],
     });
-    expect(defaultJson).not.toHaveProperty("stages");
     expect(defaultJson).not.toHaveProperty("rawOutput");
 
     expect(verboseJson).toMatchObject({
@@ -1192,6 +1214,7 @@ describe("detoks CLI smoke", () => {
         ok: false,
         error: "0/1개 작업을 완료했습니다 — 1개 실패",
       });
+      expect(failedJson.stages).toEqual(failedPipelineStages);
       expect(failedJson).toHaveProperty("rawOutput");
       expect(failedJson.rawOutput).toContain("[fake:codex] [VALIDATE] fail");
 
@@ -1204,6 +1227,7 @@ describe("detoks CLI smoke", () => {
         ok: false,
         summary: "0/1개 작업을 완료했습니다 — 1개 실패",
       });
+      expect(failedVerboseJson.stages).toEqual(failedPipelineStages);
       expect(failedVerboseJson).toHaveProperty("rawOutput");
       expect(failedVerboseJson.rawOutput).toContain("[fake:codex] [VALIDATE]");
     } finally {
@@ -1229,6 +1253,7 @@ describe("detoks CLI smoke", () => {
     expect(failedJson).toEqual({
       ok: false,
       error: "프롬프트 컴파일 실패: LLM client requires LOCAL_LLM_API_BASE",
+      stages: failedPipelineStages,
       rawOutput: "LLM client requires LOCAL_LLM_API_BASE",
     });
   });
@@ -1258,6 +1283,7 @@ describe("detoks CLI smoke", () => {
       expect(failedJson).toEqual({
         ok: false,
         error: "프롬프트 컴파일 실패: LLM client requires LOCAL_LLM_MODEL_NAME",
+        stages: failedPipelineStages,
         rawOutput: "LLM client requires LOCAL_LLM_MODEL_NAME",
       });
     } finally {

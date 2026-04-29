@@ -1,5 +1,9 @@
 import { SessionStateManager } from "../../core/state/SessionStateManager.js";
-import { deriveLastWorkSummary } from "../session-summary.js";
+import {
+  deriveLastWorkSummary,
+  deriveTokenMetricsSummary,
+} from "../session-summary.js";
+import type { TokenMetricsSnapshot } from "../../core/utils/tokenMetrics.js";
 
 export interface SessionListOutput {
   ok: true;
@@ -16,6 +20,7 @@ export interface SessionListOutput {
     taskResultCount: number;
     nextAction: string | null;
     lastWorkSummary?: string | null;
+    tokenMetrics?: TokenMetricsSnapshot | null;
   }>;
 }
 
@@ -23,12 +28,21 @@ export interface SessionListCommandOptions {
   includeLastWorkSummary?: boolean;
 }
 
-const loadSessionLastWorkSummary = async (sessionId: string): Promise<string | null> => {
+const loadSessionInsights = async (sessionId: string): Promise<{
+  lastWorkSummary: string | null;
+  tokenMetrics: TokenMetricsSnapshot | null;
+}> => {
   try {
     const state = await SessionStateManager.loadSession(sessionId);
-    return deriveLastWorkSummary(state);
+    return {
+      lastWorkSummary: deriveLastWorkSummary(state),
+      tokenMetrics: deriveTokenMetricsSummary(state),
+    };
   } catch {
-    return null;
+    return {
+      lastWorkSummary: null,
+      tokenMetrics: null,
+    };
   }
 };
 
@@ -41,7 +55,7 @@ export const runSessionListCommand = async (
   const lastWorkSummaryBySession = includeLastWorkSummary
     ? new Map(
         await Promise.all(
-          sessions.map(async (session) => [session.id, await loadSessionLastWorkSummary(session.id)] as const),
+          sessions.map(async (session) => [session.id, await loadSessionInsights(session.id)] as const),
         ),
       )
     : undefined;
@@ -64,7 +78,12 @@ export const runSessionListCommand = async (
       taskResultCount: session.taskResultCount,
       nextAction: session.nextAction,
       ...(lastWorkSummaryBySession
-        ? { lastWorkSummary: lastWorkSummaryBySession.get(session.id) ?? null }
+        ? {
+            lastWorkSummary:
+              lastWorkSummaryBySession.get(session.id)?.lastWorkSummary ?? null,
+            tokenMetrics:
+              lastWorkSummaryBySession.get(session.id)?.tokenMetrics ?? null,
+          }
         : {}),
     })),
   };

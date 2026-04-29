@@ -1,5 +1,9 @@
 import { SessionStateManager } from "../../core/state/SessionStateManager.js";
-import { deriveLastWorkSummary } from "../session-summary.js";
+import {
+  deriveLastWorkSummary,
+  deriveTokenMetricsSummary,
+} from "../session-summary.js";
+import type { TokenMetricsSnapshot } from "../../core/utils/tokenMetrics.js";
 
 const RECENT_SESSION_LIMIT = 3;
 
@@ -11,6 +15,7 @@ export interface HomeSessionPreview {
   taskResultCount: number;
   nextAction: string | null;
   lastWorkSummary: string | null;
+  tokenMetrics: TokenMetricsSnapshot | null;
 }
 
 export interface HomeDashboardOutput {
@@ -34,11 +39,13 @@ const loadHomeSessionPreview = async (session: {
     return {
       ...session,
       lastWorkSummary: deriveLastWorkSummary(state),
+      tokenMetrics: deriveTokenMetricsSummary(state),
     };
   } catch {
     return {
       ...session,
       lastWorkSummary: null,
+      tokenMetrics: null,
     };
   }
 };

@@ -1,4 +1,8 @@
 import type { SessionState } from "../schemas/pipeline.js";
+import {
+  isTokenMetricsSnapshot,
+  type TokenMetricsSnapshot,
+} from "../core/utils/tokenMetrics.js";
 
 const SUMMARY_PREVIEW_LENGTH = 110;
 
@@ -66,4 +70,12 @@ export const deriveLastWorkSummary = (state: SessionState): string | null => {
   }
 
   return null;
+};
+
+export const deriveTokenMetricsSummary = (
+  state: SessionState,
+): TokenMetricsSnapshot | null => {
+  const sharedContext = state.shared_context as Record<string, unknown> | undefined;
+  const candidate = sharedContext?.token_metrics;
+  return isTokenMetricsSnapshot(candidate) ? candidate : null;
 };

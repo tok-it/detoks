@@ -1,4 +1,5 @@
 import { PipelineTracer } from "../core/utils/PipelineTracer.js";
+import { formatTokenReductionSnapshot } from "../core/utils/tokenMetrics.js";
 import { translateVisibleText } from "../core/utils/visibleText.js";
 import { colors } from "./colors.js";
 import type { CliBatchExecutionResult, CliExecutionResult } from "./types.js";
@@ -58,6 +59,7 @@ export const formatSuccess = (
         adapter: result.adapter,
         summary: result.summary,
         nextAction: result.nextAction,
+        stages: result.stages,
         ...toPromptMetadata(result),
         ...(result.traceFilePath ? { traceFile: result.traceFilePath } : {}),
       },
@@ -88,6 +90,7 @@ export const formatFailedResult = (
       {
         ok: result.ok,
         error: result.summary,
+        stages: result.stages,
         ...(result.rawOutput ? { rawOutput: result.rawOutput } : {}),
       },
       null,
@@ -154,6 +157,15 @@ const formatHomeSessionPreview = (
     session.lastWorkSummary
       ? `   ${colors.muted("최근 작업 요약:")} ${translateVisibleText(session.lastWorkSummary)}`
       : null,
+    session.tokenMetrics
+      ? `   ${colors.info("입력 토큰 절감:")} ${formatTokenReductionSnapshot(session.tokenMetrics.input)}`
+      : null,
+    session.tokenMetrics
+      ? `   ${colors.info("출력 토큰 절감:")} ${formatTokenReductionSnapshot(session.tokenMetrics.output)}`
+      : null,
+    session.tokenMetrics
+      ? `   ${colors.muted("기준:")} ${colors.muted(session.tokenMetrics.model)}`
+      : null,
     session.nextAction
       ? `   ${colors.warning("다음 작업:")} ${colors.warning(translateVisibleText(session.nextAction))}`
       : null,
@@ -207,6 +219,15 @@ const formatSessionListRow = (
     `   ${colors.info("작업 결과:")} ${session.taskResultCount}`,
     session.lastWorkSummary
       ? `   ${colors.muted("최근 작업 요약:")} ${translateVisibleText(session.lastWorkSummary)}`
+      : null,
+    session.tokenMetrics
+      ? `   ${colors.info("입력 토큰 절감:")} ${formatTokenReductionSnapshot(session.tokenMetrics.input)}`
+      : null,
+    session.tokenMetrics
+      ? `   ${colors.info("출력 토큰 절감:")} ${formatTokenReductionSnapshot(session.tokenMetrics.output)}`
+      : null,
+    session.tokenMetrics
+      ? `   ${colors.muted("기준:")} ${colors.muted(session.tokenMetrics.model)}`
       : null,
     session.nextAction
       ? `   ${colors.warning("다음 작업:")} ${colors.warning(translateVisibleText(session.nextAction))}`
