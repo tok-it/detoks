@@ -42,9 +42,13 @@ export class TaskGraphProcessor {
     { type: "execute",  pattern: /\bmake\s+use\s+of\b/i },
     // make a note/notes → document
     { type: "document", pattern: /\bmake\s+(?:a\s+)?notes?\b/i },
+    // organize + flow/pipeline → analyze (흐름 파악 요청; organize+code → modify보다 먼저 처리)
+    { type: "analyze",  pattern: /\borganize\b.*\b(flows?|pipeline)\b/i },
     { type: "modify",   pattern: /\borganize\b.*\b(logic|code|functions?|services?|class(?:es)?|modules?|validation|duplicated?|redundan[ct]?)\b/i },
     { type: "document", pattern: /\borganize\b.*\b(changes?|results?|commands?)\b.*\b(work\s+notes?|notes?)\b/i },
     { type: "analyze",  pattern: /\btrace\b.*\bexplain\b.*\b(order|how|flow|passes?|through)\b/i },
+    // check if/whether/that + 코드 품질/중복 → analyze (validate의 check-if 패턴보다 우선)
+    { type: "analyze",  pattern: /\bcheck\s+(?:if|whether|that)\b.*\b(duplicated?|redundan[ct]?|repeated|scatter(?:ed)?|overlap(?:ping)?|similar)\b/i },
     // make a plan/roadmap → plan
     { type: "plan",     pattern: /\bmake\s+(?:a\s+)?(?:plan|roadmap)\b/i },
   ];
@@ -66,7 +70,7 @@ export class TaskGraphProcessor {
         /\bwhere\b.*\b(defined|implemented|used|referenced|located)\b/,
         /\bwhich\s+(file|module|function|class|component|service)\b/,
         /\bwhat\s+(file|module|function|class|component|service)\b/,
-        /\b(read|find|look(?:\s+for)?|search|explore|browse|locate|discover|lookup|query|grep)\b/,
+        /\b(read|find|look(?:\s+for)?|search|explore|browse|locate|discover|lookup|query|grep|catalog|enumerate)\b/,
         /\b(trace|track|follow|walk\s+through|scan|survey|map\s+out|list)\b/,
       ],
     },
@@ -97,6 +101,7 @@ export class TaskGraphProcessor {
         /\b(fix|patch|update|change|edit|refactor|rewrite|rename)\b.*\b(bug|issue|config|logic|function|module|file|implementation)\b/,
         /\bremove\b.*\b(dead\s+code|unused\s+code|legacy\s+code)\b/,
         /\b(modify|update|change|fix|edit|refactor|revise|adjust|patch|rewrite|rename|clean\s+up)\b/,
+        /\b(extract|consolidate|centralize|decouple|restructure|reorganize|streamline)\b/,
         /\bremove\b/,
         /\breplace\b/,
         /\bimprove\b/,
@@ -112,8 +117,9 @@ export class TaskGraphProcessor {
         /\b(root\s+cause|impact|trade[\s-]?off)\b/,
         /\b(propose|suggest|recommend)\b.*\b(fixes?|solutions?|remediation|approach|steps?|improvements?|optimizations?|settings?|ways?|options?|guidelines?|policy|strategy)\b/,
         /\bcompare\b.*\b(vs|with|against)\b/,
-        /\b(analyze|review|inspect|investigate|understand|explain|diagnose|profile)\b/,
+        /\b(analyze|review|inspect|investigate|understand|explain|diagnose|profile|audit)\b/,
         /\b(compare|assess|evaluate|reason\s+about)\b/,
+        /\b(identify|detect|spot)\b.*\b(bugs?|issues?|problems?|duplicat|redundan|leaks?|errors?|vulnerabilit)\b/,
         /\bhow\b.*\b(work|works|behaves|behave|flows|flow)\b/,
         /\bwhy\b/,
       ],
