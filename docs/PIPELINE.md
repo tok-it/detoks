@@ -85,8 +85,8 @@ detoks operates as a **stage-based pipeline** from input to output.
 
 ## Flow
 
-Input → Translate → Validate/Repair → Compress → Validate → Analyze → Task Graph → Context → Execute → Store → Next
+Input → Translate → Validate/Repair → Analyze → Task Graph → Context (→ Compress per task) → Execute → Store → Next
 
-<!-- 한국어 설명: 전체 흐름은 입력 번역, 번역 검증/보정, 압축, 압축 검증, 요청 분석, 작업 그래프 생성, 문맥 구성, 실행, 저장, 다음 턴 준비 순서로 이어집니다. Kompress 결과가 안전하지 않으면 재생성 없이 `normalized_input`을 사용합니다. -->
+<!-- 한국어 설명: 전체 흐름은 입력 번역, 번역 검증/보정, 요청 분류(action signal 기반), 작업 그래프 생성, 문맥 구성, 실행, 저장, 다음 턴 준비 순서로 이어집니다. 압축(Kompress)은 task 실행 context 단계에서 필요한 만큼 수행됩니다. Kompress 결과가 안전하지 않으면 재생성 없이 `normalized_input`을 사용합니다. -->
 
 ---

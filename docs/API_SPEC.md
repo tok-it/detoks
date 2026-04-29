@@ -352,7 +352,7 @@ type Role2PromptInput = {
 };
 ```
 
-`compiled_prompt` must be copied from `CompiledPrompt.compressed_prompt`.
+`compiled_prompt` must be copied from `CompiledPrompt.normalized_input`.
 
 ### Request
 

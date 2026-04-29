@@ -46,7 +46,7 @@ UserRequest
 - consumes `ExecutionContext`
 - produces `ExecutionResult`
 
-<!-- 한국어 설명: Role 1은 번역/압축 결과를 만들고, Role 2.1은 이를 요청 분석 결과와 실행 가능한 작업 구조로 바꾸며, Role 3는 실제 실행 결과를 생성합니다. -->
+<!-- 한국어 설명: Role 1은 번역/정규화 결과를 만들고, Role 2.1은 이를 분류·작업 그래프로 바꾸며, Role 3는 실제 실행 결과를 생성합니다. 압축(Kompress)은 task 실행 context 단계에서 수행됩니다. -->
 
 ---
 
@@ -60,12 +60,12 @@ Raw user input entering the system.
 ### 2. CompiledPrompt
 
 
-Compressed and normalized prompt output from the Prompt Compiler.
+Translated and normalized prompt output from the Prompt Compiler. Contains both `normalized_input` (pre-compression) and `compressed_prompt` (post-compression).
 
 ### 3. Role2PromptInput
 
 The handoff schema from Role 1 to Role 2.1.
-`Role2PromptInput.compiled_prompt` must contain the same full compressed English prompt as `CompiledPrompt.compressed_prompt`.
+`Role2PromptInput.compiled_prompt` must contain `CompiledPrompt.normalized_input` (the translated, pre-compression text). Role 2.1 classifies task types from action signals that compression may weaken.
 Task decomposition, id generation, and depends_on assignment are handled by Role 2.1.
 
 ### 4. AnalyzedRequest
@@ -89,7 +89,7 @@ Normalized result returned from CLI execution.
 
 Reusable state persisted for the next turn.
 
-<!-- 한국어 설명: 공유 스키마는 사용자 입력, 압축 프롬프트, Role 2 전달용 문자열, 분석 결과, 작업 그래프, 실행 문맥, 실행 결과, 세션 상태의 8단계로 나누는 것이 가장 적절합니다. -->
+<!-- 한국어 설명: 공유 스키마는 사용자 입력, 번역/정규화 프롬프트, Role 2 전달용 문자열(normalized_input 기준), 분류 결과, 작업 그래프, 실행 컨텍스트, 실행 결과, 세션 상태의 8단계로 나누는 것이 적절합니다. 압축은 실행 컨텍스트 단계에서 수행됩니다. -->
 
 ---
 
