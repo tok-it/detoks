@@ -10,6 +10,7 @@ import { SessionStateManager } from "../state/SessionStateManager.js";
 import { executeWithAdapter } from "../executor/execute.js";
 import { logger } from "../utils/logger.js";
 import { PipelineTracer } from "../utils/PipelineTracer.js";
+import { translateVisibleText } from "../utils/visibleText.js";
 import type { SessionState } from "../../schemas/pipeline.js";
 import type {
   PipelineExecutionRequest,
@@ -97,10 +98,10 @@ function inferPromptFailureNextAction(errorMessage: string): string {
     errorMessage.includes("MODEL_NAME") ||
     errorMessage.includes("fetch support")
   ) {
-    return "Set Role 1 local LLM runtime config (LOCAL_LLM_API_BASE, LOCAL_LLM_MODEL_NAME) and retry";
+    return "Role 1 로컬 LLM 실행 설정(LOCAL_LLM_API_BASE, LOCAL_LLM_MODEL_NAME)을 맞춘 뒤 다시 시도하세요.";
   }
 
-  return "Fix prompt compilation inputs or runtime config and retry";
+  return "프롬프트 컴파일 입력이나 실행 설정을 수정한 뒤 다시 시도하세요.";
 }
 
 /**
@@ -151,7 +152,7 @@ export const orchestratePipeline = async (
     });
   } catch (error) {
     const errorMessage = toErrorMessage(error);
-    logger.error(`Prompt compilation failed: ${errorMessage}`);
+    logger.error(`프롬프트 컴파일 실패: ${translateVisibleText(errorMessage)}`);
     await PipelineTracer.trace({
       sessionId,
       stage: "PromptCompiler",
@@ -168,7 +169,7 @@ export const orchestratePipeline = async (
       ok: false,
       mode: request.mode,
       adapter: request.adapter,
-      summary: `Prompt compilation failed: ${errorMessage}`,
+      summary: `프롬프트 컴파일 실패: ${errorMessage}`,
       nextAction: inferPromptFailureNextAction(errorMessage),
       stages: buildPipelineStages(false),
       rawOutput: errorMessage,
@@ -200,7 +201,7 @@ export const orchestratePipeline = async (
     dataType: "DAGValidationResult", data: validation,
   });
   if (!validation.valid) {
-    logger.error(`DAG validation failed: ${validation.reason} — ${validation.detail}`);
+    logger.error(`DAG 검증 실패: ${translateVisibleText(validation.reason)} — ${translateVisibleText(validation.detail)}`);
     const traceFilePath = request.trace
       ? await PipelineTracer.saveTrace(sessionId)
       : undefined;
@@ -208,8 +209,8 @@ export const orchestratePipeline = async (
       ok: false,
       mode: request.mode,
       adapter: request.adapter,
-      summary: `Graph validation failed: ${validation.reason}`,
-      nextAction: "Fix the task graph and retry",
+      summary: `작업 그래프 검증 실패: ${validation.reason}`,
+      nextAction: "작업 그래프를 수정한 뒤 다시 시도하세요.",
       stages: buildPipelineStages(false),
       rawOutput: "",
       sessionId,
@@ -265,7 +266,7 @@ export const orchestratePipeline = async (
   const failedTaskIds = new Set<string>();
 
   if (await SessionStateManager.sessionExists(sessionId)) {
-    logger.info(`Loading existing session: ${sessionId}`);
+    logger.info(`기존 세션을 불러옵니다: ${sessionId}`);
     state = await SessionStateManager.loadSession(sessionId);
     state = {
       ...state,
@@ -288,12 +289,12 @@ export const orchestratePipeline = async (
 
   // ── Step 6: 실행 루프 ────────────────────────────────────────────────────
   for (const { stage, tasks } of stages) {
-    logger.info(`Executing stage ${stage} — ${tasks.length} task(s)`);
+    logger.info(`단계 ${stage} 실행 중 — 작업 ${tasks.length}개`);
 
     for (const task of tasks) {
       // 이미 완료된 작업이면 스킵 (Role 2.2 / Role 3 경계)
       if (state.completed_task_ids.includes(task.id)) {
-        logger.info(`Task [${task.id}] already completed in session — skipping`);
+        logger.info(`작업 [${task.id}]는 세션에서 이미 완료되어 건너뜁니다`);
         const previousResult = state.task_results[task.id] as any;
         taskRecords.push({
           taskId: task.id,
@@ -308,7 +309,7 @@ export const orchestratePipeline = async (
       if (blockedBy) {
         failedTaskIds.add(task.id);
         taskRecords.push({ taskId: task.id, status: "skipped", rawOutput: "", blockedBy });
-        logger.warn(`Task [${task.id}] skipped — dependency [${blockedBy}] failed`);
+        logger.warn(`작업 [${task.id}] 건너뜀 — 의존성 [${blockedBy}] 실패`);
         continue;
       }
 
@@ -326,7 +327,7 @@ export const orchestratePipeline = async (
 
       // Task 실행 (Role 3)
       const prompt = `[${task.type.toUpperCase()}] ${task.title}\n\nContext: ${context.context_summary}`;
-      logger.info(`Running task [${task.id}] type=${task.type}`);
+      logger.info(`작업 [${task.id}] 실행 중 type=${task.type}`);
       await PipelineTracer.trace({
         sessionId, stage: `Executor:${task.id}`, role: "role3", phase: "input",
         dataType: "ExecutionRequest", data: { task_id: task.id, type: task.type, prompt },
@@ -354,7 +355,7 @@ export const orchestratePipeline = async (
           dataType: "ExecutionResult", data: { task_id: task.id, success: false, raw_output: execResult.rawOutput },
           durationMs: PipelineTracer.endStage(`Executor:${task.id}`),
         });
-        logger.error(`Task [${task.id}] failed (exit ${execResult.exitCode}) — dependent tasks will be skipped`);
+        logger.error(`작업 [${task.id}] 실패 (exit ${execResult.exitCode}) — 의존 작업은 건너뜁니다`);
       } else {
         // 성공 — 세션 상태 갱신 및 저장 (Role 2.2)
         await PipelineTracer.trace({
@@ -366,7 +367,7 @@ export const orchestratePipeline = async (
         state = markTaskCompleted(state, task.id, execResult.rawOutput);
         await SessionStateManager.saveSession(state);
         taskRecords.push({ taskId: task.id, status: "completed", rawOutput: execResult.rawOutput });
-        logger.info(`Task [${task.id}] completed`);
+        logger.info(`작업 [${task.id}] 완료`);
       }
     }
   }
@@ -382,14 +383,27 @@ export const orchestratePipeline = async (
     traceFilePath = await PipelineTracer.saveTrace(sessionId);
   }
 
+  const finalSummary = allOk
+    ? `${totalCount}개 작업을 모두 완료했습니다`
+    : `${completedCount}/${totalCount}개 작업을 완료했습니다 — ${failedTaskIds.size}개 실패`;
+  const finalNextAction = allOk
+    ? "파이프라인이 완료되었습니다."
+    : "실패한 작업을 수정한 뒤 다시 시도하세요.";
+
+  state = {
+    ...state,
+    last_summary: finalSummary,
+    next_action: finalNextAction,
+    updated_at: new Date().toISOString(),
+  };
+  await SessionStateManager.saveSession(state);
+
   return {
     ok: allOk,
     mode: request.mode,
     adapter: request.adapter,
-    summary: allOk
-      ? `All ${totalCount} task(s) completed`
-      : `${completedCount}/${totalCount} task(s) completed — ${failedTaskIds.size} failed`,
-    nextAction: allOk ? "Pipeline complete" : "Fix failed tasks and retry",
+    summary: finalSummary,
+    nextAction: finalNextAction,
     stages: buildPipelineStages(allOk),
     rawOutput: taskRecords.map((r) => r.rawOutput).filter(Boolean).join("\n---\n"),
     sessionId,

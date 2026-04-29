@@ -26,7 +26,7 @@ export const runCheckpointRestoreCommand = async (
             checkpointId,
             restored: false,
             mutatesState: false,
-            message: `Target session ${sessionId} for checkpoint ${checkpointId} was not found.`
+            message: `체크포인트 ${checkpointId}의 대상 세션 ${sessionId}를 찾지 못했습니다.`
         };
     }
 
@@ -42,7 +42,7 @@ export const runCheckpointRestoreCommand = async (
             checkpointId,
             restored: false,
             mutatesState: false,
-            message: `Task ${checkpoint.task_id} not found in session history.`
+            message: `세션 기록에서 작업 ${checkpoint.task_id}를 찾지 못했습니다.`
         };
     }
 
@@ -70,7 +70,7 @@ export const runCheckpointRestoreCommand = async (
       checkpointId,
       restored: true,
       mutatesState: true,
-      message: `Session ${sessionId} restored to checkpoint ${checkpointId}.`,
+      message: `세션 ${sessionId}를 체크포인트 ${checkpointId} 시점으로 복원했습니다.`,
     };
   } catch (error: any) {
     return {
@@ -80,7 +80,7 @@ export const runCheckpointRestoreCommand = async (
       checkpointId,
       restored: false,
       mutatesState: false,
-      message: `Failed to restore checkpoint ${checkpointId}: ${error.message}`,
+      message: `체크포인트 ${checkpointId} 복원에 실패했습니다: ${error.message}`,
     };
   }
 };

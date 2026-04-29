@@ -5,6 +5,23 @@ detoks는 LLM CLI(codex, gemini 등) 앞단에서 동작하는 **interactive wra
 
 ---
 
+## ✅ 유저 실행 요건
+
+detoks를 일반 유저가 실행할 때 실제로 맞춰야 하는 버전은 많지 않습니다.
+
+- **detoks CLI 기본 실행:** Node.js `24.15.x`
+  - 기준 범위: `>=24.15.0 <25`
+  - 프로젝트 기준선: `24.15.0`
+- **라이브러리 버전:** 보통 유저가 직접 맞추지 않음
+  - `npm install` / 전역 설치 과정에서 자동으로 맞춰짐
+- **로컬 Python `llama-server`를 직접 쓸 때만:** Python `3.13.x`
+  - 프로젝트 기준선: `3.13.13`
+- **실제 어댑터를 사용할 때만:** `codex` 또는 `gemini` CLI가 PATH에 있어야 함
+
+자세한 기준은 [STACK_VERSIONS.md](./docs/STACK_VERSIONS.md)와 [LLAMA_CPP_SERVER_SPEC.md](./docs/LLAMA_CPP_SERVER_SPEC.md)를 참고하세요.
+
+---
+
 ## 🖼 프리뷰
 
 <p align="center">

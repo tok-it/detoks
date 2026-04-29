@@ -1,7 +1,7 @@
 # detoks CLI Pipeline Status
 
 ## 기준
-- 브랜치: `cli-runtime-ux`
+- 브랜치: `cli-runtime-ux-from-dev-20260425`
 - 작성 기준일: 2026-04-24
 - 용도: 현재 detoks CLI 개발이 전체 파이프라인 기준으로 어디까지 완료됐는지 빠르게 확인하기 위한 로컬 상태 문서
 
@@ -32,7 +32,7 @@ CLI Input
 ### 1. CLI Input / Entry
 상태: 완료
 
-- `detoks "<prompt>"`
+- `detoks` → REPL
 - `detoks repl`
 - CLI 엔트리포인트 동작
 
@@ -61,6 +61,7 @@ CLI Input
 상태: 대부분 완료
 
 - main help / repl help 분리
+- `detoks` no-arg REPL 진입 안내 추가
 - `stub` / `real` 설명 보강
 - `verbose` 의미를 출력 계약 기준으로 정리
 - help와 실제 출력 계약이 현재 기준으로 일치함
@@ -247,6 +248,8 @@ CLI Input
 
 현재:
 - 세션 저장은 됨
+- `detoks session list --human`으로 세션 목록을 사람용 출력으로 확인 가능
+- 세션별 마지막 작업 요약(last work summary) 표시 가능
 
 남은 것:
 - continue / reset / fork
@@ -257,6 +260,8 @@ CLI Input
 
 ## 현재까지 완료된 CLI UX 작업
 
+- `detoks` no-arg REPL 진입 추가
+- `detoks session list --human` 추가 및 last work summary 표시
 - `execution-mode` help 보강
 - `verbose` 출력 정책 정리
 - one-shot smoke test 추가
@@ -288,7 +293,7 @@ session / checkpoint CLI UX 정리
 
 현재 detoks CLI 개발은:
 
-> CLI 런타임 UX + 파이프라인 오케스트레이션 골격 + 상태 저장 + smoke/unit test 안정화
+> CLI 런타임 UX + REPL 기본 진입 + 파이프라인 오케스트레이션 골격 + 상태 저장 + smoke/unit test 안정화
 
 까지는 꽤 진행되었고,
 

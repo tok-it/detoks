@@ -55,7 +55,7 @@ export const runSessionContinueCommand = async (
       canContinue: false,
       resumeStarted: false,
       mutatesState: false,
-      message: `Session ${sessionId} was not found. No resume was started.`,
+      message: `세션 ${sessionId}를 찾지 못했습니다. 다시 시작하지 않았습니다.`,
       nextAction: null,
     };
   }
@@ -75,7 +75,7 @@ export const runSessionContinueCommand = async (
       canContinue: false,
       resumeStarted: false,
       mutatesState: false,
-      message: `Session ${sessionId} does not have a stored raw_input. No resume was started.`,
+      message: `세션 ${sessionId}에 저장된 raw_input이 없습니다. 다시 시작하지 않았습니다.`,
       nextAction,
     };
   }
@@ -96,7 +96,7 @@ export const runSessionContinueCommand = async (
     canContinue: true,
     resumeStarted: true,
     mutatesState: true,
-    message: `Session ${result.sessionId} resumed using stored raw_input.`,
+    message: `세션 ${result.sessionId}를 저장된 raw_input으로 다시 시작했습니다.`,
     adapter: result.adapter,
     summary: result.summary,
     nextAction: result.nextAction,

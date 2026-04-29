@@ -75,7 +75,7 @@ export class ContextSelector {
         results[depId] = taskResults[depId];
       } else {
         // 의존하는 Task의 결과가 없는 경우 경고 로깅 (Strict 모드라면 throw 고려 가능)
-        logger.warn(`Dependency result missing for task [${targetTask.id}]: depends_on [${depId}] not found in results.`);
+        logger.warn(`작업 [${targetTask.id}]의 의존성 결과가 없습니다: depends_on [${depId}]를 결과에서 찾지 못했습니다.`);
       }
     }
 

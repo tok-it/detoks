@@ -11,11 +11,11 @@ describe("runCheckpointRestoreCommand", () => {
   it("returns an explicit not-found contract when the target session is missing", async () => {
     vi.spyOn(SessionStateManager, "loadCheckpoint").mockResolvedValue({
       id: "session_restore_checkpoint_001",
-      title: "Checkpoint",
+      title: "체크포인트",
       task_id: "task_001",
-      summary: "Checkpoint summary",
+      summary: "체크포인트 요약",
       changed_files: ["src/cli/parse.ts"],
-      next_action: "Restore task history",
+      next_action: "작업 기록을 복원하세요",
       created_at: "2026-04-27T00:00:00.000Z",
     });
     vi.spyOn(SessionStateManager, "sessionExists").mockResolvedValue(false);
@@ -29,8 +29,7 @@ describe("runCheckpointRestoreCommand", () => {
       checkpointId: "session_restore_checkpoint_001",
       restored: false,
       mutatesState: false,
-      message:
-        "Target session session_restore for checkpoint session_restore_checkpoint_001 was not found.",
+      message: "체크포인트 session_restore_checkpoint_001의 대상 세션 session_restore를 찾지 못했습니다.",
     });
   });
 
@@ -40,11 +39,11 @@ describe("runCheckpointRestoreCommand", () => {
 
     vi.spyOn(SessionStateManager, "loadCheckpoint").mockResolvedValue({
       id: "session_restore_checkpoint_001",
-      title: "Checkpoint",
+      title: "체크포인트",
       task_id: "task_001",
-      summary: "Checkpoint summary",
+      summary: "체크포인트 요약",
       changed_files: ["src/cli/parse.ts"],
-      next_action: "Restore task history",
+      next_action: "작업 기록을 복원하세요",
       created_at: "2026-04-27T00:00:00.000Z",
     });
     vi.spyOn(SessionStateManager, "sessionExists").mockResolvedValue(true);
@@ -68,7 +67,7 @@ describe("runCheckpointRestoreCommand", () => {
       },
       current_task_id: "task_002",
       completed_task_ids: ["task_001", "task_002"],
-      next_action: "Continue later",
+      next_action: "나중에 이어서 진행하세요",
       updated_at: "2026-04-27T00:00:00.000Z",
     });
     const saveSpy = vi
@@ -84,8 +83,7 @@ describe("runCheckpointRestoreCommand", () => {
       checkpointId: "session_restore_checkpoint_001",
       restored: true,
       mutatesState: true,
-      message:
-        "Session session_restore restored to checkpoint session_restore_checkpoint_001.",
+      message: "세션 session_restore를 체크포인트 session_restore_checkpoint_001 시점으로 복원했습니다.",
     });
 
     expect(saveSpy).toHaveBeenCalledWith({
@@ -102,7 +100,7 @@ describe("runCheckpointRestoreCommand", () => {
       },
       current_task_id: null,
       completed_task_ids: ["task_001"],
-      next_action: "Continue later",
+      next_action: "나중에 이어서 진행하세요",
       updated_at: "2026-04-27T12:34:56.000Z",
     });
   });

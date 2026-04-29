@@ -8,7 +8,7 @@ describe("parseCliArgs", () => {
       mode: "run",
       prompt: "hello detoks",
       adapter: "codex",
-      executionMode: "stub",
+      executionMode: "real",
       verbose: false,
       trace: false,
       showHelp: false,
@@ -42,7 +42,7 @@ describe("parseCliArgs", () => {
       mode: "run",
       inputFile: "tests/data/row_data.json",
       adapter: "codex",
-      executionMode: "stub",
+      executionMode: "real",
       verbose: true,
       trace: false,
       showHelp: false,
@@ -56,7 +56,22 @@ describe("parseCliArgs", () => {
       mode: "run",
       command: "session-list",
       adapter: "codex",
-      executionMode: "stub",
+      executionMode: "real",
+      verbose: false,
+      trace: false,
+      showHelp: false,
+      helpTopic: "session-list",
+    });
+  });
+
+  it("parses session list human output mode", () => {
+    const parsed = parseCliArgs(["session", "list", "--human"]);
+    expect(parsed).toEqual({
+      mode: "run",
+      command: "session-list",
+      human: true,
+      adapter: "codex",
+      executionMode: "real",
       verbose: false,
       trace: false,
       showHelp: false,
@@ -71,7 +86,7 @@ describe("parseCliArgs", () => {
       command: "checkpoint-list",
       sessionId: "session_2026_04_27",
       adapter: "codex",
-      executionMode: "stub",
+      executionMode: "real",
       verbose: false,
       trace: false,
       showHelp: false,
@@ -86,7 +101,7 @@ describe("parseCliArgs", () => {
       command: "session-continue",
       sessionId: "session_2026_04_27",
       adapter: "codex",
-      executionMode: "stub",
+      executionMode: "real",
       verbose: false,
       trace: false,
       showHelp: false,
@@ -102,7 +117,7 @@ describe("parseCliArgs", () => {
       sessionId: "session_2026_04_27",
       newSessionId: "session_2026_04_27_fork",
       adapter: "codex",
-      executionMode: "stub",
+      executionMode: "real",
       verbose: false,
       trace: false,
       showHelp: false,
@@ -117,7 +132,7 @@ describe("parseCliArgs", () => {
       command: "session-reset",
       sessionId: "session_2026_04_27",
       adapter: "codex",
-      executionMode: "stub",
+      executionMode: "real",
       verbose: false,
       trace: false,
       showHelp: false,
@@ -132,7 +147,7 @@ describe("parseCliArgs", () => {
       command: "checkpoint-show",
       checkpointId: "session_2026_04_27_checkpoint_001",
       adapter: "codex",
-      executionMode: "stub",
+      executionMode: "real",
       verbose: false,
       trace: false,
       showHelp: false,
@@ -147,7 +162,7 @@ describe("parseCliArgs", () => {
       command: "checkpoint-restore",
       checkpointId: "session_2026_04_27_checkpoint_001",
       adapter: "codex",
-      executionMode: "stub",
+      executionMode: "real",
       verbose: false,
       trace: false,
       showHelp: false,
@@ -160,7 +175,7 @@ describe("parseCliArgs", () => {
     expect(parsed).toMatchObject({
       mode: "run",
       adapter: "codex",
-      executionMode: "stub",
+      executionMode: "real",
       verbose: false,
       showHelp: true,
       helpTopic: "main",
@@ -180,7 +195,7 @@ describe("parseCliArgs", () => {
     expect(parsed).toMatchObject({
       showHelp: true,
       adapter: "codex",
-      executionMode: "stub",
+      executionMode: "real",
       helpTopic: "main",
     });
   });
@@ -259,12 +274,15 @@ describe("parseCliArgs", () => {
 
   it("documents execution mode differences in main help", () => {
     const usage = getCliUsage("main");
-    expect(usage).toContain("Examples:");
-    expect(usage).toContain('detoks "summarize the current repo status"');
+    expect(usage).toContain("예시:");
+    expect(usage).toContain("detoks");
+    expect(usage).toContain("detoks                         인자 없이 실행하면 대화형 REPL로 진입합니다");
+    expect(usage).toContain("detoks repl [--adapter codex|gemini] [--execution-mode stub|real] [--session <id>] [--verbose]");
     expect(usage).toContain("detoks --file tests/data/row_data.json --verbose");
     expect(usage).toContain("--file <path>");
     expect(usage).toContain("detoks repl --adapter codex --execution-mode stub");
     expect(usage).toContain("detoks session list");
+    expect(usage).toContain("detoks session list --human");
     expect(usage).toContain("detoks session continue <session-id>");
     expect(usage).toContain("detoks session continue session_2026_04_27");
     expect(usage).toContain("detoks session reset <session-id>");
@@ -277,42 +295,44 @@ describe("parseCliArgs", () => {
     expect(usage).toContain("detoks checkpoint show session_2026_04_27_checkpoint_001");
     expect(usage).toContain("detoks checkpoint restore <checkpoint-id>");
     expect(usage).toContain("detoks checkpoint restore session_2026_04_27_checkpoint_001");
-    expect(usage).toContain("Local LLM env (read from current cwd .env / .env.local):");
+    expect(usage).toContain("인자 없이 실행하면 대화형 REPL로 진입합니다");
+    expect(usage).toContain("로컬 LLM 환경 변수(현재 cwd의 .env / .env.local에서 읽음):");
     expect(usage).toContain("LOCAL_LLM_API_BASE, LOCAL_LLM_API_KEY, LOCAL_LLM_MODEL_NAME");
     expect(usage).toContain("--session <id>");
-    expect(usage).toContain("Execution mode:");
-    expect(usage).toContain("stub = simulated output for fast, safe CLI testing");
-    expect(usage).toContain("real = runs the adapter's real execution path");
-    expect(usage).toContain("Show full success JSON and error stacks");
+    expect(usage).toContain("실행 모드:");
+    expect(usage).toContain("stub = 빠르고 안전한 CLI 테스트를 위한 모의 출력");
+    expect(usage).toContain("real = 어댑터의 실제 실행 경로를 사용합니다");
+    expect(usage).toContain("성공 JSON과 에러 스택을 전체 출력합니다(출력 전용)");
   });
 
   it("documents execution mode differences in repl help", () => {
     const usage = getCliUsage("repl");
-    expect(usage).toContain("Example:");
+    expect(usage).toContain("예시:");
     expect(usage).toContain("detoks repl --adapter codex --execution-mode stub");
-    expect(usage).toContain("execution-mode controls whether prompts use simulated or real execution");
-    expect(usage).toContain("stub = simulated output for fast, safe CLI testing");
-    expect(usage).toContain("real = runs the adapter's real execution path");
-    expect(usage).toContain("Show full success JSON and error stacks");
+    expect(usage).toContain("execution-mode는 프롬프트를 모의 실행으로 할지 실제 실행으로 할지 결정합니다");
+    expect(usage).toContain("stub = 빠르고 안전한 CLI 테스트를 위한 모의 출력");
+    expect(usage).toContain("real = 어댑터의 실제 실행 경로를 사용합니다");
+    expect(usage).toContain("성공 JSON과 에러 스택을 전체 출력합니다(출력 전용)");
   });
 
   it("documents session list as a read-only command with a minimal stdout contract", () => {
     const usage = getCliUsage("session-list");
-    expect(usage).toContain("detoks session list");
-    expect(usage).toContain("read-only");
-    expect(usage).toContain("does not create, continue, reset, fork, or modify session state");
+    expect(usage).toContain("detoks session list [--human]");
+    expect(usage).toContain("읽기 전용이며 세션 상태를 생성/이어가기/초기화/포크/수정하지 않습니다");
     expect(usage).toContain("mutatesState=false");
     expect(usage).toContain("hasSessions");
     expect(usage).toContain("sessionCount");
     expect(usage).toContain("completedTaskCount");
+    expect(usage).toContain("--human");
+    expect(usage).toContain("마지막 작업 요약");
   });
 
   it("documents session continue as a session resume command", () => {
     const usage = getCliUsage("session-continue");
     expect(usage).toContain("detoks session continue <session-id>");
-    expect(usage).toContain("by replaying its stored raw_input");
-    expect(usage).toContain("skips already completed task ids");
-    expect(usage).toContain("if the session is missing or has no stored raw_input");
+    expect(usage).toContain("저장된 raw_input을 다시 재생해 세션 실행을 이어갑니다");
+    expect(usage).toContain("세션에서 이미 완료된 task id는 건너뛰고, 대기/실패 작업만 다시 시도합니다");
+    expect(usage).toContain("세션이 없거나 저장된 raw_input이 없으면 왜 다시 시작하지 않았는지 stdout에 설명합니다");
     expect(usage).toContain("message");
     expect(usage).toContain("resumeStarted");
     expect(usage).toContain("taskRecords");
@@ -321,9 +341,9 @@ describe("parseCliArgs", () => {
   it("documents session fork as a minimal mutation command", () => {
     const usage = getCliUsage("session-fork");
     expect(usage).toContain("detoks session fork <source-session-id> <new-session-id>");
-    expect(usage).toContain("copies an existing saved session to a new session id");
-    expect(usage).toContain("prevents overwriting an existing new session id");
-    expect(usage).toContain("does not start resume execution or mutate task results");
+    expect(usage).toContain("기존 저장된 세션을 새 session id로 복사합니다");
+    expect(usage).toContain("원본 세션 존재 여부를 확인하고, 이미 존재하는 대상 session id는 덮어쓰지 않습니다");
+    expect(usage).toContain("다시 시작 실행을 하지 않으며 task 결과도 수정하지 않습니다");
     expect(usage).toContain("exit code 1");
     expect(usage).toContain("sourceSessionId");
     expect(usage).toContain("newSessionId");
@@ -332,8 +352,8 @@ describe("parseCliArgs", () => {
   it("documents session reset as a destructive session mutation command", () => {
     const usage = getCliUsage("session-reset");
     expect(usage).toContain("detoks session reset <session-id>");
-    expect(usage).toContain("deletes the session state and all its task results");
-    expect(usage).toContain("dangerous; cannot be undone");
+    expect(usage).toContain("세션 상태와 모든 task 결과를 삭제합니다");
+    expect(usage).toContain("위험합니다. 되돌릴 수 없습니다");
     expect(usage).toContain("mutatesState");
     expect(usage).toContain("exit code 1");
     expect(usage).toContain("reset=true");
@@ -342,8 +362,7 @@ describe("parseCliArgs", () => {
   it("documents checkpoint list as a read-only command", () => {
     const usage = getCliUsage("checkpoint-list");
     expect(usage).toContain("detoks checkpoint list <session-id>");
-    expect(usage).toContain("read-only");
-    expect(usage).toContain("does not restore or modify session state");
+    expect(usage).toContain("읽기 전용이며 세션 상태를 복원하거나 수정하지 않습니다");
     expect(usage).toContain("mutatesState=false");
     expect(usage).toContain("hasCheckpoints");
     expect(usage).toContain("checkpoints=[]");
@@ -352,8 +371,7 @@ describe("parseCliArgs", () => {
   it("documents checkpoint show as a read-only command", () => {
     const usage = getCliUsage("checkpoint-show");
     expect(usage).toContain("detoks checkpoint show <checkpoint-id>");
-    expect(usage).toContain("read-only");
-    expect(usage).toContain("does not restore or modify session state");
+    expect(usage).toContain("읽기 전용이며 세션 상태를 복원하거나 수정하지 않습니다");
     expect(usage).toContain("mutatesState=false");
     expect(usage).toContain("message");
     expect(usage).toContain("changedFiles");
@@ -363,8 +381,8 @@ describe("parseCliArgs", () => {
   it("documents checkpoint restore as a checkpoint mutation command", () => {
     const usage = getCliUsage("checkpoint-restore");
     expect(usage).toContain("detoks checkpoint restore <checkpoint-id>");
-    expect(usage).toContain("restores a session to the state captured at this checkpoint");
-    expect(usage).toContain("subsequent task results after this checkpoint will be truncated");
+    expect(usage).toContain("세션을 이 체크포인트 시점의 상태로 복원합니다");
+    expect(usage).toContain("이 체크포인트 이후의 task 결과는 잘려 나갑니다");
     expect(usage).toContain("mutatesState");
     expect(usage).toContain("exit code 1");
     expect(usage).toContain("restored=true");
@@ -372,32 +390,32 @@ describe("parseCliArgs", () => {
 
   it("adds actionable guidance to parse errors", () => {
     expect(() => parseCliArgs(["--execution-mode"])).toThrow(
-      /Run `detoks --help` for usage/,
+      /사용법은 `detoks --help`를 확인하세요/,
     );
-    expect(() => parseCliArgs(["--unknown"])).toThrow(/Run `detoks --help` for usage/);
+    expect(() => parseCliArgs(["--unknown"])).toThrow(/사용법은 `detoks --help`를 확인하세요/);
     expect(() => parseCliArgs(["hello detoks", "--file", "input.json"])).toThrow(
-      /Prompt input and --file cannot be used together/,
+      /프롬프트 입력과 --file은 함께 사용할 수 없습니다/,
     );
     expect(() => parseCliArgs(["session", "list", "extra"])).toThrow(
-      /does not accept arguments/,
+      /세션 목록은 인수를 받지 않습니다/,
     );
     expect(() => parseCliArgs(["session", "continue"])).toThrow(
-      /requires exactly one <session-id>/,
+      /세션 continue에는 <session-id> 하나만 필요합니다/,
     );
     expect(() => parseCliArgs(["session", "reset"])).toThrow(
-      /requires exactly one <session-id>/,
+      /세션 reset에는 <session-id> 하나만 필요합니다/,
     );
     expect(() => parseCliArgs(["session", "fork", "source_only"])).toThrow(
-      /requires exactly one <source-session-id> and one <new-session-id>/,
+      /세션 fork에는 <source-session-id> 하나와 <new-session-id> 하나가 필요합니다/,
     );
     expect(() => parseCliArgs(["checkpoint", "list"])).toThrow(
-      /requires exactly one <session-id>/,
+      /체크포인트 list에는 <session-id> 하나만 필요합니다/,
     );
     expect(() => parseCliArgs(["checkpoint", "show"])).toThrow(
-      /requires exactly one <checkpoint-id>/,
+      /체크포인트 show에는 <checkpoint-id> 하나만 필요합니다/,
     );
     expect(() => parseCliArgs(["checkpoint", "restore"])).toThrow(
-      /requires exactly one <checkpoint-id>/,
+      /체크포인트 restore에는 <checkpoint-id> 하나만 필요합니다/,
     );
   });
 });

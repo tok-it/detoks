@@ -1,4 +1,5 @@
 import { SessionStateManager } from "../../core/state/SessionStateManager.js";
+import { deriveLastWorkSummary } from "../session-summary.js";
 
 export interface SessionListOutput {
   ok: true;
@@ -14,12 +15,36 @@ export interface SessionListOutput {
     completedTaskCount: number;
     taskResultCount: number;
     nextAction: string | null;
+    lastWorkSummary?: string | null;
   }>;
 }
 
-export const runSessionListCommand = async (): Promise<SessionListOutput> => {
+export interface SessionListCommandOptions {
+  includeLastWorkSummary?: boolean;
+}
+
+const loadSessionLastWorkSummary = async (sessionId: string): Promise<string | null> => {
+  try {
+    const state = await SessionStateManager.loadSession(sessionId);
+    return deriveLastWorkSummary(state);
+  } catch {
+    return null;
+  }
+};
+
+export const runSessionListCommand = async (
+  options: SessionListCommandOptions = {},
+): Promise<SessionListOutput> => {
   const sessions = await SessionStateManager.listSessions();
   const sessionCount = sessions.length;
+  const includeLastWorkSummary = options.includeLastWorkSummary ?? false;
+  const lastWorkSummaryBySession = includeLastWorkSummary
+    ? new Map(
+        await Promise.all(
+          sessions.map(async (session) => [session.id, await loadSessionLastWorkSummary(session.id)] as const),
+        ),
+      )
+    : undefined;
 
   return {
     ok: true,
@@ -29,8 +54,8 @@ export const runSessionListCommand = async (): Promise<SessionListOutput> => {
     sessionCount,
     message:
       sessionCount === 0
-        ? "No sessions found."
-        : `${sessionCount} session(s) found.`,
+        ? "세션을 찾지 못했습니다."
+        : `세션 ${sessionCount}개를 찾았습니다.`,
     sessions: sessions.map((session) => ({
       id: session.id,
       updatedAt: session.updatedAt,
@@ -38,6 +63,9 @@ export const runSessionListCommand = async (): Promise<SessionListOutput> => {
       completedTaskCount: session.completedTaskCount,
       taskResultCount: session.taskResultCount,
       nextAction: session.nextAction,
+      ...(lastWorkSummaryBySession
+        ? { lastWorkSummary: lastWorkSummaryBySession.get(session.id) ?? null }
+        : {}),
     })),
   };
 };

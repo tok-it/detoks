@@ -10,11 +10,11 @@ describe("runCheckpointShowCommand", () => {
   it("returns checkpoint metadata without mutating session state", async () => {
     vi.spyOn(SessionStateManager, "loadCheckpoint").mockResolvedValue({
       id: "session_full_checkpoint_001",
-      title: "After parse UX",
+      title: "파싱 UX 이후",
       task_id: "task_001",
-      summary: "Checkpoint summary",
+      summary: "체크포인트 요약",
       changed_files: ["src/cli/parse.ts"],
-      next_action: "Run parse tests",
+      next_action: "파싱 테스트를 실행하세요",
       created_at: "2026-04-27T00:00:00.000Z",
     });
 
@@ -24,14 +24,14 @@ describe("runCheckpointShowCommand", () => {
       ok: true,
       mode: "checkpoint-show",
       mutatesState: false,
-      message: "Checkpoint session_full_checkpoint_001 loaded.",
+      message: "체크포인트 session_full_checkpoint_001를 불러왔습니다.",
       checkpoint: {
         id: "session_full_checkpoint_001",
-        title: "After parse UX",
+        title: "파싱 UX 이후",
         taskId: "task_001",
         createdAt: "2026-04-27T00:00:00.000Z",
         changedFiles: ["src/cli/parse.ts"],
-        nextAction: "Run parse tests",
+        nextAction: "파싱 테스트를 실행하세요",
       },
     });
     expect(result).not.toHaveProperty("promptLanguage");

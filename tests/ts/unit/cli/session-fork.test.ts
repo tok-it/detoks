@@ -17,7 +17,7 @@ describe("runSessionForkCommand", () => {
       newSessionId: "new_session",
       forked: false,
       mutatesState: false,
-      message: "Source session missing was not found. No fork was created.",
+      message: "원본 세션 missing를 찾지 못했습니다. 포크를 만들지 않았습니다.",
       nextAction: null,
     });
   });
@@ -34,7 +34,7 @@ describe("runSessionForkCommand", () => {
       newSessionId: "existing",
       forked: false,
       mutatesState: false,
-      message: "Session existing already exists. No fork was created.",
+      message: "세션 existing가 이미 존재합니다. 포크를 만들지 않았습니다.",
       nextAction: null,
     });
   });
@@ -48,7 +48,7 @@ describe("runSessionForkCommand", () => {
       task_results: {},
       current_task_id: "task_001",
       completed_task_ids: [],
-      next_action: "Review fork",
+      next_action: "포크를 검토하세요",
       updated_at: "2026-04-27T00:00:00.000Z",
     });
 
@@ -59,8 +59,8 @@ describe("runSessionForkCommand", () => {
       newSessionId: "forked",
       forked: true,
       mutatesState: true,
-      message: "Session source was forked to forked.",
-      nextAction: "Review fork",
+      message: "세션 source를 forked로 포크했습니다.",
+      nextAction: "포크를 검토하세요",
     });
   });
 });

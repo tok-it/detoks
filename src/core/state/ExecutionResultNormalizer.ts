@@ -31,7 +31,9 @@ export class ExecutionResultNormalizer {
           normalized.summary = firstLine.length > 100 ? firstLine.substring(0, 97) + '...' : firstLine;
         } else {
           // raw_output가 없으면 상태 기반 기본 요약 제공
-          normalized.summary = normalized.success ? 'Task completed successfully' : 'Task execution failed';
+          normalized.summary = normalized.success
+            ? '작업이 성공적으로 완료되었습니다'
+            : '작업 실행에 실패했습니다';
         }
       }
 
@@ -39,7 +41,7 @@ export class ExecutionResultNormalizer {
       if (!normalized.success) {
         normalized.error = {
           code: `EXIT_${rawAdapterResult.exitCode || 'UNKNOWN'}`,
-          message: rawAdapterResult.stderr || rawAdapterResult.message || 'Unknown execution error'
+          message: rawAdapterResult.stderr || rawAdapterResult.message || '알 수 없는 실행 오류'
         };
       }
 

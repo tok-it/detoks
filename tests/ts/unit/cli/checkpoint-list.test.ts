@@ -19,7 +19,7 @@ describe("runCheckpointListCommand", () => {
       mutatesState: false,
       hasCheckpoints: false,
       checkpointCount: 0,
-      message: "No checkpoints found for session session_empty.",
+      message: "세션 session_empty에서 체크포인트를 찾지 못했습니다.",
       checkpoints: [],
     });
     expect(result).not.toHaveProperty("promptLanguage");
@@ -32,11 +32,11 @@ describe("runCheckpointListCommand", () => {
     vi.spyOn(SessionStateManager, "listCheckpoints").mockResolvedValue([
       {
         id: "session_full_checkpoint_001",
-        title: "After parse UX",
+        title: "파싱 UX 이후",
         task_id: "task_001",
-        summary: "Checkpoint summary",
+        summary: "체크포인트 요약",
         changed_files: ["src/cli/parse.ts"],
-        next_action: "Run parse tests",
+        next_action: "파싱 테스트를 실행하세요",
         created_at: "2026-04-27T00:00:00.000Z",
       },
     ]);
@@ -50,18 +50,18 @@ describe("runCheckpointListCommand", () => {
       mutatesState: false,
       hasCheckpoints: true,
       checkpointCount: 1,
-      message: "1 checkpoint(s) found for session session_full.",
+      message: "세션 session_full에서 체크포인트 1개를 찾았습니다.",
       checkpoints: [
-        {
-          id: "session_full_checkpoint_001",
-          title: "After parse UX",
-          taskId: "task_001",
-          createdAt: "2026-04-27T00:00:00.000Z",
-          changedFiles: ["src/cli/parse.ts"],
-          nextAction: "Run parse tests",
-        },
-      ],
-    });
+          {
+            id: "session_full_checkpoint_001",
+            title: "파싱 UX 이후",
+            taskId: "task_001",
+            createdAt: "2026-04-27T00:00:00.000Z",
+            changedFiles: ["src/cli/parse.ts"],
+            nextAction: "파싱 테스트를 실행하세요",
+          },
+        ],
+      });
     expect(result).not.toHaveProperty("promptLanguage");
     expect(result).not.toHaveProperty("promptInferenceTimeSec");
     expect(result).not.toHaveProperty("promptValidationErrors");

@@ -4,6 +4,7 @@ import { formatError, formatSuccess } from "../format.js";
 import { toNormalizedRequest } from "../parse.js";
 import type { CliArgs } from "../types.js";
 import { runCommand } from "./run.js";
+import { colors } from "../colors.js";
 
 const EXIT_COMMANDS = new Set(["exit", "quit", ".exit"]);
 
@@ -11,13 +12,21 @@ export const runReplCommand = async (baseArgs: CliArgs): Promise<void> => {
   const rl = createInterface({ input, output });
   const sessionId = `repl-${Date.now()}`;
 
-  output.write(
-    `detoks repl started (adapter=${baseArgs.adapter}, executionMode=${baseArgs.executionMode}, verbose=${String(baseArgs.verbose)}). stub = simulated output; real = adapter's real execution path. type "exit" to quit.\n`,
-  );
+  const startMessage = [
+    colors.title("detoks repl 시작"),
+    `  adapter=${colors.info(baseArgs.adapter)}`,
+    `  executionMode=${colors.info(baseArgs.executionMode)}`,
+    `  verbose=${colors.info(String(baseArgs.verbose))}`,
+    "",
+    `${colors.muted("stub")} = 모의 출력; ${colors.muted("real")} = 어댑터의 실제 실행 경로`,
+    `종료하려면 ${colors.warning('"exit"')}를 입력하세요.\n`,
+  ].join("\n");
+
+  output.write(startMessage);
 
   try {
     while (true) {
-      const line = (await rl.question("detoks> ")).trim();
+      const line = (await rl.question(colors.prompt("detoks> "))).trim();
       if (!line) {
         continue;
       }
@@ -38,6 +47,6 @@ export const runReplCommand = async (baseArgs: CliArgs): Promise<void> => {
     }
   } finally {
     rl.close();
-    output.write("detoks repl closed.\n");
+    output.write(`\n${colors.info("detoks repl 종료.")}\n`);
   }
 };

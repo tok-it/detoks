@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { formatBatchSuccess, formatError, formatFailedResult, formatSuccess } from "./format.js";
+import { formatBatchSuccess, formatError, formatFailedResult, formatSessionListHuman, formatSuccess } from "./format.js";
 import { getCliUsage, parseCliArgs, toNormalizedRequest } from "./parse.js";
 import { runCheckpointListCommand } from "./commands/checkpoint-list.js";
 import { runCheckpointShowCommand } from "./commands/checkpoint-show.js";
@@ -12,6 +12,7 @@ import { runSessionResetCommand } from "./commands/session-reset.js";
 import { runSessionForkCommand } from "./commands/session-fork.js";
 import { runCheckpointRestoreCommand } from "./commands/checkpoint-restore.js";
 import { startRepl } from "./repl/index.js";
+import { colors } from "./colors.js";
 
 const runOneShotCommand = async (
   request: ReturnType<typeof toNormalizedRequest>,
@@ -33,7 +34,13 @@ const runOneShotCommand = async (
 };
 
 const main = async (): Promise<void> => {
-  const args = parseCliArgs(process.argv.slice(2));
+  const argv = process.argv.slice(2);
+
+  if (argv.length === 0) {
+    argv.push("repl");
+  }
+
+  const args = parseCliArgs(argv);
 
   if (args.showHelp) {
     console.log(getCliUsage(args.helpTopic ?? "main"));
@@ -46,8 +53,10 @@ const main = async (): Promise<void> => {
   }
 
   if (args.command === "session-list") {
-    const result = await runSessionListCommand();
-    console.log(JSON.stringify(result, null, 2));
+    const result = await runSessionListCommand(
+      args.human ? { includeLastWorkSummary: true } : undefined,
+    );
+    console.log(args.human ? formatSessionListHuman(result) : JSON.stringify(result, null, 2));
     return;
   }
 
@@ -112,16 +121,16 @@ const main = async (): Promise<void> => {
   const request = toNormalizedRequest(args);
   const result = await runOneShotCommand(request);
   if (!result.ok) {
-    console.error(formatFailedResult(result, args.verbose));
+    console.error(`${colors.cross} ${colors.error("실패")}\n${formatFailedResult(result, args.verbose)}`);
     process.exitCode = 1;
     return;
   }
 
-  console.log(formatSuccess(result, args.verbose));
+  console.log(`${colors.checkmark} ${colors.success("성공")}\n${formatSuccess(result, args.verbose)}`);
 };
 
 main().catch((error) => {
   const verbose = process.argv.includes("--verbose");
-  console.error(formatError(error, verbose));
+  console.error(`${colors.cross} ${colors.error("에러")}\n${formatError(error, verbose)}`);
   process.exitCode = 1;
 });

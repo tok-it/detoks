@@ -39,7 +39,7 @@ describe("orchestratePipeline", () => {
     expect(result.ok).toBe(true);
     expect(result.mode).toBe("run");
     expect(result.adapter).toBe("codex");
-    expect(result.summary).toBe("All 1 task(s) completed");
+    expect(result.summary).toBe("1개 작업을 모두 완료했습니다");
     expect(result.stages).toHaveLength(5);
     expect(result.stages[0]!.status).toBe("completed");
     expect(result.sessionId).toBeTypeOf("string");
@@ -96,7 +96,7 @@ describe("orchestratePipeline", () => {
 
     expect(result.ok).toBe(false);
     expect(result.summary).toBe(
-      "Prompt compilation failed: LLM client requires LOCAL_LLM_API_BASE",
+      "프롬프트 컴파일 실패: LLM client requires LOCAL_LLM_API_BASE",
     );
     expect(result.nextAction).toContain("LOCAL_LLM_API_BASE");
     expect(result.taskRecords).toEqual([]);
@@ -186,8 +186,8 @@ describe("orchestratePipeline", () => {
     });
     expect(result).toMatchObject({
       ok: true,
-      summary: "All 1 task(s) completed",
-      nextAction: "Pipeline complete",
+      summary: "1개 작업을 모두 완료했습니다",
+      nextAction: "파이프라인이 완료되었습니다.",
       promptLanguage: "ko",
       promptValidationErrors: [],
       promptRepairActions: [],
