@@ -177,6 +177,7 @@ CLI Input
 
 - 기본 출력: concise JSON
 - `--verbose`: full success JSON + error stack
+- token reduction metrics(`tokenMetrics`)가 있을 때 concise 출력에도 포함
 - smoke / unit test로 고정됨
 - one-shot `ok: false` 결과는 stdout 성공 포맷이 아니라 stderr 에러 포맷과 exit code 1로 처리됨
 
@@ -250,6 +251,7 @@ CLI Input
 - 세션 저장은 됨
 - `detoks session list --human`으로 세션 목록을 사람용 출력으로 확인 가능
 - 세션별 마지막 작업 요약(last work summary) 표시 가능
+- 세션별 입력/출력 토큰 절감 요약(tokenMetrics) 표시 가능
 
 남은 것:
 - continue / reset / fork
@@ -262,6 +264,7 @@ CLI Input
 
 - `detoks` no-arg REPL 진입 추가
 - `detoks session list --human` 추가 및 last work summary 표시
+- `detoks session list --human` 추가 및 last work summary / token reduction 표시
 - `execution-mode` help 보강
 - `verbose` 출력 정책 정리
 - one-shot smoke test 추가

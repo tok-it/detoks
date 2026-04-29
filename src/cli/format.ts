@@ -23,6 +23,7 @@ function toPromptMetadata(result: CliExecutionResult) {
     ...(result.promptRepairActions
       ? { promptRepairActions: result.promptRepairActions }
       : {}),
+    ...(result.tokenMetrics ? { tokenMetrics: result.tokenMetrics } : {}),
   };
 }
 
@@ -92,6 +93,7 @@ export const formatFailedResult = (
         error: result.summary,
         stages: result.stages,
         ...(result.rawOutput ? { rawOutput: result.rawOutput } : {}),
+        ...(result.tokenMetrics ? { tokenMetrics: result.tokenMetrics } : {}),
       },
       null,
       2,

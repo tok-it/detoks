@@ -52,6 +52,8 @@ describe("orchestratePipeline", () => {
     expect(result.promptInferenceTimeSec).toBe(0);
     expect(result.promptValidationErrors).toEqual([]);
     expect(result.promptRepairActions).toEqual([]);
+    expect(result.tokenMetrics).not.toBeNull();
+    expect(result.tokenMetrics?.model).toBe("o200k_base");
   });
 
   it("passes execution mode through to the executor boundary", async () => {
@@ -267,10 +269,11 @@ describe("orchestratePipeline", () => {
         raw_input: "새 파일을 생성해",
       },
       env: {
-        LM_STUDIO_URL: "http://127.0.0.1:1234/v1",
+        LOCAL_LLM_API_BASE: "http://127.0.0.1:1234/v1",
         LOCAL_LLM_API_KEY: "test-key",
         LOCAL_LLM_MODEL_NAME: "local-model",
         TRANSLATION_MAX_ATTEMPTS: "1",
+        TEMPERATURE: "0",
       },
       fetchImplementation,
     });
@@ -280,10 +283,17 @@ describe("orchestratePipeline", () => {
       [string | URL | Request, RequestInit?]
     >;
     expect(fetchCalls[0]?.[0]).toBe("http://127.0.0.1:1234/v1/chat/completions");
-    expect(fetchCalls[0]?.[1]?.headers).toMatchObject({
-      authorization: "Bearer test-key",
-      "content-type": "application/json",
-    });
+    const headers = fetchCalls[0]?.[1]?.headers;
+    const authorization =
+      headers && typeof (headers as Headers).get === "function"
+        ? (headers as Headers).get("authorization")
+        : (headers as Record<string, string> | undefined)?.authorization;
+    const contentType =
+      headers && typeof (headers as Headers).get === "function"
+        ? (headers as Headers).get("content-type")
+        : (headers as Record<string, string> | undefined)?.["content-type"];
+    expect(authorization).toBe("Bearer test-key");
+    expect(contentType).toBe("application/json");
     expect(JSON.parse(String(fetchCalls[0]?.[1]?.body))).toMatchObject({
       model: "local-model",
       temperature: expect.any(Number),

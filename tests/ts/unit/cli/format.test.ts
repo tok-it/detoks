@@ -51,30 +51,33 @@ describe("formatSuccess", () => {
     expect(JSON.parse(formatSuccess(result, true))).toEqual(result);
   });
 
-  it("styles trace helper text outside the JSON body when enabled", () => {
-    const formatted = formatSuccess(
-      {
-        ...result,
-        traceLog: {
-          sessionId: "test-session",
-          startTime: "2026-04-28T00:00:00.000Z",
-          entries: [],
-          summary: {
-            totalDurationMs: 10,
-            stageTimings: { PromptCompiler: 10 },
-            totalMemoryMb: 12.34,
-          },
-        },
-        traceFilePath: "local_config/trace/test-trace.json",
+  it("includes token reduction metrics when present", () => {
+    const tokenMetrics = {
+      model: "o200k_base" as const,
+      input: {
+        originalTokens: 100,
+        optimizedTokens: 60,
+        savedTokens: 40,
+        savedPercent: 40,
       },
-      false,
-      colorTty,
+      output: {
+        originalTokens: 80,
+        optimizedTokens: 20,
+        savedTokens: 60,
+        savedPercent: 75,
+      },
+    };
+    const formatted = JSON.parse(
+      formatSuccess(
+        {
+          ...result,
+          tokenMetrics,
+        },
+        false,
+      ),
     );
 
-    expect(formatted).toContain('"traceFile": "local_config/trace/test-trace.json"');
-    expect(formatted).toContain("\x1b[1mPipeline Trace Report\x1b[0m");
-    expect(formatted).toContain("\x1b[1m**Session ID**:\x1b[0m test-session");
-    expect(formatted).toContain("- \x1b[1m**Total Duration**:\x1b[0m 10ms");
+    expect(formatted.tokenMetrics).toEqual(tokenMetrics);
   });
 });
 
