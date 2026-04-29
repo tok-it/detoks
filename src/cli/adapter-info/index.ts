@@ -1,6 +1,7 @@
 import {
   getCodexLoginStatus,
   getCodexAvailableModels,
+  codexLogout,
   type CodexModel,
   type CodexLoginStatus,
 } from "./codex.js";
@@ -8,6 +9,7 @@ import {
   getGeminiLoginStatus,
   getGeminiAvailableModels,
   getGeminiConfig,
+  geminiLogout,
   GEMINI_MODELS,
   type GeminiLoginStatus,
 } from "./gemini.js";
@@ -57,5 +59,5 @@ export const getAdapterModels = (
   }
 };
 
-export { getCodexLoginStatus, getCodexAvailableModels };
-export { getGeminiLoginStatus, getGeminiAvailableModels, getGeminiConfig };
+export { getCodexLoginStatus, getCodexAvailableModels, codexLogout };
+export { getGeminiLoginStatus, getGeminiAvailableModels, getGeminiConfig, geminiLogout };

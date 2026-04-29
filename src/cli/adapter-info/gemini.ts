@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, existsSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
 
@@ -52,4 +52,16 @@ export const getGeminiLoginStatus = (): GeminiLoginStatus => {
 
 export const getGeminiAvailableModels = () => {
   return GEMINI_MODELS;
+};
+
+export const geminiLogout = (): boolean => {
+  try {
+    const configPath = join(homedir(), ".gemini", "oauth_creds.json");
+    if (existsSync(configPath)) {
+      unlinkSync(configPath);
+    }
+    return true;
+  } catch {
+    return false;
+  }
 };

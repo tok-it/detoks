@@ -40,3 +40,12 @@ export const getCodexAvailableModels = (): CodexModel[] => {
     return [];
   }
 };
+
+export const codexLogout = (): boolean => {
+  try {
+    execSync("codex logout 2>&1", { encoding: "utf-8" });
+    return true;
+  } catch {
+    return false;
+  }
+};

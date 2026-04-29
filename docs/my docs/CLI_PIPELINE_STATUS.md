@@ -80,9 +80,14 @@ CLI Input
 - `exit`, `quit`, `.exit`
 - 시작 안내에 adapter / executionMode / verbose 표시
 - REPL 시작/종료 smoke test 추가 완료
+- Slash commands: `/help`, `/clear`, `/model`, `/adapter`, `/mode`, `/verbose`, `/exit`
+- Adapter info queries: `/llm-model` (인증상태), `/llm-models` (사용 가능 모델)
 
 관련 파일:
 - `src/cli/commands/repl.ts`
+- `src/cli/repl-commands/index.ts`
+- `src/cli/adapter-info/codex.ts` (codex 쿼리)
+- `src/cli/adapter-info/gemini.ts` (gemini 설정 읽기)
 - `tests/ts/integration/cli-smoke.test.ts`
 
 ---
@@ -273,6 +278,11 @@ CLI Input
 - main help / repl help 예시 문구 보강
 - CLI smoke JSON parse를 깨는 info 로그 문제 해결
 - one-shot real non-zero 실행 결과를 stderr 에러 포맷 + exit code 1 smoke로 고정
+- REPL slash command system 구현 (`/help`, `/clear`, `/model`, `/adapter`, `/mode`, `/verbose`, `/exit`)
+- 번역 모델 선택/다운로드 UI 구현 (로컬 LLM 모델 설정)
+- Adapter 인증 상태 및 모델 발견 명령 추가 (`/llm-model`, `/llm-models`)
+- Codex CLI 쿼리 함수 구현 (`codex login status`, `codex debug models`)
+- Gemini 설정 파일 읽기 함수 구현 (`~/.gemini/settings.json`)
 
 ---
 

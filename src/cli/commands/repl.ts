@@ -9,6 +9,8 @@ import type { CliArgs } from "../types.js";
 import type { PipelineProgressEvent } from "../../core/pipeline/types.js";
 import { runCommand } from "./run.js";
 import { colors } from "../colors.js";
+import { runModelSetupIfNeeded } from "../model-setup/index.js";
+import { showHelpMessage, handleSlashCommand } from "../repl-commands/index.js";
 
 const EXIT_COMMANDS = new Set(["exit", "quit", ".exit", "/exit", "/quit"]);
 const HELP_COMMANDS = new Set(["/help"]);
@@ -34,20 +36,24 @@ const formatProgressEvent = (event: PipelineProgressEvent): string => {
 };
 
 export const runReplCommand = async (baseArgs: CliArgs): Promise<void> => {
+  await runModelSetupIfNeeded();
+
   const rl = createInterface({ input, output });
   const sessionId = `repl-${Date.now()}`;
+  let verbose = baseArgs.verbose;
 
   const startMessage = [
     colors.title("detoks repl 시작"),
     `  adapter=${colors.info(baseArgs.adapter)}`,
     `  executionMode=${colors.info(baseArgs.executionMode)}`,
-    `  verbose=${colors.info(String(baseArgs.verbose))}`,
+    `  verbose=${colors.info(String(verbose))}`,
     "",
     `${colors.muted("stub")} = 모의 출력; ${colors.muted("real")} = 어댑터의 실제 실행 경로`,
-    `종료하려면 ${colors.warning('"exit"')}를 입력하세요.\n`,
+    colors.info(`명령어 목록을 보려면 ${colors.boldText('"/help"')}를 입력하세요.\n`),
   ].join("\n");
 
   output.write(startMessage);
+  showHelpMessage(baseArgs.adapter as "codex" | "gemini");
 
   try {
     while (true) {
@@ -154,6 +160,34 @@ export const runReplCommand = async (baseArgs: CliArgs): Promise<void> => {
         continue;
       }
 
+      // Slash 명령 처리
+      if (line.startsWith("/")) {
+        const handled = await handleSlashCommand(line, {
+          adapter: baseArgs.adapter,
+          executionMode: baseArgs.executionMode,
+          modelName: process.env.LOCAL_LLM_MODEL_NAME,
+          verbose,
+          onVerboseToggle: (enabled) => {
+            verbose = enabled;
+          },
+          onExit: async () => {
+            rl.close();
+          },
+          rl,
+        });
+
+        if (handled) {
+          continue;
+        } else {
+          output.write(
+            colors.warning(
+              `\n알 수 없는 명령어: ${line}\n도움말을 보려면 "/help"를 입력하세요.\n\n`,
+            ),
+          );
+          continue;
+        }
+      }
+
       try {
         const onProgress = async (event: PipelineProgressEvent): Promise<void> => {
           output.write(`${formatProgressEvent(event)}\n`);
@@ -163,20 +197,9 @@ export const runReplCommand = async (baseArgs: CliArgs): Promise<void> => {
           { mode: "repl", sessionId },
         );
         const result = await runCommand({ ...request, onProgress });
-        output.write(`${formatSuccess(result, baseArgs.verbose)}\n`);
+        output.write(`${formatSuccess(result, verbose)}\n`);
       } catch (error) {
-        inlineSlashMenuVisible = false;
-        clearInlineSlashMenu();
-        if (shouldEmitReplSourceBadge(replState, lastSourceBadgeKey)) {
-          output.write(
-            `${terminal.adapterBadge(replState.adapter, {
-              ...(replState.model !== undefined ? { model: replState.model } : {}),
-              executionMode: replState.executionMode,
-          })}\n`,
-          );
-          lastSourceBadgeKey = getReplSourceBadgeKey(replState);
-        }
-        output.write(`${formatError(error, baseArgs.verbose)}\n`);
+        output.write(`${formatError(error, verbose)}\n`);
       }
       inlineSlashMenuVisible = false;
       refreshReadlineLine(rl as unknown as { _refreshLine?: () => void });
