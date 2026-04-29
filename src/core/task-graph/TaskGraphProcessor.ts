@@ -172,15 +172,19 @@ export class TaskGraphProcessor {
    *
    * document는 보통 마지막 단계이므로 어떤 type도 뒤따르지 않음 → 빈 배열
    */
+  // All type→type transitions are valid. A user prompt lists tasks in intended
+  // execution order, so every task should depend on its predecessor.
+  // Omitting any transition caused isolated nodes (depends_on: []) for non-first
+  // tasks, which incorrectly parallelised them.
   private static readonly FLOWS_TO: Partial<Record<RequestCategory, RequestCategory[]>> = {
-    explore:  ["explore", "analyze", "modify", "create", "validate", "plan", "document"],
-    plan:     ["explore", "create", "execute", "document"],
-    analyze:  ["explore", "analyze", "modify", "validate", "document", "create", "plan"],
-    create:   ["validate", "modify", "document", "execute"],
-    modify:   ["analyze", "validate", "document", "execute"],
-    validate: ["explore", "analyze", "document", "execute", "modify"],
-    execute:  ["explore", "analyze", "validate", "document", "plan", "create"],
-    document: ["analyze", "modify", "validate", "execute", "create", "plan"],
+    explore:  ["explore", "analyze", "modify", "create", "validate", "plan", "document", "execute"],
+    plan:     ["explore", "analyze", "create", "execute", "document", "modify", "validate", "plan"],
+    analyze:  ["explore", "analyze", "modify", "validate", "document", "create", "plan", "execute"],
+    create:   ["validate", "modify", "document", "execute", "explore", "analyze", "create", "plan"],
+    modify:   ["analyze", "validate", "document", "execute", "explore", "modify", "create", "plan"],
+    validate: ["explore", "analyze", "document", "execute", "modify", "validate", "create", "plan"],
+    execute:  ["explore", "analyze", "validate", "document", "plan", "create", "execute", "modify"],
+    document: ["analyze", "modify", "validate", "execute", "create", "plan", "explore", "document"],
   };
 
   /**
