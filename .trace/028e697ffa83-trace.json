@@ -1,0 +1,115 @@
+{
+  "sessionId": "028e697ffa83",
+  "startTime": "2026-04-27T02:40:28.793Z",
+  "entries": [
+    {
+      "timestamp": "2026-04-27T02:40:28.788Z",
+      "stage": "PromptCompiler",
+      "phase": "input",
+      "role": "role1",
+      "dataType": "UserRequest",
+      "data": {
+        "raw_input": "First check the src/utils.ts file, remove any duplicate functions. Then add test code and organize the changes with a commit message."
+      },
+      "schemaValid": true,
+      "memoryMb": 13.667373657226562,
+      "estimatedTokens": 31
+    },
+    {
+      "timestamp": "2026-04-27T02:40:28.789Z",
+      "stage": "PromptCompiler",
+      "phase": "output",
+      "role": "role1",
+      "dataType": "CompiledPrompt",
+      "data": {
+        "raw_input": "First check the src/utils.ts file, remove any duplicate functions. Then add test code and organize the changes with a commit message.",
+        "normalized_input": "First check the src/utils.ts file, remove any duplicate functions. Then add test code and organize the changes with a commit message.",
+        "compressed_prompt": "First check the src/utils.ts file, remove any duplicate functions. Then add test code and organize the changes with a commit message.",
+        "language": "en",
+        "compression_provider": "nlp_adapter",
+        "inference_time_sec": 0
+      },
+      "schemaValid": true,
+      "durationMs": 1,
+      "memoryMb": 13.757591247558594,
+      "estimatedTokens": 106
+    },
+    {
+      "timestamp": "2026-04-27T02:40:28.789Z",
+      "stage": "TaskGraphBuilder",
+      "phase": "input",
+      "role": "role2.1",
+      "dataType": "Role2PromptInput",
+      "data": {
+        "compiled_prompt": "First check the src/utils.ts file, remove any duplicate functions. Then add test code and organize the changes with a commit message."
+      },
+      "schemaValid": true,
+      "memoryMb": 13.759452819824219,
+      "estimatedTokens": 31
+    },
+    {
+      "timestamp": "2026-04-27T02:40:28.793Z",
+      "stage": "TaskGraphBuilder",
+      "phase": "output",
+      "role": "role2.1",
+      "dataType": "TaskGraph",
+      "data": {
+        "tasks": [
+          {
+            "id": "t1",
+            "type": "execute",
+            "status": "pending",
+            "title": "First check the src/utils.ts file",
+            "input_hash": "a3ec0fccddf9a9da",
+            "depends_on": []
+          },
+          {
+            "id": "t2",
+            "type": "modify",
+            "status": "pending",
+            "title": "remove any duplicate functions.",
+            "input_hash": "936b071a7859f071",
+            "depends_on": []
+          },
+          {
+            "id": "t3",
+            "type": "validate",
+            "status": "pending",
+            "title": "Then add test code and organize the changes with a commit message.",
+            "input_hash": "b31ce8d30fd3c5d4",
+            "depends_on": [
+              "t2"
+            ]
+          }
+        ]
+      },
+      "schemaValid": true,
+      "durationMs": 3,
+      "memoryMb": 14.048393249511719,
+      "estimatedTokens": 133
+    },
+    {
+      "timestamp": "2026-04-27T02:40:28.793Z",
+      "stage": "DAGValidator",
+      "phase": "output",
+      "role": "role2.1",
+      "dataType": "DAGValidationResult",
+      "data": {
+        "valid": false,
+        "reason": "DISCONNECTED_NODE",
+        "detail": "Task \"t1\" has no dependencies and no dependents — isolated from the graph"
+      },
+      "schemaValid": true,
+      "memoryMb": 14.055511474609375,
+      "estimatedTokens": 32
+    }
+  ],
+  "summary": {
+    "totalDurationMs": 4,
+    "stageTimings": {
+      "PromptCompiler": 1,
+      "TaskGraphBuilder": 3
+    },
+    "totalMemoryMb": 14.055511474609375
+  }
+}
