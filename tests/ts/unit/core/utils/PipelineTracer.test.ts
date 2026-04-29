@@ -84,7 +84,7 @@ describe("PipelineTracer", () => {
     expect(log.summary!.stageTimings["TaskGraphBuilder"]).toBeGreaterThanOrEqual(0);
   });
 
-  it("formatAsMarkdown이 각 단계를 포함한다", async () => {
+  it("formatAsMarkdown이 한국어 제목과 각 단계를 포함한다", async () => {
     const sessionId = "test-session-003";
 
     await PipelineTracer.trace({
@@ -107,7 +107,7 @@ describe("PipelineTracer", () => {
     const log = PipelineTracer.getTrace(sessionId);
     const md = PipelineTracer.formatAsMarkdown(log);
 
-    expect(md).toContain("Pipeline Trace Report");
+    expect(md).toContain("파이프라인 추적 보고서");
     expect(md).toContain("PromptCompiler");
     expect(md).toContain("TaskGraphBuilder");
     expect(md).toContain("role1");
@@ -128,7 +128,7 @@ describe("PipelineTracer", () => {
     expect(log.entries).toHaveLength(0);
   });
 
-  it("DETOKS_TRACE=1이면 styled trace stderr를 출력한다", async () => {
+  it("DETOKS_TRACE=1이면 한국어 trace stderr를 출력한다", async () => {
     process.env.DETOKS_TRACE = "1";
     process.env.FORCE_COLOR = "1";
     delete process.env.NO_COLOR;
@@ -143,7 +143,6 @@ describe("PipelineTracer", () => {
       data: { raw_input: "hello" },
     });
 
-    expect(String(errorSpy.mock.calls[0]?.[0])).toContain("\x1b[1m\x1b[36m[TRACE]\x1b[0m");
-    expect(String(errorSpy.mock.calls[0]?.[0])).toContain("PromptCompiler (role1) input: UserRequest");
+    expect(String(errorSpy.mock.calls[0]?.[0])).toContain("[추적] PromptCompiler (role1) 입력: UserRequest");
   });
 });
