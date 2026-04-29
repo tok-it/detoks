@@ -206,6 +206,8 @@ const CLI_USAGE_REPL = [
   "REPL 안내:",
   "  - 프롬프트를 입력하고 Enter를 눌러 실행합니다",
   "  - 프롬프트에 현재 소스가 detoks[<어댑터>[:<모델>]] 형태로 표시됩니다",
+  "  - / 입력 시 REPL 명령어 목록 UI를 표시합니다",
+  "  - --adapter를 지정하지 않으면 시작 시 어댑터 선택 UI를 표시합니다",
   "  - 프로젝트에 저장된 REPL 세션이 있으면 시작 시 화살표 키 선택기로 재개하거나 새로 시작할 수 있습니다",
   "  - /help 입력 시 REPL 내부 도움말 표시",
   "  - /login 입력 시 화살표 키 어댑터 선택기와 로그인 흐름 시작",
@@ -259,7 +261,7 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
   }
 
   const positionals: string[] = [];
-  let adapter: CliArgs["adapter"] = DEFAULT_ADAPTER;
+  let adapter: CliArgs["adapter"] | undefined;
   let executionMode: CliArgs["executionMode"] = DEFAULT_EXECUTION_MODE;
   let sessionId: string | undefined;
   let inputFile: string | undefined;
@@ -304,7 +306,7 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
               : "main";
       return {
         mode: "run",
-        adapter,
+        adapter: adapter ?? DEFAULT_ADAPTER,
         executionMode,
         verbose,
         trace,
@@ -444,7 +446,7 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
       return {
         mode: "run",
         command: "session-list",
-        adapter,
+        adapter: adapter ?? DEFAULT_ADAPTER,
         executionMode,
         verbose,
         trace,
@@ -462,7 +464,7 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
         mode: "run",
         command: "session-continue",
         sessionId: sessionIdFromPos,
-        adapter,
+        adapter: adapter ?? DEFAULT_ADAPTER,
         executionMode,
         verbose,
         trace,
@@ -480,7 +482,7 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
         mode: "run",
         command: "session-reset",
         sessionId: sessionIdToReset,
-        adapter,
+        adapter: adapter ?? DEFAULT_ADAPTER,
         executionMode,
         verbose,
         trace,
@@ -500,7 +502,7 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
         command: "session-fork",
         sessionId: sourceSessionId,
         newSessionId,
-        adapter,
+        adapter: adapter ?? DEFAULT_ADAPTER,
         executionMode,
         verbose,
         trace,
@@ -526,7 +528,7 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
         mode: "run",
         command: "checkpoint-list",
         sessionId,
-        adapter,
+        adapter: adapter ?? DEFAULT_ADAPTER,
         executionMode,
         verbose,
         trace,
@@ -544,7 +546,7 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
         mode: "run",
         command: "checkpoint-show",
         checkpointId,
-        adapter,
+        adapter: adapter ?? DEFAULT_ADAPTER,
         executionMode,
         verbose,
         trace,
@@ -562,7 +564,7 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
         mode: "run",
         command: "checkpoint-restore",
         checkpointId,
-        adapter,
+        adapter: adapter ?? DEFAULT_ADAPTER,
         executionMode,
         verbose,
         trace,
@@ -585,7 +587,7 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
     }
     return {
       mode: "repl",
-      adapter,
+      ...(adapter !== undefined ? { adapter } : {}),
       ...(model !== undefined ? { model } : {}),
       executionMode,
       verbose,
@@ -602,7 +604,7 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
     return {
       mode: "run",
       inputFile,
-      adapter,
+      adapter: adapter ?? DEFAULT_ADAPTER,
       ...(model !== undefined ? { model } : {}),
       executionMode,
       verbose,
@@ -617,7 +619,7 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
     mode: "run",
     prompt,
     ...(sessionId !== undefined ? { sessionId } : {}),
-    adapter,
+    adapter: adapter ?? DEFAULT_ADAPTER,
     ...(model !== undefined ? { model } : {}),
     executionMode,
     verbose,
@@ -677,7 +679,7 @@ export const toNormalizedRequest = (
 
   return {
     mode,
-    adapter: args.adapter,
+    adapter: args.adapter ?? DEFAULT_ADAPTER,
     ...(args.model !== undefined ? { model: args.model } : {}),
     executionMode: args.executionMode,
     verbose: args.verbose,
