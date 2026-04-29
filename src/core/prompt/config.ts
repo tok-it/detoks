@@ -19,6 +19,7 @@ const DEFAULT_LOCAL_LLM_GPU_LAYERS = "all";
 const DEFAULT_LOCAL_LLM_CONTEXT_SIZE = 4096;
 const DEFAULT_LOCAL_LLM_TOP_K = 40;
 const DEFAULT_LOCAL_LLM_TOP_P = 0.95;
+const DEFAULT_LOCAL_LLM_SLEEP_IDLE_SECONDS = 1200;
 const DEFAULT_LOCAL_LLM_MAX_TOKENS = 512;
 const DEFAULT_LOCAL_LLM_REASONING = "off";
 const DEFAULT_KOMPRESS_PYTHON_BIN = "python3";
@@ -41,6 +42,7 @@ const Role1RuntimeConfigSchema = z.object({
 	localLlmContextSize: z.number().int().positive().optional(),
 	localLlmTopK: z.number().int().min(0).optional(),
 	localLlmTopP: z.number().min(0).max(1).optional(),
+	localLlmSleepIdleSeconds: z.number().int().min(0).optional(),
 	localLlmMaxTokens: z.number().int().positive().optional(),
 	localLlmReasoning: z.string().optional(),
 	localLlmModelPath: z.string().optional(),
@@ -256,6 +258,11 @@ export function loadRole1RuntimeConfig(
 			pickEnv("LOCAL_LLM_TOP_P"),
 			DEFAULT_LOCAL_LLM_TOP_P,
 			"LOCAL_LLM_TOP_P",
+		),
+		localLlmSleepIdleSeconds: parseNumber(
+			pickEnv("LOCAL_LLM_SLEEP_IDLE_SECONDS"),
+			DEFAULT_LOCAL_LLM_SLEEP_IDLE_SECONDS,
+			"LOCAL_LLM_SLEEP_IDLE_SECONDS",
 		),
 		localLlmMaxTokens: parseNumber(
 			env.LOCAL_LLM_MAX_TOKENS,
