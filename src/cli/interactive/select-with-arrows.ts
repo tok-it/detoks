@@ -48,7 +48,7 @@ export const selectWithArrows = async (
       }
     }
     output.write(
-      `\n${colors.muted("↑↓ 화살표로 선택, Enter로 확정")}\n`,
+      `\n${colors.muted("↑↓ 화살표로 선택, Enter로 확정, ESC로 취소")}\n`,
     );
   };
 
@@ -86,6 +86,16 @@ export const selectWithArrows = async (
         } else {
           resolve(null);
         }
+        return;
+      } else if (str === "\x1b") {
+        // ESC - 취소
+        input.removeListener("data", handleKeyPress);
+        input.setRawMode(originalRawMode);
+        input.pause();
+        output.write("\x1b8"); // 저장된 커서 위치로 복원
+        output.write("\x1b[J"); // 커서 아래 모두 지움
+        output.write(colors.muted("(취소)\n\n"));
+        resolve(null);
         return;
       } else if (str === "") {
         // Ctrl+C
