@@ -1,0 +1,200 @@
+{
+  "sessionId": "d55b67f916ab",
+  "startTime": "2026-04-27T02:41:19.752Z",
+  "entries": [
+    {
+      "timestamp": "2026-04-27T02:41:19.727Z",
+      "stage": "PromptCompiler",
+      "phase": "input",
+      "role": "role1",
+      "dataType": "UserRequest",
+      "data": {
+        "raw_input": "Add one line of project description to the README file"
+      },
+      "schemaValid": true,
+      "memoryMb": 13.96661376953125,
+      "estimatedTokens": 15
+    },
+    {
+      "timestamp": "2026-04-27T02:41:19.736Z",
+      "stage": "PromptCompiler",
+      "phase": "output",
+      "role": "role1",
+      "dataType": "CompiledPrompt",
+      "data": {
+        "raw_input": "Add one line of project description to the README file",
+        "normalized_input": "Add one line of project description to the README file",
+        "compressed_prompt": "Add one line of project description to the README file",
+        "language": "en",
+        "compression_provider": "nlp_adapter",
+        "inference_time_sec": 0
+      },
+      "schemaValid": true,
+      "durationMs": 9,
+      "memoryMb": 12.481605529785156,
+      "estimatedTokens": 61
+    },
+    {
+      "timestamp": "2026-04-27T02:41:19.736Z",
+      "stage": "TaskGraphBuilder",
+      "phase": "input",
+      "role": "role2.1",
+      "dataType": "Role2PromptInput",
+      "data": {
+        "compiled_prompt": "Add one line of project description to the README file"
+      },
+      "schemaValid": true,
+      "memoryMb": 12.484489440917969,
+      "estimatedTokens": 15
+    },
+    {
+      "timestamp": "2026-04-27T02:41:19.739Z",
+      "stage": "TaskGraphBuilder",
+      "phase": "output",
+      "role": "role2.1",
+      "dataType": "TaskGraph",
+      "data": {
+        "tasks": [
+          {
+            "id": "t1",
+            "type": "create",
+            "status": "pending",
+            "title": "Add one line of project description to the README file",
+            "input_hash": "9fc8ea07bc847b51",
+            "depends_on": []
+          }
+        ]
+      },
+      "schemaValid": true,
+      "durationMs": 3,
+      "memoryMb": 12.724609375,
+      "estimatedTokens": 47
+    },
+    {
+      "timestamp": "2026-04-27T02:41:19.740Z",
+      "stage": "DAGValidator",
+      "phase": "output",
+      "role": "role2.1",
+      "dataType": "DAGValidationResult",
+      "data": {
+        "valid": true,
+        "topologicalOrder": [
+          "t1"
+        ]
+      },
+      "schemaValid": true,
+      "memoryMb": 12.739517211914062,
+      "estimatedTokens": 12
+    },
+    {
+      "timestamp": "2026-04-27T02:41:19.740Z",
+      "stage": "DependencyResolver",
+      "phase": "output",
+      "role": "role2.1",
+      "dataType": "DependencyResolution",
+      "data": {
+        "orderedTasks": [
+          {
+            "taskId": "t1",
+            "type": "create",
+            "title": "Add one line of project description to the README file",
+            "dependsOn": [],
+            "resolvedDeps": []
+          }
+        ]
+      },
+      "schemaValid": true,
+      "memoryMb": 12.745811462402344,
+      "estimatedTokens": 36
+    },
+    {
+      "timestamp": "2026-04-27T02:41:19.741Z",
+      "stage": "ParallelClassifier",
+      "phase": "output",
+      "role": "role2.1",
+      "dataType": "ParallelClassification",
+      "data": {
+        "stages": [
+          {
+            "stage": 0,
+            "runnableInParallel": [
+              {
+                "taskId": "t1",
+                "type": "create",
+                "title": "Add one line of project description to the README file",
+                "dependsOn": []
+              }
+            ]
+          }
+        ]
+      },
+      "schemaValid": true,
+      "memoryMb": 12.753868103027344,
+      "estimatedTokens": 41
+    },
+    {
+      "timestamp": "2026-04-27T02:41:19.742Z",
+      "stage": "ContextOptimizer",
+      "phase": "output",
+      "role": "role2.2",
+      "dataType": "ExecutionContext",
+      "data": {
+        "session_id": "d55b67f916ab",
+        "active_task_id": "t1",
+        "shared_context": {
+          "session_id": "d55b67f916ab",
+          "failed_task_ids": [
+            "t1"
+          ]
+        },
+        "selected_context": {},
+        "context_summary": "No previous task context available."
+      },
+      "schemaValid": true,
+      "durationMs": 1,
+      "memoryMb": 12.764533996582031,
+      "estimatedTokens": 48
+    },
+    {
+      "timestamp": "2026-04-27T02:41:19.742Z",
+      "stage": "Executor:t1",
+      "phase": "input",
+      "role": "role3",
+      "dataType": "ExecutionRequest",
+      "data": {
+        "task_id": "t1",
+        "type": "create",
+        "prompt": "[CREATE] Add one line of project description to the README file\n\nContext: No previous task context available."
+      },
+      "schemaValid": true,
+      "memoryMb": 12.768180847167969,
+      "estimatedTokens": 37
+    },
+    {
+      "timestamp": "2026-04-27T02:41:19.743Z",
+      "stage": "Executor:t1",
+      "phase": "output",
+      "role": "role3",
+      "dataType": "ExecutionResult",
+      "data": {
+        "task_id": "t1",
+        "success": true,
+        "raw_output": "[stub:codex] [CREATE] Add one line of project description to the README file\n\nContext: No previous task co..."
+      },
+      "schemaValid": true,
+      "durationMs": 1,
+      "memoryMb": 12.780937194824219,
+      "estimatedTokens": 43
+    }
+  ],
+  "summary": {
+    "totalDurationMs": 14,
+    "stageTimings": {
+      "PromptCompiler": 9,
+      "TaskGraphBuilder": 3,
+      "ContextOptimizer:t1": 1,
+      "Executor:t1": 1
+    },
+    "totalMemoryMb": 13.96661376953125
+  }
+}
