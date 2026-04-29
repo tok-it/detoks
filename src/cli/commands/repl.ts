@@ -11,6 +11,7 @@ import { runCommand } from "./run.js";
 import { colors } from "../colors.js";
 import { runModelSetupIfNeeded } from "../model-setup/index.js";
 import { showHelpMessage, handleSlashCommand } from "../repl-commands/index.js";
+import { buildPrompt } from "../interactive/prompt-builder.js";
 
 const EXIT_COMMANDS = new Set(["exit", "quit", ".exit", "/exit", "/quit"]);
 const HELP_COMMANDS = new Set(["/help"]);
@@ -59,7 +60,12 @@ export const runReplCommand = async (baseArgs: CliArgs): Promise<void> => {
     while (true) {
       let line: string;
       try {
-        line = (await rl.question(colors.prompt("detoks> "))).trim();
+        const promptStr = buildPrompt({
+          adapter: baseArgs.adapter as "codex" | "gemini",
+          adapterModel: process.env.ADAPTER_MODEL,
+          translationModel: process.env.LOCAL_LLM_MODEL_NAME,
+        });
+        line = (await rl.question(promptStr)).trim();
       } catch (error) {
         if (
           error instanceof Error &&
@@ -173,7 +179,6 @@ export const runReplCommand = async (baseArgs: CliArgs): Promise<void> => {
           onExit: async () => {
             rl.close();
           },
-          rl,
         });
 
         if (handled) {

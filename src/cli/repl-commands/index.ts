@@ -7,6 +7,7 @@ import {
   codexLogout,
   geminiLogout,
 } from "../adapter-info/index.js";
+import { selectWithArrows } from "../interactive/select-with-arrows.js";
 
 export interface SlashCommand {
   name: string;
@@ -189,7 +190,6 @@ export const handleSlashCommand = async (
     verbose: boolean;
     onVerboseToggle: (enabled: boolean) => void;
     onExit: () => Promise<void>;
-    rl?: ReturnType<typeof createInterface>;
   },
 ): Promise<boolean> => {
   const adapter = state.adapter as "codex" | "gemini";
@@ -236,11 +236,11 @@ export const handleSlashCommand = async (
       return true;
 
     case "codex-models": {
-      return await handleCodexModels(state.rl);
+      return await handleCodexModels();
     }
 
     case "gemini-models": {
-      return await handleGeminiModels(state.rl);
+      return await handleGeminiModels();
     }
 
     case "logout": {
@@ -256,105 +256,45 @@ export const handleSlashCommand = async (
   }
 };
 
-const handleCodexModels = async (
-  rl: ReturnType<typeof createInterface> | undefined,
-): Promise<boolean> => {
+const handleCodexModels = async (): Promise<boolean> => {
   const models = getAdapterModels("codex");
-  output.write(`\n${colors.title("Codex 모델 선택\n")}`);
 
   if (models.length === 0) {
-    output.write(colors.warning("  모델을 불러올 수 없습니다.\n\n"));
+    output.write(colors.warning("\n모델을 불러올 수 없습니다.\n\n"));
     return true;
   }
 
-  // 모델 목록 표시
-  for (let i = 0; i < models.length; i++) {
-    const model = models[i];
-    if (model) {
-      output.write(`  ${colors.boldText(`${i + 1}.`)} ${model.slug}\n`);
-      output.write(`     ${colors.muted(model.display_name)}\n`);
-    }
-  }
+  const options = models.map((m) => ({
+    value: m.slug,
+    label: `${m.slug} — ${m.display_name}`,
+  }));
 
-  // 번호 입력받기
-  if (!rl) {
-    output.write("\n");
-    return true;
-  }
+  const selected = await selectWithArrows(options, "Codex 모델 선택");
 
-  try {
-    const choice = await rl.question(
-      colors.prompt(
-        `\n모델 번호를 선택하세요 (1-${models.length}): `,
-      ),
-    );
-    const selectedIndex = parseInt(choice, 10) - 1;
-    const selected = models[selectedIndex];
-
-    if (selected) {
-      process.env.ADAPTER_MODEL = selected.slug;
-      output.write(
-        colors.success(
-          `\n✓ Codex 모델이 '${selected.slug}'로 변경되었습니다.\n\n`,
-        ),
-      );
-    } else {
-      output.write(colors.error("\n✗ 잘못된 선택입니다.\n\n"));
-    }
-  } catch {
-    output.write(colors.error("\n✗ 입력 오류가 발생했습니다.\n\n"));
+  if (selected) {
+    process.env.ADAPTER_MODEL = selected;
   }
 
   return true;
 };
 
-const handleGeminiModels = async (
-  rl: ReturnType<typeof createInterface> | undefined,
-): Promise<boolean> => {
+const handleGeminiModels = async (): Promise<boolean> => {
   const models = getAdapterModels("gemini");
-  output.write(`\n${colors.title("Gemini 모델 선택\n")}`);
 
   if (models.length === 0) {
-    output.write(colors.warning("  모델을 불러올 수 없습니다.\n\n"));
+    output.write(colors.warning("\n모델을 불러올 수 없습니다.\n\n"));
     return true;
   }
 
-  // 모델 목록 표시
-  for (let i = 0; i < models.length; i++) {
-    const model = models[i];
-    if (model) {
-      output.write(`  ${colors.boldText(`${i + 1}.`)} ${model.slug}\n`);
-      output.write(`     ${colors.muted(model.display_name)}\n`);
-    }
-  }
+  const options = models.map((m) => ({
+    value: m.slug,
+    label: `${m.slug} — ${m.display_name}`,
+  }));
 
-  // 번호 입력받기
-  if (!rl) {
-    output.write("\n");
-    return true;
-  }
+  const selected = await selectWithArrows(options, "Gemini 모델 선택");
 
-  try {
-    const choice = await rl.question(
-      colors.prompt(
-        `\n모델 번호를 선택하세요 (1-${models.length}): `,
-      ),
-    );
-    const selectedIndex = parseInt(choice, 10) - 1;
-    const selected = models[selectedIndex];
-
-    if (selected) {
-      process.env.ADAPTER_MODEL = selected.slug;
-      output.write(
-        colors.success(
-          `\n✓ Gemini 모델이 '${selected.slug}'로 변경되었습니다.\n\n`,
-        ),
-      );
-    } else {
-      output.write(colors.error("\n✗ 잘못된 선택입니다.\n\n"));
-    }
-  } catch {
-    output.write(colors.error("\n✗ 입력 오류가 발생했습니다.\n\n"));
+  if (selected) {
+    process.env.ADAPTER_MODEL = selected;
   }
 
   return true;
