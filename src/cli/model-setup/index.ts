@@ -6,6 +6,7 @@ import { TRANSLATION_MODELS, type TranslationModel } from "./models.js";
 import { selectModel } from "./select.js";
 import { downloadModel } from "./download.js";
 import { updateEnvFile } from "./env-writer.js";
+import { updateTranslationModel } from "../config/config-manager.js";
 
 const getModelsDir = () => join(homedir(), ".detoks", "models");
 
@@ -41,6 +42,9 @@ export const runModelSetupIfNeeded = async (cwd: string = process.cwd()): Promis
   process.env.LOCAL_LLM_MODEL_NAME = selectedModel.modelName;
   process.env.LOCAL_LLM_HF_REPO = `${selectedModel.hfRepo}:Q4_K_S`;
   process.env.LOCAL_LLM_HF_FILE = selectedModel.hfFile;
+
+  // 설정 저장 (재진입 시 자동으로 로드되도록)
+  updateTranslationModel(selectedModel.modelName);
 
   process.stdout.write(
     colors.success(`✓ 설정 완료!\n\n`),
