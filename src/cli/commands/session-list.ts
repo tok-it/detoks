@@ -29,8 +29,8 @@ export const runSessionListCommand = async (): Promise<SessionListOutput> => {
     sessionCount,
     message:
       sessionCount === 0
-        ? "No sessions found."
-        : `${sessionCount} session(s) found.`,
+        ? "저장된 세션이 없습니다."
+        : `세션 ${sessionCount}개를 찾았습니다.`,
     sessions: sessions.map((session) => ({
       id: session.id,
       updatedAt: session.updatedAt,

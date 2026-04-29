@@ -24,7 +24,7 @@ describe("runCheckpointShowCommand", () => {
       ok: true,
       mode: "checkpoint-show",
       mutatesState: false,
-      message: "Checkpoint session_full_checkpoint_001 loaded.",
+      message: "체크포인트 session_full_checkpoint_001을(를) 불러왔습니다.",
       checkpoint: {
         id: "session_full_checkpoint_001",
         title: "After parse UX",

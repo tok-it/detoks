@@ -324,9 +324,9 @@ describe("detoks CLI smoke", () => {
     expect(emptyRun.error).toBeUndefined();
     expect(emptyRun.status).toBe(0);
     expect(emptyRun.stderr).toBe("");
-    expect(emptyRun.stdout).toContain("DeToks CLI Guide");
-    expect(emptyRun.stdout).toContain("Quick start:");
-    expect(emptyRun.stdout).toContain('detoks "summarize the current repo status"');
+    expect(emptyRun.stdout).toContain("DeToks CLI 가이드");
+    expect(emptyRun.stdout).toContain("빠른 시작:");
+    expect(emptyRun.stdout).toContain('detoks "현재 저장소 상태를 요약해줘"');
     expect(emptyRun.stdout).toContain("detoks repl");
     expect(emptyRun.stdout).toContain("detoks session list");
   });
@@ -393,15 +393,15 @@ describe("detoks CLI smoke", () => {
 
     expect(defaultJson).toEqual({
       ok: false,
-      error: "Unknown flag: --unknown. Run `detoks --help` for usage.",
+      error: "알 수 없는 플래그: --unknown. 사용법은 `detoks --help`를 참고하세요.",
     });
     expect(defaultJson).not.toHaveProperty("stack");
 
     expect(verboseJson).toMatchObject({
       ok: false,
-      error: "Unknown flag: --unknown. Run `detoks --help` for usage.",
+      error: "알 수 없는 플래그: --unknown. 사용법은 `detoks --help`를 참고하세요.",
     });
-    expect(verboseJson.stack).toContain("Unknown flag: --unknown");
+    expect(verboseJson.stack).toContain("알 수 없는 플래그: --unknown");
     expect(verboseRun.stderr).not.toBe(defaultRun.stderr);
   });
 
@@ -413,7 +413,7 @@ describe("detoks CLI smoke", () => {
       expect(replRun.error).toBeUndefined();
       expect(replRun.status).toBe(0);
       expect(replRun.stderr).toBe("");
-      expect(replRun.stdout).toContain("detoks repl started");
+      expect(replRun.stdout).toContain("detoks repl 시작됨");
       expect(replRun.stdout).toContain("executionMode=stub");
       expect(replRun.stdout).toContain("verbose=false");
       expect(replRun.stdout).toContain('type "/help" for REPL help and "exit" to quit.');
@@ -432,12 +432,18 @@ describe("detoks CLI smoke", () => {
       expect(replRun.error).toBeUndefined();
       expect(replRun.status).toBe(0);
       expect(replRun.stderr).toBe("");
-      expect(replRun.stdout).toContain("detoks repl started");
+      expect(replRun.stdout).toContain("detoks repl 시작됨");
       expect(replRun.stdout).toContain("executionMode=stub");
       expect(replRun.stdout).toContain("verbose=true");
+<<<<<<< codex-parallel-20260428-2a60d3c
       expect(replRun.stdout).toContain('type "/help" for REPL help and "exit" to quit.');
       expect(replRun.stdout).toContain("detoks[codex]> ");
       expect(replRun.stdout.trimEnd()).toMatch(/detoks repl closed\.$/);
+=======
+      expect(replRun.stdout).toContain('"/help" 입력 시 REPL 도움말');
+      expect(replRun.stdout).toContain("detoks[codex]> ");
+      expect(replRun.stdout.trimEnd()).toMatch(/detoks repl이 종료되었습니다\.$/);
+>>>>>>> dev
     } finally {
       rmSync(repoReplRegistryPath, { force: true });
     }
@@ -451,8 +457,8 @@ describe("detoks CLI smoke", () => {
       expect(replRun.error).toBeUndefined();
       expect(replRun.status).toBe(0);
       expect(replRun.stderr).toBe("");
-      expect(replRun.stdout).toContain("detoks repl started");
-      expect(replRun.stdout).toContain("detoks repl closed.");
+      expect(replRun.stdout).toContain("detoks repl 시작됨");
+      expect(replRun.stdout).toContain("detoks repl이 종료되었습니다.");
     } finally {
       rmSync(repoReplRegistryPath, { force: true });
     }
@@ -520,7 +526,7 @@ describe("detoks CLI smoke", () => {
         mutatesState: false,
         hasCheckpoints: false,
         checkpointCount: 0,
-        message: `No checkpoints found for session ${sessionId}.`,
+        message: `세션 ${sessionId}에 저장된 체크포인트가 없습니다.`,
         checkpoints: [],
       });
       expect(emptyOutput).not.toHaveProperty("promptLanguage");
@@ -556,7 +562,7 @@ describe("detoks CLI smoke", () => {
         mutatesState: false,
         hasCheckpoints: true,
         checkpointCount: 1,
-        message: `1 checkpoint(s) found for session ${sessionId}.`,
+        message: `세션 ${sessionId}에서 체크포인트 1개를 찾았습니다.`,
         checkpoints: [
           {
             id: checkpointId,
@@ -591,7 +597,7 @@ describe("detoks CLI smoke", () => {
       canContinue: false,
       resumeStarted: false,
       mutatesState: false,
-      message: `Session ${missingSessionId} was not found. No resume was started.`,
+      message: `세션 ${missingSessionId}을(를) 찾을 수 없습니다. 재개를 시작하지 않았습니다.`,
       nextAction: null,
     });
   });
@@ -641,7 +647,7 @@ describe("detoks CLI smoke", () => {
         canContinue: true,
         resumeStarted: true,
         mutatesState: true,
-        message: `Session ${sessionId} resumed using stored raw_input.`,
+        message: `세션 ${sessionId}이(가) 저장된 raw_input으로 재개되었습니다.`,
         adapter: "codex",
         summary: "All 2 task(s) completed",
         nextAction: "Pipeline complete",
@@ -710,7 +716,7 @@ describe("detoks CLI smoke", () => {
         newSessionId,
         forked: true,
         mutatesState: true,
-        message: `Session ${sourceSessionId} was forked to ${newSessionId}.`,
+        message: `세션 ${sourceSessionId}이(가) ${newSessionId}(으)로 포크되었습니다.`,
         nextAction: "Review session fork stdout contract",
       });
 
@@ -756,7 +762,7 @@ describe("detoks CLI smoke", () => {
         sessionId: missingSessionId,
         reset: false,
         mutatesState: false,
-        message: `Session ${missingSessionId} was not found.`,
+        message: `세션 ${missingSessionId}을(를) 찾을 수 없습니다.`,
       });
 
       mkdirSync(sessionDir, { recursive: true });
@@ -786,7 +792,7 @@ describe("detoks CLI smoke", () => {
         sessionId,
         reset: true,
         mutatesState: true,
-        message: `Session ${sessionId} has been reset (deleted).`,
+        message: `세션 ${sessionId}이(가) 초기화(삭제)되었습니다.`,
       });
       expect(() => readFileSync(sessionPath, "utf8")).toThrow();
     } finally {
@@ -858,7 +864,7 @@ describe("detoks CLI smoke", () => {
         checkpointId,
         restored: true,
         mutatesState: true,
-        message: `Session ${sessionId} restored to checkpoint ${checkpointId}.`,
+        message: `세션 ${sessionId}이(가) 체크포인트 ${checkpointId}(으)로 복원되었습니다.`,
       });
 
       const restored = JSON.parse(readFileSync(sessionPath, "utf8"));
@@ -1031,7 +1037,7 @@ describe("detoks CLI smoke", () => {
         ok: true,
         mode: "checkpoint-show",
         mutatesState: false,
-        message: `Checkpoint ${checkpointId} loaded.`,
+        message: `체크포인트 ${checkpointId}을(를) 불러왔습니다.`,
         checkpoint: {
           id: checkpointId,
           title: "Smoke checkpoint",
@@ -1080,7 +1086,7 @@ describe("detoks CLI smoke", () => {
         ok: true,
         mode: "checkpoint-show",
         mutatesState: false,
-        message: `Checkpoint ${checkpointId} loaded.`,
+        message: `체크포인트 ${checkpointId}을(를) 불러왔습니다.`,
         checkpoint: {
           id: checkpointId,
           title: "Smoke checkpoint",

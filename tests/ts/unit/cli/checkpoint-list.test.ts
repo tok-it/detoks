@@ -19,7 +19,7 @@ describe("runCheckpointListCommand", () => {
       mutatesState: false,
       hasCheckpoints: false,
       checkpointCount: 0,
-      message: "No checkpoints found for session session_empty.",
+      message: "세션 session_empty에 저장된 체크포인트가 없습니다.",
       checkpoints: [],
     });
     expect(result).not.toHaveProperty("promptLanguage");
@@ -50,7 +50,7 @@ describe("runCheckpointListCommand", () => {
       mutatesState: false,
       hasCheckpoints: true,
       checkpointCount: 1,
-      message: "1 checkpoint(s) found for session session_full.",
+      message: "세션 session_full에서 체크포인트 1개를 찾았습니다.",
       checkpoints: [
         {
           id: "session_full_checkpoint_001",

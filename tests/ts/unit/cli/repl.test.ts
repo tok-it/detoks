@@ -115,7 +115,7 @@ describe("repl builtin command routing", () => {
     );
     expect(adapterResult.shouldExit).toBe(false);
     expect(adapterResult.nextState.adapter).toBe("gemini");
-    expect(adapterResult.output).toContain("REPL adapter set to gemini.");
+    expect(adapterResult.output).toContain("REPL 어댑터가 gemini(으)로 설정되었습니다.");
 
     const modelResult = runReplBuiltinCommand(
       { kind: "model", model: "gemini-2.5-pro" },
@@ -124,7 +124,7 @@ describe("repl builtin command routing", () => {
     );
     expect(modelResult.shouldExit).toBe(false);
     expect(modelResult.nextState.model).toBe("gemini-2.5-pro");
-    expect(modelResult.output).toContain("REPL model set to gemini-2.5-pro.");
+    expect(modelResult.output).toContain("REPL 모델이 gemini-2.5-pro(으)로 설정되었습니다.");
 
     const verboseResult = runReplBuiltinCommand(
       { kind: "verbose", value: true },
@@ -133,7 +133,7 @@ describe("repl builtin command routing", () => {
     );
     expect(verboseResult.shouldExit).toBe(false);
     expect(verboseResult.nextState.verbose).toBe(true);
-    expect(verboseResult.output).toContain("REPL verbose set to true.");
+    expect(verboseResult.output).toContain("REPL 상세 출력이 true(으)로 설정되었습니다.");
   });
 
   it("keeps non-interactive guidance for /adapter and /verbose without args", () => {
@@ -148,14 +148,114 @@ describe("repl builtin command routing", () => {
       initialState,
       "repl-session-123",
     );
-    expect(adapterResult.output).toContain("Use /adapter codex or /adapter gemini");
+    expect(adapterResult.output).toContain("/adapter codex 또는 /adapter gemini 를 입력해 어댑터를 변경하세요.");
 
     const verboseResult = runReplBuiltinCommand(
       { kind: "verbose" },
       initialState,
       "repl-session-123",
     );
-    expect(verboseResult.output).toContain("Use /verbose on or /verbose off");
+    expect(verboseResult.output).toContain("/verbose on 또는 /verbose off 를 입력해 상세 출력을 변경하세요.");
+  });
+
+  it("tracks source badge emission on first response and source changes", () => {
+    const initialState = {
+      adapter: "codex" as const,
+      model: "gpt-5",
+      executionMode: "stub" as const,
+      verbose: false,
+    };
+
+    expect(getReplSourceBadgeKey(initialState)).toBe("codex::gpt-5::stub");
+    expect(shouldEmitReplSourceBadge(initialState, null)).toBe(true);
+    expect(shouldEmitReplSourceBadge(initialState, "codex::gpt-5::stub")).toBe(false);
+    expect(
+      shouldEmitReplSourceBadge(
+        { ...initialState, adapter: "gemini" as const },
+        "codex::gpt-5::stub",
+      ),
+    ).toBe(true);
+    expect(
+      shouldEmitReplSourceBadge(
+        { ...initialState, model: "gpt-5.1" },
+        "codex::gpt-5::stub",
+      ),
+    ).toBe(true);
+    expect(
+      shouldEmitReplSourceBadge(
+        { ...initialState, executionMode: "real" as const },
+        "codex::gpt-5::stub",
+      ),
+    ).toBe(true);
+  });
+
+  it("builds the repl prompt label from the current source", () => {
+    expect(
+      getReplPromptLabel({
+        adapter: "codex",
+        model: "gpt-5",
+        executionMode: "stub",
+        verbose: false,
+      }),
+    ).toBe("detoks[codex:gpt-5]> ");
+
+    expect(
+      getReplPromptLabel({
+        adapter: "gemini",
+        executionMode: "real",
+        verbose: true,
+      }),
+    ).toBe("detoks[gemini]> ");
+  });
+
+  it("tracks source badge emission on first response and source changes", () => {
+    const initialState = {
+      adapter: "codex" as const,
+      model: "gpt-5",
+      executionMode: "stub" as const,
+      verbose: false,
+    };
+
+    expect(getReplSourceBadgeKey(initialState)).toBe("codex::gpt-5::stub");
+    expect(shouldEmitReplSourceBadge(initialState, null)).toBe(true);
+    expect(shouldEmitReplSourceBadge(initialState, "codex::gpt-5::stub")).toBe(false);
+    expect(
+      shouldEmitReplSourceBadge(
+        { ...initialState, adapter: "gemini" as const },
+        "codex::gpt-5::stub",
+      ),
+    ).toBe(true);
+    expect(
+      shouldEmitReplSourceBadge(
+        { ...initialState, model: "gpt-5.1" },
+        "codex::gpt-5::stub",
+      ),
+    ).toBe(true);
+    expect(
+      shouldEmitReplSourceBadge(
+        { ...initialState, executionMode: "real" as const },
+        "codex::gpt-5::stub",
+      ),
+    ).toBe(true);
+  });
+
+  it("builds the repl prompt label from the current source", () => {
+    expect(
+      getReplPromptLabel({
+        adapter: "codex",
+        model: "gpt-5",
+        executionMode: "stub",
+        verbose: false,
+      }),
+    ).toBe("detoks[codex:gpt-5]> ");
+
+    expect(
+      getReplPromptLabel({
+        adapter: "gemini",
+        executionMode: "real",
+        verbose: true,
+      }),
+    ).toBe("detoks[gemini]> ");
   });
 
   it("tracks source badge emission on first response and source changes", () => {
