@@ -77,3 +77,9 @@ export const getSelectedAdapter = (): "codex" | "gemini" => {
   const config = loadConfig();
   return config.adapter.selected;
 };
+
+export const updateSelectedAdapter = (adapter: "codex" | "gemini"): void => {
+  const config = loadConfig();
+  config.adapter.selected = adapter;
+  saveConfig(config);
+};

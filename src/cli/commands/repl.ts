@@ -13,6 +13,7 @@ import { runModelSetupIfNeeded } from "../model-setup/index.js";
 import { showHelpMessage, handleSlashCommand } from "../repl-commands/index.js";
 import { buildPrompt } from "../interactive/prompt-builder.js";
 import { loadAndApplyConfig } from "../config/loader.js";
+import { updateSelectedAdapter } from "../config/config-manager.js";
 
 const EXIT_COMMANDS = new Set(["exit", "quit", ".exit", "/exit", "/quit"]);
 const HELP_COMMANDS = new Set(["/help"]);
@@ -46,6 +47,7 @@ export const runReplCommand = async (baseArgs: CliArgs): Promise<void> => {
   const rl = createInterface({ input, output });
   const sessionId = `repl-${Date.now()}`;
   let verbose = baseArgs.verbose;
+  let currentAdapter = baseArgs.adapter as "codex" | "gemini";
 
   const startMessage = [
     colors.title("detoks repl 시작"),
@@ -58,14 +60,14 @@ export const runReplCommand = async (baseArgs: CliArgs): Promise<void> => {
   ].join("\n");
 
   output.write(startMessage);
-  showHelpMessage(baseArgs.adapter as "codex" | "gemini");
+  showHelpMessage(currentAdapter);
 
   try {
     while (true) {
       let line: string;
       try {
         const promptStr = buildPrompt({
-          adapter: baseArgs.adapter as "codex" | "gemini",
+          adapter: currentAdapter,
           adapterModel: process.env.ADAPTER_MODEL,
           translationModel: process.env.LOCAL_LLM_MODEL_NAME,
         });
@@ -173,12 +175,18 @@ export const runReplCommand = async (baseArgs: CliArgs): Promise<void> => {
       // Slash 명령 처리
       if (line.startsWith("/")) {
         const handled = await handleSlashCommand(line, {
-          adapter: baseArgs.adapter,
+          adapter: currentAdapter,
           executionMode: baseArgs.executionMode,
           modelName: process.env.LOCAL_LLM_MODEL_NAME,
           verbose,
           onVerboseToggle: (enabled) => {
             verbose = enabled;
+          },
+          onAdapterChange: async (newAdapter) => {
+            currentAdapter = newAdapter;
+            loadAndApplyConfig(newAdapter);
+            updateSelectedAdapter(newAdapter);
+            showHelpMessage(newAdapter);
           },
           onExit: async () => {
             rl.close();
