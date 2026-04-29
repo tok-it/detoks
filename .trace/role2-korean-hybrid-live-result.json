@@ -1,0 +1,298 @@
+{
+  "sessionId": "role2-korean-hybrid-live-result",
+  "startTime": "2026-04-29T02:08:36.166Z",
+  "entries": [
+    {
+      "timestamp": "2026-04-29T02:08:07.666Z",
+      "stage": "PromptCompiler",
+      "phase": "input",
+      "role": "role1",
+      "dataType": "UserRequest",
+      "data": {
+        "raw_input": "작은 산술 보조기를 구성해 주세요. 먼저 더하기만 맡는 함수 설계를 제시하고, 이어서 빼기만 맡는 함수 설계를 제시하세요. 그런 다음 일곱과 여덟을 합친 값, 스무 개에서 여섯 개를 덜어낸 값을 각각 계산하세요. 마지막으로 이 보조기는 덧셈과 뺄셈 요청만 다룬다는 확인 기록을 남겨 주세요."
+      },
+      "schemaValid": true,
+      "memoryMb": 14.263519287109375,
+      "estimatedTokens": 152
+    },
+    {
+      "timestamp": "2026-04-29T02:08:17.620Z",
+      "stage": "PromptCompiler",
+      "phase": "output",
+      "role": "role1",
+      "dataType": "CompiledPrompt",
+      "data": {
+        "raw_input": "작은 산술 보조기를 구성해 주세요. 먼저 더하기만 맡는 함수 설계를 제시하고, 이어서 빼기만 맡는 함수 설계를 제시하세요. 그런 다음 일곱과 여덟을 합친 값, 스무 개에서 여섯 개를 덜어낸 값을 각각 계산하세요. 마지막으로 이 보조기는 덧셈과 뺄셈 요청만 다룬다는 확인 기록을 남겨 주세요.",
+        "normalized_input": "Please construct a small arithmetic aid. First, propose a function design that only handles addition, and then propose a function design that only handles subtraction. Then, calculate the sum of seven and eight, and the result of subtracting six from twenty. Finally, record a confirmation that this aid only handles addition and subtraction requests.",
+        "compressed_prompt": "Please construct a small arithmetic aid. First, propose a function design that only handles addition, and then propose a function design that only handles subtraction. Then, calculate the sum of seven and eight, and the result of subtracting six from twenty. Finally, record a confirmation that this aid only handles addition and subtraction requests.",
+        "language": "ko",
+        "compression_provider": "kompress",
+        "inference_time_sec": 6.451,
+        "validation_errors": []
+      },
+      "schemaValid": true,
+      "durationMs": 9953,
+      "memoryMb": 17.999832153320312,
+      "estimatedTokens": 308
+    },
+    {
+      "timestamp": "2026-04-29T02:08:17.620Z",
+      "stage": "TaskGraphBuilder",
+      "phase": "input",
+      "role": "role2.1",
+      "dataType": "Role2PromptInput",
+      "data": {
+        "compiled_prompt": "Please construct a small arithmetic aid. First, propose a function design that only handles addition, and then propose a function design that only handles subtraction. Then, calculate the sum of seven and eight, and the result of subtracting six from twenty. Finally, record a confirmation that this aid only handles addition and subtraction requests."
+      },
+      "schemaValid": true,
+      "memoryMb": 18.002304077148438,
+      "estimatedTokens": 69
+    },
+    {
+      "timestamp": "2026-04-29T02:08:17.632Z",
+      "stage": "TaskGraphBuilder",
+      "phase": "output",
+      "role": "role2.1",
+      "dataType": "TaskGraph",
+      "data": {
+        "tasks": [
+          {
+            "id": "t1",
+            "type": "plan",
+            "status": "pending",
+            "title": "propose a function design that only handles addition",
+            "input_hash": "b87794bdfbb4af27",
+            "depends_on": []
+          },
+          {
+            "id": "t2",
+            "type": "plan",
+            "status": "pending",
+            "title": "propose a function design that only handles subtraction.",
+            "input_hash": "56216a3ad3a76862",
+            "depends_on": []
+          }
+        ]
+      },
+      "schemaValid": true,
+      "durationMs": 11,
+      "memoryMb": 18.85138702392578,
+      "estimatedTokens": 89
+    },
+    {
+      "timestamp": "2026-04-29T02:08:17.632Z",
+      "stage": "DAGValidator",
+      "phase": "output",
+      "role": "role2.1",
+      "dataType": "DAGValidationResult",
+      "data": {
+        "valid": true,
+        "topologicalOrder": [
+          "t1",
+          "t2"
+        ]
+      },
+      "schemaValid": true,
+      "memoryMb": 18.86701202392578,
+      "estimatedTokens": 15
+    },
+    {
+      "timestamp": "2026-04-29T02:08:17.633Z",
+      "stage": "DependencyResolver",
+      "phase": "output",
+      "role": "role2.1",
+      "dataType": "DependencyResolution",
+      "data": {
+        "orderedTasks": [
+          {
+            "taskId": "t1",
+            "type": "plan",
+            "title": "propose a function design that only handles addition",
+            "dependsOn": [],
+            "resolvedDeps": []
+          },
+          {
+            "taskId": "t2",
+            "type": "plan",
+            "title": "propose a function design that only handles subtraction.",
+            "dependsOn": [],
+            "resolvedDeps": []
+          }
+        ]
+      },
+      "schemaValid": true,
+      "memoryMb": 18.873809814453125,
+      "estimatedTokens": 66
+    },
+    {
+      "timestamp": "2026-04-29T02:08:17.633Z",
+      "stage": "ParallelClassifier",
+      "phase": "output",
+      "role": "role2.1",
+      "dataType": "ParallelClassification",
+      "data": {
+        "stages": [
+          {
+            "stage": 0,
+            "runnableInParallel": [
+              {
+                "taskId": "t1",
+                "type": "plan",
+                "title": "propose a function design that only handles addition",
+                "dependsOn": []
+              },
+              {
+                "taskId": "t2",
+                "type": "plan",
+                "title": "propose a function design that only handles subtraction.",
+                "dependsOn": []
+              }
+            ]
+          }
+        ]
+      },
+      "schemaValid": true,
+      "memoryMb": 18.88402557373047,
+      "estimatedTokens": 66
+    },
+    {
+      "timestamp": "2026-04-29T02:08:17.637Z",
+      "stage": "SessionLoader",
+      "phase": "output",
+      "role": "role2.2",
+      "dataType": "SessionState",
+      "data": {
+        "session_id": "role2-korean-hybrid-live-result",
+        "completed_task_count": 0,
+        "next_task_id": null
+      },
+      "schemaValid": true,
+      "durationMs": 4,
+      "memoryMb": 18.894371032714844,
+      "estimatedTokens": 25
+    },
+    {
+      "timestamp": "2026-04-29T02:08:17.638Z",
+      "stage": "ContextOptimizer",
+      "phase": "output",
+      "role": "role2.2",
+      "dataType": "ExecutionContext",
+      "data": {
+        "session_id": "role2-korean-hybrid-live-result",
+        "active_task_id": "t1",
+        "shared_context": {
+          "session_id": "role2-korean-hybrid-live-result",
+          "raw_input": "작은 산술 보조기를 구성해 주세요. 먼저 더하기만 맡는 함수 설계를 제시하고, 이어서 빼기만 맡는 함수 설계를 제시하세요. 그런 다음 일곱과 여덟을 합친 값, 스무 개에서 여섯 개를 덜어낸 값을 각각 계산하세요. 마지막으로 이 보조기는 덧셈과 뺄셈 요청만 다룬다는 확인 기록을 남겨 주세요."
+        },
+        "selected_context": {},
+        "context_summary": "No previous task context available."
+      },
+      "schemaValid": true,
+      "durationMs": 0,
+      "memoryMb": 18.907699584960938,
+      "estimatedTokens": 201
+    },
+    {
+      "timestamp": "2026-04-29T02:08:17.639Z",
+      "stage": "Executor:t1",
+      "phase": "input",
+      "role": "role3",
+      "dataType": "ExecutionRequest",
+      "data": {
+        "task_id": "t1",
+        "type": "plan",
+        "prompt": "[PLAN] propose a function design that only handles addition\n\nContext: No previous task context available."
+      },
+      "schemaValid": true,
+      "memoryMb": 18.925521850585938,
+      "estimatedTokens": 35
+    },
+    {
+      "timestamp": "2026-04-29T02:08:27.021Z",
+      "stage": "Executor:t1",
+      "phase": "output",
+      "role": "role3",
+      "dataType": "ExecutionResult",
+      "data": {
+        "task_id": "t1",
+        "type": "plan",
+        "success": true,
+        "raw_output": "A minimal design is to make the function do exactly one thing and make that explicit in both name and contract.\n\n```ts\nfunction add(a: number, b: number): number {\n  return a + b;\n}\n```\n\nDesign constraints:\n- Accept exactly two numeric inputs.\n- Return only their sum.\n- Do not handle subtraction, multiplication, parsing, validation, or formatting.\n- Fail fast if your language/runtime requires type checks.\n\nIf you want a slightly more defensive version:\n\n```ts\nfunction add(a: number, b: number): number {\n  if (!Number.isFinite(a) || !Number.isFinite(b)) {\n    throw new Error(\"add expects two finite numbers\");\n  }\n  return a + b;\n}\n```\n\nIf you want, I can also propose the same design in a specific language or in OOP/API form.\n"
+      },
+      "schemaValid": true,
+      "durationMs": 9381,
+      "memoryMb": 16.913597106933594,
+      "estimatedTokens": 217
+    },
+    {
+      "timestamp": "2026-04-29T02:08:27.037Z",
+      "stage": "ContextOptimizer",
+      "phase": "output",
+      "role": "role2.2",
+      "dataType": "ExecutionContext",
+      "data": {
+        "session_id": "role2-korean-hybrid-live-result",
+        "active_task_id": "t2",
+        "shared_context": {
+          "session_id": "role2-korean-hybrid-live-result",
+          "raw_input": "작은 산술 보조기를 구성해 주세요. 먼저 더하기만 맡는 함수 설계를 제시하고, 이어서 빼기만 맡는 함수 설계를 제시하세요. 그런 다음 일곱과 여덟을 합친 값, 스무 개에서 여섯 개를 덜어낸 값을 각각 계산하세요. 마지막으로 이 보조기는 덧셈과 뺄셈 요청만 다룬다는 확인 기록을 남겨 주세요."
+        },
+        "selected_context": {
+          "t1": {
+            "summary": "A minimal design is to make the function do exactly one thing and make that explicit in both name and contract.\n\n```ts\nfunction add(a: number, b: number): number {\n  return a + b;\n}\n```\n\nDesign constr"
+          }
+        },
+        "context_summary": "Previous Task Results:\n- Task [t1]: A minimal design is to make the function do exactly one thing and make that explicit in both name and contract.\n\n```ts\nfunction add(a: number, b: number): number {\n  return a + b;\n}\n```\n\nDesign constr"
+      },
+      "schemaValid": true,
+      "durationMs": 0,
+      "memoryMb": 17.284690856933594,
+      "estimatedTokens": 321
+    },
+    {
+      "timestamp": "2026-04-29T02:08:27.037Z",
+      "stage": "Executor:t2",
+      "phase": "input",
+      "role": "role3",
+      "dataType": "ExecutionRequest",
+      "data": {
+        "task_id": "t2",
+        "type": "plan",
+        "prompt": "[PLAN] propose a function design that only handles subtraction.\n\nContext: Previous Task Results:\n- Task [t1]: A minimal design is to make the function do exactly one thing and make that explicit in both name and contract.\n\n```ts\nfunction add(a: number, b: number): number {\n  return a + b;\n}\n```\n\nDesign constr"
+      },
+      "schemaValid": true,
+      "memoryMb": 17.29998779296875,
+      "estimatedTokens": 96
+    },
+    {
+      "timestamp": "2026-04-29T02:08:36.150Z",
+      "stage": "Executor:t2",
+      "phase": "output",
+      "role": "role3",
+      "dataType": "ExecutionResult",
+      "data": {
+        "task_id": "t2",
+        "type": "plan",
+        "success": true,
+        "raw_output": "Use the same pattern as `add`: make the single responsibility explicit in both the name and the contract.\n\n```ts\nfunction subtract(a: number, b: number): number {\n  return a - b;\n}\n```\n\nDesign notes:\n- Name: `subtract` states the only supported operation.\n- Contract: takes two `number` inputs and returns their difference.\n- Scope: no flags, modes, or operator parameters; subtraction only.\n\nIf you want, I can also propose a stricter variant with argument naming like `minuend` and `subtrahend`.\n"
+      },
+      "schemaValid": true,
+      "durationMs": 9113,
+      "memoryMb": 17.45671844482422,
+      "estimatedTokens": 149
+    }
+  ],
+  "summary": {
+    "totalDurationMs": 28462,
+    "stageTimings": {
+      "PromptCompiler": 9953,
+      "TaskGraphBuilder": 11,
+      "SessionLoader": 4,
+      "ContextOptimizer:t1": 0,
+      "Executor:t1": 9381,
+      "ContextOptimizer:t2": 0,
+      "Executor:t2": 9113
+    },
+    "totalMemoryMb": 18.925521850585938
+  }
+}

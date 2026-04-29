@@ -1,0 +1,139 @@
+{
+  "input": {
+    "rawInput": "지금 당장 처리해야 하는 일은 아니니까 여유 있을 때 순서대로 정돈해줘.\n괜찮으면 먼저 결제 처리와 관련된 모듈이 프로젝트 어디에 흩어져 있는지 찾아줘,\n이어서 장바구니에서 결제 승인까지 데이터가 라우터, 핸들러, 도메인 서비스, 데이터 계층을 어떤 순서로 지나가는지 추적해서 설명해줘.\n그리고 아마 캐시 만료 조건이 서로 맞지 않아서 금액이 오래된 값으로 남는 것 같으니 그 결함을 고쳐줘.\n고친 뒤에는 스모크 테스트와 관련 회귀 테스트를 돌려서 같은 증상이 다시 안 나는지 검증해줘.\n끝으로 내가 장황하게 말한 부분은 빼고, 바꾼 내용과 확인한 명령 결과를 작업 노트에 정리해줘.\n말투는 간단히 다듬어도 되지만 이 순서는 유지해줘.",
+    "language": "ko",
+    "inferenceTimeSec": 21.423
+  },
+  "role1": {
+    "translationResult": "This is not something that needs to be handled immediately, so organize it in order when you have time.\nIf possible, first find where the module related to payment processing is scattered in the project.\nNext, trace and explain the order in which data passes through the router, handler, domain service, and data layer from the shopping cart to payment approval.\nAnd probably because the cache expiration conditions do not match, the amount seems to be left with old values, so fix that defect.\nAfter fixing it, run smoke tests and related regression tests to verify that the same symptoms do not occur again.\nFinally, omit the parts I spoke about in length, and organize the changes made and the results of the commands checked in the work note.\nThe tone can be simplified, but maintain this order.",
+    "compressionResult": "This is not something that needs to be handled immediately, so organize it in order when you have time.\nFind where the module related to payment processing is scattered in the project.\nTrace and explain the order in which data passes through the router, handler, domain service, and data layer from the shopping cart to payment approval.\nCache expiration conditions do not match, the amount seems to be left with old values, so fix that defect.\nAfter fixing it, run smoke tests and related regression tests to verify that the same symptoms do not occur again.\nOmit the parts I spoke about in length, and organize the changes made and results of the commands checked in the work note.\nThe tone can be simplified, but maintain this order.",
+    "normalizedWordCount": 138,
+    "compressedWordCount": 128,
+    "compressionRatio": 0.928,
+    "validationErrors": [],
+    "repairActions": [
+      "compressed_with_kompress"
+    ]
+  },
+  "role2Handoff": {
+    "usesNormalizedInput": true,
+    "compiledPrompt": "This is not something that needs to be handled immediately, so organize it in order when you have time.\nIf possible, first find where the module related to payment processing is scattered in the project.\nNext, trace and explain the order in which data passes through the router, handler, domain service, and data layer from the shopping cart to payment approval.\nAnd probably because the cache expiration conditions do not match, the amount seems to be left with old values, so fix that defect.\nAfter fixing it, run smoke tests and related regression tests to verify that the same symptoms do not occur again.\nFinally, omit the parts I spoke about in length, and organize the changes made and the results of the commands checked in the work note.\nThe tone can be simplified, but maintain this order."
+  },
+  "role21": {
+    "lowLevelSplit": [
+      "This is not something that needs to be handled immediately, so organize it in order when you have time.",
+      "If possible, first find where the module related to payment processing is scattered in the project.",
+      "trace and explain the order in which data passes through the router, handler, domain service, and data layer from the shopping cart to payment approval.",
+      "And probably because the cache expiration conditions do not match, the amount seems to be left with old values, so fix that defect.",
+      "run smoke tests and related regression tests to verify that the same symptoms do not occur again.",
+      "omit the parts I spoke about in length",
+      "organize the changes made and the results of the commands checked in the work note.",
+      "The tone can be simplified, but maintain this order."
+    ],
+    "candidates": [
+      {
+        "text": "find where the module related to payment processing is scattered in the project.",
+        "orderHint": 1,
+        "discardedText": [
+          "If possible,",
+          "first"
+        ]
+      },
+      {
+        "text": "trace and explain the order in which data passes through the router, handler, domain service, and data layer from the shopping cart to payment approval.",
+        "orderHint": 2
+      },
+      {
+        "text": "fix the defect because the cache expiration conditions do not match, the amount seems to be left with old values.",
+        "orderHint": 3,
+        "discardedText": [
+          "And"
+        ]
+      },
+      {
+        "text": "run smoke tests and related regression tests to verify that the same symptoms do not occur again.",
+        "orderHint": 4
+      },
+      {
+        "text": "organize the changes made and the results of the commands checked in the work note.",
+        "orderHint": 6
+      }
+    ],
+    "candidateSentences": [
+      "find where the module related to payment processing is scattered in the project.",
+      "trace and explain the order in which data passes through the router, handler, domain service, and data layer from the shopping cart to payment approval.",
+      "fix the defect because the cache expiration conditions do not match, the amount seems to be left with old values.",
+      "run smoke tests and related regression tests to verify that the same symptoms do not occur again.",
+      "organize the changes made and the results of the commands checked in the work note."
+    ],
+    "graphTasks": [
+      {
+        "id": "t1",
+        "type": "explore",
+        "title": "find where the module related to payment processing is scattered in the project.",
+        "depends_on": []
+      },
+      {
+        "id": "t2",
+        "type": "analyze",
+        "title": "trace and explain the order in which data passes through the router, handler, domain service, and data layer from the shopping cart to payment approval.",
+        "depends_on": [
+          "t1"
+        ]
+      },
+      {
+        "id": "t3",
+        "type": "modify",
+        "title": "fix the defect because the cache expiration conditions do not match, the amount seems to be left with old values.",
+        "depends_on": [
+          "t2"
+        ]
+      },
+      {
+        "id": "t4",
+        "type": "validate",
+        "title": "run smoke tests and related regression tests to verify that the same symptoms do not occur again.",
+        "depends_on": [
+          "t3"
+        ]
+      },
+      {
+        "id": "t5",
+        "type": "document",
+        "title": "organize the changes made and the results of the commands checked in the work note.",
+        "depends_on": [
+          "t4"
+        ]
+      }
+    ]
+  },
+  "checks": {
+    "translatedByLiveLlama": true,
+    "role2UsesNormalizedBeforeCompression": true,
+    "candidateSentenceCountIsFive": true,
+    "typeFlow": [
+      "explore",
+      "analyze",
+      "modify",
+      "validate",
+      "document"
+    ],
+    "typeFlowMatchesExpected": true,
+    "dependencyFlow": [
+      [],
+      [
+        "t1"
+      ],
+      [
+        "t2"
+      ],
+      [
+        "t3"
+      ],
+      [
+        "t4"
+      ]
+    ],
+    "dependencyFlowMatchesExpected": true
+  }
+}
