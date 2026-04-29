@@ -1,0 +1,216 @@
+{
+  "sessionId": "ZZq9ph2p2zOKaZEbEKe06vkY",
+  "startTime": "2026-04-28T01:56:29.895Z",
+  "entries": [
+    {
+      "timestamp": "2026-04-28T01:56:29.830Z",
+      "stage": "PromptCompiler",
+      "phase": "input",
+      "role": "role1",
+      "dataType": "UserRequest",
+      "data": {
+        "raw_input": "hello detoks world"
+      },
+      "schemaValid": true,
+      "memoryMb": 13.72265625,
+      "estimatedTokens": 9
+    },
+    {
+      "timestamp": "2026-04-28T01:56:29.851Z",
+      "stage": "PromptCompiler",
+      "phase": "output",
+      "role": "role1",
+      "dataType": "CompiledPrompt",
+      "data": {
+        "raw_input": "hello detoks world",
+        "normalized_input": "hello detoks world",
+        "compressed_prompt": "hello detoks world",
+        "language": "en",
+        "compression_provider": "nlp_adapter",
+        "inference_time_sec": 0
+      },
+      "schemaValid": true,
+      "durationMs": 20,
+      "memoryMb": 14.3729248046875,
+      "estimatedTokens": 43
+    },
+    {
+      "timestamp": "2026-04-28T01:56:29.852Z",
+      "stage": "TaskGraphBuilder",
+      "phase": "input",
+      "role": "role2.1",
+      "dataType": "Role2PromptInput",
+      "data": {
+        "compiled_prompt": "hello detoks world"
+      },
+      "schemaValid": true,
+      "memoryMb": 14.375083923339844,
+      "estimatedTokens": 9
+    },
+    {
+      "timestamp": "2026-04-28T01:56:29.861Z",
+      "stage": "TaskGraphBuilder",
+      "phase": "output",
+      "role": "role2.1",
+      "dataType": "TaskGraph",
+      "data": {
+        "tasks": [
+          {
+            "id": "t1",
+            "type": "execute",
+            "status": "pending",
+            "title": "hello detoks world",
+            "input_hash": "fd216d7faf03035e",
+            "depends_on": []
+          }
+        ]
+      },
+      "schemaValid": true,
+      "durationMs": 8,
+      "memoryMb": 14.737052917480469,
+      "estimatedTokens": 40
+    },
+    {
+      "timestamp": "2026-04-28T01:56:29.862Z",
+      "stage": "DAGValidator",
+      "phase": "output",
+      "role": "role2.1",
+      "dataType": "DAGValidationResult",
+      "data": {
+        "valid": true,
+        "topologicalOrder": [
+          "t1"
+        ]
+      },
+      "schemaValid": true,
+      "memoryMb": 14.751846313476562,
+      "estimatedTokens": 12
+    },
+    {
+      "timestamp": "2026-04-28T01:56:29.862Z",
+      "stage": "DependencyResolver",
+      "phase": "output",
+      "role": "role2.1",
+      "dataType": "DependencyResolution",
+      "data": {
+        "orderedTasks": [
+          {
+            "taskId": "t1",
+            "type": "execute",
+            "title": "hello detoks world",
+            "dependsOn": [],
+            "resolvedDeps": []
+          }
+        ]
+      },
+      "schemaValid": true,
+      "memoryMb": 14.758003234863281,
+      "estimatedTokens": 30
+    },
+    {
+      "timestamp": "2026-04-28T01:56:29.863Z",
+      "stage": "ParallelClassifier",
+      "phase": "output",
+      "role": "role2.1",
+      "dataType": "ParallelClassification",
+      "data": {
+        "stages": [
+          {
+            "stage": 0,
+            "runnableInParallel": [
+              {
+                "taskId": "t1",
+                "type": "execute",
+                "title": "hello detoks world",
+                "dependsOn": []
+              }
+            ]
+          }
+        ]
+      },
+      "schemaValid": true,
+      "memoryMb": 14.765960693359375,
+      "estimatedTokens": 35
+    },
+    {
+      "timestamp": "2026-04-28T01:56:29.866Z",
+      "stage": "SessionLoader",
+      "phase": "output",
+      "role": "role2.2",
+      "dataType": "SessionState",
+      "data": {
+        "session_id": "ZZq9ph2p2zOKaZEbEKe06vkY",
+        "completed_task_count": 0,
+        "next_task_id": null
+      },
+      "schemaValid": true,
+      "durationMs": 3,
+      "memoryMb": 13.819854736328125,
+      "estimatedTokens": 34
+    },
+    {
+      "timestamp": "2026-04-28T01:56:29.867Z",
+      "stage": "ContextOptimizer",
+      "phase": "output",
+      "role": "role2.2",
+      "dataType": "ExecutionContext",
+      "data": {
+        "session_id": "ZZq9ph2p2zOKaZEbEKe06vkY",
+        "active_task_id": "t1",
+        "shared_context": {
+          "session_id": "ZZq9ph2p2zOKaZEbEKe06vkY",
+          "raw_input": "hello detoks world"
+        },
+        "selected_context": {},
+        "context_summary": "No previous task context available."
+      },
+      "schemaValid": true,
+      "durationMs": 1,
+      "memoryMb": 13.829788208007812,
+      "estimatedTokens": 76
+    },
+    {
+      "timestamp": "2026-04-28T01:56:29.868Z",
+      "stage": "Executor:t1",
+      "phase": "input",
+      "role": "role3",
+      "dataType": "ExecutionRequest",
+      "data": {
+        "task_id": "t1",
+        "type": "execute",
+        "prompt": "[EXECUTE] hello detoks world\n\nContext: No previous task context available."
+      },
+      "schemaValid": true,
+      "memoryMb": 13.846763610839844,
+      "estimatedTokens": 32
+    },
+    {
+      "timestamp": "2026-04-28T01:56:29.868Z",
+      "stage": "Executor:t1",
+      "phase": "output",
+      "role": "role3",
+      "dataType": "ExecutionResult",
+      "data": {
+        "task_id": "t1",
+        "type": "execute",
+        "success": true,
+        "raw_output": "[stub:codex] [EXECUTE] hello detoks world\n\nContext: No previous task context available."
+      },
+      "schemaValid": true,
+      "durationMs": 0,
+      "memoryMb": 13.860336303710938,
+      "estimatedTokens": 43
+    }
+  ],
+  "summary": {
+    "totalDurationMs": 32,
+    "stageTimings": {
+      "PromptCompiler": 20,
+      "TaskGraphBuilder": 8,
+      "SessionLoader": 3,
+      "ContextOptimizer:t1": 1,
+      "Executor:t1": 0
+    },
+    "totalMemoryMb": 14.765960693359375
+  }
+}
