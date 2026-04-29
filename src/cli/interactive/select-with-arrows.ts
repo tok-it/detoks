@@ -17,6 +17,16 @@ export const selectWithArrows = async (
 
   let selectedIndex = 0;
 
+  // stdin이 TTY가 아니면 첫 번째 옵션 선택
+  if (!input.isTTY) {
+    const firstOption = options[0];
+    if (firstOption) {
+      output.write(colors.success(`✓ 선택: ${firstOption.label}\n\n`));
+      return firstOption.value;
+    }
+    return null;
+  }
+
   // stdin을 raw mode로 설정
   const originalRawMode = input.isRaw;
   input.setRawMode(true);
