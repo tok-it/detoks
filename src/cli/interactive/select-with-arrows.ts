@@ -32,9 +32,9 @@ export const selectWithArrows = async (
   input.setRawMode(true);
   input.resume();
 
-  // 초기 UI 렌더링
+  // 초기 UI 렌더링 (커서 위치 기준점 이후부터 출력)
   const renderMenu = () => {
-    output.write(`\n${colors.title(title)}\n`);
+    output.write(`${colors.title(title)}\n`);
     for (let i = 0; i < options.length; i++) {
       const option = options[i];
       if (option) {
@@ -52,6 +52,9 @@ export const selectWithArrows = async (
     );
   };
 
+  // 기준점 저장 후 초기 렌더링
+  output.write("\n");
+  output.write("\x1b7"); // 커서 위치 저장
   renderMenu();
 
   return new Promise((resolve) => {
@@ -93,12 +96,11 @@ export const selectWithArrows = async (
         process.exit(0);
       }
 
-      // 선택이 변경되면 다시 렌더링
+      // 선택이 변경되면 저장된 커서 위치로 돌아가서 다시 렌더링
       if (selectedIndex !== lastIndex) {
         lastIndex = selectedIndex;
-        // 메뉴를 위로 스크롤해서 다시 렌더링
-        const lineCount = options.length + 3;
-        output.write(`\x1b[${lineCount}A\x1b[J`);
+        output.write("\x1b8"); // 저장된 커서 위치로 복원
+        output.write("\x1b[J"); // 커서 아래 모두 지움
         renderMenu();
       }
     };
