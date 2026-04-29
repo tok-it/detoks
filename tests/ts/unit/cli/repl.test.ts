@@ -22,6 +22,10 @@ const lastSession: ReplSession = {
 };
 
 describe("repl builtin command routing", () => {
+  it("routes / to the repl command menu builtin", () => {
+    expect(getReplBuiltinCommand("/")).toEqual({ kind: "menu" });
+  });
+
   it("routes /help to the repl help builtin", () => {
     expect(getReplBuiltinCommand("/help")).toEqual({ kind: "help" });
   });
@@ -134,6 +138,28 @@ describe("repl builtin command routing", () => {
     expect(verboseResult.shouldExit).toBe(false);
     expect(verboseResult.nextState.verbose).toBe(true);
     expect(verboseResult.output).toContain("REPL 상세 출력이 true(으)로 설정되었습니다.");
+  });
+
+  it("renders the repl command menu for /", () => {
+    const initialState = {
+      adapter: "codex" as const,
+      model: "gpt-5",
+      executionMode: "stub" as const,
+      verbose: false,
+    };
+
+    const menuResult = runReplBuiltinCommand(
+      { kind: "menu" },
+      initialState,
+      "repl-session-123",
+    );
+    expect(menuResult.shouldExit).toBe(false);
+    expect(menuResult.output).toContain("REPL 명령어 목록");
+    expect(menuResult.output).toContain("/help");
+    expect(menuResult.output).toContain("/adapter gemini");
+    expect(menuResult.output).toContain("/verbose off");
+    expect(menuResult.output).toContain("/quit");
+    expect(menuResult.output).not.toContain("이 명령어 목록 표시");
   });
 
   it("keeps non-interactive guidance for /adapter and /verbose without args", () => {

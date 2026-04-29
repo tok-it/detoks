@@ -19,9 +19,12 @@ const SESSION_ID_CHARSET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz
 const LOGIN_MENU_OPTIONS = ["codex", "gemini"] as const;
 const VERBOSE_MENU_OPTIONS = ["on", "off"] as const;
 const RESUME_SESSION_MENU_OPTIONS = ["continue", "new"] as const;
+const DEFAULT_REPL_ADAPTER: ReplAdapter = "codex";
+type ReplAdapter = NonNullable<CliArgs["adapter"]>;
 const terminal = createTerminalStyle({ isTTY: Boolean(output.isTTY), env: process.env });
 
 export type ReplBuiltinCommand =
+  | { kind: "menu" }
   | { kind: "help" }
   | { kind: "exit" }
   | { kind: "login" }
@@ -31,7 +34,7 @@ export type ReplBuiltinCommand =
   | { kind: "verbose"; value?: boolean };
 
 export interface ReplRuntimeState {
-  adapter: CliArgs["adapter"];
+  adapter: ReplAdapter;
   model?: string;
   executionMode: CliArgs["executionMode"];
   verbose: boolean;
@@ -49,6 +52,10 @@ export const shouldEmitReplSourceBadge = (
 ): boolean => getReplSourceBadgeKey(state) !== lastBadgeKey;
 
 export const getReplBuiltinCommand = (line: string): ReplBuiltinCommand | null => {
+  if (line === "/") {
+    return { kind: "menu" };
+  }
+
   if (HELP_COMMANDS.has(line)) {
     return { kind: "help" };
   }
@@ -71,8 +78,8 @@ export const getReplBuiltinCommand = (line: string): ReplBuiltinCommand | null =
 
   if (line.startsWith("/adapter ")) {
     const adapter = line.slice("/adapter ".length).trim();
-    if (AdapterValues.includes(adapter as CliArgs["adapter"])) {
-      return { kind: "adapter", adapter: adapter as CliArgs["adapter"] };
+    if (adapter && AdapterValues.includes(adapter as ReplAdapter)) {
+      return { kind: "adapter", adapter: adapter as ReplAdapter };
     }
     return { kind: "adapter" };
   }
@@ -213,8 +220,8 @@ async function promptForArrowSelection<const T extends string>(
 }
 
 async function promptForLoginAdapterSelection(
-  currentAdapter: CliArgs["adapter"] = LOGIN_MENU_OPTIONS[0],
-): Promise<CliArgs["adapter"] | null> {
+  currentAdapter: ReplAdapter = LOGIN_MENU_OPTIONS[0],
+): Promise<ReplAdapter | null> {
   return await promptForArrowSelection(
     "로그인할 어댑터를 선택하세요:",
     LOGIN_MENU_OPTIONS,
@@ -223,13 +230,94 @@ async function promptForLoginAdapterSelection(
 }
 
 async function promptForReplAdapterSelection(
-  currentAdapter: CliArgs["adapter"],
-): Promise<CliArgs["adapter"] | null> {
+  currentAdapter: ReplAdapter = DEFAULT_REPL_ADAPTER,
+): Promise<ReplAdapter | null> {
   return await promptForArrowSelection(
     "REPL 어댑터를 선택하세요:",
     LOGIN_MENU_OPTIONS,
     Math.max(0, LOGIN_MENU_OPTIONS.indexOf(currentAdapter)),
   );
+}
+
+function formatReplCommandMenu(state: ReplRuntimeState): string {
+  const commands = [
+    ["/help", "REPL 도움말 표시"],
+    ["/login", "Codex/Gemini 로그인 흐름 시작"],
+    ["/session", "현재 REPL 세션과 런타임 정보 확인"],
+    ["/adapter", "어댑터 선택 UI 표시"],
+    ["/adapter codex", "이후 프롬프트의 어댑터를 codex로 변경"],
+    ["/adapter gemini", "이후 프롬프트의 어댑터를 gemini로 변경"],
+    ["/model", "모델 변경 안내 표시"],
+    ["/model <이름>", "이후 프롬프트의 모델을 변경"],
+    ["/verbose", "상세 출력 선택 UI 표시"],
+    ["/verbose on", "상세 출력 켜기"],
+    ["/verbose off", "상세 출력 끄기"],
+    ["/exit", "REPL 종료"],
+    ["/quit", "REPL 종료"],
+    [".exit", "REPL 종료"],
+  ] as const;
+
+  const lines = [
+    terminal.title("REPL 명령어 목록"),
+    terminal.muted(`현재 소스: ${getReplPromptLabel(state).trimEnd()}`),
+    "",
+    ...commands.map(([command, description]) =>
+      `${terminal.emphasis(command.padEnd(18))} ${terminal.muted(description)}`,
+    ),
+    "",
+    terminal.muted("명령을 입력하거나 /help를 입력해 자세한 도움말을 볼 수 있습니다."),
+  ];
+
+  return `${lines.join("\n")}\n`;
+}
+
+function renderReplCommandMenuInline(state: ReplRuntimeState): string {
+  return `\n${formatReplCommandMenu(state)}`;
+}
+
+function renderInlineSlashMenu(state: ReplRuntimeState): void {
+  output.write("\x1b[s");
+  output.write(renderReplCommandMenuInline(state));
+  output.write("\x1b[u");
+}
+
+function clearInlineSlashMenu(): void {
+  output.write("\x1b[s");
+  output.write("\x1b[J");
+  output.write("\x1b[u");
+}
+
+function refreshReadlineLine(rl: {
+  _refreshLine?: () => void;
+}): void {
+  rl._refreshLine?.();
+}
+
+async function resolveInitialReplAdapter(
+  baseAdapter: ReplAdapter | undefined,
+  lastSession: ReplSession | null,
+): Promise<ReplAdapter> {
+  if (baseAdapter !== undefined) {
+    return baseAdapter;
+  }
+
+  if (lastSession && AdapterValues.includes(lastSession.adapter as ReplAdapter)) {
+    return lastSession.adapter as ReplAdapter;
+  }
+
+  if (!input.isTTY || !output.isTTY || typeof input.setRawMode !== "function") {
+    return DEFAULT_REPL_ADAPTER;
+  }
+
+  const selected = await promptForReplAdapterSelection(DEFAULT_REPL_ADAPTER);
+  if (selected) {
+    return selected;
+  }
+
+  output.write(
+    `${terminal.warning(`! 어댑터 선택이 취소되어 ${DEFAULT_REPL_ADAPTER}를 기본값으로 사용합니다.`)}\n`,
+  );
+  return DEFAULT_REPL_ADAPTER;
 }
 
 async function promptForVerboseSelection(currentVerbose: boolean): Promise<boolean | null> {
@@ -297,6 +385,14 @@ export const runReplBuiltinCommand = (
   state: ReplRuntimeState,
   sessionId: string,
 ): { shouldExit: boolean; output: string; nextState: ReplRuntimeState } => {
+  if (command.kind === "menu") {
+    return {
+      shouldExit: false,
+      output: formatReplCommandMenu(state),
+      nextState: state,
+    };
+  }
+
   if (command.kind === "help") {
     return {
       shouldExit: false,
@@ -528,27 +624,59 @@ export const runReplCommand = async (baseArgs: CliArgs): Promise<void> => {
     promptToResume: promptForResumeSessionSelection,
     updateLastResumed: () => ReplRegistry.updateLastResumed(cwd),
   });
+  const initialAdapter = await resolveInitialReplAdapter(baseArgs.adapter, lastSession);
 
   output.write(
-    `${terminal.title("detoks repl 시작됨")} (adapter=${terminal.emphasis(baseArgs.adapter)}, executionMode=${terminal.emphasis(baseArgs.executionMode)}, verbose=${terminal.emphasis(String(baseArgs.verbose))}, session=${terminal.emphasis(sessionId)}). ${terminal.muted('stub = 시뮬레이션 출력; real = 어댑터 실제 실행 경로.')} ${terminal.muted('"/help" 입력 시 REPL 도움말, "exit" 입력 시 종료.')}\n`,
+    `${terminal.title("detoks repl 시작됨")} (adapter=${terminal.emphasis(initialAdapter)}, executionMode=${terminal.emphasis(baseArgs.executionMode)}, verbose=${terminal.emphasis(String(baseArgs.verbose))}, session=${terminal.emphasis(sessionId)}). ${terminal.muted('stub = 시뮬레이션 출력; real = 어댑터 실제 실행 경로.')} ${terminal.muted('"/help" 입력 시 REPL 도움말, "exit" 입력 시 종료.')}\n`,
   );
   let replState: ReplRuntimeState = {
-    adapter: baseArgs.adapter,
+    adapter: initialAdapter,
     ...(baseArgs.model !== undefined ? { model: baseArgs.model } : {}),
     executionMode: baseArgs.executionMode,
     verbose: baseArgs.verbose,
   };
   let lastSourceBadgeKey: string | null = null;
+  let inlineSlashMenuVisible = false;
 
   const isTTY = Boolean(input.isTTY && output.isTTY);
+  if (isTTY) {
+    emitKeypressEvents(input);
+  }
 
   try {
     while (true) {
       let line: string;
+      let onMainPromptKeypress:
+        | ((_: string, key: { name?: string; sequence?: string; ctrl?: boolean }) => void)
+        | null = null;
       try {
         const promptLabel = terminal.prompt(getReplPromptLabel(replState));
         if (!isTTY) {
           output.write(promptLabel);
+        }
+        if (isTTY) {
+          if (typeof input.setRawMode === "function") {
+            input.setRawMode(true);
+          }
+          onMainPromptKeypress = (_: string, key: { name?: string; sequence?: string; ctrl?: boolean }) => {
+            if (key.ctrl && key.name === "c") {
+              return;
+            }
+
+            if (rl.line !== "/" && inlineSlashMenuVisible) {
+              clearInlineSlashMenu();
+              inlineSlashMenuVisible = false;
+              refreshReadlineLine(rl as unknown as { _refreshLine?: () => void });
+              return;
+            }
+
+            if (!inlineSlashMenuVisible && rl.line === "/") {
+              inlineSlashMenuVisible = true;
+              renderInlineSlashMenu(replState);
+              refreshReadlineLine(rl as unknown as { _refreshLine?: () => void });
+            }
+          };
+          input.on("keypress", onMainPromptKeypress);
         }
         line = (await rl.question(isTTY ? promptLabel : "")).trim();
       } catch (error) {
@@ -556,8 +684,21 @@ export const runReplCommand = async (baseArgs: CliArgs): Promise<void> => {
           break;
         }
         throw error;
+      } finally {
+        if (onMainPromptKeypress) {
+          input.off("keypress", onMainPromptKeypress);
+        }
+        if (isTTY && typeof input.setRawMode === "function") {
+          input.setRawMode(false);
+        }
       }
       if (!line) {
+        if (inlineSlashMenuVisible) {
+          clearInlineSlashMenu();
+          inlineSlashMenuVisible = false;
+        }
+        inlineSlashMenuVisible = false;
+        refreshReadlineLine(rl as unknown as { _refreshLine?: () => void });
         continue;
       }
       const builtinCommand = getReplBuiltinCommand(line);
@@ -581,12 +722,38 @@ export const runReplCommand = async (baseArgs: CliArgs): Promise<void> => {
           continue;
         }
 
+        if (builtinCommand.kind === "menu") {
+          if (inlineSlashMenuVisible) {
+            clearInlineSlashMenu();
+            inlineSlashMenuVisible = false;
+            refreshReadlineLine(rl as unknown as { _refreshLine?: () => void });
+            continue;
+          }
+
+          const menuResult = runReplBuiltinCommand(builtinCommand, replState, sessionId);
+          if (menuResult.output) {
+            rl.pause();
+            await new Promise<void>((resolve, reject) => {
+              output.write(menuResult.output, (error) => {
+                if (error) {
+                  reject(error);
+                  return;
+                }
+                resolve();
+              });
+            });
+            rl.resume();
+          }
+          continue;
+        }
+
         let resolvedBuiltinCommand = builtinCommand;
 
         if (builtinCommand.kind === "adapter" && builtinCommand.adapter === undefined) {
           const selectedAdapter = await promptForReplAdapterSelection(replState.adapter);
           if (!selectedAdapter) {
             output.write(`${terminal.warning("! 어댑터 선택이 취소되었습니다.")}\n`);
+            refreshReadlineLine(rl as unknown as { _refreshLine?: () => void });
             continue;
           }
           resolvedBuiltinCommand = { kind: "adapter", adapter: selectedAdapter };
@@ -596,6 +763,7 @@ export const runReplCommand = async (baseArgs: CliArgs): Promise<void> => {
           const selectedVerbose = await promptForVerboseSelection(replState.verbose);
           if (selectedVerbose === null) {
             output.write(`${terminal.warning("! 상세 출력 선택이 취소되었습니다.")}\n`);
+            refreshReadlineLine(rl as unknown as { _refreshLine?: () => void });
             continue;
           }
           resolvedBuiltinCommand = { kind: "verbose", value: selectedVerbose };
@@ -609,12 +777,20 @@ export const runReplCommand = async (baseArgs: CliArgs): Promise<void> => {
         if (builtinResult.shouldExit) {
           break;
         }
+        refreshReadlineLine(rl as unknown as { _refreshLine?: () => void });
         continue;
       }
 
       try {
+        const requestArgs = {
+          ...baseArgs,
+          ...replState,
+          mode: "run" as const,
+          prompt: line,
+          adapter: replState.adapter,
+        };
         const request = toNormalizedRequest(
-          { ...baseArgs, ...replState, mode: "run", prompt: line },
+          requestArgs,
           { mode: "repl", sessionId },
         );
         const spinner = startSpinner(isTTY);
@@ -646,17 +822,21 @@ export const runReplCommand = async (baseArgs: CliArgs): Promise<void> => {
           );
         }
       } catch (error) {
+        inlineSlashMenuVisible = false;
+        clearInlineSlashMenu();
         if (shouldEmitReplSourceBadge(replState, lastSourceBadgeKey)) {
           output.write(
             `${terminal.adapterBadge(replState.adapter, {
               ...(replState.model !== undefined ? { model: replState.model } : {}),
               executionMode: replState.executionMode,
-            })}\n`,
+          })}\n`,
           );
           lastSourceBadgeKey = getReplSourceBadgeKey(replState);
         }
         output.write(`${formatError(error, baseArgs.verbose)}\n`);
       }
+      inlineSlashMenuVisible = false;
+      refreshReadlineLine(rl as unknown as { _refreshLine?: () => void });
     }
   } finally {
     await ReplRegistry.saveSession(

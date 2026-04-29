@@ -52,6 +52,18 @@ describe("parseCliArgs", () => {
     });
   });
 
+  it("parses repl mode without an adapter so startup can prompt for one", () => {
+    const parsed = parseCliArgs(["repl"]);
+    expect(parsed).toEqual({
+      mode: "repl",
+      executionMode: "stub",
+      verbose: false,
+      trace: false,
+      showHelp: false,
+      helpTopic: "repl",
+    });
+  });
+
   it("parses batch file mode", () => {
     const parsed = parseCliArgs(["--file", "tests/data/row_data.json", "--verbose"]);
     expect(parsed).toEqual({

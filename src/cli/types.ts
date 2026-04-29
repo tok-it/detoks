@@ -32,7 +32,7 @@ export interface CliArgs {
   checkpointId?: string;
   inputFile?: string;
   model?: string;
-  adapter: Adapter;
+  adapter?: Adapter;
   executionMode: ExecutionMode;
   verbose: boolean;
   trace: boolean;
