@@ -101,6 +101,7 @@ export class TaskGraphProcessor {
         /\b(fix|patch|update|change|edit|refactor|rewrite|rename)\b.*\b(bug|issue|config|logic|function|module|file|implementation)\b/,
         /\bremove\b.*\b(dead\s+code|unused\s+code|legacy\s+code)\b/,
         /\b(modify|update|change|fix|edit|refactor|revise|adjust|patch|rewrite|rename|clean\s+up)\b/,
+        /\b(extract|consolidate|centralize|decouple|restructure|reorganize|streamline)\b/,
         /\bremove\b/,
         /\breplace\b/,
         /\bimprove\b/,
