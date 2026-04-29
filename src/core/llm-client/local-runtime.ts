@@ -230,6 +230,14 @@ export function buildLlamaServerArgs(config: Role1RuntimeConfig): string[] {
     args.push("--ctx-size", String(config.localLlmContextSize));
   }
 
+  if (config.localLlmTopK !== undefined) {
+    args.push("--top-k", String(config.localLlmTopK));
+  }
+
+  if (config.localLlmTopP !== undefined) {
+    args.push("--top-p", String(config.localLlmTopP));
+  }
+
   if (config.localLlmReasoning) {
     args.push("--reasoning", config.localLlmReasoning);
   }
