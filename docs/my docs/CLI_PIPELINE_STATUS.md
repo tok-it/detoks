@@ -3,7 +3,7 @@
 ## 기준
 - 브랜치: `cli-runtime-ux-from-dev-20260425`
 - 작성 기준일: 2026-04-29
-- 최근 반영 커밋: `b4afd18 feat(cli): improve selection UI and session inspection`
+- 최근 반영 커밋: `6be410f docs(cli): update pipeline status`
 - 용도: 현재 detoks CLI 개발이 전체 파이프라인 기준으로 어디까지 완료됐는지 빠르게 확인하기 위한 로컬 상태 문서
 
 ---
@@ -82,6 +82,8 @@ CLI Input
 - 시작 안내에 adapter / executionMode / verbose 표시
 - REPL 시작/종료 smoke test 추가 완료
 - Slash commands: `/help`, `/clear`, `/model`, `/adapter`, `/mode`, `/verbose`, `/exit`
+- REPL main prompt에서 `/` 단일 입력 시 builtin command menu를 inline으로 표시
+- `/` 입력은 command menu 라우팅으로 처리되고, 방향키 선택 UI와 함께 동작함
 - Adapter info queries: `/llm-model` (인증상태), `/llm-models` (사용 가능 모델)
 - Arrow-key selection menu는 alternate screen / hide cursor / clear redraw를 사용해 프레임 누적을 줄임
 - 긴 옵션 목록은 터미널 높이에 맞춰 windowed scrolling으로 표시됨
@@ -283,6 +285,7 @@ CLI Input
 - `detoks session list --human` 추가 및 last work summary / token reduction 표시
 - `detoks session show --human` 추가 및 저장된 작업 결과 / raw_output 미리보기 조회
 - `detoks session continue`에 재진입 세션 요약 출력 추가
+- REPL main prompt의 `/` 입력을 builtin command menu inline 라우팅으로 연결
 - arrow-key selection menu UX 개선(ESC 취소, windowed scrolling, width-aware truncation, non-TTY fallback)
 - `execution-mode` help 보강
 - `verbose` 출력 정책 정리
