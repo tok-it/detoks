@@ -1,5 +1,5 @@
-> Role 1이 입력을 “번역/압축된 프롬프트”로 만들고, Role 2.1이 그것을 “실행 가능한 작업 그래프”로 바꾸고, Role 3이 “실제 실행”으로 연결한다는 흐름입니다.
-> Role 1이 입력을 “번역/압축된 프롬프트”로 만들고, Role 2.1이 그것을 “실행 가능한 작업 그래프”로 바꾸고, Role 3이 “실제 실행”으로 연결한다는 흐름입니다.
+> Role 1이 입력을 “번역/정규화된 프롬프트”로 만들고, Role 2.1이 그것을 “실행 가능한 작업 그래프”로 바꾸고, Role 3이 “실제 실행”으로 연결한다는 흐름입니다. 압축(Kompress)은 task 실행 시 필요한 context 단계에서 수행됩니다.
+> Role 1이 입력을 “번역/정규화된 프롬프트”로 만들고, Role 2.1이 그것을 “실행 가능한 작업 그래프”로 바꾸고, Role 3이 “실제 실행”으로 연결한다는 흐름입니다. 압축(Kompress)은 task 실행 시 필요한 context 단계에서 수행됩니다.
 
 ## 가장 먼저 결론
 
@@ -15,7 +15,7 @@
 8. SessionState
 
 즉,
-자연어 입력 → 번역/압축된 프롬프트 → Role 2 handoff schema → 요청 분석 결과 → 작업 그래프 → 실행 컨텍스트 → 실행 결과 → 상태 저장
+자연어 입력 → 번역/정규화된 프롬프트 → Role 2 handoff schema → 요청 분석/분류 → 작업 그래프 → 실행 컨텍스트(→ 압축) → 실행 결과 → 상태 저장
 순서입니다.
 
 ---
@@ -60,17 +60,16 @@ type Role2PromptInput = {
 };
 ```
 
-`Role2PromptInput.compiled_prompt`는 `CompiledPrompt.compressed_prompt`와 동일한 값을 가집니다.
+`Role2PromptInput.compiled_prompt`는 `CompiledPrompt.normalized_input`과 동일한 값을 가집니다. 분류(task type 결정)는 action signal이 살아 있는 번역/정규화 결과를 기준으로 해야 하므로, 압축 전 단계의 텍스트를 받습니다.
 
 ### 의미
 
 Role 1은 task 분해, id 생성, type 지정, depends_on 생성을 하지 않습니다.
-Role 1은 task 분해, id 생성, type 지정, depends_on 생성을 하지 않습니다.
 
 - 입력을 보존하고
-- 한국어를 영어로 변환하고
-- 필요한 의미를 압축하고
-- 압축된 영문 프롬프트 전문을 `Role2PromptInput`으로 넘깁니다.
+- 한국어를 영어로 변환/정규화하고
+- 번역/정규화된 영문 프롬프트를 `Role2PromptInput`으로 넘깁니다.
+- 압축(Kompress)은 task 실행 context 단계에서 별도로 수행됩니다.
 
 ---
 ---
@@ -347,8 +346,8 @@ ExecutionResult → SessionState
 
 ## 1. Role별 책임이 다름
 
-- Role 1: 번역/압축
-- Role 1: 번역/압축
+- Role 1: 번역/정규화
+- Role 1: 번역/정규화
 - Role 2.1: 작업화
 - Role 2.2: 상태/문맥화
 - Role 3: 실행

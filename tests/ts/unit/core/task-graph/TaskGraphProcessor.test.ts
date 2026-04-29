@@ -82,6 +82,9 @@ describe("TaskGraphProcessor", () => {
       ["Update the docs",                  "document", "update docs"],
       ["Create comprehensive documentation","document","create documentation"],
       ["Organize the changes made and command results in the work note", "document", "organize work note"],
+      ["Organize the duplicate validation logic into a shared service", "modify",   "organize code → modify idiom"],
+      ["check whether the payment flow is intact",                     "validate", "check whether → validate"],
+      ["check that all edge cases are handled",                        "validate", "check that → validate"],
       ["Plan the architecture",            "plan",     "plan"],
       ["Break down the migration steps",   "plan",     "break down"],
       ["Outline the rollout approach",     "plan",     "outline/approach"],
@@ -215,9 +218,10 @@ describe("TaskGraphProcessor", () => {
     });
   });
 
-  describe("multi 요청 — parallel (독립)", () => {
-    it("FLOWS_TO에 없는 흐름은 depends_on: []로 독립 처리된다", () => {
-      // FLOWS_TO["create"] = ["validate", "modify", "document", "execute"] — explore 없음
+  describe("multi 요청 — sequential (전체 전환)", () => {
+    it("모든 type 전환이 FLOWS_TO에 포함되어 있어 isolated node가 발생하지 않는다", () => {
+      // FLOWS_TO is now fully comprehensive: all type→type transitions are sequential.
+      // User prompts list tasks in intended execution order, so sequential is always correct.
       const result = TaskGraphProcessor.process({
         sentences: [
           "Create a new component",  // create
@@ -226,7 +230,19 @@ describe("TaskGraphProcessor", () => {
       });
 
       expect(result.tasks[0]!.depends_on).toEqual([]);
-      expect(result.tasks[1]!.depends_on).toEqual([]);
+      expect(result.tasks[1]!.depends_on).toEqual(["t1"]);
+    });
+
+    it("validate → validate 흐름은 sequential이다", () => {
+      const result = TaskGraphProcessor.process({
+        sentences: [
+          "Run the tests",        // validate
+          "Validate the output",  // validate
+        ],
+      });
+
+      expect(result.tasks[0]!.depends_on).toEqual([]);
+      expect(result.tasks[1]!.depends_on).toEqual(["t1"]);
     });
 
     it("document → validate 흐름은 sequential이다", () => {

@@ -59,6 +59,26 @@ describe("TaskCandidateExtractor", () => {
     ]);
   });
 
+  it("strips leading adverbs before action verb check", () => {
+    const result = TaskCandidateExtractor.extractSentences(
+      "briefly summarize the reason for the change and the modified files in the README.",
+    );
+
+    expect(result.sentences).toEqual([
+      "summarize the reason for the change and the modified files in the README.",
+    ]);
+  });
+
+  it("does not extract a trailing noun phrase as a task candidate", () => {
+    // "and the test results" at index 8 in the suffix must be skipped (threshold > 5)
+    const result = TaskCandidateExtractor.extract(
+      "briefly summarize the reason for the change, the modified files, and the test results in README.",
+    );
+
+    expect(result).toHaveLength(1);
+    expect(result[0]!.text).toMatch(/^summarize/);
+  });
+
   it("preserves cause context from translated problem statements", () => {
     const result = TaskCandidateExtractor.extractSentences(
       "And probably the problem is caused by duplicate validation logic, so fix that bug.",

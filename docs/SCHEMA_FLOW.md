@@ -81,7 +81,7 @@ type Role2PromptInput = {
 };
 ```
 
-**의미:** Role 1은 문장 단위 배열을 만들지 않고, `CompiledPrompt.compressed_prompt`를 `Role2PromptInput.compiled_prompt`로 Role 2.1에 전달한다. task 분해 / id / depends_on 생성은 Role 2.1 전담이다.
+**의미:** Role 1은 문장 단위 배열을 만들지 않고, `CompiledPrompt.normalized_input`을 `Role2PromptInput.compiled_prompt`로 Role 2.1에 전달한다. Role 2.1의 task type 분류는 action signal(동사, 숙어 등)에 의존하므로 압축 전 번역/정규화 결과를 받아야 한다. task 분해 / id / depends_on 생성은 Role 2.1 전담이다.
 
 **Role 1 내부 흐름:**
 1. input normalize
@@ -92,11 +92,11 @@ type Role2PromptInput = {
 6. validate
 7. repair
 8. translation fallback
-9. Kompress compression on natural-language body
-10. compression validate
-11. invalid하면 `normalized_input`을 `compressed_prompt`로 사용
-12. `CompiledPrompt`
-13. `Role2PromptInput`
+9. `CompiledPrompt` (normalized_input 확정)
+10. `Role2PromptInput` ← normalized_input 사용 (분류 우선)
+11. Kompress compression on natural-language body (task 실행 context 단계)
+12. compression validate
+13. invalid하면 `normalized_input`을 `compressed_prompt`로 사용
 
 **Role 1 내부 batch artifact:**
 - `run_metadata` + `results[]` 구조를 사용한다.
@@ -252,7 +252,7 @@ type ExecutionResult = {
 
 ### 1. Role별 책임이 명확
 
-- **Role 1:** 번역/압축만 담당
+- **Role 1:** 번역/정규화 담당 (압축은 task 실행 context 단계에서 수행)
 - **Role 2.1:** 작업화만 담당
 - **Role 2.2:** 상태/문맥 관리
 - **Role 3:** 실행만 담당
