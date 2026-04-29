@@ -64,7 +64,43 @@ const parseCliJson = (output: string) => {
   if (jsonStart < 0) {
     throw new Error(`CLI output did not contain JSON: ${trimmed}`);
   }
-  return JSON.parse(trimmed.slice(jsonStart));
+
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let i = jsonStart; i < trimmed.length; i += 1) {
+    const char = trimmed[i];
+
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+      } else if (char === "\\") {
+        escaped = true;
+      } else if (char === '"') {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (char === '"') {
+      inString = true;
+      continue;
+    }
+
+    if (char === "{") {
+      depth += 1;
+      continue;
+    }
+
+    if (char === "}") {
+      depth -= 1;
+      if (depth === 0) {
+        return JSON.parse(trimmed.slice(jsonStart, i + 1));
+      }
+    }
+  }
+
+  throw new Error(`CLI output did not contain a complete JSON object: ${trimmed}`);
 };
 
 const completedPipelineStages = [
@@ -356,7 +392,7 @@ describe("detoks CLI smoke", () => {
     const defaultJson = parseCliJson(defaultRun.stdout);
     const verboseJson = parseCliJson(verboseRun.stdout);
 
-    expect(defaultJson).toEqual({
+    expect(defaultJson).toMatchObject({
       ok: true,
       mode: "run",
       adapter: "codex",
@@ -368,6 +404,7 @@ describe("detoks CLI smoke", () => {
       promptValidationErrors: [],
       promptRepairActions: [],
     });
+    expect(defaultJson).toHaveProperty("tokenMetrics");
     expect(defaultJson).not.toHaveProperty("rawOutput");
 
     expect(verboseJson).toMatchObject({
@@ -518,6 +555,36 @@ describe("detoks CLI smoke", () => {
     expect(replRun.stdout).toContain('종료하려면 "exit"를 입력하세요.');
     expect(replRun.stdout).toContain("detoks> ");
     expect(replRun.stdout.trimEnd()).toMatch(/detoks repl 종료\.$/);
+  });
+
+  it("streams pipeline progress lines in repl before the final result", () => {
+    const replRun = runCliWithInput(["repl", "--execution-mode", "stub"], "hello detoks\nexit\n");
+
+    expect(replRun.error).toBeUndefined();
+    expect(replRun.status).toBe(0);
+    expect(replRun.stderr).toBe("");
+    expect(replRun.stdout).toContain("Prompt Compiler 시작");
+    expect(replRun.stdout).toContain("Task Graph Builder 시작");
+    expect(replRun.stdout).toContain("Context Optimizer(t1) 시작");
+    expect(replRun.stdout).toContain("Executor(t1) 실행 중");
+    expect(replRun.stdout).toContain("State Manager: 최종 세션 저장 완료");
+    expect(replRun.stdout.indexOf("Prompt Compiler 시작")).toBeLessThan(
+      replRun.stdout.indexOf("{"),
+    );
+
+    const output = parseCliJson(replRun.stdout);
+    expect(output).toMatchObject({
+      ok: true,
+      mode: "repl",
+      adapter: "codex",
+      summary: "1개 작업을 모두 완료했습니다",
+      nextAction: "파이프라인이 완료되었습니다.",
+      promptLanguage: "en",
+      promptInferenceTimeSec: 0,
+      promptValidationErrors: [],
+      promptRepairActions: [],
+      stages: completedPipelineStages,
+    });
   });
 
   it("runs batch file input and keeps default stdout concise", () => {

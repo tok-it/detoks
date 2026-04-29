@@ -3,10 +3,24 @@ import { stdin as input, stdout as output } from "node:process";
 import { formatError, formatSuccess } from "../format.js";
 import { toNormalizedRequest } from "../parse.js";
 import type { CliArgs } from "../types.js";
+import type { PipelineProgressEvent } from "../../core/pipeline/types.js";
 import { runCommand } from "./run.js";
 import { colors } from "../colors.js";
 
 const EXIT_COMMANDS = new Set(["exit", "quit", ".exit"]);
+
+const formatProgressEvent = (event: PipelineProgressEvent): string => {
+  const icon =
+    event.status === "end"
+      ? colors.success("✓")
+      : event.status === "error"
+        ? colors.error("✗")
+        : event.status === "skip"
+          ? colors.warning("↷")
+          : colors.info("•");
+
+  return `${icon} ${event.message}`;
+};
 
 export const runReplCommand = async (baseArgs: CliArgs): Promise<void> => {
   const rl = createInterface({ input, output });
@@ -26,7 +40,20 @@ export const runReplCommand = async (baseArgs: CliArgs): Promise<void> => {
 
   try {
     while (true) {
-      const line = (await rl.question(colors.prompt("detoks> "))).trim();
+      let line: string;
+      try {
+        line = (await rl.question(colors.prompt("detoks> "))).trim();
+      } catch (error) {
+        if (
+          error instanceof Error &&
+          (error.message === "readline was closed" ||
+            error.message.includes("readline was closed"))
+        ) {
+          break;
+        }
+
+        throw error;
+      }
       if (!line) {
         continue;
       }
@@ -35,11 +62,14 @@ export const runReplCommand = async (baseArgs: CliArgs): Promise<void> => {
       }
 
       try {
+        const onProgress = async (event: PipelineProgressEvent): Promise<void> => {
+          output.write(`${formatProgressEvent(event)}\n`);
+        };
         const request = toNormalizedRequest(
           { ...baseArgs, mode: "run", prompt: line },
           { mode: "repl", sessionId },
         );
-        const result = await runCommand(request);
+        const result = await runCommand({ ...request, onProgress });
         output.write(`${formatSuccess(result, baseArgs.verbose)}\n`);
       } catch (error) {
         output.write(`${formatError(error, baseArgs.verbose)}\n`);

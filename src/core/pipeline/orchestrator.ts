@@ -11,8 +11,10 @@ import { executeWithAdapter } from "../executor/execute.js";
 import { logger } from "../utils/logger.js";
 import { PipelineTracer } from "../utils/PipelineTracer.js";
 import { translateVisibleText } from "../utils/visibleText.js";
+import { buildTokenMetrics, type TokenMetricsSnapshot } from "../utils/tokenMetrics.js";
 import type { SessionState } from "../../schemas/pipeline.js";
 import type {
+  PipelineProgressEvent,
   PipelineExecutionRequest,
   PipelineExecutionResult,
   PipelineStageStatus,
@@ -76,6 +78,70 @@ function markTaskFailed(
   };
 }
 
+function collectTaskOutputText(state: SessionState): {
+  rawOutputText: string;
+  summaryText: string;
+} {
+  const taskResults = Object.values(state.task_results ?? {}).filter(
+    (result): result is {
+      raw_output?: unknown;
+      summary?: unknown;
+    } => !!result && typeof result === "object",
+  );
+
+  const rawOutputText = taskResults
+    .map((result) => (typeof result.raw_output === "string" ? result.raw_output : ""))
+    .filter((value) => value.trim().length > 0)
+    .join("\n---\n");
+
+  const summaryText = taskResults
+    .map((result) => (typeof result.summary === "string" ? result.summary : ""))
+    .filter((value) => value.trim().length > 0)
+    .join("\n---\n");
+
+  return { rawOutputText, summaryText };
+}
+
+function applySessionTokenMetrics(
+  state: SessionState,
+  inputOriginalText: string,
+  inputOptimizedText: string,
+): {
+  state: SessionState;
+  tokenMetrics: TokenMetricsSnapshot | null;
+} {
+  const { rawOutputText, summaryText } = collectTaskOutputText(state);
+  if (!rawOutputText.trim() || !summaryText.trim()) {
+    const sharedContext = { ...state.shared_context };
+    delete sharedContext.token_metrics;
+    return {
+      state: {
+        ...state,
+        shared_context: sharedContext,
+      },
+      tokenMetrics: null,
+    };
+  }
+
+  const tokenMetrics = buildTokenMetrics({
+    inputOriginalText,
+    inputOptimizedText,
+    outputOriginalText: rawOutputText,
+    outputOptimizedText: summaryText,
+  });
+
+  return {
+    state: {
+      ...state,
+      shared_context: {
+        ...state.shared_context,
+        token_metrics: tokenMetrics,
+      },
+    },
+    tokenMetrics,
+  };
+}
+
 function buildPipelineStages(ok: boolean): PipelineStageStatus[] {
   const resultStatus = ok ? "completed" : "failed";
   return [
@@ -104,6 +170,21 @@ function inferPromptFailureNextAction(errorMessage: string): string {
   return "프롬프트 컴파일 입력이나 실행 설정을 수정한 뒤 다시 시도하세요.";
 }
 
+async function emitProgress(
+  request: PipelineExecutionRequest,
+  event: PipelineProgressEvent,
+): Promise<void> {
+  if (!request.onProgress) {
+    return;
+  }
+
+  try {
+    await request.onProgress(event);
+  } catch {
+    // Progress UI should never break the pipeline.
+  }
+}
+
 /**
  * 회의록 기준 오케스트레이터 실행 흐름:
  *
@@ -126,6 +207,11 @@ export const orchestratePipeline = async (
   // ── Step 1: Prompt compile + Role 2.1 handoff 생성 (Role 1) ──────────────
   let compiledPrompt;
   let role2PromptInput;
+  await emitProgress(request, {
+    stage: "Prompt Compiler",
+    status: "start",
+    message: "Prompt Compiler 시작",
+  });
   await PipelineTracer.trace({
     sessionId, stage: "PromptCompiler", role: "role1", phase: "input",
     dataType: "UserRequest", data: { raw_input: request.userRequest.raw_input },
@@ -150,6 +236,11 @@ export const orchestratePipeline = async (
       dataType: "CompiledPrompt", data: compiledPrompt,
       durationMs: PipelineTracer.endStage("PromptCompiler"),
     });
+    await emitProgress(request, {
+      stage: "Prompt Compiler",
+      status: "end",
+      message: "Prompt Compiler 완료",
+    });
   } catch (error) {
     const errorMessage = toErrorMessage(error);
     logger.error(`프롬프트 컴파일 실패: ${translateVisibleText(errorMessage)}`);
@@ -161,6 +252,11 @@ export const orchestratePipeline = async (
       dataType: "PromptCompilerError",
       data: { error: errorMessage },
       durationMs: PipelineTracer.endStage("PromptCompiler"),
+    });
+    await emitProgress(request, {
+      stage: "Prompt Compiler",
+      status: "error",
+      message: "Prompt Compiler 실패",
     });
     const traceFilePath = request.trace
       ? await PipelineTracer.saveTrace(sessionId)
@@ -181,6 +277,11 @@ export const orchestratePipeline = async (
   }
 
   // ── Step 2: TaskGraph 생성 (Role 2.1) ────────────────────────────────────
+  await emitProgress(request, {
+    stage: "Task Graph Builder",
+    status: "start",
+    message: "Task Graph Builder 시작",
+  });
   await PipelineTracer.trace({
     sessionId, stage: "TaskGraphBuilder", role: "role2.1", phase: "input",
     dataType: "Role2PromptInput", data: role2PromptInput,
@@ -259,8 +360,18 @@ export const orchestratePipeline = async (
       })),
     },
   });
+  await emitProgress(request, {
+    stage: "Task Graph Builder",
+    status: "end",
+    message: "Task Graph Builder 완료",
+  });
 
   // ── Step 5: 세션 상태 초기화 / 로드 (Role 2.2) ───────────────────────────
+  await emitProgress(request, {
+    stage: "State Manager",
+    status: "start",
+    message: "State Manager: 세션 상태 로드/초기화 중",
+  });
   let state: SessionState;
   const taskRecords: TaskExecutionRecord[] = [];
   const failedTaskIds = new Set<string>();
@@ -286,6 +397,11 @@ export const orchestratePipeline = async (
   } else {
     state = initSessionState(sessionId, request.userRequest.raw_input);
   }
+  await emitProgress(request, {
+    stage: "State Manager",
+    status: "end",
+    message: "State Manager: 세션 상태 준비 완료",
+  });
 
   // ── Step 6: 실행 루프 ────────────────────────────────────────────────────
   for (const { stage, tasks } of stages) {
@@ -295,6 +411,12 @@ export const orchestratePipeline = async (
       // 이미 완료된 작업이면 스킵 (Role 2.2 / Role 3 경계)
       if (state.completed_task_ids.includes(task.id)) {
         logger.info(`작업 [${task.id}]는 세션에서 이미 완료되어 건너뜁니다`);
+        await emitProgress(request, {
+          stage: "Executor",
+          status: "skip",
+          taskId: task.id,
+          message: `Executor(${task.id})는 이미 완료되어 건너뜁니다`,
+        });
         const previousResult = state.task_results[task.id] as any;
         taskRecords.push({
           taskId: task.id,
@@ -310,6 +432,12 @@ export const orchestratePipeline = async (
         failedTaskIds.add(task.id);
         taskRecords.push({ taskId: task.id, status: "skipped", rawOutput: "", blockedBy });
         logger.warn(`작업 [${task.id}] 건너뜀 — 의존성 [${blockedBy}] 실패`);
+        await emitProgress(request, {
+          stage: "Executor",
+          status: "skip",
+          taskId: task.id,
+          message: `Executor(${task.id})는 의존성 ${blockedBy} 실패로 건너뜁니다`,
+        });
         continue;
       }
 
@@ -317,6 +445,12 @@ export const orchestratePipeline = async (
       state = { ...state, current_task_id: task.id };
 
       // ExecutionContext 생성 (Role 2.2 — ContextCompressor → ContextSelector → ContextBuilder)
+      await emitProgress(request, {
+        stage: "Context Optimizer",
+        status: "start",
+        taskId: task.id,
+        message: `Context Optimizer(${task.id}) 시작`,
+      });
       PipelineTracer.startStage(`ContextOptimizer:${task.id}`);
       const context = ContextBuilder.build(state, task);
       await PipelineTracer.trace({
@@ -324,10 +458,22 @@ export const orchestratePipeline = async (
         dataType: "ExecutionContext", data: context,
         durationMs: PipelineTracer.endStage(`ContextOptimizer:${task.id}`),
       });
+      await emitProgress(request, {
+        stage: "Context Optimizer",
+        status: "end",
+        taskId: task.id,
+        message: `Context Optimizer(${task.id}) 완료`,
+      });
 
       // Task 실행 (Role 3)
       const prompt = `[${task.type.toUpperCase()}] ${task.title}\n\nContext: ${context.context_summary}`;
       logger.info(`작업 [${task.id}] 실행 중 type=${task.type}`);
+      await emitProgress(request, {
+        stage: "Executor",
+        status: "start",
+        taskId: task.id,
+        message: `Executor(${task.id}) 실행 중`,
+      });
       await PipelineTracer.trace({
         sessionId, stage: `Executor:${task.id}`, role: "role3", phase: "input",
         dataType: "ExecutionRequest", data: { task_id: task.id, type: task.type, prompt },
@@ -348,12 +494,23 @@ export const orchestratePipeline = async (
         // 실패 — Strict 모드에 따라 후속 의존 Task도 차단됨
         failedTaskIds.add(task.id);
         state = markTaskFailed(state, task.id, execResult.rawOutput);
+        state = applySessionTokenMetrics(
+          state,
+          request.userRequest.raw_input,
+          compiledPrompt.compressed_prompt,
+        ).state;
         await SessionStateManager.saveSession(state);
         taskRecords.push({ taskId: task.id, status: "failed", rawOutput: execResult.rawOutput });
         await PipelineTracer.trace({
           sessionId, stage: `Executor:${task.id}`, role: "role3", phase: "output",
           dataType: "ExecutionResult", data: { task_id: task.id, success: false, raw_output: execResult.rawOutput },
           durationMs: PipelineTracer.endStage(`Executor:${task.id}`),
+        });
+        await emitProgress(request, {
+          stage: "Executor",
+          status: "error",
+          taskId: task.id,
+          message: `Executor(${task.id}) 실패`,
         });
         logger.error(`작업 [${task.id}] 실패 (exit ${execResult.exitCode}) — 의존 작업은 건너뜁니다`);
       } else {
@@ -363,9 +520,32 @@ export const orchestratePipeline = async (
           dataType: "ExecutionResult", data: { task_id: task.id, success: true, raw_output: execResult.rawOutput },
           durationMs: PipelineTracer.endStage(`Executor:${task.id}`),
         });
+        await emitProgress(request, {
+          stage: "Executor",
+          status: "end",
+          taskId: task.id,
+          message: `Executor(${task.id}) 완료`,
+        });
         failedTaskIds.delete(task.id);
         state = markTaskCompleted(state, task.id, execResult.rawOutput);
+        state = applySessionTokenMetrics(
+          state,
+          request.userRequest.raw_input,
+          compiledPrompt.compressed_prompt,
+        ).state;
+        await emitProgress(request, {
+          stage: "State Manager",
+          status: "start",
+          taskId: task.id,
+          message: `State Manager(${task.id}) 저장 중`,
+        });
         await SessionStateManager.saveSession(state);
+        await emitProgress(request, {
+          stage: "State Manager",
+          status: "end",
+          taskId: task.id,
+          message: `State Manager(${task.id}) 저장 완료`,
+        });
         taskRecords.push({ taskId: task.id, status: "completed", rawOutput: execResult.rawOutput });
         logger.info(`작업 [${task.id}] 완료`);
       }
@@ -396,7 +576,23 @@ export const orchestratePipeline = async (
     next_action: finalNextAction,
     updated_at: new Date().toISOString(),
   };
+  const sessionTokenMetrics = applySessionTokenMetrics(
+    state,
+    request.userRequest.raw_input,
+    compiledPrompt.compressed_prompt,
+  );
+  state = sessionTokenMetrics.state;
+  await emitProgress(request, {
+    stage: "State Manager",
+    status: "start",
+    message: "State Manager: 최종 세션 저장 중",
+  });
   await SessionStateManager.saveSession(state);
+  await emitProgress(request, {
+    stage: "State Manager",
+    status: "end",
+    message: "State Manager: 최종 세션 저장 완료",
+  });
 
   return {
     ok: allOk,
@@ -404,6 +600,7 @@ export const orchestratePipeline = async (
     adapter: request.adapter,
     summary: finalSummary,
     nextAction: finalNextAction,
+    tokenMetrics: sessionTokenMetrics.tokenMetrics,
     stages: buildPipelineStages(allOk),
     rawOutput: taskRecords.map((r) => r.rawOutput).filter(Boolean).join("\n---\n"),
     sessionId,

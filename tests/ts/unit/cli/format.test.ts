@@ -47,6 +47,35 @@ describe("formatSuccess", () => {
   it("returns the full success payload in verbose mode", () => {
     expect(JSON.parse(formatSuccess(result, true))).toEqual(result);
   });
+
+  it("includes token reduction metrics when present", () => {
+    const tokenMetrics = {
+      model: "o200k_base" as const,
+      input: {
+        originalTokens: 100,
+        optimizedTokens: 60,
+        savedTokens: 40,
+        savedPercent: 40,
+      },
+      output: {
+        originalTokens: 80,
+        optimizedTokens: 20,
+        savedTokens: 60,
+        savedPercent: 75,
+      },
+    };
+    const formatted = JSON.parse(
+      formatSuccess(
+        {
+          ...result,
+          tokenMetrics,
+        },
+        false,
+      ),
+    );
+
+    expect(formatted.tokenMetrics).toEqual(tokenMetrics);
+  });
 });
 
 describe("formatError", () => {

@@ -1,11 +1,25 @@
 import type { UserRequest } from "../../schemas/pipeline.js";
 import type { TraceLog } from "../utils/PipelineTracer.js";
+import type { TokenMetricsSnapshot } from "../utils/tokenMetrics.js";
 
 export const AdapterValues = ["codex", "gemini"] as const;
 export type Adapter = (typeof AdapterValues)[number];
 export type InteractionMode = "run" | "repl";
 export const ExecutionModeValues = ["stub", "real"] as const;
 export type ExecutionMode = (typeof ExecutionModeValues)[number];
+
+export type PipelineProgressStatus = "start" | "end" | "skip" | "error" | "info";
+
+export interface PipelineProgressEvent {
+  stage: string;
+  status: PipelineProgressStatus;
+  message: string;
+  taskId?: string;
+}
+
+export type PipelineProgressHandler = (
+  event: PipelineProgressEvent,
+) => void | Promise<void>;
 
 export interface PipelineExecutionRequest {
   mode: InteractionMode;
@@ -16,6 +30,7 @@ export interface PipelineExecutionRequest {
   userRequest: UserRequest;
   env?: NodeJS.ProcessEnv;
   fetchImplementation?: typeof fetch;
+  onProgress?: PipelineProgressHandler;
 }
 
 export interface PipelineStageStatus {
@@ -37,6 +52,7 @@ export interface PipelineExecutionResult {
   adapter: Adapter;
   summary: string;
   nextAction: string;
+  tokenMetrics?: TokenMetricsSnapshot | null;
   stages: PipelineStageStatus[];
   rawOutput: string;
   sessionId: string;
