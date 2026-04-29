@@ -95,6 +95,12 @@ export const runReplCommand = async (baseArgs: CliArgs): Promise<void> => {
             updateSelectedAdapter(newAdapter);
             showHelpMessage(newAdapter);
           },
+          onInteractiveStart: () => {
+            rl.pause();
+          },
+          onInteractiveEnd: () => {
+            rl.resume();
+          },
           onExit: async () => {
             rl.close();
           },

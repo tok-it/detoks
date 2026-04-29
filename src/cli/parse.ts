@@ -24,12 +24,15 @@ const SESSION_FLAG_HELP =
   "  --session <id>                저장된 세션 id를 이어서 사용합니다";
 const HUMAN_FLAG_HELP =
   "  --human                       각 세션의 마지막 작업 요약을 읽기 쉬운 형식으로 표시합니다";
+const SESSION_SHOW_VERBOSE_HELP =
+  "  --verbose                     JSON 응답에 각 작업의 raw_output 전체를 포함합니다";
 const CLI_USAGE_MAIN = [
   "사용법:",
   "  detoks                         인자 없이 실행하면 대화형 REPL로 진입합니다",
   "  detoks repl [--adapter codex|gemini] [--execution-mode stub|real] [--session <id>] [--verbose]",
   "  detoks --file <path> [--verbose]",
   "  detoks session list [--human]",
+  "  detoks session show <session-id> [--human]",
   "  detoks session continue <session-id>",
   "  detoks session reset <session-id>",
   "  detoks session fork <source-session-id> <new-session-id>",
@@ -47,6 +50,7 @@ const CLI_USAGE_MAIN = [
   "  detoks repl --adapter codex --execution-mode stub",
   "  detoks --file tests/data/row_data.json --verbose",
   "  detoks session list --human",
+  "  detoks session show session_2026_04_27 --human",
   "  detoks session continue session_2026_04_27",
   "  detoks session reset session_2026_04_27",
   "  detoks session fork session_2026_04_27 session_2026_04_27_fork",
@@ -95,9 +99,31 @@ const CLI_USAGE_SESSION_CONTINUE = [
   "  - 저장된 raw_input을 다시 재생해 세션 실행을 이어갑니다",
   "  - 세션에서 이미 완료된 task id는 건너뛰고, 대기/실패 작업만 다시 시도합니다",
   "  - 세션이 없거나 저장된 raw_input이 없으면 왜 다시 시작하지 않았는지 stdout에 설명합니다",
-  "  - stdout은 sessionId, canContinue, resumeStarted, mutatesState, message, summary, nextAction, taskRecords를 포함한 JSON입니다",
+  "  - 세션 재진입 시 이전 세션 요약이 stderr로 자동 출력됩니다",
+  "  - 이전 세션의 요약은 resumeOverview로 자동 출력됩니다",
+  "  - stdout은 sessionId, canContinue, resumeStarted, mutatesState, message, resumeOverview, summary, nextAction, taskRecords를 포함한 JSON입니다",
   "",
   "옵션:",
+  "  -h, --help                    이 도움말을 표시합니다",
+].join("\n");
+
+const CLI_USAGE_SESSION_SHOW = [
+  "사용법:",
+  "  detoks session show <session-id> [--human]",
+  "",
+  "예시:",
+  "  detoks session show session_2026_04_27",
+  "  detoks session show session_2026_04_27 --human",
+  "",
+  "세션 상세 조회 참고:",
+  "  - 저장된 세션의 요약과 작업 결과를 읽기 전용으로 보여줍니다",
+  "  - 세션이 없으면 stdout에 안내 메시지를 반환합니다",
+  "  - --human을 추가하면 세션 요약과 작업별 출력 미리보기를 보기 쉬운 형식으로 출력합니다",
+  "  - --verbose를 사용하면 JSON 응답에 각 작업의 raw_output 전체를 포함합니다",
+  "",
+  "옵션:",
+  HUMAN_FLAG_HELP,
+  SESSION_SHOW_VERBOSE_HELP,
   "  -h, --help                    이 도움말을 표시합니다",
 ].join("\n");
 
@@ -262,6 +288,8 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
           ? "repl"
           : positionals[0] === "session" && positionals[1] === "list"
             ? "session-list"
+            : positionals[0] === "session" && positionals[1] === "show"
+              ? "session-show"
             : positionals[0] === "session" && positionals[1] === "continue"
               ? "session-continue"
             : positionals[0] === "session" && positionals[1] === "reset"
@@ -404,6 +432,25 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
       };
     }
 
+    if (positionals[1] === "show") {
+      const sessionIdToShow = positionals[2]?.trim();
+      if (!sessionIdToShow || positionals.length > 3) {
+        throw new Error(`세션 show에는 <session-id> 하나만 필요합니다. ${topicHelpHint("detoks session show --help")}`);
+      }
+      return {
+        mode: "run",
+        command: "session-show",
+        sessionId: sessionIdToShow,
+        ...(human ? { human: true } : {}),
+        adapter,
+        executionMode,
+        verbose,
+        trace,
+        showHelp: false,
+        helpTopic: "session-show",
+      };
+    }
+
     if (positionals[1] === "continue") {
       const sessionIdFromPos = positionals[2]?.trim();
       if (!sessionIdFromPos || positionals.length > 3) {
@@ -460,7 +507,7 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
       };
     }
 
-    throw new Error(`지원하지 않는 세션 명령입니다. ${topicHelpHint("detoks session list --help")}, ${topicHelpHint("detoks session continue --help")}, ${topicHelpHint("detoks session fork --help")}를 확인하세요.`);
+    throw new Error(`지원하지 않는 세션 명령입니다. ${topicHelpHint("detoks session list --help")}, ${topicHelpHint("detoks session show --help")}, ${topicHelpHint("detoks session continue --help")}, ${topicHelpHint("detoks session fork --help")}를 확인하세요.`);
   }
 
   if (first === "checkpoint") {
@@ -572,6 +619,7 @@ export const getCliUsage = (
     | "main"
     | "repl"
     | "session-list"
+    | "session-show"
     | "session-continue"
     | "session-reset"
     | "session-fork"
@@ -584,6 +632,9 @@ export const getCliUsage = (
   }
   if (topic === "session-list") {
     return CLI_USAGE_SESSION_LIST;
+  }
+  if (topic === "session-show") {
+    return CLI_USAGE_SESSION_SHOW;
   }
   if (topic === "session-continue") {
     return CLI_USAGE_SESSION_CONTINUE;

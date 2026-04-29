@@ -11,6 +11,7 @@ import {
   geminiLogout,
 } from "../adapter-info/index.js";
 import { selectWithArrows } from "../interactive/select-with-arrows.js";
+import type { SelectWithArrowsStreams } from "../interactive/select-with-arrows.js";
 import { updateAdapterModel, updateTranslationModel } from "../config/config-manager.js";
 import { TRANSLATION_MODELS } from "../model-setup/models.js";
 import { downloadModel } from "../model-setup/download.js";
@@ -198,9 +199,15 @@ export const handleSlashCommand = async (
     onVerboseToggle: (enabled: boolean) => void;
     onAdapterChange: (newAdapter: "codex" | "gemini") => Promise<void>;
     onExit: () => Promise<void>;
+    onInteractiveStart?: () => void;
+    onInteractiveEnd?: () => void;
   },
 ): Promise<boolean> => {
   const adapter = state.adapter as "codex" | "gemini";
+  const selectStreams: SelectWithArrowsStreams = {
+    ...(state.onInteractiveStart ? { onOpen: state.onInteractiveStart } : {}),
+    ...(state.onInteractiveEnd ? { onClose: state.onInteractiveEnd } : {}),
+  };
   const cmd = getSlashCommand(input, adapter);
   if (!cmd) return false;
 
@@ -214,11 +221,11 @@ export const handleSlashCommand = async (
       return true;
 
     case "model": {
-      return await handleTranslationModel();
+      return await handleTranslationModel(selectStreams);
     }
 
     case "adapter": {
-      return await handleAdapterSwitch(adapter, state.onAdapterChange);
+      return await handleAdapterSwitch(adapter, state.onAdapterChange, selectStreams);
     }
 
     case "mode":
@@ -240,11 +247,11 @@ export const handleSlashCommand = async (
       return true;
 
     case "codex-models": {
-      return await handleCodexModels();
+      return await handleCodexModels(selectStreams);
     }
 
     case "gemini-models": {
-      return await handleGeminiModels();
+      return await handleGeminiModels(selectStreams);
     }
 
     case "logout": {
@@ -260,7 +267,7 @@ export const handleSlashCommand = async (
   }
 };
 
-const handleCodexModels = async (): Promise<boolean> => {
+const handleCodexModels = async (streams?: SelectWithArrowsStreams): Promise<boolean> => {
   const models = getAdapterModels("codex");
 
   if (models.length === 0) {
@@ -273,7 +280,7 @@ const handleCodexModels = async (): Promise<boolean> => {
     label: `${m.slug} — ${m.display_name}`,
   }));
 
-  const selected = await selectWithArrows(options, "Codex 모델 선택");
+  const selected = await selectWithArrows(options, "Codex 모델 선택", streams);
 
   if (selected) {
     process.env.ADAPTER_MODEL = selected;
@@ -288,7 +295,7 @@ const handleCodexModels = async (): Promise<boolean> => {
   return true;
 };
 
-const handleGeminiModels = async (): Promise<boolean> => {
+const handleGeminiModels = async (streams?: SelectWithArrowsStreams): Promise<boolean> => {
   const models = getAdapterModels("gemini");
 
   if (models.length === 0) {
@@ -301,7 +308,7 @@ const handleGeminiModels = async (): Promise<boolean> => {
     label: `${m.slug} — ${m.display_name}`,
   }));
 
-  const selected = await selectWithArrows(options, "Gemini 모델 선택");
+  const selected = await selectWithArrows(options, "Gemini 모델 선택", streams);
 
   if (selected) {
     process.env.ADAPTER_MODEL = selected;
@@ -346,7 +353,7 @@ const isModelDownloaded = (modelId: string, hfFile: string): boolean => {
   return existsSync(filePath);
 };
 
-const handleTranslationModel = async (): Promise<boolean> => {
+const handleTranslationModel = async (streams?: SelectWithArrowsStreams): Promise<boolean> => {
   output.write(`\n${colors.title("한글→영어 번역 모델 선택\n")}`);
 
   // 모델 목록 생성
@@ -377,6 +384,7 @@ const handleTranslationModel = async (): Promise<boolean> => {
       label: opt.label,
     })),
     "모델 선택",
+    streams,
   );
 
   if (!selectedId) {
@@ -437,6 +445,7 @@ const handleTranslationModel = async (): Promise<boolean> => {
 const handleAdapterSwitch = async (
   currentAdapter: "codex" | "gemini",
   onAdapterChange: (newAdapter: "codex" | "gemini") => Promise<void>,
+  streams?: SelectWithArrowsStreams,
 ): Promise<boolean> => {
   output.write(`\n${colors.title("어댑터 선택")}\n\n`);
 
@@ -452,7 +461,7 @@ const handleAdapterSwitch = async (
     };
   });
 
-  const selected = await selectWithArrows(options, "어댑터 선택");
+  const selected = await selectWithArrows(options, "어댑터 선택", streams);
 
   if (!selected) {
     return true;

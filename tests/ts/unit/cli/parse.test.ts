@@ -79,6 +79,37 @@ describe("parseCliArgs", () => {
     });
   });
 
+  it("parses session show as the read-only session detail entrypoint", () => {
+    const parsed = parseCliArgs(["session", "show", "session_2026_04_27"]);
+    expect(parsed).toEqual({
+      mode: "run",
+      command: "session-show",
+      sessionId: "session_2026_04_27",
+      adapter: "codex",
+      executionMode: "real",
+      verbose: false,
+      trace: false,
+      showHelp: false,
+      helpTopic: "session-show",
+    });
+  });
+
+  it("parses session show human output mode", () => {
+    const parsed = parseCliArgs(["session", "show", "session_2026_04_27", "--human"]);
+    expect(parsed).toEqual({
+      mode: "run",
+      command: "session-show",
+      sessionId: "session_2026_04_27",
+      human: true,
+      adapter: "codex",
+      executionMode: "real",
+      verbose: false,
+      trace: false,
+      showHelp: false,
+      helpTopic: "session-show",
+    });
+  });
+
   it("parses checkpoint list as a read-only session command", () => {
     const parsed = parseCliArgs(["checkpoint", "list", "session_2026_04_27"]);
     expect(parsed).toEqual({
@@ -227,6 +258,15 @@ describe("parseCliArgs", () => {
     });
   });
 
+  it("parses session show help as a topic-specific help request", () => {
+    const parsed = parseCliArgs(["session", "show", "--help"]);
+    expect(parsed).toMatchObject({
+      mode: "run",
+      showHelp: true,
+      helpTopic: "session-show",
+    });
+  });
+
   it("parses session fork help as a topic-specific help request", () => {
     const parsed = parseCliArgs(["session", "fork", "--help"]);
     expect(parsed).toMatchObject({
@@ -283,6 +323,9 @@ describe("parseCliArgs", () => {
     expect(usage).toContain("detoks repl --adapter codex --execution-mode stub");
     expect(usage).toContain("detoks session list");
     expect(usage).toContain("detoks session list --human");
+    expect(usage).toContain("detoks session show <session-id> [--human]");
+    expect(usage).toContain("detoks session show session_2026_04_27");
+    expect(usage).toContain("detoks session show session_2026_04_27 --human");
     expect(usage).toContain("detoks session continue <session-id>");
     expect(usage).toContain("detoks session continue session_2026_04_27");
     expect(usage).toContain("detoks session reset <session-id>");
@@ -327,12 +370,24 @@ describe("parseCliArgs", () => {
     expect(usage).toContain("마지막 작업 요약");
   });
 
+  it("documents session show as a read-only command with stored task output previews", () => {
+    const usage = getCliUsage("session-show");
+    expect(usage).toContain("detoks session show <session-id> [--human]");
+    expect(usage).toContain("저장된 세션의 요약과 작업 결과를 읽기 전용으로 보여줍니다");
+    expect(usage).toContain("세션이 없으면 stdout에 안내 메시지를 반환합니다");
+    expect(usage).toContain("--human");
+    expect(usage).toContain("--verbose");
+    expect(usage).toContain("raw_output 전체");
+  });
+
   it("documents session continue as a session resume command", () => {
     const usage = getCliUsage("session-continue");
     expect(usage).toContain("detoks session continue <session-id>");
     expect(usage).toContain("저장된 raw_input을 다시 재생해 세션 실행을 이어갑니다");
     expect(usage).toContain("세션에서 이미 완료된 task id는 건너뛰고, 대기/실패 작업만 다시 시도합니다");
     expect(usage).toContain("세션이 없거나 저장된 raw_input이 없으면 왜 다시 시작하지 않았는지 stdout에 설명합니다");
+    expect(usage).toContain("stderr로 자동 출력");
+    expect(usage).toContain("resumeOverview");
     expect(usage).toContain("message");
     expect(usage).toContain("resumeStarted");
     expect(usage).toContain("taskRecords");
@@ -401,6 +456,12 @@ describe("parseCliArgs", () => {
     );
     expect(() => parseCliArgs(["session", "continue"])).toThrow(
       /세션 continue에는 <session-id> 하나만 필요합니다/,
+    );
+    expect(() => parseCliArgs(["session", "show"])).toThrow(
+      /세션 show에는 <session-id> 하나만 필요합니다/,
+    );
+    expect(() => parseCliArgs(["session", "show", "extra", "arg"])).toThrow(
+      /세션 show에는 <session-id> 하나만 필요합니다/,
     );
     expect(() => parseCliArgs(["session", "reset"])).toThrow(
       /세션 reset에는 <session-id> 하나만 필요합니다/,
