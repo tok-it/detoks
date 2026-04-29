@@ -153,6 +153,8 @@ export class TaskCandidateExtractor {
       return null;
     }
 
+    text = stripToken(text, discardedText, /^(?:briefly|quickly|simply|just|clearly|thoroughly|gradually|carefully|properly|correctly|fully)\s+/i);
+
     if (!ACTION_STARTER_REGEX.test(text)) {
       return null;
     }
@@ -190,7 +192,7 @@ function extractActionClauseAfterDiscourse(
   for (let index = 1; index < commaParts.length; index += 1) {
     const suffix = commaParts.slice(index).join(", ");
     const match = ACTION_CLAUSE_REGEX.exec(suffix);
-    if (!match || match.index > 8) {
+    if (!match || match.index > 5) {
       continue;
     }
 
