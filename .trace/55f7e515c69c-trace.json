@@ -1,0 +1,404 @@
+{
+  "sessionId": "55f7e515c69c",
+  "startTime": "2026-04-27T02:41:19.848Z",
+  "entries": [
+    {
+      "timestamp": "2026-04-27T02:41:19.841Z",
+      "stage": "PromptCompiler",
+      "phase": "input",
+      "role": "role1",
+      "dataType": "UserRequest",
+      "data": {
+        "raw_input": "TypeError: Cannot read properties of undefined (reading \"map\") at processItems (src/processor.ts:45)\nAnalyze this error, identify the root cause, and fix it"
+      },
+      "schemaValid": true,
+      "memoryMb": 16.236251831054688,
+      "estimatedTokens": 42
+    },
+    {
+      "timestamp": "2026-04-27T02:41:19.842Z",
+      "stage": "PromptCompiler",
+      "phase": "output",
+      "role": "role1",
+      "dataType": "CompiledPrompt",
+      "data": {
+        "raw_input": "TypeError: Cannot read properties of undefined (reading \"map\") at processItems (src/processor.ts:45)\nAnalyze this error, identify the root cause, and fix it",
+        "normalized_input": "TypeError: Cannot read properties of undefined (reading \"map\") at processItems (src/processor.ts:45)\nAnalyze this error, identify the root cause, and fix it",
+        "compressed_prompt": "TypeError: Cannot read properties of undefined (reading \"map\") at processItems (src/processor.ts:45)\nAnalyze this error, identify the root cause, and fix it",
+        "language": "en",
+        "compression_provider": "nlp_adapter",
+        "inference_time_sec": 0
+      },
+      "schemaValid": true,
+      "durationMs": 1,
+      "memoryMb": 16.33086395263672,
+      "estimatedTokens": 142
+    },
+    {
+      "timestamp": "2026-04-27T02:41:19.842Z",
+      "stage": "TaskGraphBuilder",
+      "phase": "input",
+      "role": "role2.1",
+      "dataType": "Role2PromptInput",
+      "data": {
+        "compiled_prompt": "TypeError: Cannot read properties of undefined (reading \"map\") at processItems (src/processor.ts:45)\nAnalyze this error, identify the root cause, and fix it"
+      },
+      "schemaValid": true,
+      "memoryMb": 16.332763671875,
+      "estimatedTokens": 42
+    },
+    {
+      "timestamp": "2026-04-27T02:41:19.842Z",
+      "stage": "TaskGraphBuilder",
+      "phase": "output",
+      "role": "role2.1",
+      "dataType": "TaskGraph",
+      "data": {
+        "tasks": [
+          {
+            "id": "t1",
+            "type": "explore",
+            "status": "pending",
+            "title": "TypeError: Cannot read properties of undefined (reading \"map\") at processItems (src/processor.ts:45)",
+            "input_hash": "bba5054d0f1c1192",
+            "depends_on": []
+          },
+          {
+            "id": "t2",
+            "type": "analyze",
+            "status": "pending",
+            "title": "Analyze this error, identify the root cause",
+            "input_hash": "764954b32968a221",
+            "depends_on": [
+              "t1"
+            ]
+          },
+          {
+            "id": "t3",
+            "type": "modify",
+            "status": "pending",
+            "title": "fix it",
+            "input_hash": "3e37b142458279a0",
+            "depends_on": [
+              "t2"
+            ]
+          }
+        ]
+      },
+      "schemaValid": true,
+      "durationMs": 0,
+      "memoryMb": 16.366958618164062,
+      "estimatedTokens": 143
+    },
+    {
+      "timestamp": "2026-04-27T02:41:19.843Z",
+      "stage": "DAGValidator",
+      "phase": "output",
+      "role": "role2.1",
+      "dataType": "DAGValidationResult",
+      "data": {
+        "valid": true,
+        "topologicalOrder": [
+          "t1",
+          "t2",
+          "t3"
+        ]
+      },
+      "schemaValid": true,
+      "memoryMb": 16.375587463378906,
+      "estimatedTokens": 18
+    },
+    {
+      "timestamp": "2026-04-27T02:41:19.843Z",
+      "stage": "DependencyResolver",
+      "phase": "output",
+      "role": "role2.1",
+      "dataType": "DependencyResolution",
+      "data": {
+        "orderedTasks": [
+          {
+            "taskId": "t1",
+            "type": "explore",
+            "title": "TypeError: Cannot read properties of undefined (reading \"map\") at processItems (src/processor.ts:45)",
+            "dependsOn": [],
+            "resolvedDeps": []
+          },
+          {
+            "taskId": "t2",
+            "type": "analyze",
+            "title": "Analyze this error, identify the root cause",
+            "dependsOn": [
+              "t1"
+            ],
+            "resolvedDeps": [
+              {
+                "taskId": "t1",
+                "type": "explore",
+                "title": "TypeError: Cannot read properties of undefined (reading \"map\") at processItems (src/processor.ts:45)"
+              }
+            ]
+          },
+          {
+            "taskId": "t3",
+            "type": "modify",
+            "title": "fix it",
+            "dependsOn": [
+              "t2"
+            ],
+            "resolvedDeps": [
+              {
+                "taskId": "t2",
+                "type": "analyze",
+                "title": "Analyze this error, identify the root cause"
+              }
+            ]
+          }
+        ]
+      },
+      "schemaValid": true,
+      "memoryMb": 16.604034423828125,
+      "estimatedTokens": 165
+    },
+    {
+      "timestamp": "2026-04-27T02:41:19.843Z",
+      "stage": "ParallelClassifier",
+      "phase": "output",
+      "role": "role2.1",
+      "dataType": "ParallelClassification",
+      "data": {
+        "stages": [
+          {
+            "stage": 0,
+            "runnableInParallel": [
+              {
+                "taskId": "t1",
+                "type": "explore",
+                "title": "TypeError: Cannot read properties of undefined (reading \"map\") at processItems (src/processor.ts:45)",
+                "dependsOn": []
+              }
+            ]
+          },
+          {
+            "stage": 1,
+            "runnableInParallel": [
+              {
+                "taskId": "t2",
+                "type": "analyze",
+                "title": "Analyze this error, identify the root cause",
+                "dependsOn": [
+                  "t1"
+                ]
+              }
+            ]
+          },
+          {
+            "stage": 2,
+            "runnableInParallel": [
+              {
+                "taskId": "t3",
+                "type": "modify",
+                "title": "fix it",
+                "dependsOn": [
+                  "t2"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "schemaValid": true,
+      "memoryMb": 16.393905639648438,
+      "estimatedTokens": 123
+    },
+    {
+      "timestamp": "2026-04-27T02:41:19.843Z",
+      "stage": "ContextOptimizer",
+      "phase": "output",
+      "role": "role2.2",
+      "dataType": "ExecutionContext",
+      "data": {
+        "session_id": "55f7e515c69c",
+        "active_task_id": "t1",
+        "shared_context": {
+          "session_id": "55f7e515c69c",
+          "failed_task_ids": [
+            "t1",
+            "t2",
+            "t3"
+          ]
+        },
+        "selected_context": {},
+        "context_summary": "No previous task context available."
+      },
+      "schemaValid": true,
+      "durationMs": 0,
+      "memoryMb": 16.39837646484375,
+      "estimatedTokens": 50
+    },
+    {
+      "timestamp": "2026-04-27T02:41:19.843Z",
+      "stage": "Executor:t1",
+      "phase": "input",
+      "role": "role3",
+      "dataType": "ExecutionRequest",
+      "data": {
+        "task_id": "t1",
+        "type": "explore",
+        "prompt": "[EXPLORE] TypeError: Cannot read properties of undefined (reading \"map\") at processItems (src/processor.ts:45)\n\nContext: No previous task context available."
+      },
+      "schemaValid": true,
+      "memoryMb": 16.400848388671875,
+      "estimatedTokens": 53
+    },
+    {
+      "timestamp": "2026-04-27T02:41:19.844Z",
+      "stage": "Executor:t1",
+      "phase": "output",
+      "role": "role3",
+      "dataType": "ExecutionResult",
+      "data": {
+        "task_id": "t1",
+        "success": true,
+        "raw_output": "[stub:codex] [EXPLORE] TypeError: Cannot read properties of undefined (reading \"map\") at processItems (src..."
+      },
+      "schemaValid": true,
+      "durationMs": 0,
+      "memoryMb": 16.404953002929688,
+      "estimatedTokens": 44
+    },
+    {
+      "timestamp": "2026-04-27T02:41:19.845Z",
+      "stage": "ContextOptimizer",
+      "phase": "output",
+      "role": "role2.2",
+      "dataType": "ExecutionContext",
+      "data": {
+        "session_id": "55f7e515c69c",
+        "active_task_id": "t2",
+        "shared_context": {
+          "session_id": "55f7e515c69c",
+          "failed_task_ids": [
+            "t1",
+            "t2",
+            "t3"
+          ]
+        },
+        "selected_context": {
+          "t1": {
+            "summary": "[stub:codex] [EXPLORE] TypeError: Cannot read properties of undefined (reading \"map\") at processItems (src..."
+          }
+        },
+        "context_summary": "Previous Task Results:\n- Task [t1]: [stub:codex] [EXPLORE] TypeError: Cannot read properties of undefined (reading \"map\") at processItems (src..."
+      },
+      "schemaValid": true,
+      "durationMs": 0,
+      "memoryMb": 16.435951232910156,
+      "estimatedTokens": 126
+    },
+    {
+      "timestamp": "2026-04-27T02:41:19.845Z",
+      "stage": "Executor:t2",
+      "phase": "input",
+      "role": "role3",
+      "dataType": "ExecutionRequest",
+      "data": {
+        "task_id": "t2",
+        "type": "analyze",
+        "prompt": "[ANALYZE] Analyze this error, identify the root cause\n\nContext: Previous Task Results:\n- Task [t1]: [stub:codex] [EXPLORE] TypeError: Cannot read properties of undefined (reading \"map\") at processItems (src..."
+      },
+      "schemaValid": true,
+      "memoryMb": 16.43852996826172,
+      "estimatedTokens": 73
+    },
+    {
+      "timestamp": "2026-04-27T02:41:19.845Z",
+      "stage": "Executor:t2",
+      "phase": "output",
+      "role": "role3",
+      "dataType": "ExecutionResult",
+      "data": {
+        "task_id": "t2",
+        "success": true,
+        "raw_output": "[stub:codex] [ANALYZE] Analyze this error, identify the root cause\n\nContext: Previous Task Results:\n- Task..."
+      },
+      "schemaValid": true,
+      "durationMs": 0,
+      "memoryMb": 16.44263458251953,
+      "estimatedTokens": 48
+    },
+    {
+      "timestamp": "2026-04-27T02:41:19.846Z",
+      "stage": "ContextOptimizer",
+      "phase": "output",
+      "role": "role2.2",
+      "dataType": "ExecutionContext",
+      "data": {
+        "session_id": "55f7e515c69c",
+        "active_task_id": "t3",
+        "shared_context": {
+          "session_id": "55f7e515c69c",
+          "failed_task_ids": [
+            "t1",
+            "t2",
+            "t3"
+          ]
+        },
+        "selected_context": {
+          "t2": {
+            "summary": "[stub:codex] [ANALYZE] Analyze this error, identify the root cause\n\nContext: Previous Task Results:\n- Task..."
+          }
+        },
+        "context_summary": "Previous Task Results:\n- Task [t2]: [stub:codex] [ANALYZE] Analyze this error, identify the root cause\n\nContext: Previous Task Results:\n- Task..."
+      },
+      "schemaValid": true,
+      "durationMs": 0,
+      "memoryMb": 16.47528076171875,
+      "estimatedTokens": 137
+    },
+    {
+      "timestamp": "2026-04-27T02:41:19.847Z",
+      "stage": "Executor:t3",
+      "phase": "input",
+      "role": "role3",
+      "dataType": "ExecutionRequest",
+      "data": {
+        "task_id": "t3",
+        "type": "modify",
+        "prompt": "[MODIFY] fix it\n\nContext: Previous Task Results:\n- Task [t2]: [stub:codex] [ANALYZE] Analyze this error, identify the root cause\n\nContext: Previous Task Results:\n- Task..."
+      },
+      "schemaValid": true,
+      "memoryMb": 16.477783203125,
+      "estimatedTokens": 68
+    },
+    {
+      "timestamp": "2026-04-27T02:41:19.847Z",
+      "stage": "Executor:t3",
+      "phase": "output",
+      "role": "role3",
+      "dataType": "ExecutionResult",
+      "data": {
+        "task_id": "t3",
+        "success": true,
+        "raw_output": "[stub:codex] [MODIFY] fix it\n\nContext: Previous Task Results:\n- Task [t2]: [stub:codex] [ANALYZE] Analyze ..."
+      },
+      "schemaValid": true,
+      "durationMs": 0,
+      "memoryMb": 16.481887817382812,
+      "estimatedTokens": 57
+    }
+  ],
+  "summary": {
+    "totalDurationMs": 1,
+    "stageTimings": {
+      "PromptCompiler": 1,
+      "TaskGraphBuilder": 0,
+      "ContextOptimizer:t1": 0,
+      "Executor:t1": 0,
+      "ContextOptimizer:t2": 0,
+      "Executor:t2": 0,
+      "ContextOptimizer:t3": 0,
+      "Executor:t3": 0
+    },
+    "totalMemoryMb": 16.604034423828125
+  }
+}
