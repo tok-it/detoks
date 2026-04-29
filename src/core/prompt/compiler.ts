@@ -62,11 +62,8 @@ export async function compilePrompt(
   });
   const provider = request.compression_provider ?? SUPPORTED_COMPRESSION_PROVIDER;
 
-  if (
-    provider !== SUPPORTED_COMPRESSION_PROVIDER &&
-    provider !== LEGACY_COMPRESSION_PROVIDER
-  ) {
-    throw new Error(`Unsupported prompt compression provider: ${provider}`);
+  if (provider !== SUPPORTED_COMPRESSION_PROVIDER) {
+    throw new Error(`지원하지 않는 프롬프트 압축 provider: ${provider}`);
   }
 
   const normalizedInput = normalizeInput(request.raw_input);

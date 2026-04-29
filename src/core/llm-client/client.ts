@@ -1,4 +1,5 @@
 import { logger } from "../utils/logger.js";
+import { translateVisibleText } from "../utils/visibleText.js";
 
 export interface LlmMessage {
   role: "system" | "user" | "assistant";
@@ -140,7 +141,10 @@ export async function complete_chat(
       throw new Error(`LLM request timed out after ${timeoutMs}ms`);
     }
 
-    logger.error("LLM request failed", error);
+    logger.error(
+      "LLM 요청에 실패했습니다",
+      translateVisibleText(error instanceof Error ? error.message : String(error)),
+    );
     throw error;
   } finally {
     clearTimeout(timeoutId);

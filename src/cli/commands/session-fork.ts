@@ -25,7 +25,7 @@ export const runSessionForkCommand = async (
       newSessionId,
       forked: false,
       mutatesState: false,
-      message: `원본 세션 ${sourceSessionId}을(를) 찾을 수 없습니다. 포크를 생성하지 않았습니다.`,
+      message: `원본 세션 ${sourceSessionId}를 찾지 못했습니다. 포크를 만들지 않았습니다.`,
       nextAction: null,
     };
   }
@@ -40,7 +40,7 @@ export const runSessionForkCommand = async (
       newSessionId,
       forked: false,
       mutatesState: false,
-      message: `세션 ${newSessionId}이(가) 이미 존재합니다. 포크를 생성하지 않았습니다.`,
+      message: `세션 ${newSessionId}가 이미 존재합니다. 포크를 만들지 않았습니다.`,
       nextAction: null,
     };
   }
@@ -54,7 +54,7 @@ export const runSessionForkCommand = async (
     newSessionId,
     forked: true,
     mutatesState: true,
-    message: `세션 ${sourceSessionId}이(가) ${newSessionId}(으)로 포크되었습니다.`,
+    message: `세션 ${sourceSessionId}를 ${newSessionId}로 포크했습니다.`,
     nextAction: forkedSession.next_action ?? null,
   };
 };

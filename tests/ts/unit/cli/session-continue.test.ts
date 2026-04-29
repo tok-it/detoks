@@ -31,7 +31,7 @@ describe("runSessionContinueCommand", () => {
       canContinue: false,
       resumeStarted: false,
       mutatesState: false,
-      message: "세션 session_resume을(를) 찾을 수 없습니다. 재개를 시작하지 않았습니다.",
+      message: "세션 session_resume를 찾지 못했습니다. 다시 시작하지 않았습니다.",
       nextAction: null,
     });
   });
@@ -45,7 +45,7 @@ describe("runSessionContinueCommand", () => {
       task_results: {},
       current_task_id: "t1",
       completed_task_ids: [],
-      next_action: "Recover source input",
+      next_action: "원본 입력을 복구하세요",
       updated_at: "2026-04-27T00:00:00.000Z",
     });
 
@@ -56,9 +56,8 @@ describe("runSessionContinueCommand", () => {
       canContinue: false,
       resumeStarted: false,
       mutatesState: false,
-      message:
-        "세션 session_resume에 저장된 raw_input이 없습니다. 재개를 시작하지 않았습니다.",
-      nextAction: "Recover source input",
+      message: "세션 session_resume에 저장된 raw_input이 없습니다. 다시 시작하지 않았습니다.",
+      nextAction: "원본 입력을 복구하세요",
     });
   });
 
@@ -72,15 +71,15 @@ describe("runSessionContinueCommand", () => {
       task_results: {},
       current_task_id: "t2",
       completed_task_ids: ["t1"],
-      next_action: "Resume remaining work",
+      next_action: "남은 작업을 이어서 진행하세요",
       updated_at: "2026-04-27T00:00:00.000Z",
     });
     const executeRequest = vi.fn().mockResolvedValue({
       ok: true,
       mode: "run",
       adapter: "codex",
-      summary: "All 2 task(s) completed",
-      nextAction: "Pipeline complete",
+      summary: "2개 작업을 모두 완료했습니다",
+      nextAction: "파이프라인이 완료되었습니다.",
       stages: [],
       rawOutput: "[stub:codex] [EXECUTE] remaining task",
       sessionId: "session_resume",
@@ -105,10 +104,10 @@ describe("runSessionContinueCommand", () => {
       canContinue: true,
       resumeStarted: true,
       mutatesState: true,
-      message: "세션 session_resume이(가) 저장된 raw_input으로 재개되었습니다.",
+      message: "세션 session_resume를 저장된 raw_input으로 다시 시작했습니다.",
       adapter: "codex",
-      summary: "All 2 task(s) completed",
-      nextAction: "Pipeline complete",
+      summary: "2개 작업을 모두 완료했습니다",
+      nextAction: "파이프라인이 완료되었습니다.",
       taskRecords: [
         { taskId: "t1", status: "completed", rawOutput: "previous raw" },
         { taskId: "t2", status: "completed", rawOutput: "[stub:codex] [EXECUTE] remaining task" },

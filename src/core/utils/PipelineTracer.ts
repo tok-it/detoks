@@ -2,11 +2,7 @@ import { promises as fs } from 'fs';
 import { join } from 'path';
 import { get_encoding } from 'tiktoken';
 import type { ZodSchema } from 'zod';
-import {
-  formatTraceFailureMessage,
-  formatTraceLabel,
-  formatTraceWarningPrefix,
-} from './terminal-log-style.js';
+import { translateVisibleText } from './visibleText.js';
 
 export interface TraceEntry {
   timestamp: string;
@@ -117,14 +113,10 @@ export class PipelineTracer {
 
     // 환경변수로 실시간 로깅
     if (process.env.DETOKS_TRACE === '1') {
-      console.error(
-        `${formatTraceLabel()} ${stage} (${role}) ${phase}: ${dataType}`,
-      );
+      const phaseLabel = phase === 'input' ? '입력' : '출력';
+      console.error(`[추적] ${stage} (${role}) ${phaseLabel}: ${dataType}`);
       if (!schemaValid && schemaErrors) {
-        console.error(
-          `  ${formatTraceWarningPrefix()} ${formatTraceFailureMessage("Schema validation failed:")}`,
-          schemaErrors,
-        );
+        console.error(`  ⚠️  스키마 검증 실패:`, schemaErrors.map((error) => translateVisibleText(error)));
       }
     }
   }
@@ -177,9 +169,7 @@ export class PipelineTracer {
 
       return filePath;
     } catch (error) {
-      console.error(
-        `${formatTraceLabel()} ${formatTraceFailureMessage(`Failed to save trace: ${String(error)}`)}`,
-      );
+      console.error(`[추적] 추적 로그 저장 실패: ${translateVisibleText(String(error))}`);
       throw error;
     }
   }
@@ -214,41 +204,42 @@ export class PipelineTracer {
   static formatAsMarkdown(trace: TraceLog): string {
     const lines: string[] = [];
 
-    lines.push(`# Pipeline Trace Report`);
-    lines.push(`**Session ID**: ${trace.sessionId}`);
-    lines.push(`**Start Time**: ${trace.startTime}`);
+    lines.push(`# 파이프라인 추적 보고서`);
+    lines.push(`**세션 ID**: ${trace.sessionId}`);
+    lines.push(`**시작 시각**: ${trace.startTime}`);
     lines.push('');
 
     if (trace.summary) {
-      lines.push(`## Summary`);
-      lines.push(`- **Total Duration**: ${trace.summary.totalDurationMs}ms`);
-      lines.push(`- **Peak Memory**: ${trace.summary.totalMemoryMb.toFixed(2)}MB`);
+      lines.push(`## 요약`);
+      lines.push(`- **총 소요 시간**: ${trace.summary.totalDurationMs}ms`);
+      lines.push(`- **최대 메모리**: ${trace.summary.totalMemoryMb.toFixed(2)}MB`);
       lines.push('');
 
-      lines.push(`## Stage Timings`);
+      lines.push(`## 단계별 소요 시간`);
       for (const [stage, duration] of Object.entries(trace.summary.stageTimings)) {
         lines.push(`- **${stage}**: ${duration}ms`);
       }
       lines.push('');
     }
 
-    lines.push(`## Entries (${trace.entries.length})`);
+    lines.push(`## 항목 (${trace.entries.length})`);
     for (const entry of trace.entries) {
       const status = entry.schemaValid ? '✅' : '⚠️';
-      lines.push(`### ${status} ${entry.stage} (${entry.role}) — ${entry.phase}`);
-      lines.push(`- **Type**: ${entry.dataType}`);
-      lines.push(`- **Timestamp**: ${entry.timestamp}`);
-      lines.push(`- **Memory**: ${entry.memoryMb?.toFixed(2)}MB`);
+      const phaseLabel = entry.phase === 'input' ? '입력' : '출력';
+      lines.push(`### ${status} ${entry.stage} (${entry.role}) — ${phaseLabel}`);
+      lines.push(`- **유형**: ${entry.dataType}`);
+      lines.push(`- **시각**: ${entry.timestamp}`);
+      lines.push(`- **메모리**: ${entry.memoryMb?.toFixed(2)}MB`);
       if (entry.estimatedTokens) {
-        lines.push(`- **Estimated Tokens**: ${entry.estimatedTokens}`);
+        lines.push(`- **예상 토큰 수**: ${entry.estimatedTokens}`);
       }
       if (entry.durationMs) {
-        lines.push(`- **Duration**: ${entry.durationMs}ms`);
+        lines.push(`- **소요 시간**: ${entry.durationMs}ms`);
       }
       if (!entry.schemaValid && entry.schemaErrors) {
-        lines.push(`- **Schema Errors**:`);
+        lines.push(`- **스키마 오류**:`);
         for (const error of entry.schemaErrors) {
-          lines.push(`  - ${error}`);
+          lines.push(`  - ${translateVisibleText(error)}`);
         }
       }
       lines.push('');

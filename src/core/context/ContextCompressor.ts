@@ -67,7 +67,7 @@ export class ContextCompressor {
    */
   static compress(state: SessionState, adapter: string = 'gemini'): SessionState {
     if (!state) {
-      throw new ContextProcessingError('Invalid state provided to ContextCompressor.compress');
+      throw new ContextProcessingError('ContextCompressor.compress에 잘못된 상태가 전달되었습니다');
     }
 
     try {
@@ -86,12 +86,12 @@ export class ContextCompressor {
       );
       
       // 마지막 요약(last_summary) 업데이트 (선택 사항)
-      compressedState.last_summary = `[Compressed] ${state.last_summary || ''}`;
+      compressedState.last_summary = `[압축됨] ${state.last_summary || ''}`;
 
       return compressedState;
     } catch (error: any) {
       if (error instanceof ContextProcessingError) throw error;
-      throw new ContextProcessingError('Unexpected failure during context compression', {
+      throw new ContextProcessingError('컨텍스트 압축 중 예기치 않은 오류가 발생했습니다', {
         originalError: error.message
       });
     }
@@ -120,9 +120,10 @@ export class ContextCompressor {
         compressed[id] = result;
       } else {
         // 오래된 완료 작업은 압축
-        const compressedResult: any = {
-          summary: result.summary || 'Summary preserved after compression',
-          status: 'success' in result && result.success ? 'completed' : 'failed',
+        const res = result as any;
+        compressed[id] = {
+          summary: res.summary || '압축 후에도 요약이 유지되었습니다',
+          status: res.status || (res.success ? 'completed' : 'failed'),
           _compressed: true
         };
 
@@ -171,9 +172,10 @@ export class ContextCompressor {
       
       for (const [id, result] of Object.entries(state.task_results)) {
         if (!result) continue;
-        const compressedResult: any = {
-          summary: result.summary || 'Summary preserved after compression',
-          status: 'success' in result && result.success ? 'completed' : 'failed',
+        const res = result as any;
+        compressed[id] = {
+          summary: res.summary || '압축 후에도 요약이 유지되었습니다',
+          status: res.status || (res.success ? 'completed' : 'failed'),
           _compressed: true
         };
 

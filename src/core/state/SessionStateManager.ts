@@ -9,6 +9,7 @@ import { ExecutionResultNormalizer } from './ExecutionResultNormalizer.js';
 import { ContextCompressor } from '../context/ContextCompressor.js';
 import { StateIOError, StateValidationError } from '../errors/StateErrors.js';
 import { logger } from '../utils/logger.js';
+import { translateVisibleText } from '../utils/visibleText.js';
 
 export interface ProjectInfo {
   projectId: string;
@@ -300,7 +301,9 @@ export class SessionStateManager {
             checkpointCount: (await this.listCheckpoints(sessionId)).length,
           });
         } catch (e) {
-          logger.info(`Failed to load session file [${file}], skipping.`, e);
+          logger.info(
+            `세션 파일 [${file}]을 불러오지 못해 건너뜁니다. ${translateVisibleText(e instanceof Error ? e.message : String(e))}`,
+          );
         }
       }
 
@@ -381,7 +384,9 @@ export class SessionStateManager {
               checkpoints.push(checkpoint);
             }
           } catch (e) {
-            logger.warn(`Failed to load checkpoint file [${file}], skipping.`, e);
+            logger.warn(
+              `체크포인트 파일 [${file}]을 불러오지 못해 건너뜁니다. ${translateVisibleText(e instanceof Error ? e.message : String(e))}`,
+            );
             continue;
           }
         }

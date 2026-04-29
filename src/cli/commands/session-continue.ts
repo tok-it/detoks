@@ -55,7 +55,7 @@ export const runSessionContinueCommand = async (
       canContinue: false,
       resumeStarted: false,
       mutatesState: false,
-      message: `세션 ${sessionId}을(를) 찾을 수 없습니다. 재개를 시작하지 않았습니다.`,
+      message: `세션 ${sessionId}를 찾지 못했습니다. 다시 시작하지 않았습니다.`,
       nextAction: null,
     };
   }
@@ -75,7 +75,7 @@ export const runSessionContinueCommand = async (
       canContinue: false,
       resumeStarted: false,
       mutatesState: false,
-      message: `세션 ${sessionId}에 저장된 raw_input이 없습니다. 재개를 시작하지 않았습니다.`,
+      message: `세션 ${sessionId}에 저장된 raw_input이 없습니다. 다시 시작하지 않았습니다.`,
       nextAction,
     };
   }
@@ -96,7 +96,7 @@ export const runSessionContinueCommand = async (
     canContinue: true,
     resumeStarted: true,
     mutatesState: true,
-    message: `세션 ${result.sessionId}이(가) 저장된 raw_input으로 재개되었습니다.`,
+    message: `세션 ${result.sessionId}를 저장된 raw_input으로 다시 시작했습니다.`,
     adapter: result.adapter,
     summary: result.summary,
     nextAction: result.nextAction,
