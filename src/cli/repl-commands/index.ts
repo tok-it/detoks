@@ -1,5 +1,8 @@
 import { stdout as output } from "node:process";
 import { createInterface } from "node:readline/promises";
+import { existsSync } from "node:fs";
+import { join } from "node:path";
+import { homedir } from "node:os";
 import { colors } from "../colors.js";
 import {
   getAdapterStatus,
@@ -8,7 +11,10 @@ import {
   geminiLogout,
 } from "../adapter-info/index.js";
 import { selectWithArrows } from "../interactive/select-with-arrows.js";
-import { updateAdapterModel } from "../config/config-manager.js";
+import { updateAdapterModel, updateTranslationModel } from "../config/config-manager.js";
+import { TRANSLATION_MODELS } from "../model-setup/models.js";
+import { downloadModel } from "../model-setup/download.js";
+import { updateEnvFile } from "../model-setup/env-writer.js";
 
 export interface SlashCommand {
   name: string;
@@ -33,7 +39,7 @@ const BASE_COMMANDS: SlashCommand[] = [
   {
     name: "model",
     aliases: ["m"],
-    description: "현재 설정된 번역 모델 확인",
+    description: "번역 모델 선택 및 변경 (필요시 다운로드)",
     usage: "/model",
   },
   {
@@ -206,11 +212,9 @@ export const handleSlashCommand = async (
       process.stdout.write("\x1Bc");
       return true;
 
-    case "model":
-      output.write(
-        colors.info(`\n현재 번역 모델: ${state.modelName || "미설정"}\n\n`),
-      );
-      return true;
+    case "model": {
+      return await handleTranslationModel();
+    }
 
     case "adapter":
       output.write(
@@ -329,6 +333,104 @@ const handleLogout = async (adapter: "codex" | "gemini"): Promise<boolean> => {
       ),
     );
   }
+
+  return true;
+};
+
+const getModelsDir = (): string => {
+  return join(homedir(), ".detoks", "models");
+};
+
+const isModelDownloaded = (modelId: string, hfFile: string): boolean => {
+  const modelsDir = getModelsDir();
+  const filePath = join(modelsDir, hfFile);
+  return existsSync(filePath);
+};
+
+const handleTranslationModel = async (): Promise<boolean> => {
+  output.write(`\n${colors.title("한글→영어 번역 모델 선택\n")}`);
+
+  // 모델 목록 생성
+  const options = TRANSLATION_MODELS.map((model) => {
+    const downloaded = isModelDownloaded(model.id, model.hfFile);
+    const status = downloaded ? ` ${colors.success("[설치됨]")}` : "";
+    return {
+      value: model.id,
+      label: `${model.displayName}${status}`,
+      model,
+    };
+  });
+
+  // 모델 정보 표시
+  for (const opt of options) {
+    const model = opt.model;
+    if (model) {
+      output.write(`${colors.muted(opt.label)}\n`);
+      output.write(`   ${colors.muted(model.description)}\n`);
+      output.write("\n");
+    }
+  }
+
+  // 모델 선택
+  const selectedId = await selectWithArrows(
+    options.map((opt) => ({
+      value: opt.value,
+      label: opt.label,
+    })),
+    "모델 선택",
+  );
+
+  if (!selectedId) {
+    return true;
+  }
+
+  const selectedModel = TRANSLATION_MODELS.find((m) => m.id === selectedId);
+  if (!selectedModel) {
+    output.write(colors.error("\n✗ 모델을 찾을 수 없습니다.\n\n"));
+    return true;
+  }
+
+  const downloaded = isModelDownloaded(selectedId, selectedModel.hfFile);
+
+  // 미설치 모델이면 다운로드
+  if (!downloaded) {
+    output.write(
+      colors.warning(
+        `\n⬇️  ${selectedModel.displayName} 다운로드 시작...\n\n`,
+      ),
+    );
+
+    try {
+      await downloadModel(selectedModel);
+    } catch (error) {
+      output.write(
+        colors.error(
+          `\n✗ 다운로드 실패. 인터넷 연결을 확인하고 다시 시도하세요.\n\n`,
+        ),
+      );
+      return true;
+    }
+  }
+
+  // 환경변수 및 설정 업데이트
+  process.env.LOCAL_LLM_MODEL_NAME = selectedModel.modelName;
+  process.env.LOCAL_LLM_HF_REPO = `${selectedModel.hfRepo}:Q4_K_S`;
+  process.env.LOCAL_LLM_HF_FILE = selectedModel.hfFile;
+
+  // .env 파일 업데이트
+  updateEnvFile(selectedModel, process.cwd());
+
+  // 설정 저장
+  updateTranslationModel(selectedModel.modelName);
+
+  output.write(
+    colors.success(
+      `\n✓ 번역 모델이 '${selectedModel.displayName}'로 변경되었습니다.\n`,
+    ),
+  );
+  output.write(
+    colors.muted(`  설정 저장됨: ~/.detoks/settings.json\n\n`),
+  );
 
   return true;
 };
