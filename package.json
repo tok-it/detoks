@@ -7,7 +7,7 @@
     "detoks": "dist/src/cli/index.js"
   },
   "engines": {
-    "node": ">=24.15.0 <25"
+    "node": ">=24.15.0 <26"
   },
   "scripts": {
     "add:py": "node scripts/add-py-dep.mjs",

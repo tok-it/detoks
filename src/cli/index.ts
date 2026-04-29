@@ -13,6 +13,7 @@ import { runSessionForkCommand } from "./commands/session-fork.js";
 import { runCheckpointRestoreCommand } from "./commands/checkpoint-restore.js";
 import { startRepl } from "./repl/index.js";
 import { colors } from "./colors.js";
+import { runModelSetupIfNeeded } from "./model-setup/index.js";
 
 const runOneShotCommand = async (
   request: ReturnType<typeof toNormalizedRequest>,
@@ -113,11 +114,13 @@ const main = async (): Promise<void> => {
   }
 
   if (args.inputFile) {
+    await runModelSetupIfNeeded();
     const result = await runBatchCommand(args);
     console.log(formatBatchSuccess(result, args.verbose));
     return;
   }
 
+  await runModelSetupIfNeeded();
   const request = toNormalizedRequest(args);
   const result = await runOneShotCommand(request);
   if (!result.ok) {
