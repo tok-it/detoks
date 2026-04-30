@@ -2,6 +2,10 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
 import type { DetoksConfig } from "./types.js";
+import {
+  CODEX_REASONING_EFFORT_VALUES,
+  type CodexReasoningEffort,
+} from "./types.js";
 import { DEFAULT_CONFIG } from "./types.js";
 
 const getConfigDir = (): string => {
@@ -60,6 +64,31 @@ export const updateAdapterModel = (
 export const updateTranslationModel = (model: string): void => {
   const config = loadConfig();
   config.translation.model = model;
+  saveConfig(config);
+};
+
+const isCodexReasoningEffort = (value: unknown): value is CodexReasoningEffort =>
+  typeof value === "string" &&
+  CODEX_REASONING_EFFORT_VALUES.includes(value as CodexReasoningEffort);
+
+export const getCodexReasoningEffortOverride = (): CodexReasoningEffort | undefined => {
+  const config = loadConfig();
+  return isCodexReasoningEffort(config.adapter.codexReasoningEffort)
+    ? config.adapter.codexReasoningEffort
+    : undefined;
+};
+
+export const updateCodexReasoningEffort = (
+  effort: CodexReasoningEffort | undefined,
+): void => {
+  const config = loadConfig();
+
+  if (effort === undefined) {
+    delete config.adapter.codexReasoningEffort;
+  } else {
+    config.adapter.codexReasoningEffort = effort;
+  }
+
   saveConfig(config);
 };
 

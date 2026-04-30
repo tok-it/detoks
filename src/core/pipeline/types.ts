@@ -56,6 +56,7 @@ export interface PipelineExecutionResult {
   adapter: Adapter;
   summary: string;
   nextAction: string;
+  originalPrompt?: string;
   tokenMetrics?: TokenMetricsSnapshot | null;
   stages: PipelineStageStatus[];
   rawOutput: string;

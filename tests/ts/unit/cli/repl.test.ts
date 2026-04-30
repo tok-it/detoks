@@ -156,6 +156,8 @@ describe("repl builtin command routing", () => {
     expect(menuResult.shouldExit).toBe(false);
     expect(menuResult.output).toContain("REPL 명령어 목록");
     expect(menuResult.output).toContain("/help");
+    expect(menuResult.output).toContain("/codex-models (/cms)");
+    expect(menuResult.output).toContain("/gemini-models (/gms)");
     expect(menuResult.output).toContain("/adapter gemini");
     expect(menuResult.output).toContain("/verbose off");
     expect(menuResult.output).toContain("/quit");

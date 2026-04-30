@@ -19,6 +19,7 @@ describe("formatSuccess", () => {
       { name: "Prompt Compiler", owner: "role1" as const, status: "stubbed" as const },
     ],
     rawOutput: "[stub:codex] hello detoks",
+    originalPrompt: "hello detoks",
     promptLanguage: "en" as const,
     promptInferenceTimeSec: 0,
     promptValidationErrors: [],
@@ -32,9 +33,15 @@ describe("formatSuccess", () => {
     expect(formatted).toContain("한눈에 보기");
     expect(formatted).toContain("요약");
     expect(formatted).toContain("다음 작업");
+    expect(formatted).toContain("stub executor accepted prompt (12 chars)");
+    expect(formatted).toContain("connect core pipeline modules behind this boundary");
     expect(formatted).toContain("프롬프트 분석");
     expect(formatted).toContain("파이프라인 상태");
     expect(formatted).toContain("실행 결과");
+    expect(formatted).toContain("한국어 정리");
+    expect(formatted).toContain("원문 출력");
+    expect(formatted).toContain("요청");
+    expect(formatted).toContain("상태");
     expect(formatted).toContain("[stub:codex] hello detoks");
     expect(formatted).toContain("Prompt Compiler");
   });
@@ -72,6 +79,57 @@ describe("formatSuccess", () => {
     expect(formatted).toContain("출력");
     expect(formatted).toContain("기준");
     expect(formatted).toContain("o200k_base");
+  });
+
+  it("uses compiledPrompt instead of generic pipeline summary in human output", () => {
+    const formatted = formatSuccess(
+      {
+        ...result,
+        summary: "1개 작업을 모두 완료했습니다",
+        nextAction: "파이프라인이 완료되었습니다.",
+        compiledPrompt: "사용자 인증 버그를 수정하고 테스트를 실행해줘",
+        originalPrompt: "사용자 인증 버그를 수정하고 테스트를 실행해줘",
+      },
+      false,
+    );
+
+    expect(formatted).toContain("사용자 인증 버그를 수정하고 테스트를 실행해줘");
+    expect(formatted).toContain("다음 작업");
+    expect(formatted).toContain("없음");
+    expect(formatted).not.toContain("1개 작업을 모두 완료했습니다");
+  });
+
+  it("uses failed task ids for generic failure next action", () => {
+    const formatted = formatSuccess(
+      {
+        ...result,
+        ok: false,
+        summary: "1/2개 작업을 완료했습니다 — 1개 실패",
+        nextAction: "실패한 작업을 수정한 뒤 다시 시도하세요.",
+        originalPrompt: "실패 케이스를 재현해줘",
+        taskRecords: [
+          { taskId: "t1", status: "completed" as const, rawOutput: "ok" },
+          { taskId: "t2", status: "failed" as const, rawOutput: "boom" },
+        ],
+      },
+      false,
+    );
+
+    expect(formatted).toContain("t2 작업 원인을 수정한 뒤 다시 시도하세요.");
+  });
+
+  it("prefers the original Korean prompt in execution summary", () => {
+    const formatted = formatSuccess(
+      {
+        ...result,
+        originalPrompt: "로그인 오류 원인을 분석해줘",
+        compiledPrompt: "Analyze the cause of the login error",
+      },
+      false,
+    );
+
+    expect(formatted).toContain("로그인 오류 원인을 분석해줘");
+    expect(formatted).not.toContain("Analyze the cause of the login error");
   });
 });
 

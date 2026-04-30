@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "bin": {
-    "detoks": "dist/src/cli/index.js"
+    "detoks": "bin/detoks.js"
   },
   "engines": {
     "node": ">=24.15.0 <26"
@@ -13,6 +13,8 @@
     "add:py": "node scripts/add-py-dep.mjs",
     "add:py:dev": "node scripts/add-py-dev-dep.mjs",
     "build": "tsc -p tsconfig.json",
+    "prepare": "npm run build",
+    "prepack": "npm run build",
     "cli": "tsx src/cli/index.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run",

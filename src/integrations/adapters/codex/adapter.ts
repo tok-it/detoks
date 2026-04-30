@@ -1,5 +1,6 @@
 import type { AdapterExecutionRequest, AdapterExecutionResult } from "../../../core/executor/types.js";
 import type { AdapterExecutionContext, CliAdapter } from "../interface.js";
+import { getCodexReasoningEffortOverride } from "../../../cli/config/config-manager.js";
 import { executeAdapterViaSubprocess } from "../real.js";
 import { buildStubRawOutput } from "../stub.js";
 
@@ -7,10 +8,13 @@ export class CodexStubAdapter implements CliAdapter {
   readonly target = "codex" as const;
 
   buildSubprocessRequest(request: AdapterExecutionRequest) {
+    const reasoningEffort = getCodexReasoningEffortOverride();
+
     return {
       command: "codex",
       args: [
         "exec",
+        ...(reasoningEffort ? ["-c", `model_reasoning_effort=${reasoningEffort}`] : []),
         ...(request.model ? ["--model", request.model] : []),
         "-",
         "--sandbox",

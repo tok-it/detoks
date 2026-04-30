@@ -49,6 +49,7 @@ CLI Input
 - `--verbose`
 - `--help`
 - `repl --help`
+- `model reset`
 - 에러 메시지 / usage 안내
 
 관련 파일:
@@ -63,6 +64,7 @@ CLI Input
 - main help / repl help 분리
 - `stub` / `real` 설명 보강
 - `verbose` 의미를 출력 계약 기준으로 정리
+- `detoks model reset` 안전한 모델 초기화 UX 추가
 - help와 실제 출력 계약이 현재 기준으로 일치함
 - main help / repl help 예시 문구 보강 완료
 
@@ -84,6 +86,8 @@ CLI Input
 - `/adapter` REPL arrow-key adapter chooser 라우팅
 - `/adapter codex|gemini` REPL adapter 전환 라우팅
 - `/model <name>` REPL adapter model 전환 라우팅
+- `/codex-models` alias(`/cms`)에서 Codex 모델 선택 뒤 추론 강도(Low/Medium/High/Extra high) 오버라이드까지 바로 이어서 선택 가능(중간 REPL 복귀 없음)
+- `/model` 선택 UI에서 0B/비-GGUF 파일을 `[설치됨]` 대신 `[손상됨:<reason>]`으로 표시하고, "손상된 모델은 선택 후 Enter를 누르면 재설치됩니다" 안내와 함께 재다운로드로 덮어쓰기
 - `/verbose` REPL arrow-key verbose chooser 라우팅
 - `/verbose on|off` REPL output verbosity 전환 라우팅
 - 시작 안내에 adapter / executionMode / verbose 표시
@@ -95,9 +99,13 @@ CLI Input
 - core logger / 실시간 `DETOKS_TRACE=1` stderr 라인에 ANSI label 스타일 적용
 - trace markdown 본문 라벨(`Session ID`, `Total Duration`, `Type` 등)에 TTY 전용 bold 강조 적용
 - REPL 시작/종료 smoke test 추가 완료
+- one-shot / REPL 프롬프트 실행 중 ASCII animation spinner가 결과 출력 직전까지 유지되도록 재연결함
+- one-shot / REPL ASCII animation spinner에 프레임별 Pac-Man 색상 변화와 노란 토큰 색상 적용
+- one-shot / REPL ASCII animation spinner가 토큰 4→0 소진 직후 즉시 첫 프레임으로 되돌아가도록 주기 보정
 
 관련 파일:
 - `src/cli/commands/repl.ts`
+- `src/cli/terminal-spinner.ts`
 - `tests/ts/integration/cli-smoke.test.ts`
 
 ---
@@ -161,6 +169,7 @@ CLI Input
 - `executionMode=stub|real` 분기 존재
 - smoke에서 codex/gemini real 경로의 `rawOutput` 계약을 fake binary로 고정함
 - adapter별 real request / subprocess boundary 단위 테스트가 존재함
+- Codex real subprocess request는 저장된 추론 강도 오버라이드가 있을 때 `-c model_reasoning_effort=<value>`를 추가함
 
 현재 특징:
 - adapter 구조는 있음
@@ -183,6 +192,7 @@ CLI Input
 - real subprocess runner 존재
 - CLI smoke에서 codex/gemini real 실행 시 stdout/rawOutput 일치 계약을 검증함
 - real smoke/batch smoke temp dir cleanup까지 반영됨
+- 로컬 LLM 자동 시작 경로는 `.env`의 server port/model 값을 따라 재해석되며, 잘못된 GGUF 파일은 실행 전에 명확히 실패함
 
 한계:
 - real runner는 존재하지만, 실제 CLI binary 유무에 따라 runtime 결과가 달라질 수 있음
@@ -201,6 +211,11 @@ CLI Input
 - `--verbose`: full success JSON + error stack
 - smoke / unit test로 고정됨
 - one-shot `ok: false` 결과는 stdout 성공 포맷이 아니라 stderr 에러 포맷과 exit code 1로 처리됨
+- one-shot / REPL 성공 결과는 JSON 나열 대신 `한눈에 보기 → 토큰 절감 → 파이프라인 상태 → 실행 결과` 순서의 사람용 템플릿으로 정리함
+- 내부 `[WARN]` 로그는 `DETOKS_DEBUG=1`일 때만 보이고, 일반 사용자 환경에서는 실제 오류만 `[ERROR]`로 출력되도록 정리함
+- `한눈에 보기`의 `요약`은 generic 완료 문구 대신 `compiledPrompt`를 우선 사용하고, `다음 작업`은 generic 완료/실패 문구 대신 실제 상태(성공 시 `없음`, 실패 시 실패 task id 기반 안내)로 보정함
+- human output의 `실행 결과`는 원문 `rawOutput`을 그대로 유지하되, 그 위에 `한국어 정리`(요청/상태/작업/안내)를 추가해 한국어 중심으로 읽을 수 있게 정리함
+- Role 1 Python 패키징에 `llama_server` setuptools package discovery를 추가해 editable/build install 환경에서도 `python -m llama_server.kompress_worker`가 import되도록 보정함
 
 관련 파일:
 - `src/cli/format.ts`
@@ -255,8 +270,10 @@ CLI Input
   - legacy alias: `OPENAI_API_BASE` / `OPENAI_API_KEY` / `MODEL_NAME`
   - legacy alias: `LM_STUDIO_URL` / `LM_STUDIO_API_KEY`
 - 현재 cwd 기준 `.env` / `.env.local`에서 local LLM 설정을 자동 로드함
+- `LOCAL_LLM_API_BASE`가 기본 로컬 값일 때는 `.env`의 `LOCAL_LLM_SERVER_PORT`를 따라 자동 보정함
 - `.env.example` 기준값 추가 완료
 - Korean/mixed 입력에서 translation/LLM runtime 설정 누락 시 prompt compilation failure를 구조화된 pipeline 실패 결과로 surface하도록 연결됨
+- 0B/비-GGUF 모델 파일은 llama-server 실행 전에 명확한 오류로 차단하고, 자동 삭제/재다운로드는 하지 않도록 정리함
 - 성공 경로 메타데이터 surface 반영 완료:
   - `promptLanguage`
   - `promptInferenceTimeSec`
@@ -411,6 +428,8 @@ CLI Input
 - REPL 내부 `/session` builtin 라우팅 추가
 - REPL 내부 `/adapter` arrow-key chooser + direct set builtin 라우팅 추가
 - REPL 내부 `/verbose` arrow-key chooser + direct set builtin 라우팅 추가
+- REPL 내부 `/cms` alias 경유 Codex 모델/추론 강도 선택 플로우 추가
+- 로컬 `npm link`/dev 실행은 `bin/detoks.js` 래퍼를 통해 `src/cli/index.ts`를 직접 로드하고, 패키지/배포 환경은 `dist`로 폴백하도록 정리
 - CLI `--model <name>` pass-through 및 REPL `/model <name>` builtin 추가
 
 ---
@@ -432,7 +451,8 @@ Prompt / Translate / Guardrails / LLM client 추가 실전화 범위 재판단
 
 현재 detoks CLI 개발은:
 
-> CLI 런타임 UX + 파이프라인 오케스트레이션 골격 + 상태 저장 + smoke/unit test 안정화 + real execution 경계 smoke 고정 + session/checkpoint UX + prompt metadata surface + 실제 CLI opt-in smoke 경계 정리
+> CLI 런타임 UX + 파이프라인 오케스트레이션 골격 + 상태 저장 + smoke/unit test 안정화 + real execution 경계 smoke 고정 + session/checkpoint UX + prompt metadata surface + 실제 CLI opt-in smoke 경계 정리 + Codex 모델 선택 시 추론 강도 오버라이드(/cms)까지 연결
+> + 로컬 `npm link`에서는 빌드된 `dist`가 아니라 source entrypoint를 직접 타도록 정리
 
 까지는 꽤 진행되었고,
 

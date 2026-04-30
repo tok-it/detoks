@@ -1,3 +1,6 @@
+export const CODEX_REASONING_EFFORT_VALUES = ["low", "medium", "high", "xhigh"] as const;
+export type CodexReasoningEffort = (typeof CODEX_REASONING_EFFORT_VALUES)[number];
+
 export interface DetoksConfig {
   version: string;
   lastUpdated: string;
@@ -7,6 +10,7 @@ export interface DetoksConfig {
       codex: string | undefined;
       gemini: string | undefined;
     };
+    codexReasoningEffort?: CodexReasoningEffort;
   };
   translation: {
     model: string | undefined;

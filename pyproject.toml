@@ -19,6 +19,13 @@ dev = [
 requires = ["setuptools>=80.0"]
 build-backend = "setuptools.build_meta"
 
+[tool.setuptools]
+package-dir = {"" = "python"}
+
+[tool.setuptools.packages.find]
+where = ["python"]
+include = ["llama_server*"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests/python"]
 pythonpath = ["python"]

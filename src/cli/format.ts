@@ -45,6 +45,89 @@ function hrLine(): string {
   return colors.muted("─".repeat(width));
 }
 
+function isGenericPipelineSummary(summary: string): boolean {
+  return /^\d+(?:\/\d+)?개 작업(?:을 모두)? 완료했습니다(?:\s+—\s+\d+개 실패)?$/.test(summary.trim());
+}
+
+function isGenericPipelineNextAction(nextAction: string): boolean {
+  const normalized = nextAction.trim();
+  return (
+    normalized === "파이프라인이 완료되었습니다." ||
+    normalized === "실패한 작업을 수정한 뒤 다시 시도하세요."
+  );
+}
+
+function deriveOverviewSummary(result: CliExecutionResult): string {
+  const compiledPrompt = result.compiledPrompt?.trim();
+  const summary = result.summary?.trim();
+
+  if (compiledPrompt && (!summary || isGenericPipelineSummary(summary))) {
+    return compiledPrompt;
+  }
+
+  return summary || "요약 없음";
+}
+
+function deriveOverviewNextAction(result: CliExecutionResult): string {
+  const nextAction = result.nextAction?.trim();
+
+  if (nextAction && !isGenericPipelineNextAction(nextAction)) {
+    return nextAction;
+  }
+
+  if (result.ok) {
+    return "없음";
+  }
+
+  const failedTaskIds = result.taskRecords
+    .filter((record) => record.status === "failed")
+    .map((record) => record.taskId);
+
+  if (failedTaskIds.length > 0) {
+    return `${failedTaskIds.join(", ")} 작업 원인을 수정한 뒤 다시 시도하세요.`;
+  }
+
+  return nextAction || "다음 작업 없음";
+}
+
+function formatTaskStatusLabel(status: CliExecutionResult["taskRecords"][number]["status"]): string {
+  if (status === "completed") return "완료";
+  if (status === "failed") return "실패";
+  return "건너뜀";
+}
+
+function buildKoreanExecutionSummary(result: CliExecutionResult): string[] {
+  const lines: string[] = [];
+  const requestText =
+    result.originalPrompt?.trim() ||
+    result.compiledPrompt?.trim() ||
+    result.summary?.trim() ||
+    "";
+
+  if (requestText) {
+    lines.push(`${colors.bullet} ${colors.muted("요청")} ${translateVisibleText(requestText)}`);
+  }
+
+  lines.push(
+    `${colors.bullet} ${colors.muted("상태")} ${result.ok ? colors.success("성공") : colors.error("실패")}`,
+  );
+
+  if (result.taskRecords.length > 0) {
+    lines.push(
+      `${colors.bullet} ${colors.muted("작업")} ${result.taskRecords
+        .map((record) => `${record.taskId} ${formatTaskStatusLabel(record.status)}`)
+        .join(", ")}`,
+    );
+  }
+
+  const nextAction = deriveOverviewNextAction(result);
+  if (nextAction && nextAction !== "다음 작업 없음") {
+    lines.push(`${colors.bullet} ${colors.muted("안내")} ${translateVisibleText(nextAction)}`);
+  }
+
+  return lines;
+}
+
 function formatResultHuman(result: CliExecutionResult, ok: boolean): string {
   const adapterTag = `[${result.adapter.toUpperCase()}]`;
   const header = ok
@@ -53,8 +136,8 @@ function formatResultHuman(result: CliExecutionResult, ok: boolean): string {
 
   const body = (result.rawOutput?.trim() || result.summary?.trim() || "(응답 없음)");
   const promptLanguage = formatPromptLanguage(result.promptLanguage);
-  const summary = result.summary?.trim() || "요약 없음";
-  const nextAction = result.nextAction?.trim() || "다음 작업 없음";
+  const summary = deriveOverviewSummary(result);
+  const nextAction = deriveOverviewNextAction(result);
   const lines = [
     "",
     `${header} ${colors.muted(`· ${result.mode.toUpperCase()}`)}`,
@@ -105,7 +188,18 @@ function formatResultHuman(result: CliExecutionResult, ok: boolean): string {
     );
   }
 
-  lines.push("", colors.header("실행 결과"), hrLine(), body, hrLine(), "");
+  lines.push(
+    "",
+    colors.header("실행 결과"),
+    hrLine(),
+    colors.muted("한국어 정리"),
+    ...buildKoreanExecutionSummary(result),
+    "",
+    colors.muted("원문 출력"),
+    body,
+    hrLine(),
+    "",
+  );
   return lines.join("\n");
 }
 

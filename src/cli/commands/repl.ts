@@ -161,6 +161,8 @@ function formatReplCommandMenu(state: ReplRuntimeState): string {
     ["/adapter", "어댑터 선택 UI 표시"],
     ["/adapter codex", "이후 프롬프트의 어댑터를 codex로 변경"],
     ["/adapter gemini", "이후 프롬프트의 어댑터를 gemini로 변경"],
+    ["/codex-models (/cms)", "Codex 모델 및 추론 강도 선택"],
+    ["/gemini-models (/gms)", "Gemini 모델 선택 및 변경"],
     ["/model", "모델 변경 안내 표시"],
     ["/model <이름>", "이후 프롬프트의 모델을 변경"],
     ["/verbose", "상세 출력 선택 UI 표시"],
@@ -502,14 +504,14 @@ export const runReplCommand = async (baseArgs: CliArgs): Promise<void> => {
       }
 
       try {
-        const onProgress = async (event: PipelineProgressEvent): Promise<void> => {
-          output.write(`${formatProgressEvent(event)}\n`);
-        };
         const request = toNormalizedRequest(
           { ...baseArgs, mode: "run", prompt: line },
           { mode: "repl", sessionId },
         );
-        const spinner = startSpinner(Boolean(output.isTTY));
+        const spinner = startSpinner(Boolean(output.isTTY), output);
+        const onProgress = async (event: PipelineProgressEvent): Promise<void> => {
+          spinner.write(`${formatProgressEvent(event)}\n`);
+        };
 
         try {
           const result = await runCommand({ ...request, onProgress });

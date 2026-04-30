@@ -11,7 +11,16 @@ import {
 } from "../adapter-info/index.js";
 import { selectWithArrows } from "../interactive/select-with-arrows.js";
 import type { SelectWithArrowsStreams } from "../interactive/select-with-arrows.js";
-import { updateAdapterModel, updateTranslationModel } from "../config/config-manager.js";
+import {
+  getCodexReasoningEffortOverride,
+  updateAdapterModel,
+  updateCodexReasoningEffort,
+  updateTranslationModel,
+} from "../config/config-manager.js";
+import {
+  CODEX_REASONING_EFFORT_VALUES,
+  type CodexReasoningEffort,
+} from "../config/types.js";
 import { TRANSLATION_MODELS } from "../model-setup/models.js";
 import { downloadModel } from "../model-setup/download.js";
 import { updateEnvFile } from "../model-setup/env-writer.js";
@@ -77,7 +86,7 @@ const getAuthenticatedCommands = (
       {
         name: "codex-models",
         aliases: ["cms"],
-        description: "Codex 모델 선택 및 변경",
+        description: "Codex 모델 및 추론 강도 선택",
         usage: "/codex-models",
       },
       {
@@ -280,19 +289,131 @@ const handleCodexModels = async (streams?: SelectWithArrowsStreams): Promise<boo
     label: `${m.slug} — ${m.display_name}`,
   }));
 
-  const selected = await selectWithArrows(options, "Codex 모델 선택", streams);
+  let shouldResumeInput = true;
 
-  if (selected) {
+  try {
+    const selected = await selectWithArrows(options, "Codex 모델 선택", {
+      ...streams,
+      onClose: () => undefined,
+    });
+
+    if (!selected) {
+      streams?.onClose?.();
+      shouldResumeInput = false;
+      return true;
+    }
+
     process.env.ADAPTER_MODEL = selected;
     updateAdapterModel("codex", selected);
-    output.write(
-      colors.muted(
-        `  설정 저장됨: ~/.detoks/settings.json\n\n`,
-      ),
-    );
+
+    const currentEffort = getCodexReasoningEffortOverride();
+    const currentEffortLabel = currentEffort
+      ? formatCodexReasoningEffortLabel(currentEffort)
+      : "기본 설정 사용";
+    output.write(colors.muted(`  현재 추론 강도: ${currentEffortLabel}\n\n`));
+
+    const selectedEffort = await selectCodexReasoningEffort(selected, currentEffort, streams);
+    if (selectedEffort === null) {
+      output.write(colors.muted("  추론 강도 선택을 취소했습니다. 기존 설정을 유지합니다.\n\n"));
+    } else {
+      if (selectedEffort === currentEffort) {
+        output.write(
+          colors.info(
+            selectedEffort
+              ? `  추론 강도는 이미 ${formatCodexReasoningEffortLabel(selectedEffort)}입니다.\n`
+              : "  추론 강도는 이미 Codex 기본 설정을 사용하고 있습니다.\n",
+          ),
+        );
+      } else {
+        updateCodexReasoningEffort(selectedEffort ?? undefined);
+        output.write(
+          colors.success(
+            selectedEffort
+              ? `  추론 강도가 ${formatCodexReasoningEffortLabel(selectedEffort)}(으)로 설정되었습니다.\n`
+              : "  추론 강도 오버라이드가 제거되어 Codex 기본 설정을 사용합니다.\n",
+          ),
+        );
+      }
+    }
+
+    output.write(colors.muted(`  설정 저장됨: ~/.detoks/settings.json\n\n`));
+    shouldResumeInput = false;
+    return true;
+  } finally {
+    if (shouldResumeInput) {
+      streams?.onClose?.();
+    }
+  }
+};
+
+const CODEX_REASONING_EFFORT_LABELS: Record<CodexReasoningEffort, string> = {
+  low: "Low",
+  medium: "Medium",
+  high: "High",
+  xhigh: "Extra high",
+};
+
+const formatCodexReasoningEffortLabel = (effort: CodexReasoningEffort): string =>
+  CODEX_REASONING_EFFORT_LABELS[effort];
+
+const buildCodexReasoningEffortOptions = (
+  currentEffort: CodexReasoningEffort | undefined,
+): { value: string; label: string }[] => {
+  const options: { value: string; label: string }[] = [];
+
+  if (currentEffort) {
+    options.push({
+      value: currentEffort,
+      label: `${formatCodexReasoningEffortLabel(currentEffort)} (현재)`,
+    });
   }
 
-  return true;
+  options.push({
+    value: "default",
+    label: "기본값 유지 (Codex 기본 설정)",
+  });
+
+  for (const effort of CODEX_REASONING_EFFORT_VALUES) {
+    if (effort === currentEffort) {
+      continue;
+    }
+
+    options.push({
+      value: effort,
+      label: formatCodexReasoningEffortLabel(effort),
+    });
+  }
+
+  return options;
+};
+
+const selectCodexReasoningEffort = async (
+  modelName: string,
+  currentEffort: CodexReasoningEffort | undefined,
+  streams?: SelectWithArrowsStreams,
+): Promise<CodexReasoningEffort | undefined | null> => {
+  output.write(colors.title(`Codex 추론 강도 선택 (${modelName})\n`));
+  output.write(
+    colors.muted(
+      "Low / Medium / High / Extra high 중 하나를 선택하거나 기본 Codex 설정을 유지할 수 있습니다.\n\n",
+    ),
+  );
+
+  const selected = await selectWithArrows(
+    buildCodexReasoningEffortOptions(currentEffort),
+    "추론 강도 선택",
+    streams,
+  );
+
+  if (selected === null) {
+    return null;
+  }
+
+  if (selected === "default") {
+    return undefined;
+  }
+
+  return selected as CodexReasoningEffort;
 };
 
 const handleGeminiModels = async (streams?: SelectWithArrowsStreams): Promise<boolean> => {
