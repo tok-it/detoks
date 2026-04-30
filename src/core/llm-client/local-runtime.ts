@@ -1,5 +1,5 @@
-import { spawn } from "node:child_process";
-import { createWriteStream, existsSync, mkdirSync } from "node:fs";
+import { spawn, spawnSync } from "node:child_process";
+import { accessSync, constants, createWriteStream, existsSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
@@ -216,6 +216,28 @@ function commandMatchesPort(command: string, port: number): boolean {
     command.includes("llama-server") &&
     (command.includes(`--port ${port}`) || command.includes(`--port=${port}`))
   );
+}
+
+function isExecutablePath(binary: string): boolean {
+  try {
+    accessSync(binary, constants.X_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function getBinaryProbeCommand(platform: NodeJS.Platform = process.platform): string {
+  return platform === "win32" ? "where" : "which";
+}
+
+function isLlamaServerBinaryAvailable(binary: string): boolean {
+  if (binary.includes("/") || binary.includes("\\")) {
+    return isExecutablePath(binary);
+  }
+
+  const probe = spawnSync(getBinaryProbeCommand(), [binary], { stdio: "ignore" });
+  return !probe.error && probe.status === 0;
 }
 
 async function waitForProcessExit(pid: number, timeoutMs: number): Promise<boolean> {
@@ -467,6 +489,13 @@ async function startLocalServer(config: Role1RuntimeConfig): Promise<void> {
       await ensureModelFile(config);
       await stopExistingServerProcess(config.localLlmServerPort ?? 12370);
     }
+  }
+
+  const binary = config.localLlmServerBinary ?? "llama-server";
+  if (!isLlamaServerBinaryAvailable(binary)) {
+    throw new Error(
+      `로컬 llama.cpp 서버 바이너리를 찾을 수 없습니다: ${binary}. llama-server를 설치하거나 LOCAL_LLM_AUTO_START=0으로 자동 시작을 끄세요.`,
+    );
   }
 
   await ensureModelFile(config);
