@@ -33,7 +33,7 @@ export const runCheckpointListCommand = async (
     checkpointCount,
     message:
       checkpointCount === 0
-        ? `세션 ${sessionId}에 저장된 체크포인트가 없습니다.`
+        ? `세션 ${sessionId}에서 체크포인트를 찾지 못했습니다.`
         : `세션 ${sessionId}에서 체크포인트 ${checkpointCount}개를 찾았습니다.`,
     checkpoints: checkpoints.map((checkpoint) => ({
       id: checkpoint.id,

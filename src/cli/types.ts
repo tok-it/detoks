@@ -19,20 +19,20 @@ export interface CliArgs {
   mode: CliMode;
   command?:
     | "session-list"
+    | "session-show"
     | "session-continue"
     | "session-fork"
     | "session-reset"
     | "checkpoint-list"
     | "checkpoint-show"
     | "checkpoint-restore";
-    
   prompt?: string;
   sessionId?: string;
   newSessionId?: string;
   checkpointId?: string;
   inputFile?: string;
-  model?: string;
-  adapter?: Adapter;
+  human?: boolean;
+  adapter: Adapter;
   executionMode: ExecutionMode;
   verbose: boolean;
   trace: boolean;
@@ -41,6 +41,7 @@ export interface CliArgs {
     | "main"
     | "repl"
     | "session-list"
+    | "session-show"
     | "session-continue"
     | "session-reset"
     | "session-fork"

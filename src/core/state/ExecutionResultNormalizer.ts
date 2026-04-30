@@ -1,4 +1,4 @@
-import type { ExecutionResult, RequestCategory } from '../../schemas/pipeline.js';
+import type { ExecutionResult } from '../../schemas/pipeline.js';
 import { ExecutionResultSchema } from '../../schemas/pipeline.js';
 import { StateValidationError } from '../errors/StateErrors.js';
 
@@ -19,28 +19,21 @@ export class ExecutionResultNormalizer {
         raw_output: rawAdapterResult.rawOutput || rawAdapterResult.stdout || '',
         summary: rawAdapterResult.summary, // 이미 있으면 유지
         structured_output: rawAdapterResult.structured_output || {},
-        next_action: rawAdapterResult.next_action,
-        type: rawAdapterResult.type // Task type 저장 (optional)
+        next_action: rawAdapterResult.next_action
       };
 
       // 0. Summary 자동 추출 (없을 경우)
       if (!normalized.summary) {
         if (normalized.raw_output) {
-          // 첫 번째 줄 전체를 요약으로 활용 (token 기반 길이 제한, P2)
+          // 첫 번째 줄 전체를 요약으로 활용 (너무 길지 않게 제한)
           const lines = normalized.raw_output.split('\n');
           const firstLine = lines[0]?.trim() || '';
-
-          // Token 기반 동적 길이: 약 50 토큰 × 4 글자/토큰 = 200자
-          const estimatedSummaryTokens = 50;
-          const charsPerToken = 4;
-          const maxChars = estimatedSummaryTokens * charsPerToken;
-
-          normalized.summary = firstLine.length > maxChars
-            ? firstLine.substring(0, maxChars - 3) + '...'
-            : firstLine;
+          normalized.summary = firstLine.length > 100 ? firstLine.substring(0, 97) + '...' : firstLine;
         } else {
           // raw_output가 없으면 상태 기반 기본 요약 제공
-          normalized.summary = normalized.success ? 'Task completed successfully' : 'Task execution failed';
+          normalized.summary = normalized.success
+            ? '작업이 성공적으로 완료되었습니다'
+            : '작업 실행에 실패했습니다';
         }
       }
 
@@ -48,7 +41,7 @@ export class ExecutionResultNormalizer {
       if (!normalized.success) {
         normalized.error = {
           code: `EXIT_${rawAdapterResult.exitCode || 'UNKNOWN'}`,
-          message: rawAdapterResult.stderr || rawAdapterResult.message || 'Unknown execution error'
+          message: rawAdapterResult.stderr || rawAdapterResult.message || '알 수 없는 실행 오류'
         };
       }
 
@@ -67,21 +60,8 @@ export class ExecutionResultNormalizer {
         };
       }
 
-      // 4. 구조 완전성 검증 (task.type 기반)
-      const taskType = (rawAdapterResult.type ?? normalized.type) as RequestCategory | undefined;
-      const missingFields = this.checkStructuralCompleteness(
-        taskType,
-        normalized.structured_output,
-        normalized.raw_output ?? '',
-      );
-
-      // 5. 최종 스키마 검증
-      const result = ExecutionResultSchema.parse(normalized);
-      if (missingFields.length > 0) {
-        (result as Record<string, unknown>).structurally_incomplete = true;
-        (result as Record<string, unknown>).missing_structural_fields = missingFields;
-      }
-      return result;
+      // 4. 최종 스키마 검증
+      return ExecutionResultSchema.parse(normalized);
     } catch (error: any) {
       throw new StateValidationError(`Failed to normalize execution result for task [${taskId}]`, {
         taskId,
@@ -89,58 +69,6 @@ export class ExecutionResultNormalizer {
         receivedData: rawAdapterResult
       });
     }
-  }
-
-  /**
-   * task.type 기반 구조 완전성 검증.
-   * 반환값: 누락된 필수 필드명 배열 (비어 있으면 완전함).
-   */
-  private static checkStructuralCompleteness(
-    taskType: RequestCategory | undefined,
-    structuredOutput: Record<string, unknown> | undefined,
-    rawOutput: string,
-  ): string[] {
-    if (!taskType) {
-      return [];
-    }
-
-    const out = structuredOutput ?? {};
-
-    if (taskType === 'modify' || taskType === 'create') {
-      const files = out.changed_files;
-      const hasFiles = Array.isArray(files) && files.length > 0;
-      if (!hasFiles) {
-        // fallback: raw_output에서 파일 변경 힌트 확인
-        const hasRawHint = /modified:|changed files:|created:|wrote/i.test(rawOutput);
-        if (!hasRawHint) {
-          return ['changed_files'];
-        }
-      }
-    }
-
-    if (taskType === 'validate') {
-      const hasComplianceReport =
-        'compliance_report' in out ||
-        'test_results' in out ||
-        'passed' in out ||
-        'validation_passed' in out ||
-        /passed|failed|complian/i.test(rawOutput);
-      if (!hasComplianceReport) {
-        return ['compliance_report or test_results'];
-      }
-    }
-
-    if (taskType === 'analyze') {
-      const hasSummaryOrFindings =
-        (typeof out.summary === 'string' && out.summary.length > 0) ||
-        'findings' in out ||
-        (typeof (out as any).analysis === 'string');
-      if (!hasSummaryOrFindings) {
-        return ['summary or findings'];
-      }
-    }
-
-    return [];
   }
 
   private static extractJsonFromRaw(raw: string): Record<string, any> | null {

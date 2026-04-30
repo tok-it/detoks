@@ -7,7 +7,7 @@
     "detoks": "dist/src/cli/index.js"
   },
   "engines": {
-    "node": ">=24.15.0 <25"
+    "node": ">=24.15.0 <26"
   },
   "scripts": {
     "add:py": "node scripts/add-py-dep.mjs",
@@ -22,6 +22,7 @@
     "benchmark": "tsx scripts/benchmark-pipeline.ts"
   },
   "dependencies": {
+    "chalk": "^5.6.2",
     "tiktoken": "^1.0.22",
     "zod": "4.3.6"
   },

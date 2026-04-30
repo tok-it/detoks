@@ -18,7 +18,7 @@ describe("runSessionListCommand", () => {
       mutatesState: false,
       hasSessions: false,
       sessionCount: 0,
-      message: "저장된 세션이 없습니다.",
+      message: "세션을 찾지 못했습니다.",
       sessions: [],
     });
     expect(result).not.toHaveProperty("promptLanguage");
@@ -35,9 +35,7 @@ describe("runSessionListCommand", () => {
         currentTaskId: "task_001",
         completedTaskCount: 1,
         taskResultCount: 2,
-        failedTaskCount: 1,
-        checkpointCount: 3,
-        nextAction: "Review saved session",
+        nextAction: "저장된 세션을 검토하세요",
       },
     ]);
 
@@ -57,7 +55,7 @@ describe("runSessionListCommand", () => {
           currentTaskId: "task_001",
           completedTaskCount: 1,
           taskResultCount: 2,
-          nextAction: "Review saved session",
+          nextAction: "저장된 세션을 검토하세요",
         },
       ],
     });

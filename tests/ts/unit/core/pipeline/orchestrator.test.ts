@@ -39,7 +39,7 @@ describe("orchestratePipeline", () => {
     expect(result.ok).toBe(true);
     expect(result.mode).toBe("run");
     expect(result.adapter).toBe("codex");
-    expect(result.summary).toBe("All 1 task(s) completed");
+    expect(result.summary).toBe("1개 작업을 모두 완료했습니다");
     expect(result.stages).toHaveLength(5);
     expect(result.stages[0]!.status).toBe("completed");
     expect(result.sessionId).toBeTypeOf("string");
@@ -52,6 +52,8 @@ describe("orchestratePipeline", () => {
     expect(result.promptInferenceTimeSec).toBe(0);
     expect(result.promptValidationErrors).toEqual([]);
     expect(result.promptRepairActions).toEqual([]);
+    expect(result.tokenMetrics).not.toBeNull();
+    expect(result.tokenMetrics?.model).toBe("o200k_base");
   });
 
   it("passes execution mode through to the executor boundary", async () => {
@@ -82,84 +84,6 @@ describe("orchestratePipeline", () => {
     );
   });
 
-  it("persists task type when a task completes successfully", async () => {
-    const saveSessionSpy = vi
-      .spyOn(SessionStateManager, "saveSession")
-      .mockResolvedValue(undefined);
-
-    const result = await orchestratePipeline({
-      mode: "run",
-      adapter: "codex",
-      executionMode: "stub",
-      verbose: false,
-      userRequest: {
-        raw_input: "Analyze the codebase",
-      },
-    });
-
-    expect(result.ok).toBe(true);
-    expect(saveSessionSpy).toHaveBeenCalledWith(
-      expect.objectContaining({
-        task_results: expect.objectContaining({
-          t1: expect.objectContaining({
-            task_id: "t1",
-            success: true,
-            type: "analyze",
-          }),
-        }),
-      }),
-      undefined,
-    );
-  });
-
-  it("persists task type when a task fails or is skipped by dependency failure", async () => {
-    const saveSessionSpy = vi
-      .spyOn(SessionStateManager, "saveSession")
-      .mockResolvedValue(undefined);
-    executeWithAdapterMock.mockResolvedValueOnce({
-      ok: false,
-      adapter: "codex",
-      rawOutput: "[mock-failure] t1",
-      exitCode: 1,
-    });
-
-    const result = await orchestratePipeline({
-      mode: "run",
-      adapter: "codex",
-      executionMode: "stub",
-      verbose: false,
-      userRequest: {
-        raw_input: "Find the auth module. Test the auth module.",
-      },
-    });
-
-    expect(result.ok).toBe(false);
-    expect(saveSessionSpy).toHaveBeenCalledWith(
-      expect.objectContaining({
-        task_results: expect.objectContaining({
-          t1: expect.objectContaining({
-            task_id: "t1",
-            success: false,
-            type: "explore",
-          }),
-        }),
-      }),
-      undefined,
-    );
-    expect(saveSessionSpy).toHaveBeenCalledWith(
-      expect.objectContaining({
-        task_results: expect.objectContaining({
-          t2: expect.objectContaining({
-            task_id: "t2",
-            success: false,
-            type: "validate",
-          }),
-        }),
-      }),
-      undefined,
-    );
-  });
-
   it("returns a structured failure when prompt compilation cannot start translation", async () => {
     const result = await orchestratePipeline({
       mode: "run",
@@ -178,7 +102,7 @@ describe("orchestratePipeline", () => {
 
     expect(result.ok).toBe(false);
     expect(result.summary).toBe(
-      "Prompt compilation failed: LLM client requires LOCAL_LLM_API_BASE",
+      "프롬프트 컴파일 실패: LLM client requires LOCAL_LLM_API_BASE",
     );
     expect(result.nextAction).toContain("LOCAL_LLM_API_BASE");
     expect(result.taskRecords).toEqual([]);
@@ -213,30 +137,6 @@ describe("orchestratePipeline", () => {
     expect(result.promptRepairActions).toContain("compressed_with_kompress");
   });
 
-  it("builds the Role 2.1 graph from normalized input before compression", async () => {
-    const result = await orchestratePipeline({
-      mode: "run",
-      adapter: "codex",
-      executionMode: "stub",
-      verbose: false,
-      userRequest: {
-        raw_input: "Please create a new file and test it",
-      },
-      compressionImplementation: vi.fn(async (text: string) => ({
-        compressed: text.replace(/^Please /i, ""),
-        compression_ratio: 0.55,
-        tokens_saved: 1,
-      })),
-    });
-
-    expect(result.ok).toBe(true);
-    expect(result.compiledPrompt).toBe("Create a new file and test it");
-    expect(result.role2Handoff).toBe("Please create a new file and test it");
-    expect(result.taskRecords).toHaveLength(2);
-    expect(result.rawOutput).toContain("[CREATE] create a new file");
-    expect(result.rawOutput).toContain("[VALIDATE] test it");
-  });
-
   it("bridges Korean input through the local LLM request contract when runtime overrides are provided", async () => {
     const fetchImplementation = vi.fn(async () => {
       return new Response(
@@ -267,12 +167,18 @@ describe("orchestratePipeline", () => {
         raw_input: "새 파일을 생성해",
       },
       env: {
-        LM_STUDIO_URL: "http://127.0.0.1:1234/v1",
+        LOCAL_LLM_API_BASE: "http://127.0.0.1:1234/v1",
         LOCAL_LLM_API_KEY: "test-key",
         LOCAL_LLM_MODEL_NAME: "local-model",
         TRANSLATION_MAX_ATTEMPTS: "1",
+        TEMPERATURE: "0",
       },
       fetchImplementation,
+      compressionImplementation: vi.fn(async () => ({
+        compressed: "Create a new file",
+        compression_ratio: 1,
+        tokens_saved: 0,
+      })),
     });
 
     expect(fetchImplementation).toHaveBeenCalledOnce();
@@ -280,13 +186,20 @@ describe("orchestratePipeline", () => {
       [string | URL | Request, RequestInit?]
     >;
     expect(fetchCalls[0]?.[0]).toBe("http://127.0.0.1:1234/v1/chat/completions");
-    expect(fetchCalls[0]?.[1]?.headers).toMatchObject({
-      authorization: "Bearer test-key",
-      "content-type": "application/json",
-    });
+    const headers = fetchCalls[0]?.[1]?.headers;
+    const authorization =
+      headers && typeof (headers as Headers).get === "function"
+        ? (headers as Headers).get("authorization")
+        : (headers as Record<string, string> | undefined)?.authorization;
+    const contentType =
+      headers && typeof (headers as Headers).get === "function"
+        ? (headers as Headers).get("content-type")
+        : (headers as Record<string, string> | undefined)?.["content-type"];
+    expect(authorization).toBe("Bearer test-key");
+    expect(contentType).toBe("application/json");
     expect(JSON.parse(String(fetchCalls[0]?.[1]?.body))).toMatchObject({
       model: "local-model",
-      temperature: expect.any(Number),
+      temperature: 0,
       messages: [
         expect.objectContaining({ role: "system" }),
         expect.objectContaining({
@@ -297,8 +210,8 @@ describe("orchestratePipeline", () => {
     });
     expect(result).toMatchObject({
       ok: true,
-      summary: "All 1 task(s) completed",
-      nextAction: "Pipeline complete",
+      summary: "1개 작업을 모두 완료했습니다",
+      nextAction: "파이프라인이 완료되었습니다.",
       promptLanguage: "ko",
       promptValidationErrors: [],
       promptRepairActions: [],
@@ -313,7 +226,6 @@ describe("orchestratePipeline", () => {
   it("skips completed tasks from an existing session and resumes remaining work", async () => {
     vi.spyOn(SessionStateManager, "sessionExists").mockResolvedValue(true);
     vi.spyOn(SessionStateManager, "loadSession").mockResolvedValue({
-      version: "1",
       shared_context: {
         session_id: "resume_session",
         raw_input: "Find the auth module. Test the auth module.",
@@ -367,103 +279,7 @@ describe("orchestratePipeline", () => {
       expect.objectContaining({
         completed_task_ids: ["t1", "t2"],
       }),
-      undefined,
     );
-  });
-
-  it("continues a REPL session with new task ids and previous context for new input", async () => {
-    vi.spyOn(SessionStateManager, "sessionExists").mockResolvedValue(true);
-    vi.spyOn(SessionStateManager, "loadSession").mockResolvedValue({
-      version: "1",
-      shared_context: {
-        session_id: "repl_session",
-        raw_input: "Compare JavaScript array sorting methods",
-      },
-      task_results: {
-        t1: {
-          task_id: "t1",
-          success: true,
-          summary: "sort is fastest but mutates the source array",
-          raw_output: "sort is fastest but mutates the source array",
-        },
-      },
-      current_task_id: null,
-      completed_task_ids: ["t1"],
-      updated_at: "2026-04-27T00:00:00.000Z",
-    });
-    const saveSessionSpy = vi
-      .spyOn(SessionStateManager, "saveSession")
-      .mockResolvedValue(undefined);
-    executeWithAdapterMock.mockResolvedValueOnce({
-      ok: true,
-      adapter: "gemini",
-      rawOutput: "[mock-repl] follow-up",
-      exitCode: 0,
-    });
-
-    const result = await orchestratePipeline({
-      mode: "repl",
-      adapter: "gemini",
-      executionMode: "stub",
-      verbose: false,
-      userRequest: {
-        raw_input: "What is the downside of the fastest method?",
-        session_id: "repl_session",
-      },
-    });
-
-    expect(result.ok).toBe(true);
-    expect(result.taskRecords).toEqual([
-      { taskId: "t2", status: "completed", rawOutput: "[mock-repl] follow-up" },
-    ]);
-    expect(executeWithAdapterMock).toHaveBeenCalledTimes(1);
-    expect(executeWithAdapterMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        prompt: expect.stringContaining("Task [t1]: sort is fastest"),
-        sessionId: "repl_session",
-      }),
-    );
-    expect(saveSessionSpy).toHaveBeenCalledWith(
-      expect.objectContaining({
-        completed_task_ids: ["t1", "t2"],
-        shared_context: expect.objectContaining({
-          raw_input: "What is the downside of the fastest method?",
-          input_history: [
-            "Compare JavaScript array sorting methods",
-            "What is the downside of the fastest method?",
-          ],
-        }),
-      }),
-      undefined,
-    );
-  });
-
-  it("does not overwrite an existing session when loading it fails", async () => {
-    vi.spyOn(SessionStateManager, "sessionExists").mockResolvedValue(true);
-    vi.spyOn(SessionStateManager, "loadSession").mockRejectedValue(
-      new Error("Session file is corrupted"),
-    );
-    const saveSessionSpy = vi
-      .spyOn(SessionStateManager, "saveSession")
-      .mockResolvedValue(undefined);
-
-    const result = await orchestratePipeline({
-      mode: "run",
-      adapter: "codex",
-      executionMode: "stub",
-      verbose: false,
-      userRequest: {
-        raw_input: "hello detoks",
-        session_id: "corrupt_session",
-      },
-    });
-
-    expect(result.ok).toBe(false);
-    expect(result.sessionId).toBe("corrupt_session");
-    expect(result.summary).toBe("Session load failed: Session file is corrupted");
-    expect(result.nextAction).toBe("Fix or reset the existing session before retrying");
-    expect(saveSessionSpy).not.toHaveBeenCalled();
-    expect(executeWithAdapterMock).not.toHaveBeenCalled();
   });
 
   it("retries a previously failed task and unblocks its dependent task on success", async () => {

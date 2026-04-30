@@ -2,11 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   formatBatchSuccess,
   formatError,
-  formatFailedResult,
+  formatSessionShowHuman,
   formatSuccess,
 } from "../../../../src/cli/format.js";
-
-const colorTty = { isTTY: true, env: { FORCE_COLOR: "1" } };
 
 describe("formatSuccess", () => {
   const result = {
@@ -36,12 +34,14 @@ describe("formatSuccess", () => {
       adapter: "codex",
       summary: "stub executor accepted prompt (12 chars)",
       nextAction: "connect core pipeline modules behind this boundary",
+      stages: [
+        { name: "Prompt Compiler", owner: "role1", status: "stubbed" },
+      ],
       promptLanguage: "en",
       promptInferenceTimeSec: 0,
       promptValidationErrors: [],
       promptRepairActions: [],
     });
-    expect(formatted).not.toHaveProperty("stages");
     expect(formatted).not.toHaveProperty("rawOutput");
   });
 
@@ -49,30 +49,33 @@ describe("formatSuccess", () => {
     expect(JSON.parse(formatSuccess(result, true))).toEqual(result);
   });
 
-  it("styles trace helper text outside the JSON body when enabled", () => {
-    const formatted = formatSuccess(
-      {
-        ...result,
-        traceLog: {
-          sessionId: "test-session",
-          startTime: "2026-04-28T00:00:00.000Z",
-          entries: [],
-          summary: {
-            totalDurationMs: 10,
-            stageTimings: { PromptCompiler: 10 },
-            totalMemoryMb: 12.34,
-          },
-        },
-        traceFilePath: "local_config/trace/test-trace.json",
+  it("includes token reduction metrics when present", () => {
+    const tokenMetrics = {
+      model: "o200k_base" as const,
+      input: {
+        originalTokens: 100,
+        optimizedTokens: 60,
+        savedTokens: 40,
+        savedPercent: 40,
       },
-      false,
-      colorTty,
+      output: {
+        originalTokens: 80,
+        optimizedTokens: 20,
+        savedTokens: 60,
+        savedPercent: 75,
+      },
+    };
+    const formatted = JSON.parse(
+      formatSuccess(
+        {
+          ...result,
+          tokenMetrics,
+        },
+        false,
+      ),
     );
 
-    expect(formatted).toContain('"traceFile": "local_config/trace/test-trace.json"');
-    expect(formatted).toContain("\x1b[1mPipeline Trace Report\x1b[0m");
-    expect(formatted).toContain("\x1b[1m**Session ID**:\x1b[0m test-session");
-    expect(formatted).toContain("- \x1b[1m**Total Duration**:\x1b[0m 10ms");
+    expect(formatted.tokenMetrics).toEqual(tokenMetrics);
   });
 });
 
@@ -127,26 +130,44 @@ describe("formatBatchSuccess", () => {
   });
 });
 
-describe("formatFailedResult", () => {
-  it("styles trace helper text for failed results when enabled", () => {
-    const formatted = formatFailedResult(
-      {
-        ok: false,
-        mode: "run",
-        adapter: "codex",
-        summary: "failed",
-        nextAction: "retry",
-        sessionId: "test-session",
-        taskRecords: [],
-        stages: [],
-        rawOutput: "[stub:codex] failed",
-        traceFilePath: "local_config/trace/test-trace.json",
+describe("formatSessionShowHuman", () => {
+  it("renders a readable session detail summary with task previews", () => {
+    const formatted = formatSessionShowHuman({
+      ok: true,
+      mode: "session-show",
+      sessionId: "session_123",
+      hasSession: true,
+      mutatesState: false,
+      message: "세션 session_123의 저장된 작업 결과를 불러왔습니다.",
+      overview: {
+        summary: "세션 요약",
+        nextAction: "다음 작업을 진행하세요",
+        currentTaskId: "t2",
+        completedTaskCount: 1,
+        taskResultCount: 2,
+        updatedAt: "2026-04-27T00:00:00.000Z",
       },
-      false,
-      colorTty,
-    );
+      taskResults: [
+        {
+          taskId: "t1",
+          success: true,
+          summary: "첫 번째 작업 완료",
+          rawOutputPreview: "[stub:codex] first output",
+        },
+        {
+          taskId: "t2",
+          success: false,
+          summary: "두 번째 작업 실패",
+          rawOutputPreview: "[stub:codex] second output",
+        },
+      ],
+    });
 
-    expect(formatted).toContain('"error": "failed"');
-    expect(formatted).toContain("\x1b[2m[Trace saved → local_config/trace/test-trace.json]\x1b[0m");
+    expect(formatted).toContain("detoks 세션 session_123");
+    expect(formatted).toContain("최근 요약: 세션 요약");
+    expect(formatted).toContain("다음 작업: 다음 작업을 진행하세요");
+    expect(formatted).toContain("완료 1개 / 결과 2개");
+    expect(formatted).toContain("첫 번째 작업 완료");
+    expect(formatted).toContain("[stub:codex] second output");
   });
 });

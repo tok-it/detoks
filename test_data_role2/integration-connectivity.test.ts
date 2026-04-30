@@ -270,11 +270,22 @@ describe('🔗 전체 연결성 테스트 (CLI → State & Context)', () => {
     });
 
     it('Logger 함수들을 호출할 수 있어야 함', () => {
-      expect(() => {
-        logger.info('Test info message');
-        logger.warn('Test warn message');
-        logger.error('Test error message');
-      }).not.toThrow();
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+      const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+      try {
+        expect(() => {
+          logger.info('Test info message');
+          logger.warn('Test warn message');
+          logger.error('Test error message');
+        }).not.toThrow();
+
+        expect(warnSpy).toHaveBeenCalledWith('[WARN] Test warn message');
+        expect(errorSpy).toHaveBeenCalledWith('[ERROR] Test error message');
+      } finally {
+        warnSpy.mockRestore();
+        errorSpy.mockRestore();
+      }
     });
   });
 

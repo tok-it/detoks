@@ -7,10 +7,7 @@ import {
   type Role2PromptInput,
 } from "../../schemas/pipeline.js";
 import { loadRole1Policies, loadRole1RuntimeConfig } from "./config.js";
-import {
-  compress_prompt,
-  type CompressTextImplementation,
-} from "./compression.js";
+import { compress_prompt, type CompressTextImplementation } from "./compression.js";
 import { translate_to_english } from "../translate/translate.js";
 
 const SUPPORTED_COMPRESSION_PROVIDER = "kompress";
@@ -83,13 +80,13 @@ export async function compilePrompt(
         });
   const translatedOutput = translationResult?.text ?? normalizedInput;
   const compressionResult = await compress_prompt(translatedOutput, {
-    policies,
     config: runtimeConfig,
-    ...(options.cwd ? { cwd: options.cwd } : {}),
-    ...(options.env ? { env: options.env } : {}),
+    policies,
     ...(runtimeConfig.localLlmModelName
       ? { localLlmModelName: runtimeConfig.localLlmModelName }
       : {}),
+    ...(options.cwd ? { cwd: options.cwd } : {}),
+    ...(options.env ? { env: options.env } : {}),
     ...(options.compressionImplementation
       ? { compressionImplementation: options.compressionImplementation }
       : {}),
