@@ -270,6 +270,7 @@ describe('🔗 전체 연결성 테스트 (CLI → State & Context)', () => {
     });
 
     it('Logger 함수들을 호출할 수 있어야 함', () => {
+      delete process.env.DETOKS_DEBUG;
       const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
       const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
 
@@ -280,7 +281,8 @@ describe('🔗 전체 연결성 테스트 (CLI → State & Context)', () => {
           logger.error('Test error message');
         }).not.toThrow();
 
-        expect(warnSpy).toHaveBeenCalledWith('[WARN] Test warn message');
+        // warn은 DETOKS_DEBUG=1일 때만 출력, 배포 환경에서는 억제됨
+        expect(warnSpy).not.toHaveBeenCalled();
         expect(errorSpy).toHaveBeenCalledWith('[ERROR] Test error message');
       } finally {
         warnSpy.mockRestore();

@@ -158,7 +158,7 @@ describe('🔥 State & Context Engine Stress Tests', () => {
       }
     });
 
-    it('should always output warn and error logs regardless of DETOKS_DEBUG', () => {
+    it('should suppress warn when DETOKS_DEBUG is unset, always output error', () => {
       delete process.env.DETOKS_DEBUG;
       const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
       const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
@@ -169,14 +169,14 @@ describe('🔥 State & Context Engine Stress Tests', () => {
           logger.error('Test error message');
         }).not.toThrow();
 
-        expect(warnSpy).toHaveBeenCalledWith('[WARN] Test warn message');
+        expect(warnSpy).not.toHaveBeenCalled();
         expect(errorSpy).toHaveBeenCalledWith('[ERROR] Test error message');
       } finally {
         warnSpy.mockRestore();
         errorSpy.mockRestore();
       }
 
-      console.log('  ✅ Warn/Error logs work regardless of DETOKS_DEBUG');
+      console.log('  ✅ Warn suppressed without DETOKS_DEBUG; error always shown');
     });
   });
 
