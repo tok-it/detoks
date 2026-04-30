@@ -227,12 +227,16 @@ function isExecutablePath(binary: string): boolean {
   }
 }
 
+export function getBinaryProbeCommand(platform: NodeJS.Platform = process.platform): string {
+  return platform === "win32" ? "where" : "which";
+}
+
 function isLlamaServerBinaryAvailable(binary: string): boolean {
   if (binary.includes("/") || binary.includes("\\")) {
     return isExecutablePath(binary);
   }
 
-  const probe = spawnSync("which", [binary], { stdio: "ignore" });
+  const probe = spawnSync(getBinaryProbeCommand(), [binary], { stdio: "ignore" });
   return !probe.error && probe.status === 0;
 }
 

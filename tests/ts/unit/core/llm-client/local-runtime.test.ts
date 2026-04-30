@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	buildLlamaServerArgs,
+	getBinaryProbeCommand,
 	ensureLocalLlmRuntime,
 } from "../../../../../src/core/llm-client/local-runtime.js";
 
@@ -12,6 +13,12 @@ afterEach(() => {
 });
 
 describe("buildLlamaServerArgs", () => {
+	it("플랫폼에 맞는 바이너리 탐색 명령을 고른다", () => {
+		expect(getBinaryProbeCommand("win32")).toBe("where");
+		expect(getBinaryProbeCommand("linux")).toBe("which");
+		expect(getBinaryProbeCommand("darwin")).toBe("which");
+	});
+
 	it("GGUF 경로가 있으면 해당 파일을 모델로 로드한다", () => {
 		const args = buildLlamaServerArgs({
 			localLlmModelPath: "/models/detoks.gguf",
