@@ -168,6 +168,50 @@ describe("buildLlamaServerArgs", () => {
 		).resolves.toBeUndefined();
 	});
 
+	it("llama-server 바이너리가 없으면 친절한 오류를 던진다", async () => {
+		const scriptDir = mkdtempSync(join(tmpdir(), "detoks-which-"));
+		const originalPath = process.env.PATH ?? "";
+		writeFileSync(
+			join(scriptDir, "which"),
+			[
+				"#!/bin/sh",
+				"exit 1",
+			].join("\n"),
+			"utf8",
+		);
+		chmodSync(join(scriptDir, "which"), 0o755);
+		process.env.PATH = `${scriptDir}:${originalPath}`;
+
+		try {
+			await expect(
+				ensureLocalLlmRuntime({
+					localLlmApiBase: "http://127.0.0.1:12370/v1",
+					localLlmModelName:
+						"mradermacher/gemma-4-e2b-it-heretic-ara-GGUF:Q4_K_S",
+					localLlmAutoStart: true,
+					localLlmServerBinary: "llama-server",
+					localLlmServerHost: "127.0.0.1",
+					localLlmServerPort: 12370,
+					localLlmGpuLayers: "all",
+					localLlmContextSize: 4096,
+					localLlmTopK: 40,
+					localLlmTopP: 0.95,
+					localLlmSleepIdleSeconds: 1200,
+					localLlmReasoning: "off",
+					pipelineMode: "safe",
+					requestTimeout: 30000,
+					translationMaxAttempts: 5,
+					temperature: 0,
+				}),
+			).rejects.toThrow(
+				"로컬 llama.cpp 서버 바이너리를 찾을 수 없습니다: llama-server",
+			);
+		} finally {
+			process.env.PATH = originalPath;
+			rmSync(scriptDir, { recursive: true, force: true });
+		}
+	});
+
 	it("모델이 바뀌면 기존 서버를 종료하고 새 모델로 다시 띄운다", async () => {
 		const scriptDir = mkdtempSync(join(tmpdir(), "detoks-llama-"));
 		const originalPath = process.env.PATH ?? "";
