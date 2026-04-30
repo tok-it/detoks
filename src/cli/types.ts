@@ -23,6 +23,7 @@ export interface CliArgs {
     | "session-continue"
     | "session-fork"
     | "session-reset"
+    | "model-reset"
     | "checkpoint-list"
     | "checkpoint-show"
     | "checkpoint-restore";
@@ -45,6 +46,7 @@ export interface CliArgs {
     | "session-continue"
     | "session-reset"
     | "session-fork"
+    | "model-reset"
     | "checkpoint-list"
     | "checkpoint-show"
     | "checkpoint-restore";

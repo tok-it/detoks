@@ -15,13 +15,17 @@ describe("logger", () => {
   it("does not emit info logs when debug is disabled", async () => {
     process.env.DETOKS_DEBUG = "0";
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     const { logger } = await import("../../../../../src/core/utils/logger.js");
 
     logger.info("hidden");
+    logger.warn("hidden warn");
     expect(errorSpy).not.toHaveBeenCalled();
+    expect(warnSpy).not.toHaveBeenCalled();
   });
 
-  it("styles warn/error labels when color is forced", async () => {
+  it("styles warn/error labels when debug and color are forced", async () => {
+    process.env.DETOKS_DEBUG = "1";
     process.env.FORCE_COLOR = "1";
     delete process.env.NO_COLOR;
 

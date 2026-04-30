@@ -13,6 +13,11 @@ export const logger = {
     }
     console.error(`${formatInfoLabel()} ${msg}`, ...args);
   },
-  warn: (msg: string, ...args: unknown[]) => console.warn(`${formatWarnLabel()} ${msg}`, ...args),
+  warn: (msg: string, ...args: unknown[]) => {
+    if (!isDebugEnabled()) {
+      return;
+    }
+    console.warn(`${formatWarnLabel()} ${msg}`, ...args);
+  },
   error: (msg: string, ...args: unknown[]) => console.error(`${formatErrorLabel()} ${msg}`, ...args),
 };

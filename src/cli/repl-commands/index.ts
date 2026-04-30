@@ -1,6 +1,5 @@
 import { stdout as output } from "node:process";
 import { createInterface } from "node:readline/promises";
-import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
 import { colors } from "../colors.js";
@@ -16,6 +15,7 @@ import { updateAdapterModel, updateTranslationModel } from "../config/config-man
 import { TRANSLATION_MODELS } from "../model-setup/models.js";
 import { downloadModel } from "../model-setup/download.js";
 import { updateEnvFile } from "../model-setup/env-writer.js";
+import { inspectLocalModelFile, shouldDownloadModelFile } from "../model-setup/file-status.js";
 
 export interface SlashCommand {
   name: string;
@@ -347,10 +347,10 @@ const getModelsDir = (): string => {
   return join(homedir(), ".detoks", "models");
 };
 
-const isModelDownloaded = (modelId: string, hfFile: string): boolean => {
+const getModelFileStatus = (hfFile: string) => {
   const modelsDir = getModelsDir();
   const filePath = join(modelsDir, hfFile);
-  return existsSync(filePath);
+  return inspectLocalModelFile(filePath);
 };
 
 const handleTranslationModel = async (streams?: SelectWithArrowsStreams): Promise<boolean> => {
@@ -358,8 +358,13 @@ const handleTranslationModel = async (streams?: SelectWithArrowsStreams): Promis
 
   // 모델 목록 생성
   const options = TRANSLATION_MODELS.map((model) => {
-    const downloaded = isModelDownloaded(model.id, model.hfFile);
-    const status = downloaded ? ` ${colors.success("[설치됨]")}` : "";
+    const fileStatus = getModelFileStatus(model.hfFile);
+    const status =
+      fileStatus.kind === "ready"
+        ? ` ${colors.success("[설치됨]")}`
+        : fileStatus.kind === "invalid"
+          ? ` ${colors.warning(`[손상됨:${fileStatus.reason}]`)}`
+          : "";
     return {
       value: model.id,
       label: `${model.displayName}${status}`,
@@ -376,6 +381,10 @@ const handleTranslationModel = async (streams?: SelectWithArrowsStreams): Promis
       output.write("\n");
     }
   }
+
+  output.write(
+    colors.muted("손상된 모델은 선택 후 Enter를 누르면 재설치됩니다.\n\n"),
+  );
 
   // 모델 선택
   const selectedId = await selectWithArrows(
@@ -397,10 +406,18 @@ const handleTranslationModel = async (streams?: SelectWithArrowsStreams): Promis
     return true;
   }
 
-  const downloaded = isModelDownloaded(selectedId, selectedModel.hfFile);
+  const fileStatus = getModelFileStatus(selectedModel.hfFile);
 
-  // 미설치 모델이면 다운로드
-  if (!downloaded) {
+  // 정상 파일은 재사용하고, 손상/누락 파일은 명시적 선택 시 재다운로드
+  if (fileStatus.kind === "invalid") {
+    output.write(
+      colors.warning(
+        `\n⚠️  손상된 GGUF 파일이 감지되었습니다. 이 모델을 다시 다운로드해 덮어씁니다: ${selectedModel.hfFile} (${fileStatus.reason})\n`,
+      ),
+    );
+  }
+
+  if (shouldDownloadModelFile(fileStatus)) {
     output.write(
       colors.warning(
         `\n⬇️  ${selectedModel.displayName} 다운로드 시작...\n\n`,

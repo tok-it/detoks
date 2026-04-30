@@ -1,10 +1,17 @@
-import { readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
 import type { TranslationModel } from "./models.js";
 import { colors } from "../colors.js";
 
 const getModelsDir = () => join(homedir(), ".detoks", "models");
+const MODEL_ENV_KEYS = new Set([
+  "LOCAL_LLM_MODEL_NAME",
+  "MODEL_NAME",
+  "LOCAL_LLM_MODEL_PATH",
+  "LOCAL_LLM_HF_REPO",
+  "LOCAL_LLM_HF_FILE",
+]);
 
 interface EnvEntry {
   key: string;
@@ -50,46 +57,85 @@ const serializeEnvFile = (entries: EnvEntry[]): string => {
   }).join("\n");
 };
 
-export const updateEnvFile = (model: TranslationModel, cwd: string = process.cwd()): void => {
-  const envPath = join(cwd, ".env");
+const getModelEnvWriteTargets = (cwd: string): string[] => {
+  const primary = join(cwd, ".env");
+  const secondary = join(cwd, ".env.local");
+
+  return existsSync(secondary) ? [primary, secondary] : [primary];
+};
+
+const getModelEnvResetTargets = (cwd: string): string[] => {
+  const targets = [join(cwd, ".env"), join(cwd, ".env.local")];
+  return targets.filter((target) => existsSync(target));
+};
+
+const updateEntry = (entries: EnvEntry[], key: string, value: string): void => {
+  const existingIndex = entries.findIndex((entry) => entry.key === key);
+  if (existingIndex >= 0) {
+    const entry = entries[existingIndex];
+    if (entry) {
+      entry.value = value;
+    }
+    return;
+  }
+
+  entries.push({ key, value });
+};
+
+const removeModelEntries = (entries: EnvEntry[]): boolean => {
+  const before = entries.length;
+  const nextEntries = entries.filter((entry) => !MODEL_ENV_KEYS.has(entry.key));
+
+  if (nextEntries.length === before) {
+    return false;
+  }
+
+  entries.splice(0, entries.length, ...nextEntries);
+  return true;
+};
+
+const mutateEnvFile = (
+  envPath: string,
+  mutate: (entries: EnvEntry[]) => boolean,
+): boolean => {
   let content: string;
 
   try {
     content = readFileSync(envPath, "utf-8");
   } catch {
-    // .env 파일이 없으면 생성
     content = "";
   }
 
   const entries = parseEnvFile(content);
+  const changed = mutate(entries);
 
-  // 기존 값 업데이트 또는 새로 추가
-  const updateEntry = (key: string, value: string) => {
-    const existingIndex = entries.findIndex((e) => e.key === key);
-    if (existingIndex >= 0) {
-      const entry = entries[existingIndex];
-      if (entry) {
-        entry.value = value;
-      }
-    } else {
-      entries.push({ key, value });
-    }
-  };
-
-  const modelsDir = getModelsDir();
-  const modelFilePath = join(modelsDir, model.hfFile);
-
-  updateEntry("LOCAL_LLM_MODEL_NAME", model.modelName);
-  updateEntry("LOCAL_LLM_MODEL_DIR", modelsDir);
-  updateEntry("LOCAL_LLM_MODEL_PATH", modelFilePath);
-  updateEntry("LOCAL_LLM_HF_REPO", `${model.hfRepo}:Q4_K_S`);
-  updateEntry("LOCAL_LLM_HF_FILE", model.hfFile);
+  if (!changed) {
+    return false;
+  }
 
   const updatedContent = serializeEnvFile(entries);
   writeFileSync(envPath, updatedContent, "utf-8");
+  return true;
+};
+
+export const updateEnvFile = (model: TranslationModel, cwd: string = process.cwd()): void => {
+  const modelsDir = getModelsDir();
+  const modelFilePath = join(modelsDir, model.hfFile);
+  const targets = getModelEnvWriteTargets(cwd);
+
+  for (const envPath of targets) {
+    mutateEnvFile(envPath, (entries) => {
+      updateEntry(entries, "LOCAL_LLM_MODEL_NAME", model.modelName);
+      updateEntry(entries, "LOCAL_LLM_MODEL_DIR", modelsDir);
+      updateEntry(entries, "LOCAL_LLM_MODEL_PATH", modelFilePath);
+      updateEntry(entries, "LOCAL_LLM_HF_REPO", `${model.hfRepo}:Q4_K_S`);
+      updateEntry(entries, "LOCAL_LLM_HF_FILE", model.hfFile);
+      return true;
+    });
+  }
 
   process.stdout.write(
-    colors.success(`✓ 설정 저장됨: ${envPath}\n`),
+    colors.success(`✓ 설정 저장됨: ${targets.join(", ")}\n`),
   );
   process.stdout.write(
     colors.info(
@@ -106,4 +152,18 @@ export const updateEnvFile = (model: TranslationModel, cwd: string = process.cwd
       `  LOCAL_LLM_MODEL_PATH=${modelFilePath}\n`,
     ),
   );
+};
+
+export const resetModelEnvFiles = (cwd: string = process.cwd()): string[] => {
+  const targets = getModelEnvResetTargets(cwd);
+  const changedTargets: string[] = [];
+
+  for (const envPath of targets) {
+    const changed = mutateEnvFile(envPath, removeModelEntries);
+    if (changed) {
+      changedTargets.push(envPath);
+    }
+  }
+
+  return changedTargets;
 };

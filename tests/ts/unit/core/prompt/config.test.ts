@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
 	loadRole1Policies,
 	loadRole1RuntimeConfig,
+	readRole1ModelName,
 } from "../../../../../src/core/prompt/config.js";
 
 const tempDirs: string[] = [];
@@ -94,6 +95,36 @@ describe("loadRole1RuntimeConfig", () => {
 		expect(config.kompressPythonBin).toBe("python3.13");
 		expect(config.kompressModelId).toBe("chopratejas/kompress-small");
 		expect(config.kompressStartupTimeout).toBe(45000);
+	});
+
+	it("local API base가 기본값일 때 server port를 따라 동적으로 갱신한다", () => {
+		const cwd = createTempDir();
+		writeFileSync(
+			join(cwd, ".env"),
+			[
+				"LOCAL_LLM_API_BASE=http://127.0.0.1:12370/v1",
+				"LOCAL_LLM_SERVER_PORT=12375",
+			].join("\n"),
+			"utf8",
+		);
+
+		const config = loadRole1RuntimeConfig({ cwd, env: {} });
+
+		expect(config.localLlmApiBase).toBe("http://127.0.0.1:12375/v1");
+		expect(config.localLlmServerPort).toBe(12375);
+	});
+
+	it(".env의 모델명을 직접 읽어 setup flow에서 재사용한다", () => {
+		const cwd = createTempDir();
+		writeFileSync(
+			join(cwd, ".env"),
+			"LOCAL_LLM_MODEL_NAME=mradermacher/supergemma4-e4b-abliterated-GGUF",
+			"utf8",
+		);
+
+		expect(readRole1ModelName({ cwd, env: {} })).toBe(
+			"mradermacher/supergemma4-e4b-abliterated-GGUF",
+		);
 	});
 
 	it("LOCAL_LLM_* env가 legacy alias보다 우선한다", () => {

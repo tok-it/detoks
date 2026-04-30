@@ -25,10 +25,15 @@ export const startSpinner = (isTTY: boolean): Spinner => {
   }
 
   let frameIndex = 0;
-  const timer = setInterval(() => {
+  const renderFrame = () => {
     const frame = FRAMES[frameIndex % FRAMES.length] ?? "";
     process.stdout.write(`\r${frame}`);
     frameIndex += 1;
+  };
+
+  renderFrame();
+  const timer = setInterval(() => {
+    renderFrame();
   }, INTERVAL_MS);
 
   return {

@@ -1,5 +1,5 @@
 import { spawn, spawnSync } from "node:child_process";
-import { accessSync, constants, createWriteStream, existsSync, mkdirSync } from "node:fs";
+import { accessSync, closeSync, constants, createWriteStream, existsSync, mkdirSync, openSync, readSync, statSync } from "node:fs";
 import { dirname } from "node:path";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
@@ -145,7 +145,7 @@ async function assertExpectedServerModel(
   }
 
   throw new Error(
-    `llama.cpp server at ${apiBase} is already running with model(s): ${loadedModelIds.join(", ")}. Expected ${expectedModelName}. Stop the running server or change LOCAL_LLM_SERVER_PORT.`,
+    `llama.cpp server at ${apiBase} is already running with model(s): ${loadedModelIds.join(", ")}. Expected ${expectedModelName}. Update LOCAL_LLM_MODEL_NAME or LOCAL_LLM_SERVER_PORT in .env to match the running server, or stop the running server before retrying.`,
   );
 }
 
@@ -341,17 +341,56 @@ async function downloadModel(modelUrl: string, modelPath: string): Promise<void>
 }
 
 async function ensureModelFile(config: Role1RuntimeConfig): Promise<void> {
-  if (!config.localLlmModelPath || existsSync(config.localLlmModelPath)) {
+  if (!config.localLlmModelPath) {
+    return;
+  }
+
+  if (existsSync(config.localLlmModelPath)) {
+    const stats = statSync(config.localLlmModelPath);
+    if (!stats.isFile()) {
+      throw new Error(
+        `로컬 GGUF 모델 파일이 유효하지 않습니다: ${config.localLlmModelPath} (일반 파일이 아닙니다). detoks는 이 파일을 자동 삭제/재다운로드하지 않습니다. .env의 LOCAL_LLM_MODEL_PATH / LOCAL_LLM_HF_FILE을 올바른 GGUF 파일로 맞추거나 파일을 수동으로 교체하세요.`,
+      );
+    }
+
+    if (stats.size === 0) {
+      throw new Error(
+        `로컬 GGUF 모델 파일이 비어 있습니다: ${config.localLlmModelPath} (0바이트). detoks는 이 파일을 자동 삭제/재다운로드하지 않습니다. .env의 LOCAL_LLM_MODEL_PATH / LOCAL_LLM_HF_FILE을 올바른 GGUF 파일로 맞추거나 파일을 수동으로 교체하세요.`,
+      );
+    }
+
+    if (stats.size < 4) {
+      throw new Error(
+        `로컬 GGUF 모델 파일이 너무 작습니다: ${config.localLlmModelPath} (${stats.size}바이트). detoks는 이 파일을 자동 삭제/재다운로드하지 않습니다. .env의 LOCAL_LLM_MODEL_PATH / LOCAL_LLM_HF_FILE을 올바른 GGUF 파일로 맞추거나 파일을 수동으로 교체하세요.`,
+      );
+    }
+
+    if (stats.size >= 4) {
+      const fd = openSync(config.localLlmModelPath, "r");
+      try {
+        const header = Buffer.alloc(4);
+        const bytesRead = readSync(fd, header, 0, 4, 0);
+        if (bytesRead < 4 || header.toString("utf8", 0, 4) !== "GGUF") {
+          throw new Error(
+            `로컬 GGUF 모델 파일 헤더가 올바르지 않습니다: ${config.localLlmModelPath}. detoks는 이 파일을 자동 삭제/재다운로드하지 않습니다. .env의 LOCAL_LLM_MODEL_PATH / LOCAL_LLM_HF_FILE을 올바른 GGUF 파일로 맞추거나 파일을 수동으로 교체하세요.`,
+          );
+        }
+      } finally {
+        closeSync(fd);
+      }
+    }
+
     return;
   }
 
   if (!config.localLlmModelUrl) {
     throw new Error(
-      `GGUF model file not found: ${config.localLlmModelPath}. Set LOCAL_LLM_MODEL_URL or LOCAL_LLM_HF_REPO.`,
+      `GGUF 모델 파일을 찾을 수 없습니다: ${config.localLlmModelPath}. .env의 LOCAL_LLM_MODEL_PATH가 존재하는지 확인하거나 LOCAL_LLM_MODEL_URL / LOCAL_LLM_HF_REPO를 설정하세요.`,
     );
   }
 
   await downloadModel(config.localLlmModelUrl, config.localLlmModelPath);
+  await ensureModelFile(config);
 }
 
 export function buildLlamaServerArgs(config: Role1RuntimeConfig): string[] {

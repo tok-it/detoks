@@ -63,6 +63,18 @@ export const updateTranslationModel = (model: string): void => {
   saveConfig(config);
 };
 
+export const resetTranslationModel = (): boolean => {
+  const config = loadConfig();
+
+  if (config.translation.model === undefined) {
+    return false;
+  }
+
+  config.translation.model = undefined;
+  saveConfig(config);
+  return true;
+};
+
 export const getAdapterModel = (adapter: "codex" | "gemini"): string | undefined => {
   const config = loadConfig();
   return config.adapter.models[adapter];

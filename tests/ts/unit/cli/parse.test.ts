@@ -171,6 +171,20 @@ describe("parseCliArgs", () => {
     });
   });
 
+  it("parses model reset as a safe model management command", () => {
+    const parsed = parseCliArgs(["model", "reset"]);
+    expect(parsed).toEqual({
+      mode: "run",
+      command: "model-reset",
+      adapter: "codex",
+      executionMode: "real",
+      verbose: false,
+      trace: false,
+      showHelp: false,
+      helpTopic: "model-reset",
+    });
+  });
+
   it("parses checkpoint show as the next read-only checkpoint command", () => {
     const parsed = parseCliArgs(["checkpoint", "show", "session_2026_04_27_checkpoint_001"]);
     expect(parsed).toEqual({
@@ -332,6 +346,8 @@ describe("parseCliArgs", () => {
     expect(usage).toContain("detoks session reset session_2026_04_27");
     expect(usage).toContain("detoks session fork <source-session-id> <new-session-id>");
     expect(usage).toContain("detoks session fork session_2026_04_27 session_2026_04_27_fork");
+    expect(usage).toContain("detoks model reset");
+    expect(usage).toContain("모델 설정 초기화");
     expect(usage).toContain("detoks checkpoint list <session-id>");
     expect(usage).toContain("detoks checkpoint show <checkpoint-id>");
     expect(usage).toContain("detoks checkpoint list session_2026_04_27");
@@ -414,6 +430,15 @@ describe("parseCliArgs", () => {
     expect(usage).toContain("reset=true");
   });
 
+  it("documents model reset as a safe, non-destructive model management command", () => {
+    const usage = getCliUsage("model-reset");
+    expect(usage).toContain("detoks model reset");
+    expect(usage).toContain("GGUF 파일은 삭제하지 않습니다");
+    expect(usage).toContain(".env / .env.local");
+    expect(usage).toContain("translation.model");
+    expect(usage).toContain("다음 실행에서 다시 모델을 선택할 수 있습니다");
+  });
+
   it("documents checkpoint list as a read-only command", () => {
     const usage = getCliUsage("checkpoint-list");
     expect(usage).toContain("detoks checkpoint list <session-id>");
@@ -465,6 +490,9 @@ describe("parseCliArgs", () => {
     );
     expect(() => parseCliArgs(["session", "reset"])).toThrow(
       /세션 reset에는 <session-id> 하나만 필요합니다/,
+    );
+    expect(() => parseCliArgs(["model", "reset", "extra"])).toThrow(
+      /모델 reset에는 인수가 없습니다/,
     );
     expect(() => parseCliArgs(["session", "fork", "source_only"])).toThrow(
       /세션 fork에는 <source-session-id> 하나와 <new-session-id> 하나가 필요합니다/,

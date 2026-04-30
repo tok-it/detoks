@@ -176,12 +176,23 @@ function toErrorMessage(error: unknown): string {
 
 function inferPromptFailureNextAction(errorMessage: string): string {
   if (
+    errorMessage.includes("GGUF") ||
+    errorMessage.includes("LOCAL_LLM_MODEL_PATH") ||
+    errorMessage.includes("LOCAL_LLM_HF_FILE") ||
+    errorMessage.includes("모델 파일") ||
+    errorMessage.includes("비어 있습니다")
+  ) {
+    return "로컬 GGUF 모델 파일이 유효한지 확인한 뒤, .env의 LOCAL_LLM_MODEL_PATH / LOCAL_LLM_HF_FILE을 다시 맞추고 시도하세요.";
+  }
+
+  if (
     errorMessage.includes("LOCAL_LLM_API_BASE") ||
+    errorMessage.includes("LOCAL_LLM_SERVER_PORT") ||
     errorMessage.includes("LOCAL_LLM_MODEL_NAME") ||
     errorMessage.includes("MODEL_NAME") ||
     errorMessage.includes("fetch support")
   ) {
-    return "Role 1 로컬 LLM 실행 설정(LOCAL_LLM_API_BASE, LOCAL_LLM_MODEL_NAME)을 맞춘 뒤 다시 시도하세요.";
+    return "Role 1 로컬 LLM 실행 설정(.env의 LOCAL_LLM_API_BASE, LOCAL_LLM_SERVER_PORT, LOCAL_LLM_MODEL_NAME)을 맞춘 뒤 다시 시도하세요.";
   }
 
   return "프롬프트 컴파일 입력이나 실행 설정을 수정한 뒤 다시 시도하세요.";

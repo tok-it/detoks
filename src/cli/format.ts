@@ -3,25 +3,110 @@ import { formatTokenReductionSnapshot } from "../core/utils/tokenMetrics.js";
 import { translateVisibleText } from "../core/utils/visibleText.js";
 import { colors } from "./colors.js";
 import type { CliBatchExecutionResult, CliExecutionResult } from "./types.js";
+import type { PipelineStageStatus } from "../core/pipeline/types.js";
 import type { HomeDashboardOutput, HomeSessionPreview } from "./commands/home.js";
 import type { SessionShowOutput } from "./commands/session-show.js";
 import type { SessionListOutput } from "./commands/session-list.js";
 import type { SessionResumeOverview, SessionTaskLogEntry } from "./session-summary.js";
 
-function toPromptMetadata(result: CliExecutionResult) {
-  return {
-    ...(result.promptLanguage ? { promptLanguage: result.promptLanguage } : {}),
-    ...(result.promptInferenceTimeSec !== undefined
-      ? { promptInferenceTimeSec: result.promptInferenceTimeSec }
-      : {}),
-    ...(result.promptValidationErrors
-      ? { promptValidationErrors: result.promptValidationErrors }
-      : {}),
-    ...(result.promptRepairActions
-      ? { promptRepairActions: result.promptRepairActions }
-      : {}),
-    ...(result.tokenMetrics ? { tokenMetrics: result.tokenMetrics } : {}),
-  };
+function formatPromptLanguage(
+  language: CliExecutionResult["promptLanguage"],
+): string | null {
+  if (language === "ko") return "한국어";
+  if (language === "en") return "영어";
+  if (language === "mixed") return "혼합";
+  return null;
+}
+
+function formatStageStatus(stage: PipelineStageStatus): string {
+  const icon =
+    stage.status === "completed"
+      ? colors.success("✓")
+      : stage.status === "failed"
+        ? colors.error("✗")
+        : stage.status === "stubbed"
+          ? colors.warning("~")
+          : colors.muted("·");
+
+  const statusLabel =
+    stage.status === "completed"
+      ? "완료"
+      : stage.status === "failed"
+        ? "실패"
+        : stage.status === "stubbed"
+          ? "대체 실행"
+          : "준비";
+
+  return `${icon} ${stage.name} ${colors.muted(`(${stage.owner}, ${statusLabel})`)}`;
+}
+
+function hrLine(): string {
+  const width = Math.min(process.stdout.columns ?? 72, 72);
+  return colors.muted("─".repeat(width));
+}
+
+function formatResultHuman(result: CliExecutionResult, ok: boolean): string {
+  const adapterTag = `[${result.adapter.toUpperCase()}]`;
+  const header = ok
+    ? `${colors.success("✓")} ${colors.boldText(adapterTag)}`
+    : `${colors.error("✗")} ${colors.boldText(adapterTag)} ${colors.error("실패")}`;
+
+  const body = (result.rawOutput?.trim() || result.summary?.trim() || "(응답 없음)");
+  const promptLanguage = formatPromptLanguage(result.promptLanguage);
+  const summary = result.summary?.trim() || "요약 없음";
+  const nextAction = result.nextAction?.trim() || "다음 작업 없음";
+  const lines = [
+    "",
+    `${header} ${colors.muted(`· ${result.mode.toUpperCase()}`)}`,
+    hrLine(),
+    colors.header("한눈에 보기"),
+    `${colors.bullet} ${colors.muted("요약")} ${translateVisibleText(summary)}`,
+    `${colors.bullet} ${colors.muted("다음 작업")} ${translateVisibleText(nextAction)}`,
+  ];
+
+  if (promptLanguage || result.promptInferenceTimeSec !== undefined) {
+    lines.push(
+      `${colors.bullet} ${colors.muted("프롬프트 분석")} ${[
+        promptLanguage ? `언어 ${promptLanguage}` : null,
+        result.promptInferenceTimeSec !== undefined
+          ? `추론 ${result.promptInferenceTimeSec.toFixed(3)}초`
+          : null,
+      ]
+        .filter((item): item is string => item !== null)
+        .join(" · ")}`,
+    );
+  }
+
+  if (result.tokenMetrics) {
+    lines.push(
+      "",
+      colors.header("토큰 절감"),
+      `${colors.bullet} ${colors.muted("입력")} ${formatTokenReductionSnapshot(result.tokenMetrics.input)}`,
+      `${colors.bullet} ${colors.muted("출력")} ${formatTokenReductionSnapshot(result.tokenMetrics.output)}`,
+      `${colors.bullet} ${colors.muted("기준")} ${result.tokenMetrics.model}`,
+    );
+  }
+
+  if (result.promptValidationErrors && result.promptValidationErrors.length > 0) {
+    lines.push(
+      "",
+      colors.header("검증 경고"),
+      ...result.promptValidationErrors.map(
+        (message) => `${colors.warning("!")} ${translateVisibleText(message)}`,
+      ),
+    );
+  }
+
+  if (result.stages.length > 0) {
+    lines.push(
+      "",
+      colors.header("파이프라인 상태"),
+      ...result.stages.map((stage) => formatStageStatus(stage)),
+    );
+  }
+
+  lines.push("", colors.header("실행 결과"), hrLine(), body, hrLine(), "");
+  return lines.join("\n");
 }
 
 export const formatSuccess = (result: CliExecutionResult, verbose: boolean): string => {
@@ -36,22 +121,7 @@ export const formatSuccess = (result: CliExecutionResult, verbose: boolean): str
     return JSON.stringify(rest, null, 2) + traceSection;
   }
 
-  return (
-    JSON.stringify(
-      {
-        ok: result.ok,
-        mode: result.mode,
-        adapter: result.adapter,
-        summary: result.summary,
-        nextAction: result.nextAction,
-        stages: result.stages,
-        ...toPromptMetadata(result),
-        ...(result.traceFilePath ? { traceFile: result.traceFilePath } : {}),
-      },
-      null,
-      2,
-    ) + traceSection
-  );
+  return formatResultHuman(result, true) + traceSection;
 };
 
 export const formatFailedResult = (
@@ -82,6 +152,21 @@ export const formatFailedResult = (
       2,
     ) + traceSection
   );
+};
+
+export const formatReplResult = (result: CliExecutionResult, verbose: boolean): string => {
+  const traceSection = result.traceLog
+    ? "\n\n" + PipelineTracer.formatAsMarkdown(result.traceLog)
+    : result.traceFilePath
+      ? `\n\n[추적 로그 저장 → ${result.traceFilePath}]`
+      : "";
+
+  if (verbose) {
+    const { traceLog, ...rest } = result;
+    return JSON.stringify(rest, null, 2) + traceSection;
+  }
+
+  return formatResultHuman(result, result.ok) + traceSection;
 };
 
 export const formatBatchSuccess = (

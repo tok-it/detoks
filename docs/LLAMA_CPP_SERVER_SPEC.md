@@ -130,6 +130,7 @@ Behavior:
 - Before reusing an already-running local server, query `/v1/models` and verify that the expected `LOCAL_LLM_MODEL_NAME` is present
 - If another model or mismatched launch args are already running on the same port, stop the existing server and relaunch with the current env values
 - If `LOCAL_LLM_MODEL_PATH` exists, start `llama-server -m <path>`
+- If `LOCAL_LLM_API_BASE` is left at the default local placeholder, derive the runtime base from `LOCAL_LLM_SERVER_HOST` / `LOCAL_LLM_SERVER_PORT` so port changes stay in sync
 - If `LOCAL_LLM_MODEL_PATH` is missing and `LOCAL_LLM_MODEL_URL` is set, download the GGUF file first
 - If no local model path is set, start `llama-server -hf <LOCAL_LLM_HF_REPO> --hf-file <LOCAL_LLM_HF_FILE>` and let llama.cpp handle Hugging Face GGUF download/cache
 - Pass `--gpu-layers <LOCAL_LLM_GPU_LAYERS>`, default `all`, so Metal/GPU offload is requested on supported llama.cpp builds
@@ -142,6 +143,7 @@ Behavior:
 - Pass `--sleep-idle-seconds <LOCAL_LLM_SLEEP_IDLE_SECONDS>`, default `1200`, so the model is unloaded after 20 minutes of idle time
 - The default Hugging Face GGUF quant is explicitly `Q4_K_S`
 - The server is opened on `LOCAL_LLM_SERVER_HOST:LOCAL_LLM_SERVER_PORT`, default `127.0.0.1:12370`
+- Empty, truncated, or non-GGUF model files fail before `llama-server` launch and are not auto-deleted or re-downloaded
 
 <!-- 한국어 설명: Role 1 번역은 기본적으로 12370 포트의 로컬 llama.cpp 서버를 준비한 뒤 OpenAI-compatible `/v1/chat/completions`를 호출합니다. -->
 

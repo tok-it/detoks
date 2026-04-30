@@ -10,6 +10,7 @@ import {
 
 afterEach(() => {
 	vi.restoreAllMocks();
+	vi.unstubAllGlobals();
 });
 
 describe("buildLlamaServerArgs", () => {
@@ -213,6 +214,54 @@ describe("buildLlamaServerArgs", () => {
 			).rejects.toThrow(
 				"로컬 llama.cpp 서버 바이너리를 찾을 수 없습니다: llama-server",
 			);
+		} finally {
+			process.env.PATH = originalPath;
+			rmSync(scriptDir, { recursive: true, force: true });
+		}
+	});
+
+	it("빈 GGUF 파일이면 자동 삭제/재다운로드 없이 즉시 실패한다", async () => {
+		const scriptDir = mkdtempSync(join(tmpdir(), "detoks-gguf-"));
+		const originalPath = process.env.PATH ?? "";
+		const modelPath = join(scriptDir, "broken.gguf");
+		writeFileSync(
+			join(scriptDir, "llama-server"),
+			[
+				"#!/bin/sh",
+				"exit 0",
+			].join("\n"),
+			"utf8",
+		);
+		writeFileSync(modelPath, "", "utf8");
+		chmodSync(join(scriptDir, "llama-server"), 0o755);
+		process.env.PATH = `${scriptDir}:${originalPath}`;
+		const fetchMock = vi
+			.fn<typeof fetch>()
+			.mockResolvedValue({ ok: false } as Response);
+		vi.stubGlobal("fetch", fetchMock);
+
+		try {
+			await expect(
+				ensureLocalLlmRuntime({
+					localLlmApiBase: "http://127.0.0.1:12370/v1",
+					localLlmModelName: "broken-model",
+					localLlmModelPath: modelPath,
+					localLlmAutoStart: true,
+					localLlmServerBinary: "llama-server",
+					localLlmServerHost: "127.0.0.1",
+					localLlmServerPort: 12370,
+					localLlmGpuLayers: "all",
+					localLlmContextSize: 4096,
+					localLlmTopK: 40,
+					localLlmTopP: 0.95,
+					localLlmSleepIdleSeconds: 1200,
+					localLlmReasoning: "off",
+					pipelineMode: "safe",
+					requestTimeout: 30000,
+					translationMaxAttempts: 5,
+					temperature: 0,
+				}),
+			).rejects.toThrow("로컬 GGUF 모델 파일이 비어 있습니다");
 		} finally {
 			process.env.PATH = originalPath;
 			rmSync(scriptDir, { recursive: true, force: true });

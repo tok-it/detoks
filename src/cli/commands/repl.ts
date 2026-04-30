@@ -1,6 +1,6 @@
 import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
-import { formatError, formatSuccess } from "../format.js";
+import { formatError, formatReplResult } from "../format.js";
 import { getCliUsage, toNormalizedRequest } from "../parse.js";
 import type { CliArgs } from "../types.js";
 import type { PipelineProgressEvent } from "../../core/pipeline/types.js";
@@ -12,6 +12,7 @@ import { showHelpMessage, handleSlashCommand } from "../repl-commands/index.js";
 import { buildPrompt } from "../interactive/prompt-builder.js";
 import { loadAndApplyConfig } from "../config/loader.js";
 import { updateSelectedAdapter } from "../config/config-manager.js";
+import { startSpinner } from "../terminal-spinner.js";
 
 const EXIT_COMMANDS = new Set(["exit", "quit", ".exit"]);
 const EXIT_BUILTIN_COMMANDS = new Set(["exit", "quit", ".exit", "/exit", "/quit"]);
@@ -452,30 +453,41 @@ export const runReplCommand = async (baseArgs: CliArgs): Promise<void> => {
 
       // Slash 명령 처리
       if (line.startsWith("/")) {
-        const handled = await handleSlashCommand(line, {
-          adapter: currentAdapter,
-          executionMode: baseArgs.executionMode,
-          modelName: process.env.LOCAL_LLM_MODEL_NAME,
-          verbose,
-          onVerboseToggle: (enabled) => {
-            verbose = enabled;
-          },
-          onAdapterChange: async (newAdapter) => {
-            currentAdapter = newAdapter;
-            loadAndApplyConfig(newAdapter);
-            updateSelectedAdapter(newAdapter);
-            showHelpMessage(newAdapter);
-          },
-          onInteractiveStart: () => {
-            rl.pause();
-          },
-          onInteractiveEnd: () => {
-            rl.resume();
-          },
-          onExit: async () => {
-            rl.close();
-          },
-        });
+        let handled = false;
+
+        try {
+          handled = await handleSlashCommand(line, {
+            adapter: currentAdapter,
+            executionMode: baseArgs.executionMode,
+            modelName: process.env.LOCAL_LLM_MODEL_NAME,
+            verbose,
+            onVerboseToggle: (enabled) => {
+              verbose = enabled;
+            },
+            onAdapterChange: async (newAdapter) => {
+              currentAdapter = newAdapter;
+              loadAndApplyConfig(newAdapter);
+              updateSelectedAdapter(newAdapter);
+              showHelpMessage(newAdapter);
+            },
+            onInteractiveStart: () => {
+              rl.pause();
+            },
+            onInteractiveEnd: () => {
+              rl.resume();
+            },
+            onExit: async () => {
+              rl.close();
+            },
+          });
+        } catch (error) {
+          output.write(
+            colors.error(
+              `\n선택 UI 처리 중 오류가 발생했습니다.\n${formatError(error, verbose)}\n\n`,
+            ),
+          );
+          continue;
+        }
 
         if (handled) {
           continue;
@@ -497,8 +509,16 @@ export const runReplCommand = async (baseArgs: CliArgs): Promise<void> => {
           { ...baseArgs, mode: "run", prompt: line },
           { mode: "repl", sessionId },
         );
-        const result = await runCommand({ ...request, onProgress });
-        output.write(`${formatSuccess(result, verbose)}\n`);
+        const spinner = startSpinner(Boolean(output.isTTY));
+
+        try {
+          const result = await runCommand({ ...request, onProgress });
+          spinner.stop();
+          output.write(`${formatReplResult(result, verbose)}\n`);
+        } catch (error) {
+          spinner.stop();
+          throw error;
+        }
       } catch (error) {
         output.write(`${formatError(error, verbose)}\n`);
       }

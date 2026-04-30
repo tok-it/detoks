@@ -111,7 +111,17 @@ export const selectWithArrows = async (
   const originalRawMode = input.isRaw;
   let selectedIndex = 0;
   let cleanedUp = false;
+  let finished = false;
+  let escapeCancelTimer: NodeJS.Timeout | null = null;
+  const keepAlive = setInterval(() => undefined, 1000);
   let resolveSelection: (value: string | null) => void = () => undefined;
+
+  const clearEscapeCancelTimer = () => {
+    if (escapeCancelTimer) {
+      clearTimeout(escapeCancelTimer);
+      escapeCancelTimer = null;
+    }
+  };
 
   const renderMenu = () => {
     const terminalRows = Math.max(1, output.rows ?? 24);
@@ -167,6 +177,8 @@ export const selectWithArrows = async (
     }
 
     cleanedUp = true;
+    clearEscapeCancelTimer();
+    clearInterval(keepAlive);
     input.removeListener("keypress", handleKeyPress);
 
     if (typeof input.setRawMode === "function") {
@@ -179,54 +191,66 @@ export const selectWithArrows = async (
     streams.onClose?.();
   };
 
+  const finishSelection = (value: string | null) => {
+    if (finished) {
+      return;
+    }
+
+    finished = true;
+    cleanup();
+    resolveSelection(value);
+  };
+
   const handleKeyPress = (_str: string, key?: KeyInfo) => {
-    if (!key) {
-      return;
-    }
-
-    if (key.ctrl && key.name === "c") {
-      cleanup();
-      output.write("\n");
-      process.exit(0);
-    }
-
-    if (key.name === "up") {
-      selectedIndex = (selectedIndex - 1 + options.length) % options.length;
-    } else if (key.name === "down") {
-      selectedIndex = (selectedIndex + 1) % options.length;
-    } else if (key.name === "return" || key.name === "enter") {
-      const selected = options[selectedIndex];
-      cleanup();
-      if (selected) {
-        output.write("\n");
-        output.write(colors.success(`✓ 선택: ${selected.label}\n\n`));
-        resolveSelection(selected.value);
-      } else {
-        resolveSelection(null);
+    try {
+      if (!key) {
+        return;
       }
-      return;
-    } else if (key.name === "escape") {
-      cleanup();
-      output.write("\n");
-      output.write(colors.muted("(취소)\n\n"));
-      resolveSelection(null);
-      return;
-    } else {
-      return;
-    }
 
-    renderMenu();
+      if (key.ctrl && key.name === "c") {
+        cleanup();
+        output.write("\n");
+        process.exit(130);
+        return;
+      }
+
+      if (key.name === "escape") {
+        clearEscapeCancelTimer();
+        escapeCancelTimer = setTimeout(() => {
+          finishSelection(null);
+        }, 50);
+        return;
+      }
+
+      clearEscapeCancelTimer();
+
+      if (key.name === "up") {
+        selectedIndex = (selectedIndex - 1 + options.length) % options.length;
+      } else if (key.name === "down") {
+        selectedIndex = (selectedIndex + 1) % options.length;
+      } else if (key.name === "return" || key.name === "enter") {
+        const selected = options[selectedIndex];
+        finishSelection(selected?.value ?? null);
+        return;
+      } else {
+        return;
+      }
+
+      renderMenu();
+    } catch {
+      finishSelection(null);
+    }
   };
 
   return await new Promise((resolve) => {
     resolveSelection = resolve;
     emitKeypressEvents(input);
+    input.on("keypress", handleKeyPress);
+    streams.onOpen?.();
     input.setRawMode(true);
     input.resume();
-    streams.onOpen?.();
     output.write(ENTER_ALT_SCREEN);
     output.write(HIDE_CURSOR);
     renderMenu();
-    input.on("keypress", handleKeyPress);
   });
 };

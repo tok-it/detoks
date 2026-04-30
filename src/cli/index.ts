@@ -11,17 +11,20 @@ import { runSessionListCommand } from "./commands/session-list.js";
 import { runSessionContinueCommand } from "./commands/session-continue.js";
 import { runSessionShowCommand } from "./commands/session-show.js";
 import { runSessionResetCommand } from "./commands/session-reset.js";
+import { runModelResetCommand } from "./commands/model-reset.js";
 import { runSessionForkCommand } from "./commands/session-fork.js";
 import { runCheckpointRestoreCommand } from "./commands/checkpoint-restore.js";
 import { startRepl } from "./repl/index.js";
 import { colors } from "./colors.js";
 import { runModelSetupIfNeeded } from "./model-setup/index.js";
+import { startSpinner } from "./terminal-spinner.js";
 
 const runOneShotCommand = async (
   request: ReturnType<typeof toNormalizedRequest>,
 ) => {
   const originalError = console.error;
   const originalWarn = console.warn;
+  const spinner = startSpinner(Boolean(process.stdout.isTTY));
 
   if (process.env.DETOKS_DEBUG !== "1") {
     console.error = () => undefined;
@@ -31,6 +34,7 @@ const runOneShotCommand = async (
   try {
     return await runCommand(request);
   } finally {
+    spinner.stop();
     console.error = originalError;
     console.warn = originalWarn;
   }
@@ -104,6 +108,15 @@ const main = async (): Promise<void> => {
     return;
   }
 
+  if (args.command === "model-reset") {
+    const result = runModelResetCommand();
+    console.log(JSON.stringify(result, null, 2));
+    if (!result.ok) {
+      process.exitCode = 1;
+    }
+    return;
+  }
+
   if (args.command === "session-fork") {
     const result = await runSessionForkCommand(args.sessionId ?? "", args.newSessionId ?? "");
     console.log(JSON.stringify(result, null, 2));
@@ -145,12 +158,12 @@ const main = async (): Promise<void> => {
   const request = toNormalizedRequest(args);
   const result = await runOneShotCommand(request);
   if (!result.ok) {
-    console.error(`${colors.cross} ${colors.error("실패")}\n${formatFailedResult(result, args.verbose)}`);
+    console.error(formatFailedResult(result, args.verbose));
     process.exitCode = 1;
     return;
   }
 
-  console.log(`${colors.checkmark} ${colors.success("성공")}\n${formatSuccess(result, args.verbose)}`);
+  console.log(formatSuccess(result, args.verbose));
 };
 
 main().catch((error) => {

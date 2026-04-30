@@ -127,6 +127,90 @@ function loadDotEnv(cwd: string): Record<string, string> {
 	}, {});
 }
 
+function createEnvLookup(
+	fileEnv: Record<string, string>,
+	overrideEnv: NodeJS.ProcessEnv,
+): {
+	findEnv: (
+		...keys: string[]
+	) => { found: true; value: string | undefined } | { found: false };
+	hasEnv: (...keys: string[]) => boolean;
+	pickEnv: (...keys: string[]) => string | undefined;
+	pickEnvWithDefault: (
+		keys: string[],
+		fallback: string,
+	) => string | undefined;
+} {
+	const findEnv = (
+		...keys: string[]
+	): { found: true; value: string | undefined } | { found: false } => {
+		for (const key of keys) {
+			if (overrideEnv[key] !== undefined) {
+				return { found: true, value: overrideEnv[key] };
+			}
+		}
+		for (const key of keys) {
+			if (fileEnv[key] !== undefined) {
+				return { found: true, value: fileEnv[key] };
+			}
+		}
+		return { found: false };
+	};
+
+	const pickEnv = (...keys: string[]): string | undefined => {
+		const result = findEnv(...keys);
+		return result.found ? result.value?.trim() || undefined : undefined;
+	};
+
+	const pickEnvWithDefault = (
+		keys: string[],
+		fallback: string,
+	): string | undefined => {
+		const result = findEnv(...keys);
+		if (!result.found) {
+			return fallback;
+		}
+		return result.value?.trim() || undefined;
+	};
+
+	const hasEnv = (...keys: string[]): boolean => findEnv(...keys).found;
+
+	return { findEnv, hasEnv, pickEnv, pickEnvWithDefault };
+}
+
+function isLocalHost(hostname: string): boolean {
+	return ["127.0.0.1", "localhost", "::1"].includes(hostname);
+}
+
+function buildLocalLlmApiBase(hostname: string, port: number): string {
+	const url = new URL(DEFAULT_LOCAL_LLM_API_BASE);
+	url.hostname = hostname;
+	url.port = String(port);
+	return url.toString();
+}
+
+function shouldDeriveLocalLlmApiBase(apiBase: string | undefined): boolean {
+	if (!apiBase) {
+		return true;
+	}
+
+	try {
+		const url = new URL(apiBase);
+		const normalizedPath = url.pathname.replace(/\/+$/u, "");
+		const normalizedPort = url.port === ""
+			? DEFAULT_LOCAL_LLM_SERVER_PORT
+			: Number(url.port);
+
+		return (
+			isLocalHost(url.hostname) &&
+			normalizedPath === "/v1" &&
+			normalizedPort === DEFAULT_LOCAL_LLM_SERVER_PORT
+		);
+	} catch {
+		return false;
+	}
+}
+
 function parseNumber(
 	value: string | undefined,
 	fallback: number,
@@ -177,46 +261,36 @@ export function loadRole1RuntimeConfig(
 	const fileEnv = loadDotEnv(cwd);
 	const overrideEnv = options.env ?? process.env;
 	const env = { ...fileEnv, ...overrideEnv };
-
-	const findEnv = (
-		...keys: string[]
-	): { found: true; value: string | undefined } | { found: false } => {
-		for (const key of keys) {
-			if (overrideEnv[key] !== undefined) {
-				return { found: true, value: overrideEnv[key] };
-			}
-		}
-		for (const key of keys) {
-			if (fileEnv[key] !== undefined) {
-				return { found: true, value: fileEnv[key] };
-			}
-		}
-		return { found: false };
-	};
-
-	const pickEnv = (...keys: string[]): string | undefined => {
-		const result = findEnv(...keys);
-		return result.found ? result.value?.trim() || undefined : undefined;
-	};
-
-	const pickEnvWithDefault = (
-		keys: string[],
-		fallback: string,
-	): string | undefined => {
-		const result = findEnv(...keys);
-		if (!result.found) {
-			return fallback;
-		}
-		return result.value?.trim() || undefined;
-	};
+	const { findEnv, hasEnv, pickEnv, pickEnvWithDefault } = createEnvLookup(fileEnv, overrideEnv);
 
 	const pipelineMode = env.PIPELINE_MODE ?? "safe";
+	const localLlmServerHost =
+		pickEnv("LOCAL_LLM_SERVER_HOST") ?? DEFAULT_LOCAL_LLM_SERVER_HOST;
+	const localLlmServerPort = parseNumber(
+		env.LOCAL_LLM_SERVER_PORT,
+		DEFAULT_LOCAL_LLM_SERVER_PORT,
+		"LOCAL_LLM_SERVER_PORT",
+	);
+	const apiBaseEnv = findEnv(
+		"LOCAL_LLM_API_BASE",
+		"OPENAI_API_BASE",
+		"LM_STUDIO_URL",
+	);
+	const explicitLocalLlmApiBase = apiBaseEnv.found
+		? apiBaseEnv.value?.trim() || undefined
+		: undefined;
+	const localLlmApiBase = explicitLocalLlmApiBase
+		? shouldDeriveLocalLlmApiBase(explicitLocalLlmApiBase)
+			? buildLocalLlmApiBase(localLlmServerHost, localLlmServerPort)
+			: explicitLocalLlmApiBase
+		: apiBaseEnv.found
+			? undefined
+			: hasEnv("LOCAL_LLM_SERVER_HOST", "LOCAL_LLM_SERVER_PORT")
+				? buildLocalLlmApiBase(localLlmServerHost, localLlmServerPort)
+				: DEFAULT_LOCAL_LLM_API_BASE;
 
 	return Role1RuntimeConfigSchema.parse({
-		localLlmApiBase: pickEnvWithDefault(
-			["LOCAL_LLM_API_BASE", "OPENAI_API_BASE", "LM_STUDIO_URL"],
-			DEFAULT_LOCAL_LLM_API_BASE,
-		),
+		localLlmApiBase,
 		localLlmApiKey: pickEnv(
 			"LOCAL_LLM_API_KEY",
 			"OPENAI_API_KEY",
@@ -229,13 +303,8 @@ export function loadRole1RuntimeConfig(
 		localLlmAutoStart: parseBoolean(env.LOCAL_LLM_AUTO_START, true),
 		localLlmServerBinary:
 			pickEnv("LOCAL_LLM_SERVER_BINARY") ?? DEFAULT_LOCAL_LLM_SERVER_BINARY,
-		localLlmServerHost:
-			pickEnv("LOCAL_LLM_SERVER_HOST") ?? DEFAULT_LOCAL_LLM_SERVER_HOST,
-		localLlmServerPort: parseNumber(
-			env.LOCAL_LLM_SERVER_PORT,
-			DEFAULT_LOCAL_LLM_SERVER_PORT,
-			"LOCAL_LLM_SERVER_PORT",
-		),
+		localLlmServerHost,
+		localLlmServerPort,
 		localLlmStartupTimeout: parseNumber(
 			env.LOCAL_LLM_STARTUP_TIMEOUT,
 			DEFAULT_LOCAL_LLM_STARTUP_TIMEOUT,
@@ -300,6 +369,17 @@ export function loadRole1RuntimeConfig(
 			"TEMPERATURE",
 		),
 	});
+}
+
+export function readRole1ModelName(
+	options: LoaderOptions = {},
+): string | undefined {
+	const cwd = options.cwd ?? process.cwd();
+	const fileEnv = loadDotEnv(cwd);
+	const overrideEnv = options.env ?? process.env;
+	const { pickEnv } = createEnvLookup(fileEnv, overrideEnv);
+
+	return pickEnv("LOCAL_LLM_MODEL_NAME", "MODEL_NAME");
 }
 
 export function loadRole1Policies(

@@ -1,17 +1,27 @@
-import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
 import { stdout as output } from "node:process";
 import { colors } from "../colors.js";
 import { TRANSLATION_MODELS, type TranslationModel } from "./models.js";
 import { selectWithArrows } from "../interactive/select-with-arrows.js";
+import { inspectLocalModelFile } from "./file-status.js";
 
 const getModelsDir = () => join(homedir(), ".detoks", "models");
 
-const isModelDownloaded = (model: TranslationModel): boolean => {
+const getModelStatusLabel = (model: TranslationModel): string => {
   const modelsDir = getModelsDir();
   const filePath = join(modelsDir, model.hfFile);
-  return existsSync(filePath);
+  const status = inspectLocalModelFile(filePath);
+
+  if (status.kind === "ready") {
+    return ` ${colors.success("[설치됨]")}`;
+  }
+
+  if (status.kind === "invalid") {
+    return ` ${colors.warning(`[손상됨:${status.reason}]`)}`;
+  }
+
+  return "";
 };
 
 export const selectModel = async (): Promise<TranslationModel> => {
@@ -27,11 +37,9 @@ export const selectModel = async (): Promise<TranslationModel> => {
 
   // 옵션 생성
   const options = TRANSLATION_MODELS.map((model) => {
-    const downloaded = isModelDownloaded(model);
-    const status = downloaded ? ` ${colors.success("[설치됨]")}` : "";
     return {
       value: model.id,
-      label: `${model.displayName}${status}`,
+      label: `${model.displayName}${getModelStatusLabel(model)}`,
       model,
     };
   });
@@ -47,6 +55,9 @@ export const selectModel = async (): Promise<TranslationModel> => {
   }
 
   output.write(colors.muted(`모델 저장 경로: ${modelsDir}\n`));
+  output.write(
+    colors.muted("손상된 모델은 선택 후 Enter를 누르면 재설치됩니다.\n"),
+  );
 
   // 선택 UI
   const selectedId = await selectWithArrows(

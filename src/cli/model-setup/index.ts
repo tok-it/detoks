@@ -1,4 +1,3 @@
-import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
 import { colors } from "../colors.js";
@@ -7,13 +6,15 @@ import { selectModel } from "./select.js";
 import { downloadModel } from "./download.js";
 import { updateEnvFile } from "./env-writer.js";
 import { updateTranslationModel } from "../config/config-manager.js";
+import { readRole1ModelName } from "../../core/prompt/config.js";
+import { inspectLocalModelFile, shouldDownloadModelFile } from "./file-status.js";
 
 const getModelsDir = () => join(homedir(), ".detoks", "models");
 
-const isModelDownloaded = (model: TranslationModel): boolean => {
+const getModelFileStatus = (model: TranslationModel) => {
   const modelsDir = getModelsDir();
   const filePath = join(modelsDir, model.hfFile);
-  return existsSync(filePath);
+  return inspectLocalModelFile(filePath);
 };
 
 export const runModelSetupIfNeeded = async (cwd: string = process.cwd()): Promise<void> => {
@@ -25,16 +26,37 @@ export const runModelSetupIfNeeded = async (cwd: string = process.cwd()): Promis
   }
 
   // 이미 설정된 모델이 있으면 건너뛰기
-  const modelName = process.env.LOCAL_LLM_MODEL_NAME || process.env.MODEL_NAME;
+  const modelName = readRole1ModelName({ cwd });
   if (modelName) {
+    process.env.LOCAL_LLM_MODEL_NAME = modelName;
     return;
   }
 
   // 모델 선택
-  const selectedModel = await selectModel();
+  let selectedModel: TranslationModel;
+  try {
+    selectedModel = await selectModel();
+  } catch (error) {
+    process.stdout.write(
+      colors.error(
+        `선택 UI를 여는 중 오류가 발생했습니다. detoks를 다시 실행해 주세요.\n${error instanceof Error ? error.message : String(error)}\n\n`,
+      ),
+    );
+    return;
+  }
 
-  // 이미 다운로드된 경우 건너뛰기
-  if (!isModelDownloaded(selectedModel)) {
+  // 정상 파일은 재사용하고, 손상/누락 파일은 명시적 선택 시 재다운로드
+  const modelFileStatus = getModelFileStatus(selectedModel);
+
+  if (modelFileStatus.kind === "invalid") {
+    process.stdout.write(
+      colors.warning(
+        `손상된 GGUF 파일이 감지되었습니다. 이 모델을 다시 다운로드해 덮어씁니다: ${selectedModel.hfFile} (${modelFileStatus.reason})\n`,
+      ),
+    );
+  }
+
+  if (shouldDownloadModelFile(modelFileStatus)) {
     await downloadModel(selectedModel);
   } else {
     process.stdout.write(

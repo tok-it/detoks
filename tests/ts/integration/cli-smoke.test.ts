@@ -389,23 +389,16 @@ describe("detoks CLI smoke", () => {
     expect(defaultRun.stderr).toBe("");
     expect(verboseRun.stderr).toBe("");
 
-    const defaultJson = parseCliJson(defaultRun.stdout);
     const verboseJson = parseCliJson(verboseRun.stdout);
 
-    expect(defaultJson).toMatchObject({
-      ok: true,
-      mode: "run",
-      adapter: "codex",
-      summary: "1개 작업을 모두 완료했습니다",
-      nextAction: "파이프라인이 완료되었습니다.",
-      stages: completedPipelineStages,
-      promptLanguage: "en",
-      promptInferenceTimeSec: 0,
-      promptValidationErrors: [],
-      promptRepairActions: [],
-    });
-    expect(defaultJson).toHaveProperty("tokenMetrics");
-    expect(defaultJson).not.toHaveProperty("rawOutput");
+    expect(defaultRun.stdout).toContain("[CODEX]");
+    expect(defaultRun.stdout).toContain("한눈에 보기");
+    expect(defaultRun.stdout).toContain("요약");
+    expect(defaultRun.stdout).toContain("다음 작업");
+    expect(defaultRun.stdout).toContain("토큰 절감");
+    expect(defaultRun.stdout).toContain("파이프라인 상태");
+    expect(defaultRun.stdout).toContain("실행 결과");
+    expect(defaultRun.stdout).toContain("[stub:codex] [EXECUTE] hello detoks");
 
     expect(verboseJson).toMatchObject({
       ok: true,
@@ -568,23 +561,15 @@ describe("detoks CLI smoke", () => {
     expect(replRun.stdout).toContain("Context Optimizer(t1) 시작");
     expect(replRun.stdout).toContain("Executor(t1) 실행 중");
     expect(replRun.stdout).toContain("State Manager: 최종 세션 저장 완료");
-    expect(replRun.stdout.indexOf("Prompt Compiler 시작")).toBeLessThan(
-      replRun.stdout.indexOf("{"),
-    );
 
-    const output = parseCliJson(replRun.stdout);
-    expect(output).toMatchObject({
-      ok: true,
-      mode: "repl",
-      adapter: "codex",
-      summary: "1개 작업을 모두 완료했습니다",
-      nextAction: "파이프라인이 완료되었습니다.",
-      promptLanguage: "en",
-      promptInferenceTimeSec: 0,
-      promptValidationErrors: [],
-      promptRepairActions: [],
-      stages: completedPipelineStages,
-    });
+    // REPL renders human-readable: progress lines precede the result block
+    expect(replRun.stdout.indexOf("Prompt Compiler 시작")).toBeLessThan(
+      replRun.stdout.indexOf("[CODEX]"),
+    );
+    expect(replRun.stdout).toContain("[CODEX]");
+    expect(replRun.stdout).toContain("실행 결과");
+    expect(replRun.stdout).toContain("1개 작업을 모두 완료했습니다");
+    expect(replRun.stdout).toContain("파이프라인이 완료되었습니다.");
   });
 
   it("runs batch file input and keeps default stdout concise", () => {

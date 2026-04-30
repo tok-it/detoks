@@ -25,24 +25,18 @@ describe("formatSuccess", () => {
     promptRepairActions: [],
   };
 
-  it("returns a concise success payload by default", () => {
-    const formatted = JSON.parse(formatSuccess(result, false));
+  it("returns a readable success template by default", () => {
+    const formatted = formatSuccess(result, false);
 
-    expect(formatted).toEqual({
-      ok: true,
-      mode: "run",
-      adapter: "codex",
-      summary: "stub executor accepted prompt (12 chars)",
-      nextAction: "connect core pipeline modules behind this boundary",
-      stages: [
-        { name: "Prompt Compiler", owner: "role1", status: "stubbed" },
-      ],
-      promptLanguage: "en",
-      promptInferenceTimeSec: 0,
-      promptValidationErrors: [],
-      promptRepairActions: [],
-    });
-    expect(formatted).not.toHaveProperty("rawOutput");
+    expect(formatted).toContain("[CODEX]");
+    expect(formatted).toContain("한눈에 보기");
+    expect(formatted).toContain("요약");
+    expect(formatted).toContain("다음 작업");
+    expect(formatted).toContain("프롬프트 분석");
+    expect(formatted).toContain("파이프라인 상태");
+    expect(formatted).toContain("실행 결과");
+    expect(formatted).toContain("[stub:codex] hello detoks");
+    expect(formatted).toContain("Prompt Compiler");
   });
 
   it("returns the full success payload in verbose mode", () => {
@@ -65,17 +59,19 @@ describe("formatSuccess", () => {
         savedPercent: 75,
       },
     };
-    const formatted = JSON.parse(
-      formatSuccess(
-        {
-          ...result,
-          tokenMetrics,
-        },
-        false,
-      ),
+    const formatted = formatSuccess(
+      {
+        ...result,
+        tokenMetrics,
+      },
+      false,
     );
 
-    expect(formatted.tokenMetrics).toEqual(tokenMetrics);
+    expect(formatted).toContain("토큰 절감");
+    expect(formatted).toContain("입력");
+    expect(formatted).toContain("출력");
+    expect(formatted).toContain("기준");
+    expect(formatted).toContain("o200k_base");
   });
 });
 

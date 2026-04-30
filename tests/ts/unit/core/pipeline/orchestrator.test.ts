@@ -1,3 +1,6 @@
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { orchestratePipeline } from "../../../../../src/core/pipeline/orchestrator.js";
 import { executeWithAdapter } from "../../../../../src/core/executor/execute.js";
@@ -23,6 +26,7 @@ describe("orchestratePipeline", () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
   });
 
   it("executes task graph and returns structured result", async () => {
@@ -108,6 +112,41 @@ describe("orchestratePipeline", () => {
     expect(result.taskRecords).toEqual([]);
     expect(result.rawOutput).toBe("LLM client requires LOCAL_LLM_API_BASE");
     expect(executeWithAdapterMock).not.toHaveBeenCalled();
+  });
+
+  it("returns a clear failure when the local GGUF model file is empty", async () => {
+    const cwd = mkdtempSync(join(tmpdir(), "detoks-orch-"));
+    const modelPath = join(cwd, "broken.gguf");
+    writeFileSync(modelPath, "", "utf8");
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue({ ok: false } as Response);
+    vi.stubGlobal("fetch", fetchMock);
+
+    try {
+      const result = await orchestratePipeline({
+        mode: "run",
+        adapter: "codex",
+        executionMode: "stub",
+        verbose: false,
+        userRequest: {
+          raw_input: "새 파일을 생성해",
+          cwd,
+        },
+        env: {
+          LOCAL_LLM_API_BASE: "http://127.0.0.1:12370/v1",
+          LOCAL_LLM_MODEL_NAME: "broken-model",
+          LOCAL_LLM_MODEL_PATH: modelPath,
+          LOCAL_LLM_SERVER_BINARY: "llama-server",
+        },
+      });
+
+      expect(result.ok).toBe(false);
+      expect(result.summary).toContain("로컬 GGUF 모델 파일이 비어 있습니다");
+      expect(result.nextAction).toContain("LOCAL_LLM_MODEL_PATH");
+      expect(result.rawOutput).toContain("0바이트");
+      expect(executeWithAdapterMock).not.toHaveBeenCalled();
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
   });
 
   it("surfaces Role 1 metadata from prompt compilation on success", async () => {

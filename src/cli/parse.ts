@@ -36,6 +36,7 @@ const CLI_USAGE_MAIN = [
   "  detoks session continue <session-id>",
   "  detoks session reset <session-id>",
   "  detoks session fork <source-session-id> <new-session-id>",
+  "  detoks model reset              모델 설정 초기화 및 GGUF 파일은 삭제하지 않습니다",
   "  detoks checkpoint list <session-id>",
   "  detoks checkpoint show <checkpoint-id>",
   "  detoks checkpoint restore <checkpoint-id>",
@@ -54,6 +55,7 @@ const CLI_USAGE_MAIN = [
   "  detoks session continue session_2026_04_27",
   "  detoks session reset session_2026_04_27",
   "  detoks session fork session_2026_04_27 session_2026_04_27_fork",
+  "  detoks model reset",
   "  detoks checkpoint list session_2026_04_27",
   "  detoks checkpoint show session_2026_04_27_checkpoint_001",
   "  detoks checkpoint restore session_2026_04_27_checkpoint_001",
@@ -66,6 +68,23 @@ const CLI_USAGE_MAIN = [
   EXECUTION_MODE_HELP,
   VERBOSE_HELP,
   TRACE_HELP,
+  "  -h, --help                    이 도움말을 표시합니다",
+].join("\n");
+
+const CLI_USAGE_MODEL_RESET = [
+  "사용법:",
+  "  detoks model reset",
+  "",
+  "예시:",
+  "  detoks model reset",
+  "",
+  "모델 reset 참고:",
+  "  - .env / .env.local의 LOCAL_LLM_MODEL_NAME, MODEL_NAME, LOCAL_LLM_MODEL_PATH, LOCAL_LLM_HF_REPO, LOCAL_LLM_HF_FILE만 제거합니다",
+  "  - ~/.detoks/settings.json의 translation.model을 초기화합니다",
+  "  - GGUF 파일은 삭제하지 않습니다",
+  "  - 다음 실행에서 다시 모델을 선택할 수 있습니다",
+  "",
+  "옵션:",
   "  -h, --help                    이 도움말을 표시합니다",
 ].join("\n");
 
@@ -296,6 +315,8 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
               ? "session-reset"
             : positionals[0] === "session" && positionals[1] === "fork"
               ? "session-fork"
+            : positionals[0] === "model" && positionals[1] === "reset"
+              ? "model-reset"
             : positionals[0] === "checkpoint" && positionals[1] === "list"
             ? "checkpoint-list"
             : positionals[0] === "checkpoint" && positionals[1] === "show"
@@ -510,6 +531,27 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
     throw new Error(`지원하지 않는 세션 명령입니다. ${topicHelpHint("detoks session list --help")}, ${topicHelpHint("detoks session show --help")}, ${topicHelpHint("detoks session continue --help")}, ${topicHelpHint("detoks session fork --help")}를 확인하세요.`);
   }
 
+  if (first === "model" && positionals[1] === "reset") {
+    if (inputFile) {
+      throw new Error(`모델 명령은 --file을 지원하지 않습니다. ${topicHelpHint("detoks model reset --help")}`);
+    }
+
+    if (positionals.length > 2) {
+      throw new Error(`모델 reset에는 인수가 없습니다. ${topicHelpHint("detoks model reset --help")}`);
+    }
+
+    return {
+      mode: "run",
+      command: "model-reset",
+      adapter,
+      executionMode,
+      verbose,
+      trace,
+      showHelp: false,
+      helpTopic: "model-reset",
+    };
+  }
+
   if (first === "checkpoint") {
     if (inputFile) {
       throw new Error(`체크포인트 명령은 --file을 지원하지 않습니다. ${topicHelpHint("detoks checkpoint list --help")}`);
@@ -620,12 +662,13 @@ export const getCliUsage = (
     | "repl"
     | "session-list"
     | "session-show"
-    | "session-continue"
-    | "session-reset"
-    | "session-fork"
-    | "checkpoint-list"
-    | "checkpoint-show"
-    | "checkpoint-restore" = "main",
+  | "session-continue"
+  | "session-reset"
+  | "session-fork"
+  | "model-reset"
+  | "checkpoint-list"
+  | "checkpoint-show"
+  | "checkpoint-restore" = "main",
 ): string => {
   if (topic === "repl") {
     return CLI_USAGE_REPL;
@@ -644,6 +687,9 @@ export const getCliUsage = (
   }
   if (topic === "session-fork") {
     return CLI_USAGE_SESSION_FORK;
+  }
+  if (topic === "model-reset") {
+    return CLI_USAGE_MODEL_RESET;
   }
   if (topic === "checkpoint-list") {
     return CLI_USAGE_CHECKPOINT_LIST;
