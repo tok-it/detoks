@@ -6,6 +6,10 @@
   "bin": {
     "detoks": "bin/detoks.js"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tok-it/detoks.git"
+  },
   "publishConfig": {
     "access": "public"
   },
