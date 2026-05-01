@@ -92,6 +92,13 @@ scripts/tmux-gemini-workflow.sh
 scripts/create-kanban-card.sh
 scripts/daily-report
 scripts/generate-daily-reports.py
+JetBrainsMono-2.304/
+daily/
+data/
+datasets/validation/
+docs/blog/
+docs/logic/
+docs/DEV-SYNC-ANALYSIS-2026-04-28.md
 generate_pipeline_pptx.js
 extract_slide20.py
 extract_slide20_output.txt
