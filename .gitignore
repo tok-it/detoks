@@ -77,7 +77,6 @@ test_data_role2/*
 !test_data_role2/*.md
 .state/
 etc_doc/
-docs/blog/
 docs/my docs/
 docs/role1/
 stress-sessions/
@@ -111,14 +110,9 @@ scripts/todo-compare/
 scripts/todo-compare-tmux/
 slide20-generation/
 
-# Image
-content.png
-
 # OS
 .DS_Store
 Thumbs.db
-tests/ts/integration/
-tests/integration/
 graphify-out
 
 # Test
