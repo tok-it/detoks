@@ -1,6 +1,8 @@
-# Root-level documentation (only README.md tracked)
+# Root-level documentation (README.md variants tracked)
 /*.md
 !README.md
+!README.ko.md
+!README.en.md
 !.github/**
 
 # Agent-related

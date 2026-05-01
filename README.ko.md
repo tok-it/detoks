@@ -1,7 +1,7 @@
 # detoks
 
 <p align="right">
-  <a href="./README.en.md">English</a> | <a href="./README.ko.md">한국어</a>
+  <a href="./README.md">Language</a> | <a href="./README.en.md">English</a>
 </p>
 
 detoks는 `codex`, `gemini` 같은 LLM CLI 앞단에서 동작하는 **interactive wrapper CLI**입니다.
@@ -76,4 +76,4 @@ detoks repl --adapter codex --execution-mode stub
 ## Windows 사용
 
 Windows native 실행은 지원하지 않으며, WSL Ubuntu에서 실행합니다.
-자세한 설치/실행 절차는 [README.ko.md](./README.ko.md) 및 [LLAMA_CPP_SERVER_SPEC.md](./docs/LLAMA_CPP_SERVER_SPEC.md)를 참고하세요.
+자세한 설치/실행 절차는 [LLAMA_CPP_SERVER_SPEC.md](./docs/LLAMA_CPP_SERVER_SPEC.md)를 참고하세요.
