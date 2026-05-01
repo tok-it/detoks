@@ -1,11 +1,21 @@
 {
   "name": "detoks",
   "version": "0.1.0",
-  "private": true,
+  "private": false,
   "type": "module",
   "bin": {
     "detoks": "bin/detoks.js"
   },
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "bin/",
+    "dist/src/",
+    "README.md",
+    "README.ko.md",
+    "README.en.md"
+  ],
   "engines": {
     "node": ">=24.15.0 <26"
   },
@@ -19,6 +29,9 @@
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:slide20": "vitest run slide20-generation/slide20-generator.test.ts",
+    "test:slide20:report": "tsx slide20-generation/test-runner.ts",
+    "test:slide20:all": "npm run test:slide20 && npm run test:slide20:report",
     "verify:role1": "tsx scripts/verify-role1.ts",
     "verify:role1:rows": "tsx scripts/verify-role1.ts --file tests/data/row_data.json",
     "benchmark": "tsx scripts/benchmark-pipeline.ts"

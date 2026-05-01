@@ -93,6 +93,26 @@ scripts/tmux-gemini-workflow.sh
 scripts/create-kanban-card.sh
 scripts/daily-report
 scripts/generate-daily-reports.py
+generate_pipeline_pptx.js
+extract_slide20.py
+extract_slide20_output.txt
+presentation.html
+presentation_advanced.html
+output.pptx
+*.pptx
+*.zip
+docs/123123/
+docs/CLI_PRESENTATION_OUTLINE.md
+docs/CLI_TOP3_TROUBLESHOOTING.md
+docs/CLI_TROUBLESHOOTING_PRESENTATION.md
+docs/DETOKS_SERVICE_CENTERED_TEMPLATE_SLIDES.md
+docs/DETOKS_SERVICE_CENTERED_TEMPLATE_SLIDES_18_20_22.md
+scripts/todo-compare/
+scripts/todo-compare-tmux/
+slide20-generation/
+
+# Image
+content.png
 
 # OS
 .DS_Store
@@ -100,3 +120,9 @@ Thumbs.db
 tests/ts/integration/
 tests/integration/
 graphify-out
+
+# Test
+test_data_role2
+
+# Docs
+docs/my docs/**
