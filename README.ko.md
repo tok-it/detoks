@@ -29,11 +29,33 @@ detoks는 `codex`, `gemini` 같은 LLM CLI 앞단에서 동작하는 **interacti
 
 ## 설치
 
+### 1) 로컬 설치
+
+현재 폴더에 설치합니다. 어느 경로에서든 실행할 수 있지만, 설치 결과는 현재 디렉터리의 `node_modules`에 들어갑니다.
+
+```bash
+npm install @sorlros/detoks
+```
+
+프로젝트 안에서 CLI를 실행할 때:
+
+```bash
+npx detoks --help
+```
+
+### 2) 전역 설치
+
 ```bash
 npm install -g @sorlros/detoks
 ```
 
-전역 설치 없이 확인할 때는 다음처럼 실행할 수도 있습니다.
+설치 후 어디서나 바로 실행할 때:
+
+```bash
+detoks --help
+```
+
+### 3) 설치 없이 바로 실행
 
 ```bash
 npx @sorlros/detoks --help

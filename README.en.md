@@ -29,11 +29,33 @@ See [STACK_VERSIONS.md](./docs/STACK_VERSIONS.md) and [LLAMA_CPP_SERVER_SPEC.md]
 
 ## Install
 
+### 1) Local install
+
+Install into the current folder. You can run this from any path, but the package is placed in the current directory's `node_modules`.
+
+```bash
+npm install @sorlros/detoks
+```
+
+To run the CLI inside that project:
+
+```bash
+npx detoks --help
+```
+
+### 2) Global install
+
 ```bash
 npm install -g @sorlros/detoks
 ```
 
-To try it without a global install:
+Then run it from anywhere:
+
+```bash
+detoks --help
+```
+
+### 3) Run without installing
 
 ```bash
 npx @sorlros/detoks --help
