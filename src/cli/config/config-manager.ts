@@ -1,6 +1,7 @@
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
+import type { Adapter } from "../../core/pipeline/types.js";
 import type { DetoksConfig } from "./types.js";
 import {
   CODEX_REASONING_EFFORT_VALUES,
@@ -52,7 +53,7 @@ export const saveConfig = (config: DetoksConfig): void => {
 };
 
 export const updateAdapterModel = (
-  adapter: "codex" | "gemini",
+  adapter: Adapter,
   model: string,
 ): void => {
   const config = loadConfig();
@@ -104,7 +105,7 @@ export const resetTranslationModel = (): boolean => {
   return true;
 };
 
-export const getAdapterModel = (adapter: "codex" | "gemini"): string | undefined => {
+export const getAdapterModel = (adapter: Adapter): string | undefined => {
   const config = loadConfig();
   return config.adapter.models[adapter];
 };
@@ -114,12 +115,12 @@ export const getTranslationModel = (): string | undefined => {
   return config.translation.model;
 };
 
-export const getSelectedAdapter = (): "codex" | "gemini" => {
+export const getSelectedAdapter = (): Adapter => {
   const config = loadConfig();
   return config.adapter.selected;
 };
 
-export const updateSelectedAdapter = (adapter: "codex" | "gemini"): void => {
+export const updateSelectedAdapter = (adapter: Adapter): void => {
   const config = loadConfig();
   config.adapter.selected = adapter;
   saveConfig(config);

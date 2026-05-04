@@ -4,7 +4,7 @@ import type { CompressTextImplementation } from "../prompt/compression.js";
 import type { TraceLog } from "../utils/PipelineTracer.js";
 import type { TokenMetricsSnapshot } from "../utils/tokenMetrics.js";
 
-export const AdapterValues = ["codex", "gemini"] as const;
+export const AdapterValues = ["codex", "gemini", "claude"] as const;
 export type Adapter = (typeof AdapterValues)[number];
 export type InteractionMode = "run" | "repl";
 export const ExecutionModeValues = ["stub", "real"] as const;

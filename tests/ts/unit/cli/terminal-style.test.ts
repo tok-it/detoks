@@ -33,6 +33,12 @@ describe("terminal style", () => {
     expect(style.adapterBadge("gemini", { model: "gemini-2.5-pro", executionMode: "real" })).toBe(
       "\x1b[1m\x1b[35m◆ GEMINI[gemini-2.5-pro] · real\x1b[0m",
     );
+    expect(
+      style.adapterBadge("claude", {
+        model: "claude-sonnet-4-6",
+        executionMode: "real",
+      }),
+    ).toBe("\x1b[1m\x1b[33m◆ CLAUDE[claude-sonnet-4-6] · real\x1b[0m");
   });
 
   it("returns plain text when disabled", () => {
@@ -42,6 +48,12 @@ describe("terminal style", () => {
     expect(style.adapterBadge("codex", { model: "gpt-5", executionMode: "real" })).toBe(
       "◆ CODEX[gpt-5] · real",
     );
+    expect(
+      style.adapterBadge("claude", {
+        model: "claude-sonnet-4-6",
+        executionMode: "real",
+      }),
+    ).toBe("◆ CLAUDE[claude-sonnet-4-6] · real");
   });
 
   it("styles help titles, sections, and option names when enabled", () => {
