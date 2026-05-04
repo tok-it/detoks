@@ -30,13 +30,13 @@ See [STACK_VERSIONS.md](./docs/STACK_VERSIONS.md) and [LLAMA_CPP_SERVER_SPEC.md]
 ## Install
 
 ```bash
-npm install -g detoks
+npm install -g @sorlros/detoks
 ```
 
 To try it without a global install:
 
 ```bash
-npx detoks --help
+npx @sorlros/detoks --help
 ```
 
 ## Quick start

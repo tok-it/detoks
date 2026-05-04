@@ -30,13 +30,13 @@ detoks는 `codex`, `gemini` 같은 LLM CLI 앞단에서 동작하는 **interacti
 ## 설치
 
 ```bash
-npm install -g detoks
+npm install -g @sorlros/detoks
 ```
 
 전역 설치 없이 확인할 때는 다음처럼 실행할 수도 있습니다.
 
 ```bash
-npx detoks --help
+npx @sorlros/detoks --help
 ```
 
 ## 빠른 시작
