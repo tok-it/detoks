@@ -1,0 +1,2 @@
+# Keep publish contents controlled by package.json#files.
+# This avoids npm falling back to .gitignore for publish packaging.

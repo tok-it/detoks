@@ -6,6 +6,10 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const repoRoot = process.cwd();
+const packageJson = JSON.parse(readFileSync(join(repoRoot, "package.json"), "utf8")) as {
+  name?: string;
+};
+const packageName = packageJson.name ?? "detoks";
 const cliEntry = resolve(repoRoot, "src/cli/index.ts");
 const tsxLoader = resolve(repoRoot, "node_modules/tsx/dist/loader.mjs");
 
@@ -415,7 +419,7 @@ describe("detoks CLI smoke", () => {
       promptValidationErrors: [],
       promptRepairActions: [],
       rawOutput:
-        "[stub:codex] [EXECUTE] hello detoks\n\nContext: Project: detoks\n\nNo previous task context available.",
+        `[stub:codex] [EXECUTE] hello detoks\n\nContext: Project: ${packageName}\n\nNo previous task context available.`,
     });
     expect(verboseJson.stages).toHaveLength(5);
     expect(verboseJson).toHaveProperty("rawOutput");
