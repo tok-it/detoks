@@ -15,10 +15,12 @@ const mocks = vi.hoisted(() => {
     currentModel: undefined,
   }));
 
-  const getAdapterModels = vi.fn((adapter: "codex" | "gemini") =>
+  const getAdapterModels = vi.fn((adapter: "codex" | "gemini" | "claude") =>
     adapter === "codex"
       ? [{ slug: "gpt-5-codex", display_name: "GPT-5 Codex" }]
-      : [{ slug: "gemini-2.5-pro", display_name: "Gemini 2.5 Pro" }],
+      : adapter === "gemini"
+        ? [{ slug: "gemini-2.5-pro", display_name: "Gemini 2.5 Pro" }]
+        : [],
   );
 
   const updateAdapterModel = vi.fn();

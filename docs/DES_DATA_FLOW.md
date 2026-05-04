@@ -225,12 +225,12 @@ Role 3는 앞 단계에서 정리된 구조를 받아 실제 Codex/Gemini/subpro
 type ExecutionRequest = {
 	task_id: string;
 	prompt: string;
-	target: "codex" | "gemini";
+	target: "codex" | "gemini" | "claude";
 	context: ExecutionContext;
 	timeout_ms?: number;
 	task_id: string;
 	prompt: string;
-	target: "codex" | "gemini";
+	target: "codex" | "gemini" | "claude";
 	context: ExecutionContext;
 	timeout_ms?: number;
 };

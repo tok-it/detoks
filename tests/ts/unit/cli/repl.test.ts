@@ -49,6 +49,10 @@ describe("repl builtin command routing", () => {
       kind: "adapter",
       adapter: "gemini",
     });
+    expect(getReplBuiltinCommand("/adapter claude")).toEqual({
+      kind: "adapter",
+      adapter: "claude",
+    });
     expect(getReplBuiltinCommand("/model")).toEqual({ kind: "model" });
     expect(getReplBuiltinCommand("/model gpt-5")).toEqual({
       kind: "model",
@@ -91,6 +95,10 @@ describe("repl builtin command routing", () => {
       command: "gemini",
       args: [],
     });
+    expect(getLoginCommandSpec("claude")).toEqual({
+      command: "claude",
+      args: ["auth", "login"],
+    });
   });
 
   it("applies /session, /adapter, /model, and /verbose builtin effects", () => {
@@ -120,6 +128,17 @@ describe("repl builtin command routing", () => {
     expect(adapterResult.shouldExit).toBe(false);
     expect(adapterResult.nextState.adapter).toBe("gemini");
     expect(adapterResult.output).toContain("REPL 어댑터가 gemini(으)로 설정되었습니다.");
+
+    const claudeAdapterResult = runReplBuiltinCommand(
+      { kind: "adapter", adapter: "claude" },
+      initialState,
+      "repl-session-123",
+    );
+    expect(claudeAdapterResult.shouldExit).toBe(false);
+    expect(claudeAdapterResult.nextState.adapter).toBe("claude");
+    expect(claudeAdapterResult.output).toContain(
+      "REPL 어댑터가 claude(으)로 설정되었습니다.",
+    );
 
     const modelResult = runReplBuiltinCommand(
       { kind: "model", model: "gemini-2.5-pro" },
@@ -158,6 +177,7 @@ describe("repl builtin command routing", () => {
     expect(menuResult.output).toContain("/help");
     expect(menuResult.output).toContain("/codex-models (/cms)");
     expect(menuResult.output).toContain("/gemini-models (/gms)");
+    expect(menuResult.output).toContain("/adapter claude");
     expect(menuResult.output).toContain("/adapter gemini");
     expect(menuResult.output).toContain("/verbose off");
     expect(menuResult.output).toContain("/quit");
@@ -176,7 +196,9 @@ describe("repl builtin command routing", () => {
       initialState,
       "repl-session-123",
     );
-    expect(adapterResult.output).toContain("/adapter codex 또는 /adapter gemini 를 입력해 어댑터를 변경하세요.");
+    expect(adapterResult.output).toContain(
+      "/adapter codex, /adapter gemini, 또는 /adapter claude 를 입력해 어댑터를 변경하세요.",
+    );
 
     const verboseResult = runReplBuiltinCommand(
       { kind: "verbose" },
@@ -215,6 +237,12 @@ describe("repl builtin command routing", () => {
         "codex::gpt-5::stub",
       ),
     ).toBe(true);
+    expect(
+      shouldEmitReplSourceBadge(
+        { ...initialState, adapter: "claude" as const },
+        "codex::gpt-5::stub",
+      ),
+    ).toBe(true);
   });
 
   it("builds the repl prompt label from the current source", () => {
@@ -234,6 +262,15 @@ describe("repl builtin command routing", () => {
         verbose: true,
       }),
     ).toBe("detoks[gemini]> ");
+
+    expect(
+      getReplPromptLabel({
+        adapter: "claude",
+        model: "claude-sonnet-4-6",
+        executionMode: "stub",
+        verbose: false,
+      }),
+    ).toBe("detoks[claude:claude-sonnet-4-6]> ");
   });
 
   it("tracks source badge emission on first response and source changes", () => {

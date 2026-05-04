@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { CodexStubAdapter } from "../../../../../src/integrations/adapters/codex/adapter.js";
+import { ClaudeStubAdapter } from "../../../../../src/integrations/adapters/claude/adapter.js";
 import { GeminiStubAdapter } from "../../../../../src/integrations/adapters/gemini/adapter.js";
 import type { SubprocessRequest } from "../../../../../src/integrations/subprocess/types.js";
 import type { SubprocessRunner } from "../../../../../src/integrations/subprocess/types.js";
@@ -12,7 +13,7 @@ const fakeRunner: SubprocessRunner = {
     return {
       stdout: `[fake:${request.command}] ${request.input ?? ""}`,
       stderr: "",
-      exitCode: request.command === "codex" ? 0 : 3,
+      exitCode: request.command === "gemini" ? 3 : 0,
       timedOut: false,
     };
   },
@@ -89,6 +90,44 @@ describe("adapter execution modes", () => {
     expect(realResult.exitCode).toBe(3);
   });
 
+  it("records claude real execution requests with the claude command", async () => {
+    capturedRequests.length = 0;
+    const adapter = new ClaudeStubAdapter();
+
+    const realResult = await adapter.execute(
+      {
+        mode: "run",
+        prompt: "real prompt",
+        verbose: false,
+        model: "claude-sonnet-4-6",
+        cwd: "/workspace",
+      },
+      {
+        executionMode: "real",
+        subprocessRunner: fakeRunner,
+      },
+    );
+
+    expect(capturedRequests).toEqual([
+      {
+        command: "claude",
+        args: [
+          "-p",
+          "--output-format",
+          "text",
+          "--permission-mode",
+          "default",
+          "--model",
+          "claude-sonnet-4-6",
+        ],
+        cwd: "/workspace",
+        input: "real prompt",
+      },
+    ]);
+    expect(realResult.rawOutput).toBe("[fake:claude] real prompt");
+    expect(realResult.exitCode).toBe(0);
+  });
+
   it("keeps codex stub execution separate from real execution", async () => {
     const adapter = new CodexStubAdapter();
 
@@ -141,5 +180,32 @@ describe("adapter execution modes", () => {
     expect(stubResult.exitCode).toBe(0);
     expect(realResult.rawOutput).toBe("[fake:gemini] real prompt");
     expect(realResult.exitCode).toBe(3);
+  });
+
+  it("keeps claude stub execution separate from real execution", async () => {
+    const adapter = new ClaudeStubAdapter();
+
+    const stubResult = await adapter.execute({
+      mode: "run",
+      prompt: "stub prompt",
+      verbose: false,
+    });
+
+    const realResult = await adapter.execute(
+      {
+        mode: "run",
+        prompt: "real prompt",
+        verbose: false,
+      },
+      {
+        executionMode: "real",
+        subprocessRunner: fakeRunner,
+      },
+    );
+
+    expect(stubResult.rawOutput).toBe("[stub:claude] stub prompt");
+    expect(stubResult.exitCode).toBe(0);
+    expect(realResult.rawOutput).toBe("[fake:claude] real prompt");
+    expect(realResult.exitCode).toBe(0);
   });
 });

@@ -16,7 +16,7 @@ import { startSpinner } from "../terminal-spinner.js";
 
 const EXIT_COMMANDS = new Set(["exit", "quit", ".exit"]);
 const EXIT_BUILTIN_COMMANDS = new Set(["exit", "quit", ".exit", "/exit", "/quit"]);
-const LOGIN_MENU_OPTIONS = ["codex", "gemini"] as const;
+const LOGIN_MENU_OPTIONS = ["codex", "gemini", "claude"] as const;
 const VERBOSE_MENU_OPTIONS = ["on", "off"] as const;
 
 export type ReplBuiltinCommand =
@@ -140,7 +140,7 @@ export const getNextSelectionIndex = (
 export const getNextLoginSelectionIndex = (
   currentIndex: number,
   direction: "up" | "down",
-  optionCount = LOGIN_MENU_OPTIONS.length,
+  optionCount: number = LOGIN_MENU_OPTIONS.length,
 ): number => getNextSelectionIndex(currentIndex, direction, optionCount);
 
 export const getLoginCommandSpec = (
@@ -150,17 +150,22 @@ export const getLoginCommandSpec = (
     return { command: "codex", args: ["login"] };
   }
 
-  return { command: "gemini", args: [] };
+  if (adapter === "gemini") {
+    return { command: "gemini", args: [] };
+  }
+
+  return { command: "claude", args: ["auth", "login"] };
 };
 
 function formatReplCommandMenu(state: ReplRuntimeState): string {
   const commands = [
     ["/help", "REPL 도움말 표시"],
-    ["/login", "Codex/Gemini 로그인 흐름 시작"],
+    ["/login", "Codex/Gemini/Claude Code 로그인 흐름 시작"],
     ["/session", "현재 REPL 세션과 런타임 정보 확인"],
     ["/adapter", "어댑터 선택 UI 표시"],
     ["/adapter codex", "이후 프롬프트의 어댑터를 codex로 변경"],
     ["/adapter gemini", "이후 프롬프트의 어댑터를 gemini로 변경"],
+    ["/adapter claude", "이후 프롬프트의 어댑터를 claude로 변경"],
     ["/codex-models (/cms)", "Codex 모델 및 추론 강도 선택"],
     ["/gemini-models (/gms)", "Gemini 모델 선택 및 변경"],
     ["/model", "모델 변경 안내 표시"],
@@ -249,15 +254,16 @@ export const runReplBuiltinCommand = (
         shouldExit: false,
         output:
           JSON.stringify(
-            {
-              ok: true,
-              mode: "repl",
-              adapter: state.adapter,
-              message: "/adapter codex 또는 /adapter gemini 를 입력해 어댑터를 변경하세요.",
-            },
-            null,
-            2,
-          ) + "\n",
+              {
+                ok: true,
+                mode: "repl",
+                adapter: state.adapter,
+                message:
+                  "/adapter codex, /adapter gemini, 또는 /adapter claude 를 입력해 어댑터를 변경하세요.",
+              },
+              null,
+              2,
+            ) + "\n",
         nextState: state,
       };
     }
@@ -403,14 +409,14 @@ export const resolveReplSessionId = async ({
 
 export const runReplCommand = async (baseArgs: CliArgs): Promise<void> => {
   // 저장된 설정 로드 및 환경변수 적용 (CLI adapter에 맞는 모델만 로드)
-  loadAndApplyConfig(baseArgs.adapter as "codex" | "gemini");
+  loadAndApplyConfig(baseArgs.adapter);
 
   await runModelSetupIfNeeded();
 
   const rl = createInterface({ input, output });
   const sessionId = `repl-${Date.now()}`;
   let verbose = baseArgs.verbose;
-  let currentAdapter = baseArgs.adapter as "codex" | "gemini";
+  let currentAdapter = baseArgs.adapter;
 
   const startMessage = [
     colors.title("detoks repl 시작"),

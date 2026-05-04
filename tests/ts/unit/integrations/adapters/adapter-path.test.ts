@@ -3,6 +3,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { CodexStubAdapter } from "../../../../../src/integrations/adapters/codex/adapter.js";
+import { ClaudeStubAdapter } from "../../../../../src/integrations/adapters/claude/adapter.js";
 import { GeminiStubAdapter } from "../../../../../src/integrations/adapters/gemini/adapter.js";
 import { executeAdapterViaSubprocess } from "../../../../../src/integrations/adapters/real.js";
 import { createStubSubprocessRunner } from "../../../../../src/integrations/subprocess/runner.js";
@@ -76,6 +77,32 @@ describe("adapter subprocess path", () => {
     });
   });
 
+  it("builds claude subprocess requests explicitly", () => {
+    const adapter = new ClaudeStubAdapter();
+    expect(
+      adapter.buildSubprocessRequest({
+        mode: "run",
+        prompt: "hello claude",
+        verbose: true,
+        model: "claude-sonnet-4-6",
+        cwd: "/tmp",
+      }),
+    ).toEqual({
+      command: "claude",
+      args: [
+        "-p",
+        "--output-format",
+        "text",
+        "--permission-mode",
+        "default",
+        "--model",
+        "claude-sonnet-4-6",
+      ],
+      cwd: "/tmp",
+      input: "hello claude",
+    });
+  });
+
   it("routes a codex request through the subprocess boundary", async () => {
     const adapter = new CodexStubAdapter();
     const result = await executeAdapterViaSubprocess(
@@ -95,6 +122,29 @@ describe("adapter subprocess path", () => {
     expect(result.success).toBe(true);
     expect(result.rawOutput).toBe(
       "[stub:subprocess] codex exec --model gpt-5 - --sandbox workspace-write --skip-git-repo-check --color never",
+    );
+    expect(result.exitCode).toBe(0);
+  });
+
+  it("routes a claude request through the subprocess boundary", async () => {
+    const adapter = new ClaudeStubAdapter();
+    const result = await executeAdapterViaSubprocess(
+      adapter,
+      {
+        mode: "run",
+        prompt: "hello subprocess",
+        verbose: false,
+        model: "claude-sonnet-4-6",
+      },
+      {
+        executionMode: "real",
+        subprocessRunner: createStubSubprocessRunner(),
+      },
+    );
+
+    expect(result.success).toBe(true);
+    expect(result.rawOutput).toBe(
+      "[stub:subprocess] claude -p --output-format text --permission-mode default --model claude-sonnet-4-6",
     );
     expect(result.exitCode).toBe(0);
   });

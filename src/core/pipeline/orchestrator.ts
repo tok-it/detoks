@@ -58,6 +58,7 @@ function markTaskCompleted(
   state: SessionState,
   taskId: string,
   rawOutput: string,
+  taskType?: string,
 ): SessionState {
   return {
     ...state,
@@ -70,6 +71,7 @@ function markTaskCompleted(
         success: true,
         summary: rawOutput.slice(0, 200),
         raw_output: rawOutput,
+        ...(taskType ? { type: taskType } : {}),
       },
     },
     updated_at: new Date().toISOString(),
@@ -80,6 +82,7 @@ function markTaskFailed(
   state: SessionState,
   taskId: string,
   rawOutput: string,
+  taskType?: string,
 ): SessionState {
   return {
     ...state,
@@ -91,6 +94,32 @@ function markTaskFailed(
         success: false,
         summary: rawOutput.slice(0, 200),
         raw_output: rawOutput,
+        ...(taskType ? { type: taskType } : {}),
+      },
+    },
+    updated_at: new Date().toISOString(),
+  };
+}
+
+function markTaskSkipped(
+  state: SessionState,
+  taskId: string,
+  blockedBy: string,
+  taskType?: string,
+): SessionState {
+  const skipReason = `의존성 [${blockedBy}] 실패로 건너뜀`;
+
+  return {
+    ...state,
+    current_task_id: null,
+    task_results: {
+      ...state.task_results,
+      [taskId]: {
+        task_id: taskId,
+        success: false,
+        summary: skipReason,
+        raw_output: skipReason,
+        ...(taskType ? { type: taskType } : {}),
       },
     },
     updated_at: new Date().toISOString(),
@@ -464,7 +493,24 @@ export const orchestratePipeline = async (
       const blockedBy = task.depends_on.find((depId) => failedTaskIds.has(depId));
       if (blockedBy) {
         failedTaskIds.add(task.id);
+        const skipReason = `의존성 [${blockedBy}] 실패로 건너뜀`;
+        state = markTaskSkipped(state, task.id, blockedBy, task.type);
+        state = applySessionTokenMetrics(
+          state,
+          request.userRequest.raw_input,
+          compiledPrompt.compressed_prompt,
+        ).state;
+        await SessionStateManager.saveSession(state);
         taskRecords.push({ taskId: task.id, status: "skipped", rawOutput: "", blockedBy });
+        await PipelineTracer.trace({
+          sessionId, stage: `Executor:${task.id}`, role: "role3", phase: "output",
+          dataType: "ExecutionResult", data: {
+            task_id: task.id,
+            success: false,
+            raw_output: skipReason,
+            type: task.type,
+          },
+        });
         logger.warn(`작업 [${task.id}] 건너뜀 — 의존성 [${blockedBy}] 실패`);
         await emitProgress(request, {
           stage: "Executor",
@@ -527,7 +573,7 @@ export const orchestratePipeline = async (
       if (!execResult.ok) {
         // 실패 — Strict 모드에 따라 후속 의존 Task도 차단됨
         failedTaskIds.add(task.id);
-        state = markTaskFailed(state, task.id, execResult.rawOutput);
+        state = markTaskFailed(state, task.id, execResult.rawOutput, task.type);
         state = applySessionTokenMetrics(
           state,
           request.userRequest.raw_input,
@@ -537,7 +583,7 @@ export const orchestratePipeline = async (
         taskRecords.push({ taskId: task.id, status: "failed", rawOutput: execResult.rawOutput });
         await PipelineTracer.trace({
           sessionId, stage: `Executor:${task.id}`, role: "role3", phase: "output",
-          dataType: "ExecutionResult", data: { task_id: task.id, success: false, raw_output: execResult.rawOutput },
+          dataType: "ExecutionResult", data: { task_id: task.id, success: false, raw_output: execResult.rawOutput, type: task.type },
           durationMs: PipelineTracer.endStage(`Executor:${task.id}`),
         });
         await emitProgress(request, {
@@ -551,7 +597,7 @@ export const orchestratePipeline = async (
         // 성공 — 세션 상태 갱신 및 저장 (Role 2.2)
         await PipelineTracer.trace({
           sessionId, stage: `Executor:${task.id}`, role: "role3", phase: "output",
-          dataType: "ExecutionResult", data: { task_id: task.id, success: true, raw_output: execResult.rawOutput },
+          dataType: "ExecutionResult", data: { task_id: task.id, success: true, raw_output: execResult.rawOutput, type: task.type },
           durationMs: PipelineTracer.endStage(`Executor:${task.id}`),
         });
         await emitProgress(request, {
@@ -561,7 +607,7 @@ export const orchestratePipeline = async (
           message: `Executor(${task.id}) 완료`,
         });
         failedTaskIds.delete(task.id);
-        state = markTaskCompleted(state, task.id, execResult.rawOutput);
+        state = markTaskCompleted(state, task.id, execResult.rawOutput, task.type);
         state = applySessionTokenMetrics(
           state,
           request.userRequest.raw_input,

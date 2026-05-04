@@ -1,7 +1,8 @@
+import type { Adapter } from "../../core/pipeline/types.js";
 import { colors } from "../colors.js";
 
 export interface PromptState {
-  adapter: "codex" | "gemini";
+  adapter: Adapter;
   adapterModel: string | undefined;
   translationModel: string | undefined;
 }

@@ -67,6 +67,23 @@ describe("executeWithAdapter", () => {
     expect(subprocessMocks.createRealRunner).not.toHaveBeenCalled();
   });
 
+  it("routes to the claude stub adapter", async () => {
+    const result = await executeWithAdapter({
+      adapter: "claude",
+      mode: "run",
+      executionMode: "stub",
+      prompt: "hello claude",
+      verbose: false,
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.adapter).toBe("claude");
+    expect(result.rawOutput).toBe("[stub:claude] hello claude");
+    expect(result.exitCode).toBe(0);
+    expect(subprocessMocks.createStubRunner).toHaveBeenCalledTimes(1);
+    expect(subprocessMocks.createRealRunner).not.toHaveBeenCalled();
+  });
+
   it("uses the real execution path when requested", async () => {
     const result = await executeWithAdapter({
       adapter: "codex",
