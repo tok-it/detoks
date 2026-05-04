@@ -119,7 +119,7 @@ const failedPipelineStages = [
   { name: "State Manager", owner: "role2.2", status: "failed" },
 ] as const;
 
-const findInstalledBinary = (command: "codex" | "gemini"): string | undefined => {
+const findInstalledBinary = (command: "codex" | "gemini" | "claude"): string | undefined => {
   const result = spawnSync("sh", ["-lc", `command -v ${command}`], {
     cwd: repoRoot,
     encoding: "utf8",
@@ -130,7 +130,11 @@ const findInstalledBinary = (command: "codex" | "gemini"): string | undefined =>
     : undefined;
 };
 
-const installedRealAdapters: Array<"codex" | "gemini"> = (["codex", "gemini"] as const).filter(
+const installedRealAdapters: Array<"codex" | "gemini" | "claude"> = ([
+  "codex",
+  "gemini",
+  "claude",
+] as const).filter(
   (command) => findInstalledBinary(command) !== undefined,
 );
 const requestedRealBinarySmokeAdapter =
@@ -139,7 +143,7 @@ const requestedRealBinarySmokeAdapter =
     ? process.env.DETOKS_REAL_BINARY_SMOKE_ADAPTER
     : undefined;
 const runAllRealBinarySmokeTargets = process.env.DETOKS_REAL_BINARY_SMOKE_ALL === "1";
-const realBinarySmokeTargets: Array<"codex" | "gemini"> = runAllRealBinarySmokeTargets
+const realBinarySmokeTargets: Array<"codex" | "gemini" | "claude"> = runAllRealBinarySmokeTargets
   ? installedRealAdapters
   : requestedRealBinarySmokeAdapter
     ? installedRealAdapters.includes(requestedRealBinarySmokeAdapter)
@@ -183,7 +187,7 @@ const liveLocalLlmSmoke =
 
 const createFakeBinary = (
   dir: string,
-  command: "codex" | "gemini",
+  command: "codex" | "gemini" | "claude",
   options: { exitCode?: number; stderr?: string } = {},
 ) => {
   const binaryPath = join(dir, command);
@@ -207,7 +211,7 @@ process.stdin.on("end", () => {
   return binaryPath;
 };
 
-const runAdapterRawOutputSmoke = (adapter: "codex" | "gemini", prompt: string) => {
+const runAdapterRawOutputSmoke = (adapter: "codex" | "gemini" | "claude", prompt: string) => {
   const tempDir = mkdtempSync(join(tmpdir(), "detoks-cli-real-"));
 
   try {
@@ -253,7 +257,7 @@ const runAdapterRawOutputSmoke = (adapter: "codex" | "gemini", prompt: string) =
   }
 };
 
-const runInstalledRealAdapterSmoke = (adapter: "codex" | "gemini") => {
+const runInstalledRealAdapterSmoke = (adapter: "codex" | "gemini" | "claude") => {
   const defaultRun = runCliWithEnvAndTimeout(
     [
       realBinarySmokePrompt,
@@ -1290,6 +1294,10 @@ describe("detoks CLI smoke", () => {
 
   it("keeps gemini real rawOutput distinct from stub rawOutput in smoke mode", () => {
     runAdapterRawOutputSmoke("gemini", "hello gemini");
+  });
+
+  it("keeps claude real rawOutput distinct from stub rawOutput in smoke mode", () => {
+    runAdapterRawOutputSmoke("claude", "hello claude");
   });
 
   for (const adapter of realBinarySmokeTargets) {
