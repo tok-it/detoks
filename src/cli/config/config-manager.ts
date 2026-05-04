@@ -34,6 +34,8 @@ export const loadConfig = (): DetoksConfig => {
   return { ...DEFAULT_CONFIG };
 };
 
+export const hasConfigFile = (): boolean => existsSync(getConfigPath());
+
 export const saveConfig = (config: DetoksConfig): void => {
   const configDir = getConfigDir();
   const configPath = getConfigPath();
@@ -123,5 +125,19 @@ export const getSelectedAdapter = (): Adapter => {
 export const updateSelectedAdapter = (adapter: Adapter): void => {
   const config = loadConfig();
   config.adapter.selected = adapter;
+  saveConfig(config);
+};
+
+export const getLastSeenReleaseVersion = (): string | undefined => {
+  const config = loadConfig();
+  return config.runtime?.lastSeenReleaseVersion;
+};
+
+export const updateLastSeenReleaseVersion = (version: string): void => {
+  const config = loadConfig();
+  config.runtime = {
+    ...(config.runtime ?? {}),
+    lastSeenReleaseVersion: version,
+  };
   saveConfig(config);
 };

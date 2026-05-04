@@ -18,6 +18,7 @@ import { startRepl } from "./repl/index.js";
 import { colors } from "./colors.js";
 import { runModelSetupIfNeeded } from "./model-setup/index.js";
 import { startSpinner } from "./terminal-spinner.js";
+import { maybeShowRuntimeUpdateNotice } from "./runtime-notice.js";
 
 const runOneShotCommand = async (
   request: ReturnType<typeof toNormalizedRequest>,
@@ -58,6 +59,8 @@ const main = async (): Promise<void> => {
     );
     return;
   }
+
+  maybeShowRuntimeUpdateNotice();
 
   if (args.mode === "repl") {
     await startRepl(args);

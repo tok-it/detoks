@@ -5,6 +5,18 @@ detoks는 LLM CLI(codex, gemini, claude 등) 앞단에서 동작하는 **interac
 
 ---
 
+## 🔔 업데이트 안내
+
+`claude` 어댑터가 포함된 새 버전을 사용하려면, 설치된 detoks를 최신 릴리스로 업데이트하세요.
+
+- 전역 설치: `npm install -g <npm-package-name>@latest`
+- 전역 업데이트: `npm update -g <npm-package-name>`
+- 로컬 설치: `npm install <npm-package-name>@latest`
+
+새 기능과 변경점은 GitHub Releases 또는 릴리스 노트에서 함께 안내하는 것을 권장합니다.
+
+---
+
 ## ✅ 유저 실행 요건
 
 detoks를 일반 유저가 실행할 때 실제로 맞춰야 하는 버전은 많지 않습니다.
