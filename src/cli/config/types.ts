@@ -1,3 +1,5 @@
+import type { Adapter } from "../../core/pipeline/types.js";
+
 export const CODEX_REASONING_EFFORT_VALUES = ["low", "medium", "high", "xhigh"] as const;
 export type CodexReasoningEffort = (typeof CODEX_REASONING_EFFORT_VALUES)[number];
 
@@ -5,11 +7,8 @@ export interface DetoksConfig {
   version: string;
   lastUpdated: string;
   adapter: {
-    selected: "codex" | "gemini";
-    models: {
-      codex: string | undefined;
-      gemini: string | undefined;
-    };
+    selected: Adapter;
+    models: Record<Adapter, string | undefined>;
     codexReasoningEffort?: CodexReasoningEffort;
   };
   translation: {
@@ -25,6 +24,7 @@ export const DEFAULT_CONFIG: DetoksConfig = {
     models: {
       codex: undefined,
       gemini: undefined,
+      "claude": undefined,
     },
   },
   translation: {

@@ -1,6 +1,7 @@
+import type { Adapter } from "../../core/pipeline/types.js";
 import { loadConfig, getAdapterModel, getTranslationModel } from "./config-manager.js";
 
-export const applyConfigToEnv = (adapter: "codex" | "gemini"): void => {
+export const applyConfigToEnv = (adapter: Adapter): void => {
   const config = loadConfig();
 
   // CLI adapter에 해당하는 모델만 로드
@@ -18,6 +19,6 @@ export const applyConfigToEnv = (adapter: "codex" | "gemini"): void => {
   }
 };
 
-export const loadAndApplyConfig = (adapter: "codex" | "gemini"): void => {
+export const loadAndApplyConfig = (adapter: Adapter): void => {
   applyConfigToEnv(adapter);
 };

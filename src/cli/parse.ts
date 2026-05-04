@@ -8,6 +8,7 @@ import {
 } from "./types.js";
 
 const DEFAULT_ADAPTER = "codex";
+const ADAPTER_HELP = "codex|gemini|claude";
 const DEFAULT_EXECUTION_MODE = "real";
 const MAIN_HELP_HINT = "사용법은 `detoks --help`를 확인하세요.";
 const topicHelpHint = (topic: string): string => `사용법은 \`${topic}\`를 확인하세요.`;
@@ -29,7 +30,7 @@ const SESSION_SHOW_VERBOSE_HELP =
 const CLI_USAGE_MAIN = [
   "사용법:",
   "  detoks                         인자 없이 실행하면 대화형 REPL로 진입합니다",
-  "  detoks repl [--adapter codex|gemini] [--execution-mode stub|real] [--session <id>] [--verbose]",
+  `  detoks repl [--adapter ${ADAPTER_HELP}] [--execution-mode stub|real] [--session <id>] [--verbose]`,
   "  detoks --file <path> [--verbose]",
   "  detoks session list [--human]",
   "  detoks session show <session-id> [--human]",
@@ -61,7 +62,7 @@ const CLI_USAGE_MAIN = [
   "  detoks checkpoint restore session_2026_04_27_checkpoint_001",
   "",
   "옵션:",
-  "  --adapter codex|gemini        대상 어댑터(기본값: codex)",
+  `  --adapter ${ADAPTER_HELP}        대상 어댑터(기본값: codex)`,
   "  --execution-mode stub|real    실행 모드(기본값: real)",
   "  --file <path>                 JSON 파일로 일괄 프롬프트 컴파일을 실행합니다",
   SESSION_FLAG_HELP,
@@ -235,7 +236,7 @@ const CLI_USAGE_CHECKPOINT_RESTORE = [
 
 const CLI_USAGE_REPL = [
   "사용법:",
-  "  detoks repl [--adapter codex|gemini] [--execution-mode stub|real] [--session <id>] [--verbose]",
+  `  detoks repl [--adapter ${ADAPTER_HELP}] [--execution-mode stub|real] [--session <id>] [--verbose]`,
   "  detoks repl --help",
   "",
   "예시:",
@@ -248,7 +249,7 @@ const CLI_USAGE_REPL = [
   "  - execution-mode는 프롬프트를 모의 실행으로 할지 실제 실행으로 할지 결정합니다",
   "",
   "옵션:",
-  "  --adapter codex|gemini        대상 어댑터(기본값: codex)",
+  `  --adapter ${ADAPTER_HELP}        대상 어댑터(기본값: codex)`,
   "  --execution-mode stub|real    실행 모드(기본값: real)",
   SESSION_FLAG_HELP,
   EXECUTION_MODE_HELP,
@@ -338,10 +339,10 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
     if (current === "--adapter") {
       const next = argv[i + 1];
       if (!next) {
-        throw new Error(`--adapter에는 codex|gemini 값이 필요합니다. ${MAIN_HELP_HINT}`);
+        throw new Error(`--adapter에는 ${ADAPTER_HELP} 값이 필요합니다. ${MAIN_HELP_HINT}`);
       }
       if (!isAdapter(next)) {
-        throw new Error(`지원하지 않는 adapter: ${next}. codex 또는 gemini를 사용하세요.`);
+        throw new Error(`지원하지 않는 adapter: ${next}. codex, gemini, 또는 claude를 사용하세요.`);
       }
       adapter = next;
       i += 1;
@@ -351,7 +352,7 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
     if (current.startsWith("--adapter=")) {
       const inline = current.split("=")[1] ?? "";
       if (!isAdapter(inline)) {
-        throw new Error(`지원하지 않는 adapter: ${inline}. codex 또는 gemini를 사용하세요.`);
+        throw new Error(`지원하지 않는 adapter: ${inline}. codex, gemini, 또는 claude를 사용하세요.`);
       }
       adapter = inline;
       continue;

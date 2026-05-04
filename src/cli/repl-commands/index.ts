@@ -2,8 +2,10 @@ import { stdout as output } from "node:process";
 import { createInterface } from "node:readline/promises";
 import { join } from "node:path";
 import { homedir } from "node:os";
+import type { Adapter } from "../../core/pipeline/types.js";
 import { colors } from "../colors.js";
 import {
+  claudeLogout,
   getAdapterStatus,
   getAdapterModels,
   codexLogout,
@@ -55,7 +57,7 @@ const BASE_COMMANDS: SlashCommand[] = [
   {
     name: "adapter",
     aliases: ["a"],
-    description: "현재 설정된 어댑터 확인 (codex/gemini)",
+    description: "현재 설정된 어댑터 확인 (codex/gemini/claude)",
     usage: "/adapter",
   },
   {
@@ -79,7 +81,7 @@ const BASE_COMMANDS: SlashCommand[] = [
 ];
 
 const getAuthenticatedCommands = (
-  adapter: "codex" | "gemini",
+  adapter: Adapter,
 ): SlashCommand[] => {
   if (adapter === "codex") {
     return [
@@ -96,7 +98,9 @@ const getAuthenticatedCommands = (
         usage: "/logout",
       },
     ];
-  } else {
+  }
+
+  if (adapter === "gemini") {
     return [
       {
         name: "gemini-models",
@@ -112,15 +116,24 @@ const getAuthenticatedCommands = (
       },
     ];
   }
+
+  return [
+    {
+      name: "logout",
+      aliases: ["out"],
+      description: "현재 어댑터에서 로그아웃",
+      usage: "/logout",
+    },
+  ];
 };
 
-const isAuthenticated = (adapter: "codex" | "gemini"): boolean => {
+const isAuthenticated = (adapter: Adapter): boolean => {
   const status = getAdapterStatus(adapter);
   return status.authenticated;
 };
 
 export const getActiveSlashCommands = (
-  adapter: "codex" | "gemini",
+  adapter: Adapter,
 ): SlashCommand[] => {
   const authCommands = isAuthenticated(adapter)
     ? getAuthenticatedCommands(adapter)
@@ -130,7 +143,7 @@ export const getActiveSlashCommands = (
 
 export const getSlashCommand = (
   input: string,
-  adapter: "codex" | "gemini",
+  adapter: Adapter,
 ): SlashCommand | null => {
   if (!input.startsWith("/")) return null;
 
@@ -147,12 +160,18 @@ export const getSlashCommand = (
 
 export const isSlashCommand = (
   input: string,
-  adapter: "codex" | "gemini",
+  adapter: Adapter,
 ): boolean => {
   return input.startsWith("/") && getSlashCommand(input, adapter) !== null;
 };
 
-export const showHelpMessage = (adapter: "codex" | "gemini"): void => {
+const getLoginHint = (adapter: Adapter): string =>
+  adapter === "claude" ? "claude auth login" : `${adapter} login`;
+
+const getLogoutHint = (adapter: Adapter): string =>
+  adapter === "claude" ? "claude auth logout" : `${adapter} logout`;
+
+export const showHelpMessage = (adapter: Adapter): void => {
   output.write(`\n${colors.title("사용 가능한 명령어\n")}`);
 
   const activeCommands = getActiveSlashCommands(adapter);
@@ -181,7 +200,7 @@ export const showHelpMessage = (adapter: "codex" | "gemini"): void => {
     );
     output.write(
       colors.muted(
-        `   외부에서 '${adapter} login' 명령어를 실행한 후 사용하세요.\n`,
+        `   외부에서 '${getLoginHint(adapter)}' 명령어를 실행한 후 사용하세요.\n`,
       ),
     );
   } else {
@@ -206,13 +225,13 @@ export const handleSlashCommand = async (
     modelName: string | undefined;
     verbose: boolean;
     onVerboseToggle: (enabled: boolean) => void;
-    onAdapterChange: (newAdapter: "codex" | "gemini") => Promise<void>;
+    onAdapterChange: (newAdapter: Adapter) => Promise<void>;
     onExit: () => Promise<void>;
     onInteractiveStart?: () => void;
     onInteractiveEnd?: () => void;
   },
 ): Promise<boolean> => {
-  const adapter = state.adapter as "codex" | "gemini";
+  const adapter = state.adapter as Adapter;
   const selectStreams: SelectWithArrowsStreams = {
     ...(state.onInteractiveStart ? { onOpen: state.onInteractiveStart } : {}),
     ...(state.onInteractiveEnd ? { onClose: state.onInteractiveEnd } : {}),
@@ -444,10 +463,15 @@ const handleGeminiModels = async (streams?: SelectWithArrowsStreams): Promise<bo
   return true;
 };
 
-const handleLogout = async (adapter: "codex" | "gemini"): Promise<boolean> => {
+const handleLogout = async (adapter: Adapter): Promise<boolean> => {
   output.write(`\n${colors.title(`${adapter.toUpperCase()} 로그아웃\n`)}`);
 
-  const success = adapter === "codex" ? codexLogout() : geminiLogout();
+  const success =
+    adapter === "codex"
+      ? codexLogout()
+      : adapter === "gemini"
+        ? geminiLogout()
+        : claudeLogout();
 
   if (success) {
     output.write(
@@ -456,7 +480,7 @@ const handleLogout = async (adapter: "codex" | "gemini"): Promise<boolean> => {
   } else {
     output.write(
       colors.error(
-        `✗ 로그아웃 실패. 외부에서 '${adapter} logout' 명령어를 실행해주세요.\n\n`,
+        `✗ 로그아웃 실패. 외부에서 '${getLogoutHint(adapter)}' 명령어를 실행해주세요.\n\n`,
       ),
     );
   }
@@ -581,13 +605,13 @@ const handleTranslationModel = async (streams?: SelectWithArrowsStreams): Promis
 };
 
 const handleAdapterSwitch = async (
-  currentAdapter: "codex" | "gemini",
-  onAdapterChange: (newAdapter: "codex" | "gemini") => Promise<void>,
+  currentAdapter: Adapter,
+  onAdapterChange: (newAdapter: Adapter) => Promise<void>,
   streams?: SelectWithArrowsStreams,
 ): Promise<boolean> => {
   output.write(`\n${colors.title("어댑터 선택")}\n\n`);
 
-  const adapters = ["codex", "gemini"] as const;
+  const adapters: Adapter[] = ["codex", "gemini", "claude"];
   const options = adapters.map((a) => {
     const status = getAdapterStatus(a);
     const statusStr = status.authenticated
@@ -605,7 +629,7 @@ const handleAdapterSwitch = async (
     return true;
   }
 
-  const newAdapter = selected as "codex" | "gemini";
+  const newAdapter = selected as Adapter;
 
   if (newAdapter === currentAdapter) {
     output.write(colors.info(`\n현재 어댑터: ${currentAdapter}\n\n`));
@@ -625,7 +649,7 @@ const handleAdapterSwitch = async (
         `다른 터미널에서 다음 명령을 실행한 후 다시 시도하세요:\n`,
       ),
     );
-    output.write(colors.info(`  ${newAdapter} login\n\n`));
+    output.write(colors.info(`  ${getLoginHint(newAdapter)}\n\n`));
     return true;
   }
 

@@ -20,19 +20,33 @@ describe("parseCliArgs", () => {
     const parsed = parseCliArgs([
       "repl",
       "--adapter",
-      "gemini",
+      "claude",
       "--execution-mode",
       "real",
       "--verbose",
     ]);
     expect(parsed).toEqual({
       mode: "repl",
-      adapter: "gemini",
+      adapter: "claude",
       executionMode: "real",
       verbose: true,
       trace: false,
       showHelp: false,
       helpTopic: "repl",
+    });
+  });
+
+  it("accepts claude as a direct adapter flag", () => {
+    const parsed = parseCliArgs(["--adapter", "claude", "hello detoks"]);
+    expect(parsed).toMatchObject({
+      mode: "run",
+      prompt: "hello detoks",
+      adapter: "claude",
+      executionMode: "real",
+      verbose: false,
+      trace: false,
+      showHelp: false,
+      helpTopic: "main",
     });
   });
 
@@ -331,7 +345,9 @@ describe("parseCliArgs", () => {
     expect(usage).toContain("예시:");
     expect(usage).toContain("detoks");
     expect(usage).toContain("detoks                         인자 없이 실행하면 대화형 REPL로 진입합니다");
-    expect(usage).toContain("detoks repl [--adapter codex|gemini] [--execution-mode stub|real] [--session <id>] [--verbose]");
+    expect(usage).toContain(
+      "detoks repl [--adapter codex|gemini|claude] [--execution-mode stub|real] [--session <id>] [--verbose]",
+    );
     expect(usage).toContain("detoks --file tests/data/row_data.json --verbose");
     expect(usage).toContain("--file <path>");
     expect(usage).toContain("detoks repl --adapter codex --execution-mode stub");

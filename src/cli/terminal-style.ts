@@ -1,3 +1,5 @@
+import type { Adapter } from "../core/pipeline/types.js";
+
 const ANSI = {
   reset: "\x1b[0m",
   bold: "\x1b[1m",
@@ -14,7 +16,7 @@ export interface TerminalStyleOptions {
   env: NodeJS.ProcessEnv;
 }
 
-type AdapterName = "codex" | "gemini";
+type AdapterName = Adapter;
 
 export const shouldUseTerminalColor = ({ isTTY, env }: TerminalStyleOptions): boolean => {
   if (!isTTY) {
@@ -42,7 +44,11 @@ const wrap = (enabled: boolean, text: string, ...codes: string[]): string =>
 export const createTerminalStyle = (options: TerminalStyleOptions) => {
   const enabled = shouldUseTerminalColor(options);
   const adapterAccent = (adapter: AdapterName): string =>
-    adapter === "gemini" ? ANSI.magenta : ANSI.cyan;
+    adapter === "gemini"
+      ? ANSI.magenta
+      : adapter === "claude"
+        ? ANSI.yellow
+        : ANSI.cyan;
 
   return {
     enabled,

@@ -2,6 +2,7 @@ import type { Adapter } from "../pipeline/types.js";
 import type { ExecutorRequest, ExecutorResult } from "./types.js";
 import type { CliAdapter } from "../../integrations/adapters/interface.js";
 import { CodexStubAdapter } from "../../integrations/adapters/codex/adapter.js";
+import { ClaudeStubAdapter } from "../../integrations/adapters/claude/adapter.js";
 import { GeminiStubAdapter } from "../../integrations/adapters/gemini/adapter.js";
 import {
   createRealSubprocessRunner,
@@ -11,6 +12,7 @@ import {
 const adapterRegistry: Record<Adapter, CliAdapter> = {
   codex: new CodexStubAdapter(),
   gemini: new GeminiStubAdapter(),
+  "claude": new ClaudeStubAdapter(),
 };
 
 export const getAdapter = (adapter: Adapter): CliAdapter => adapterRegistry[adapter];

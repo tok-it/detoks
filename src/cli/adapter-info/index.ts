@@ -1,3 +1,10 @@
+import type { Adapter } from "../../core/pipeline/types.js";
+import { getAdapterModel } from "../config/config-manager.js";
+import {
+  getClaudeLoginStatus,
+  getClaudeAvailableModels,
+  claudeLogout,
+} from "./claude.js";
 import {
   getCodexLoginStatus,
   getCodexAvailableModels,
@@ -27,37 +34,54 @@ export interface AdapterModel {
 }
 
 export const getAdapterStatus = (
-  adapter: "codex" | "gemini",
+  adapter: Adapter,
 ): AdapterStatus => {
+  const currentModel = getAdapterModel(adapter);
+
   if (adapter === "codex") {
     const status = getCodexLoginStatus();
     return {
       authenticated: status.authenticated,
       account: status.account,
       authType: undefined,
-      currentModel: undefined,
+      currentModel,
     };
-  } else {
+  }
+
+  if (adapter === "gemini") {
     const status = getGeminiLoginStatus();
     const config = getGeminiConfig();
     return {
       authenticated: status.authenticated,
       account: undefined,
       authType: status.authType,
-      currentModel: config.currentModel,
+      currentModel: config.currentModel ?? currentModel,
     };
   }
+
+  const status = getClaudeLoginStatus();
+  return {
+    authenticated: status.authenticated,
+    account: undefined,
+    authType: status.authType,
+    currentModel,
+  };
 };
 
 export const getAdapterModels = (
-  adapter: "codex" | "gemini",
+  adapter: Adapter,
 ): AdapterModel[] => {
   if (adapter === "codex") {
     return getCodexAvailableModels();
-  } else {
+  }
+
+  if (adapter === "gemini") {
     return getGeminiAvailableModels();
   }
+
+  return getClaudeAvailableModels();
 };
 
 export { getCodexLoginStatus, getCodexAvailableModels, codexLogout };
 export { getGeminiLoginStatus, getGeminiAvailableModels, getGeminiConfig, geminiLogout };
+export { getClaudeLoginStatus, getClaudeAvailableModels, claudeLogout };
