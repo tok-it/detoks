@@ -210,7 +210,7 @@ type ExecutionContext = {
 type ExecutionRequest = {
 	task_id: string;
 	prompt: string;
-	target: "codex" | "gemini";
+	target: "codex" | "gemini" | "claude";
 	context: ExecutionContext;
 	timeout_ms?: number;
 };
