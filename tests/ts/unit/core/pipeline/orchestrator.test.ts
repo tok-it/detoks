@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { orchestratePipeline } from "../../../../../src/core/pipeline/orchestrator.js";
 import { executeWithAdapter } from "../../../../../src/core/executor/execute.js";
 import { SessionStateManager } from "../../../../../src/core/state/SessionStateManager.js";
+import { PipelineTracer } from "../../../../../src/core/utils/PipelineTracer.js";
 
 vi.mock("../../../../../src/core/executor/execute.js", async () => {
   const actual = await vi.importActual<typeof import("../../../../../src/core/executor/execute.js")>(
@@ -30,6 +31,11 @@ describe("orchestratePipeline", () => {
   });
 
   it("executes task graph and returns structured result", async () => {
+    vi.spyOn(SessionStateManager, "sessionExists").mockResolvedValue(false);
+    const saveSessionSpy = vi
+      .spyOn(SessionStateManager, "saveSession")
+      .mockResolvedValue(undefined);
+
     const result = await orchestratePipeline({
       mode: "run",
       adapter: "codex",
@@ -58,6 +64,19 @@ describe("orchestratePipeline", () => {
     expect(result.promptRepairActions).toEqual([]);
     expect(result.tokenMetrics).not.toBeNull();
     expect(result.tokenMetrics?.model).toBe("o200k_base");
+
+    const savedState = saveSessionSpy.mock.calls.at(-1)?.[0] as any;
+    const savedTaskResult = Object.values(savedState?.task_results ?? {})[0] as any;
+    expect(savedTaskResult?.type).toBeTypeOf("string");
+
+    const executionOutputs = PipelineTracer.getTrace(result.sessionId).entries.filter(
+      (entry) => entry.dataType === "ExecutionResult" && entry.phase === "output",
+    ) as Array<{ data: any }>;
+    expect(executionOutputs).toHaveLength(1);
+    expect(executionOutputs[0]?.data).toMatchObject({
+      success: true,
+      type: expect.any(String),
+    });
   });
 
   it("passes execution mode through to the executor boundary", async () => {
@@ -373,5 +392,54 @@ describe("orchestratePipeline", () => {
       { taskId: "t1", status: "completed", rawOutput: "[mock-retry] t1" },
       { taskId: "t2", status: "completed", rawOutput: "[mock-retry] t2" },
     ]);
+  });
+
+  it("persists task type for failure and dependency skip paths", async () => {
+    vi.spyOn(SessionStateManager, "sessionExists").mockResolvedValue(false);
+    const saveSessionSpy = vi
+      .spyOn(SessionStateManager, "saveSession")
+      .mockResolvedValue(undefined);
+    executeWithAdapterMock.mockResolvedValueOnce({
+      ok: false,
+      adapter: "codex",
+      rawOutput: "[mock-fail] t1",
+      exitCode: 1,
+    });
+
+    const result = await orchestratePipeline({
+      mode: "run",
+      adapter: "codex",
+      executionMode: "stub",
+      verbose: false,
+      userRequest: {
+        raw_input: "Find the auth module. Test the auth module.",
+      },
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.taskRecords).toEqual([
+      { taskId: "t1", status: "failed", rawOutput: "[mock-fail] t1" },
+      { taskId: "t2", status: "skipped", rawOutput: "", blockedBy: "t1" },
+    ]);
+
+    const savedState = saveSessionSpy.mock.calls.at(-1)?.[0] as any;
+    expect(savedState?.task_results?.t1?.type).toBeTypeOf("string");
+    expect(savedState?.task_results?.t2?.type).toBeTypeOf("string");
+    expect(savedState?.task_results?.t1?.success).toBe(false);
+    expect(savedState?.task_results?.t2?.success).toBe(false);
+    expect(savedState?.task_results?.t2?.raw_output).toContain("의존성 [t1] 실패로 건너뜀");
+
+    const executionOutputs = PipelineTracer.getTrace(result.sessionId).entries.filter(
+      (entry) => entry.dataType === "ExecutionResult" && entry.phase === "output",
+    ) as Array<{ data: any }>;
+    expect(executionOutputs).toHaveLength(2);
+    expect(executionOutputs[0]?.data).toMatchObject({
+      success: false,
+      type: expect.any(String),
+    });
+    expect(executionOutputs[1]?.data).toMatchObject({
+      success: false,
+      type: expect.any(String),
+    });
   });
 });

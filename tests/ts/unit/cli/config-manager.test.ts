@@ -4,7 +4,10 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import {
   getCodexReasoningEffortOverride,
+  getLastSeenReleaseVersion,
+  hasConfigFile,
   updateCodexReasoningEffort,
+  updateLastSeenReleaseVersion,
 } from "../../../../src/cli/config/config-manager.js";
 
 const tempDirs: string[] = [];
@@ -46,5 +49,26 @@ describe("codex reasoning effort config", () => {
     expect(JSON.parse(readFileSync(configPath, "utf8"))).not.toHaveProperty(
       "adapter.codexReasoningEffort",
     );
+  });
+});
+
+describe("release notice config", () => {
+  it("saves and loads the last seen release version", () => {
+    const home = createTempHome();
+    vi.stubEnv("HOME", home);
+
+    expect(hasConfigFile()).toBe(false);
+    expect(getLastSeenReleaseVersion()).toBeUndefined();
+
+    updateLastSeenReleaseVersion("0.1.0");
+    expect(hasConfigFile()).toBe(true);
+    expect(getLastSeenReleaseVersion()).toBe("0.1.0");
+
+    const configPath = join(home, ".detoks", "settings.json");
+    expect(JSON.parse(readFileSync(configPath, "utf8"))).toMatchObject({
+      runtime: {
+        lastSeenReleaseVersion: "0.1.0",
+      },
+    });
   });
 });

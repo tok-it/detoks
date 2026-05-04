@@ -6,6 +6,9 @@ export type CodexReasoningEffort = (typeof CODEX_REASONING_EFFORT_VALUES)[number
 export interface DetoksConfig {
   version: string;
   lastUpdated: string;
+  runtime?: {
+    lastSeenReleaseVersion?: string;
+  };
   adapter: {
     selected: Adapter;
     models: Record<Adapter, string | undefined>;
