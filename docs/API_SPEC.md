@@ -528,7 +528,7 @@ The Executor triggers the target LLM CLI or a system adapter.
 type ExecuteRequest = {
   prompt: string;
   context?: Record<string, unknown>;
-  target: "codex" | "gemini";
+  target: "codex" | "gemini" | "claude";
   cwd?: string;
   timeout_ms?: number;
 };
@@ -635,7 +635,7 @@ Adapters abstract differences between target CLIs.
 
 ```ts
 type CliAdapter = {
-  name: "codex" | "gemini";
+  name: "codex" | "gemini" | "claude";
   buildCommand(input: ExecuteRequest): {
     command: string;
     args: string[];
