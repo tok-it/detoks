@@ -115,8 +115,10 @@ export const renderInputArea = (ctx: RenderContext, input: string): void => {
   screen.cursorMoveTo(inputRow, 1);
   screen.write("│ > " + input + " ".repeat(paddingNeeded) + " │");
 
-  // Cursor position: start at column 4 (after "│ > "), then add display width
-  screen.cursorMoveTo(inputRow, 4 + displayWidth);
+  // Cursor position: "│ " = 2 columns, ">" = 1 column, " " = 1 column (total 4)
+  // So cursor starts at column 4, add display width of input
+  // Note: cursorMoveTo is 0-indexed, so actual terminal column = col + 1
+  screen.cursorMoveTo(inputRow, 3 + displayWidth);
 };
 
 export const renderFooter = (ctx: RenderContext): void => {

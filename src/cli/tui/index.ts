@@ -42,6 +42,7 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
     const resultPanel = new ResultSummaryPanel();
     let hasExecuted = false;
     let lastLayout: any = null;
+    let lastInputChar = "";  // Track last character for IME composition handling
 
     // Build config info lines
     const configLines: string[] = [];
@@ -146,15 +147,17 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
           // Phase 3.2: Execute prompt
           executePrompt(input);
           input = ""; // Clear input for next prompt
+          lastInputChar = "";  // Reset composition tracker
         }
         needsFullRender = true;
       } else if (char === "\x7f" || char === "\b") {
         // Backspace (DEL: 0x7f or Backspace: 0x08)
         // Remove last character by code point, not by byte
-        const charArray = Array.from(input); // Handle multi-byte characters correctly
+        const charArray = Array.from(input);
         if (charArray.length > 0) {
           charArray.pop();
           input = charArray.join("");
+          lastInputChar = "";  // Reset composition tracker
         }
         // Only update input area for backspace
         renderInputOnly();
@@ -169,7 +172,29 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
         needsFullRender = true;
       } else if (char.charCodeAt(0) >= 32 || /[\p{L}\p{N}\p{P}\p{Z}]/u.test(char)) {
         // Accept printable ASCII (>= 32) or any Unicode letter/number/punctuation/space
-        input += char;
+
+        // Handle IME composition for Korean/CJK characters
+        // When composing (e.g., ㄱ→ㄱㅏ→가), multiple chunks arrive
+        // We need to replace the last character instead of appending
+        const isKoreanChar = /[가-힯ᄀ-ᇿ]/.test(char);  // Hangul Syllables or Jamo
+        const lastCharIsKorean = /[가-힯ᄀ-ᇿ]/.test(lastInputChar);
+
+        if (isKoreanChar && lastCharIsKorean && lastInputChar) {
+          // This is likely IME composition in progress
+          // Replace the last character instead of appending
+          const charArray = Array.from(input);
+          if (charArray.length > 0) {
+            charArray[charArray.length - 1] = char;
+            input = charArray.join("");
+          } else {
+            input = char;
+          }
+        } else {
+          // Normal character or first character of composition
+          input += char;
+        }
+
+        lastInputChar = char;  // Track for next input
         // Only update input area for normal character input (faster response)
         renderInputOnly();
         return;
