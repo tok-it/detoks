@@ -31,13 +31,13 @@ export const renderScreenBorder = (ctx: RenderContext): void => {
 export const renderHeader = (ctx: RenderContext, title: string): void => {
   const { screen, dims } = ctx;
 
-  screen.cursorMoveTo(0, 1);
+  screen.cursorMoveTo(0, 0);
   screen.write("├" + "─".repeat(dims.columns - 2) + "┤");
 
-  screen.cursorMoveTo(1, 1);
+  screen.cursorMoveTo(1, 0);
   screen.write("│ " + title.padEnd(dims.columns - 4) + " │");
 
-  screen.cursorMoveTo(2, 1);
+  screen.cursorMoveTo(2, 0);
   screen.write("├" + "─".repeat(dims.columns - 2) + "┤");
 };
 
@@ -51,7 +51,7 @@ export const renderConfigInfo = (
 
   for (const line of configLines) {
     if (currentRow < dims.rows - 3) {
-      screen.cursorMoveTo(currentRow, 1);
+      screen.cursorMoveTo(currentRow, 0);
       const displayLine = line.length > dims.columns - 4
         ? line.slice(0, dims.columns - 7) + "..."
         : line.padEnd(dims.columns - 4);
@@ -73,7 +73,7 @@ export const renderStatusPanel = (
 
   status.forEach((line) => {
     if (currentRow < dims.rows - 3) {
-      screen.cursorMoveTo(currentRow, 1);
+      screen.cursorMoveTo(currentRow, 0);
       screen.write("│ " + line.padEnd(dims.columns - 4) + " │");
       currentRow += 1;
     }
@@ -109,16 +109,17 @@ export const renderInputArea = (ctx: RenderContext, input: string): void => {
   const maxInputWidth = dims.columns - 5;
   const paddingNeeded = Math.max(0, maxInputWidth - displayWidth);
 
-  screen.cursorMoveTo(inputRow - 1, 1);
+  screen.cursorMoveTo(inputRow - 1, 0);
   screen.write("├" + "─".repeat(dims.columns - 2) + "┤");
 
-  screen.cursorMoveTo(inputRow, 1);
+  screen.cursorMoveTo(inputRow, 0);
   screen.write("│ > " + input + " ".repeat(paddingNeeded) + " │");
 
-  // Cursor position: "│ " = 2 columns, ">" = 1 column, " " = 1 column (total 4)
-  // So cursor starts at column 4, add display width of input
-  // Note: cursorMoveTo is 0-indexed, so actual terminal column = col + 1
-  screen.cursorMoveTo(inputRow, 3 + displayWidth);
+  // Cursor position after "│ > " (4 characters)
+  // Format: col 0: │, col 1: space, col 2: >, col 3: space, col 4+: input
+  // CJK chars occupy 2 terminal columns but count as 1 character
+  // Cursor should be at col 4 + displayWidth
+  screen.cursorMoveTo(inputRow, 4 + displayWidth);
 };
 
 export const renderFooter = (ctx: RenderContext): void => {
@@ -126,9 +127,9 @@ export const renderFooter = (ctx: RenderContext): void => {
   const helpText = "[q: quit, ctrl+c: exit]";
   const padding = Math.floor((dims.columns - helpText.length - 2) / 2);
 
-  screen.cursorMoveTo(dims.rows - 2, 1);
+  screen.cursorMoveTo(dims.rows - 2, 0);
   screen.write("├" + "─".repeat(dims.columns - 2) + "┤");
 
-  screen.cursorMoveTo(dims.rows - 2, 1);
+  screen.cursorMoveTo(dims.rows - 2, 0);
   screen.write("│" + " ".repeat(padding) + helpText.padEnd(dims.columns - 2 - padding) + "│");
 };
