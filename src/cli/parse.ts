@@ -236,23 +236,28 @@ const CLI_USAGE_CHECKPOINT_RESTORE = [
 
 const CLI_USAGE_REPL = [
   "사용법:",
-  `  detoks repl [--adapter ${ADAPTER_HELP}] [--execution-mode stub|real] [--session <id>] [--verbose]`,
+  `  detoks repl [--adapter ${ADAPTER_HELP}] [--execution-mode stub|real] [--session <id>] [--tui|--no-tui] [--verbose]`,
   "  detoks repl --help",
   "",
   "예시:",
   "  detoks repl --adapter codex --execution-mode stub",
+  "  detoks repl --tui",
+  "  detoks repl --no-tui",
   "",
   "REPL 참고:",
   "  - 프롬프트를 입력하고 Enter를 누르면 실행됩니다",
   "  - exit, quit, .exit 중 하나를 입력하면 REPL을 종료합니다",
   "  - 각 프롬프트는 별도의 작업 단위로 실행됩니다",
   "  - execution-mode는 프롬프트를 모의 실행으로 할지 실제 실행으로 할지 결정합니다",
+  "  - interactive TTY에서는 기본적으로 TUI를 사용합니다. --no-tui로 legacy text REPL로 전환할 수 있습니다",
   "",
   "옵션:",
   `  --adapter ${ADAPTER_HELP}        대상 어댑터(기본값: codex)`,
   "  --execution-mode stub|real    실행 모드(기본값: real)",
   SESSION_FLAG_HELP,
   EXECUTION_MODE_HELP,
+  "  --tui                         TUI 모드를 강제(TTY 자동 감지 무시)",
+  "  --no-tui                      legacy text REPL로 전환",
   VERBOSE_HELP,
   "  -h, --help                    이 도움말을 표시합니다",
 ].join("\n");
@@ -280,6 +285,7 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
   let human = false;
   let verbose = false;
   let trace = false;
+  let tui: CliArgs["tui"] = undefined;
 
   for (let i = 0; i < argv.length; i += 1) {
     const current = argv[i];
@@ -299,6 +305,16 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
 
     if (current === "--human") {
       human = true;
+      continue;
+    }
+
+    if (current === "--tui") {
+      tui = "force";
+      continue;
+    }
+
+    if (current === "--no-tui") {
+      tui = "disabled";
       continue;
     }
 
@@ -624,7 +640,16 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
         `REPL 모드는 프롬프트 인수를 받지 않습니다. ${topicHelpHint("detoks repl --help")}`,
       );
     }
-    return { mode: "repl", adapter, executionMode, verbose, trace, showHelp: false, helpTopic: "repl" };
+    return {
+      mode: "repl",
+      adapter,
+      executionMode,
+      verbose,
+      trace,
+      ...(tui ? { tui } : {}),
+      showHelp: false,
+      helpTopic: "repl",
+    };
   }
 
   if (inputFile) {

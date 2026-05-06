@@ -14,6 +14,11 @@ import { loadAndApplyConfig } from "../config/loader.js";
 import { updateSelectedAdapter } from "../config/config-manager.js";
 import { startSpinner } from "../terminal-spinner.js";
 
+interface ReplModeResolution {
+  useTui: boolean;
+  reason: string;
+}
+
 const EXIT_COMMANDS = new Set(["exit", "quit", ".exit"]);
 const EXIT_BUILTIN_COMMANDS = new Set(["exit", "quit", ".exit", "/exit", "/quit"]);
 const LOGIN_MENU_OPTIONS = ["codex", "gemini", "claude"] as const;
@@ -407,11 +412,51 @@ export const resolveReplSessionId = async ({
   return allocateSessionId();
 };
 
+const resolveReplMode = (args: CliArgs): ReplModeResolution => {
+  // Explicit --tui flag: force TUI
+  if (args.tui === "force") {
+    return { useTui: true, reason: "명시적 --tui 플래그" };
+  }
+
+  // Explicit --no-tui flag: disable TUI
+  if (args.tui === "disabled") {
+    return { useTui: false, reason: "명시적 --no-tui 플래그" };
+  }
+
+  // Auto-detect: use TUI if interactive TTY
+  const isInteractiveTty =
+    output.isTTY && process.stdin.isTTY && !process.env.CI;
+
+  if (isInteractiveTty) {
+    return { useTui: true, reason: "interactive TTY 감지됨" };
+  }
+
+  return { useTui: false, reason: "non-TTY/CI 환경" };
+};
+
 export const runReplCommand = async (baseArgs: CliArgs): Promise<void> => {
   // 저장된 설정 로드 및 환경변수 적용 (CLI adapter에 맞는 모델만 로드)
   loadAndApplyConfig(baseArgs.adapter);
 
   await runModelSetupIfNeeded();
+
+  // TUI 모드 판정
+  const replMode = resolveReplMode(baseArgs);
+
+  // TUI 모드인 경우: 차후 TUI 구현과 연결 (현재는 스텁)
+  if (replMode.useTui) {
+    output.write(
+      colors.info(
+        `\nTUI 모드가 활성화됨 (${replMode.reason})\n`,
+      ),
+    );
+    output.write(
+      colors.warning(
+        "주의: TUI 셸 구현은 아직 진행 중입니다. legacy text REPL로 실행됩니다.\n\n",
+      ),
+    );
+    // TODO: runTuiRepl(baseArgs) 호출
+  }
 
   const rl = createInterface({ input, output });
   const sessionId = `repl-${Date.now()}`;

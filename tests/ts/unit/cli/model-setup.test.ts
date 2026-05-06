@@ -33,7 +33,9 @@ const setTTY = (stdin: boolean, stdout: boolean): void => {
 };
 
 const cleanupTTY = (): void => {
+  // @ts-ignore - delete operator works at runtime even if TypeScript complains
   delete (process.stdin as NodeJS.ReadStream & { isTTY?: boolean }).isTTY;
+  // @ts-ignore - delete operator works at runtime even if TypeScript complains
   delete (process.stdout as NodeJS.WriteStream & { isTTY?: boolean }).isTTY;
 };
 
