@@ -174,20 +174,26 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
         // Accept printable ASCII (>= 32) or any Unicode letter/number/punctuation/space
 
         // Handle IME composition for Korean/CJK characters
-        // When composing (e.g., ㄱ→ㄱㅏ→가), multiple chunks arrive
-        // We need to replace the last character instead of appending
+        // When composing (e.g., ㄱ→ㄱㅏ→가), multiple chunks arrive sequentially
+        // We replace the last character only if it's still being composed
         const isKoreanChar = /[가-힯ᄀ-ᇿ]/.test(char);  // Hangul Syllables or Jamo
         const lastCharIsKorean = /[가-힯ᄀ-ᇿ]/.test(lastInputChar);
 
-        if (isKoreanChar && lastCharIsKorean && lastInputChar) {
-          // This is likely IME composition in progress
-          // Replace the last character instead of appending
-          const charArray = Array.from(input);
-          if (charArray.length > 0) {
-            charArray[charArray.length - 1] = char;
-            input = charArray.join("");
+        if (isKoreanChar && lastCharIsKorean && input.length > 0) {
+          // Check if the last character in input matches the last received character
+          // This indicates we're still composing the same character
+          const inputArray = Array.from(input);
+          const lastInputStringChar = inputArray[inputArray.length - 1];
+
+          if (lastInputStringChar === lastInputChar) {
+            // Last character in input matches last received chunk - still composing
+            // Replace it with the new composition state
+            inputArray[inputArray.length - 1] = char;
+            input = inputArray.join("");
           } else {
-            input = char;
+            // Last received chunk is different from what's in input
+            // This is a new character starting, not a composition update
+            input += char;
           }
         } else {
           // Normal character or first character of composition
