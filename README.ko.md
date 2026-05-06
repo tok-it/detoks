@@ -1,36 +1,11 @@
 # detoks
 
-detoks는 LLM CLI(codex, gemini, claude 등) 앞단에서 동작하는 **interactive wrapper shell**로,
-입력·출력·세션을 최적화하여 **토큰 사용을 줄이고 개발 효율을 극대화**하는 시스템입니다.
+<p align="right">
+  <a href="./README.md">Language</a> | <a href="./README.en.md">English</a>
+</p>
 
----
-
-## 🔔 업데이트 안내
-
-`claude` 어댑터가 포함된 새 버전을 사용하려면, 설치된 detoks를 최신 릴리스로 업데이트하세요.
-
-- 전역 설치: `npm install -g <npm-package-name>@latest`
-- 전역 업데이트: `npm update -g <npm-package-name>`
-- 로컬 설치: `npm install <npm-package-name>@latest`
-
-새 기능과 변경점은 GitHub Releases 또는 릴리스 노트에서 함께 안내하는 것을 권장합니다.
-
----
-
-## ✅ 유저 실행 요건
-
-detoks는 `codex`, `gemini`, `claude` 같은 LLM CLI 앞단에서 동작하는 **interactive wrapper CLI**입니다.
+detoks는 `codex`, `gemini` 같은 LLM CLI 앞단에서 동작하는 **interactive wrapper CLI**입니다.
 입력, 컨텍스트, 세션, 실행 경계를 정리해 **LLM CLI 작업 흐름을 더 안정적이고 재현 가능하게** 만드는 것이 목표입니다.
-
-## 🔔 업데이트 안내
-
-`claude` 어댑터가 포함된 새 버전을 사용하려면, 설치된 detoks를 최신 릴리스로 업데이트하세요.
-
-- 전역 설치: `npm install -g @sorlros/detoks@latest`
-- 전역 업데이트: `npm update -g @sorlros/detoks`
-- 로컬 설치: `npm install @sorlros/detoks@latest`
-
-새 기능과 변경점은 GitHub Releases 또는 릴리스 노트에서 함께 안내하는 것을 권장합니다.
 
 <p align="center">
   <img src="./content.png" alt="detoks preview" width="720" />
@@ -47,7 +22,7 @@ detoks는 `codex`, `gemini`, `claude` 같은 LLM CLI 앞단에서 동작하는 *
 ## 요구 사항
 
 - Node.js `>=24.15.0 <26`
-- `codex`, `gemini`, 또는 `claude` CLI: 해당 adapter를 사용할 때
+- `codex` 또는 `gemini` CLI: 해당 adapter를 사용할 때
 - 로컬 `llama-server` 사용 시 Python `3.13.x`
 
 자세한 버전 기준은 [STACK_VERSIONS.md](./docs/STACK_VERSIONS.md)와 [LLAMA_CPP_SERVER_SPEC.md](./docs/LLAMA_CPP_SERVER_SPEC.md)를 참고하세요.
@@ -123,4 +98,4 @@ detoks repl --adapter codex --execution-mode stub
 ## Windows 사용
 
 Windows native 실행은 지원하지 않으며, WSL Ubuntu에서 실행합니다.
-자세한 설치/실행 절차는 [README.ko.md](./README.ko.md) 및 [LLAMA_CPP_SERVER_SPEC.md](./docs/LLAMA_CPP_SERVER_SPEC.md)를 참고하세요.
+자세한 설치/실행 절차는 [LLAMA_CPP_SERVER_SPEC.md](./docs/LLAMA_CPP_SERVER_SPEC.md)를 참고하세요.

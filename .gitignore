@@ -1,6 +1,8 @@
-# Root-level documentation (only README.md tracked)
+# Root-level documentation (README.md variants tracked)
 /*.md
 !README.md
+!README.ko.md
+!README.en.md
 !.github/**
 
 # Agent-related
@@ -77,7 +79,6 @@ test_data_role2/*
 !test_data_role2/*.md
 .state/
 etc_doc/
-docs/blog/
 docs/my docs/
 docs/role1/
 stress-sessions/
@@ -93,10 +94,38 @@ scripts/tmux-gemini-workflow.sh
 scripts/create-kanban-card.sh
 scripts/daily-report
 scripts/generate-daily-reports.py
+JetBrainsMono-2.304/
+daily/
+data/
+datasets/validation/
+docs/blog/
+docs/logic/
+docs/DEV-SYNC-ANALYSIS-2026-04-28.md
+generate_pipeline_pptx.js
+extract_slide20.py
+extract_slide20_output.txt
+presentation.html
+presentation_advanced.html
+output.pptx
+*.pptx
+*.zip
+docs/123123/
+docs/CLI_PRESENTATION_OUTLINE.md
+docs/CLI_TOP3_TROUBLESHOOTING.md
+docs/CLI_TROUBLESHOOTING_PRESENTATION.md
+docs/DETOKS_SERVICE_CENTERED_TEMPLATE_SLIDES.md
+docs/DETOKS_SERVICE_CENTERED_TEMPLATE_SLIDES_18_20_22.md
+scripts/todo-compare/
+scripts/todo-compare-tmux/
+slide20-generation/
 
 # OS
 .DS_Store
 Thumbs.db
-tests/ts/integration/
-tests/integration/
 graphify-out
+
+# Test
+test_data_role2
+
+# Docs
+docs/my docs/**
