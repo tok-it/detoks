@@ -1,7 +1,11 @@
 import { stdout, stdin } from "node:process";
 import type { CliArgs } from "../types.js";
 import { createScreenManager } from "./screen-manager.js";
-import { renderScreenBorder, renderHeader, renderStatusPanel, renderInputArea, renderFooter } from "./renderer.js";
+import { renderScreenBorder, renderHeader, renderInputArea, renderFooter } from "./renderer.js";
+import { computeLayout } from "./layout-manager.js";
+import { PipelineStatusPanel } from "./panels/pipeline-status.js";
+import { TranscriptPanel } from "./panels/transcript.js";
+import { ResultSummaryPanel } from "./panels/result-summary.js";
 import { colors } from "../colors.js";
 
 interface TuiRunOptions {
@@ -22,34 +26,28 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
     let input = "";
     let running = true;
 
+    // Initialize panels
+    const pipelinePanel = new PipelineStatusPanel();
+    const transcriptPanel = new TranscriptPanel();
+    const resultPanel = new ResultSummaryPanel();
+
     const render = (): void => {
       const dims = screen.getDimensions();
-      const pipelineStatus = [
-        "파이프라인 상태",
-        "  · Prompt Compiler",
-        "  · Task Graph Builder",
-        "  · Context Optimizer",
-        "  · Executor",
-        "  · State Manager",
-      ];
+      const layout = computeLayout(dims);
+      const ctx = { screen, dims };
 
-      renderScreenBorder({ screen, dims });
-      renderHeader({ screen, dims }, "detoks repl (TUI 모드)");
+      // Render structure
+      renderScreenBorder(ctx);
+      renderHeader(ctx, "detoks repl (TUI 모드)");
 
-      const nextRow = renderStatusPanel({ screen, dims }, pipelineStatus, 3);
-      renderStatusPanel(
-        { screen, dims },
-        [
-          "",
-          "어댑터: " + options.adapter,
-          "실행 모드: " + options.executionMode,
-          "상세 출력: " + (options.verbose ? "ON" : "OFF"),
-        ],
-        nextRow + 1,
-      );
+      // Render panels
+      pipelinePanel.render(ctx, layout.statusPanelRegion);
+      transcriptPanel.render(ctx, layout.transcriptRegion);
+      resultPanel.render(ctx, layout.resultRegion);
 
-      renderInputArea({ screen, dims }, input);
-      renderFooter({ screen, dims });
+      // Render input area
+      renderInputArea(ctx, input);
+      renderFooter(ctx);
     };
 
     // Handle input
@@ -68,6 +66,12 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
       } else if (char === "") {
         // Backspace
         input = input.slice(0, -1);
+      } else if (char === "[A") {
+        // Arrow Up
+        transcriptPanel.scrollUp();
+      } else if (char === "[B") {
+        // Arrow Down
+        transcriptPanel.scrollDown();
       } else if (char.length === 1 && char.charCodeAt(0) >= 32) {
         input += char;
       }
