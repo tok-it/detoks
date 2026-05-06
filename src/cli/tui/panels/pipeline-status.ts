@@ -47,6 +47,16 @@ export class PipelineStatusPanel {
     });
   }
 
+  reset(): void {
+    for (const stageName of STAGE_ORDER) {
+      this.stages.set(stageName, {
+        status: "start",
+        message: "준비",
+        timestamp: Date.now(),
+      });
+    }
+  }
+
   render(ctx: RenderContext, region: PanelRegion): void {
     const { screen } = ctx;
     const { usableWidth } = getContentArea(region);

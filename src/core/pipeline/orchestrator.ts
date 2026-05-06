@@ -271,7 +271,9 @@ export const orchestratePipeline = async (
       message: event.message,
       timestamp: Date.now(),
     });
-    await emitProgressWithLogging( event);
+    if (request.onProgress) {
+      request.onProgress(event);
+    }
   };
 
   // ── Step 1: Prompt compile + Role 2.1 handoff 생성 (Role 1) ──────────────

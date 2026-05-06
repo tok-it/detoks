@@ -15,6 +15,7 @@ export interface ScreenManager {
   exitAltScreen(): void;
   setRawMode(enabled: boolean): void;
   getDimensions(): ScreenDimensions;
+  flush(): void;
   cleanup(): void;
 }
 
@@ -64,6 +65,14 @@ export const createScreenManager = (
 
     getDimensions() {
       return dims();
+    },
+
+    flush() {
+      // Ensure all writes are flushed to the terminal
+      // Node.js TTY streams have built-in buffering; this triggers drain if needed
+      if ((outputStream as any).flush) {
+        (outputStream as any).flush();
+      }
     },
 
     cleanup() {
