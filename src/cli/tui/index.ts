@@ -1,4 +1,5 @@
 import { stdout, stdin } from "node:process";
+import { StringDecoder } from "node:string_decoder";
 import type { CliArgs } from "../types.js";
 import { createScreenManager } from "./screen-manager.js";
 import { renderScreenBorder, renderHeader, renderInputArea, renderFooter } from "./renderer.js";
@@ -25,6 +26,7 @@ interface TuiRunOptions {
 
 export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
   const screen = createScreenManager(stdout, stdin);
+  const decoder = new StringDecoder("utf8");
 
   // Initialize TUI
   screen.enterAltScreen();
@@ -132,83 +134,87 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
         return; // Ignore input while executing
       }
 
-      const char = chunk.toString();
+      // Use StringDecoder to handle multi-byte UTF-8 sequences that may be split across chunks
+      const text = decoder.write(chunk);
       let needsFullRender = false;
 
-      if (char === "q" || char === "Q") {
-        running = false;
-        needsFullRender = true;
-      } else if (char === "\x03") {
-        // Ctrl+C
-        running = false;
-        needsFullRender = true;
-      } else if (char === "\r" || char === "\n") {
-        if (input.trim()) {
-          // Phase 3.2: Execute prompt
-          executePrompt(input);
-          input = ""; // Clear input for next prompt
-          lastInputChar = "";  // Reset composition tracker
-        }
-        needsFullRender = true;
-      } else if (char === "\x7f" || char === "\b") {
-        // Backspace (DEL: 0x7f or Backspace: 0x08)
-        // Remove last character by code point, not by byte
-        const charArray = Array.from(input);
-        if (charArray.length > 0) {
-          charArray.pop();
-          input = charArray.join("");
-          lastInputChar = "";  // Reset composition tracker
-        }
-        // Only update input area for backspace
-        renderInputOnly();
-        return;
-      } else if (char === "\x1b[A") {
-        // Arrow Up
-        transcriptPanel.scrollUp();
-        needsFullRender = true;
-      } else if (char === "\x1b[B") {
-        // Arrow Down
-        transcriptPanel.scrollDown();
-        needsFullRender = true;
-      } else if (char.charCodeAt(0) >= 32 || /[\p{L}\p{N}\p{P}\p{Z}]/u.test(char)) {
-        // Accept printable ASCII (>= 32) or any Unicode letter/number/punctuation/space
+      // Process each character in the decoded text
+      for (const char of text) {
+        if (char === "q" || char === "Q") {
+          running = false;
+          needsFullRender = true;
+        } else if (char === "\x03") {
+          // Ctrl+C
+          running = false;
+          needsFullRender = true;
+        } else if (char === "\r" || char === "\n") {
+          if (input.trim()) {
+            // Phase 3.2: Execute prompt
+            executePrompt(input);
+            input = ""; // Clear input for next prompt
+            lastInputChar = "";  // Reset composition tracker
+          }
+          needsFullRender = true;
+        } else if (char === "\x7f" || char === "\b") {
+          // Backspace (DEL: 0x7f or Backspace: 0x08)
+          // Remove last character by code point, not by byte
+          const charArray = Array.from(input);
+          if (charArray.length > 0) {
+            charArray.pop();
+            input = charArray.join("");
+            lastInputChar = "";  // Reset composition tracker
+          }
+          // Only update input area for backspace
+          renderInputOnly();
+          continue;
+        } else if (char === "\x1b[A") {
+          // Arrow Up
+          transcriptPanel.scrollUp();
+          needsFullRender = true;
+        } else if (char === "\x1b[B") {
+          // Arrow Down
+          transcriptPanel.scrollDown();
+          needsFullRender = true;
+        } else if (char.charCodeAt(0) >= 32 || /[\p{L}\p{N}\p{P}\p{Z}]/u.test(char)) {
+          // Accept printable ASCII (>= 32) or any Unicode letter/number/punctuation/space
 
-        // Handle IME composition for Korean/CJK characters
-        // When composing (e.g., ㄱ→ㄱㅏ→가), multiple chunks arrive sequentially
-        // We replace the last character only if it's still being composed
-        const isKoreanChar = /[가-힯ᄀ-ᇿ]/.test(char);  // Hangul Syllables or Jamo
-        const lastCharIsKorean = /[가-힯ᄀ-ᇿ]/.test(lastInputChar);
+          // Handle IME composition for Korean/CJK characters
+          // When composing (e.g., ㄱ→ㄱㅏ→가), multiple chunks arrive sequentially
+          // We replace the last character only if it's still being composed
+          const isKoreanChar = /[가-힯ᄀ-ᇿ]/.test(char);  // Hangul Syllables or Jamo
+          const lastCharIsKorean = /[가-힯ᄀ-ᇿ]/.test(lastInputChar);
 
-        if (isKoreanChar && lastCharIsKorean && input.length > 0) {
-          // Check if the last character in input matches the last received character
-          // This indicates we're still composing the same character
-          const inputArray = Array.from(input);
-          const lastInputStringChar = inputArray[inputArray.length - 1];
+          if (isKoreanChar && lastCharIsKorean && input.length > 0) {
+            // Check if the last character in input matches the last received character
+            // This indicates we're still composing the same character
+            const inputArray = Array.from(input);
+            const lastInputStringChar = inputArray[inputArray.length - 1];
 
-          if (lastInputStringChar === lastInputChar) {
-            // Last character in input matches last received chunk - still composing
-            // Replace it with the new composition state
-            inputArray[inputArray.length - 1] = char;
-            input = inputArray.join("");
+            if (lastInputStringChar === lastInputChar) {
+              // Last character in input matches last received chunk - still composing
+              // Replace it with the new composition state
+              inputArray[inputArray.length - 1] = char;
+              input = inputArray.join("");
+            } else {
+              // Last received chunk is different from what's in input
+              // This is a new character starting, not a composition update
+              input += char;
+            }
           } else {
-            // Last received chunk is different from what's in input
-            // This is a new character starting, not a composition update
+            // Normal character or first character of composition
             input += char;
           }
-        } else {
-          // Normal character or first character of composition
-          input += char;
+
+          lastInputChar = char;  // Track for next input
+          // Only update input area for normal character input (faster response)
+          renderInputOnly();
+          continue;
         }
 
-        lastInputChar = char;  // Track for next input
-        // Only update input area for normal character input (faster response)
-        renderInputOnly();
-        return;
-      }
-
-      // Full render for commands that affect layout
-      if (needsFullRender) {
-        render();
+        // Full render for commands that affect layout
+        if (needsFullRender) {
+          render();
+        }
       }
     };
 
