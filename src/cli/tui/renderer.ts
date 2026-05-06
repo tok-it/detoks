@@ -17,9 +17,6 @@ export const renderHeader = (ctx: RenderContext, title: string): void => {
 
   screen.cursorMoveTo(0, 0);
   screen.write(title.padEnd(dims.columns));
-
-  screen.cursorMoveTo(1, 0);
-  screen.write("=".repeat(dims.columns));
 };
 
 export const renderConfigInfo = (
@@ -65,7 +62,7 @@ export const renderStatusPanel = (
 
 export const renderInputArea = (ctx: RenderContext, input: string): void => {
   const { screen, dims } = ctx;
-  const inputRow = dims.rows - 3;
+  const inputRow = dims.rows - 2;
 
   // Calculate display width of input (considering CJK characters are 2 columns wide)
   const getDisplayWidth = (str: string): number => {
@@ -90,9 +87,6 @@ export const renderInputArea = (ctx: RenderContext, input: string): void => {
   const maxInputWidth = dims.columns - 2;
   const paddingNeeded = Math.max(0, maxInputWidth - displayWidth);
 
-  screen.cursorMoveTo(inputRow - 1, 0);
-  screen.write("-".repeat(dims.columns));
-
   screen.cursorMoveTo(inputRow, 0);
   screen.write("> " + input + " ".repeat(paddingNeeded));
 
@@ -106,9 +100,6 @@ export const renderInputArea = (ctx: RenderContext, input: string): void => {
 export const renderFooter = (ctx: RenderContext): void => {
   const { screen, dims } = ctx;
   const helpText = "[q: quit, ↑↓: scroll, Enter: run]";
-
-  screen.cursorMoveTo(dims.rows - 2, 0);
-  screen.write("-".repeat(dims.columns));
 
   screen.cursorMoveTo(dims.rows - 1, 0);
   screen.write(helpText.padEnd(dims.columns));

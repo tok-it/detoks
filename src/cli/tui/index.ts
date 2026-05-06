@@ -74,44 +74,18 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
       const layout = computeLayout(dims);
       const ctx = { screen, dims };
 
-      // Render structure
+      // Render structure (minimal - no borders)
       renderScreenBorder(ctx);
       renderHeader(ctx, "detoks repl");
 
       // Render config info
-      let currentRow = 3;
+      let currentRow = 2;
       currentRow = renderConfigInfo(ctx, configLines, currentRow) + 1;
-
-      // Separator
-      screen.cursorMoveTo(currentRow, 1);
-      screen.write("├" + "─".repeat(dims.columns - 2) + "┤");
-      currentRow += 1;
-
-      // Show pipeline status only after first execution or during execution
-      if (hasExecuted) {
-        const pipelineRegion = {
-          startRow: currentRow,
-          endRow: currentRow + 6,
-          columns: dims.columns,
-        };
-        pipelinePanel.render(ctx, pipelineRegion);
-        currentRow = pipelineRegion.endRow + 1;
-
-        // Separator
-        screen.cursorMoveTo(currentRow, 1);
-        screen.write("├" + "─".repeat(dims.columns - 2) + "┤");
-        currentRow += 1;
-      } else {
-        // Show welcome message before first execution
-        screen.cursorMoveTo(currentRow, 1);
-        screen.write("│ 💡 /help로 도움말 보기, /adapter로 어댑터 변경, q로 종료".padEnd(dims.columns - 2) + " │");
-        currentRow += 1;
-      }
 
       // Render transcript and result panels
       const transcriptRegion = {
         startRow: currentRow,
-        endRow: dims.rows - 4,
+        endRow: dims.rows - 3,
         columns: dims.columns,
       };
       transcriptPanel.render(ctx, transcriptRegion);
