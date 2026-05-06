@@ -1,9 +1,9 @@
-name: Publish npm package
+name: Publish npm package (Legacy - Use auto-release.yml instead)
 
 on:
   push:
     tags:
-      - "v*"
+      - "v*-manual"
 
 permissions:
   contents: read
