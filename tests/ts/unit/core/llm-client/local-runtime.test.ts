@@ -1,10 +1,11 @@
 import { chmodSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { delimiter, join } from "node:path";
 import { tmpdir } from "node:os";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	buildLlamaServerArgs,
 	getBinaryProbeCommand,
+	getProcessListCommand,
 	ensureLocalLlmRuntime,
 } from "../../../../../src/core/llm-client/local-runtime.js";
 
@@ -18,6 +19,11 @@ describe("buildLlamaServerArgs", () => {
 		expect(getBinaryProbeCommand("win32")).toBe("where");
 		expect(getBinaryProbeCommand("linux")).toBe("which");
 		expect(getBinaryProbeCommand("darwin")).toBe("which");
+		expect(getProcessListCommand("win32").command).toBe("powershell.exe");
+		expect(getProcessListCommand("linux")).toEqual({
+			command: "pgrep",
+			args: ["-af", "llama-server"],
+		});
 	});
 
 	it("GGUF 경로가 있으면 해당 파일을 모델로 로드한다", () => {
@@ -224,17 +230,20 @@ describe("buildLlamaServerArgs", () => {
 		const scriptDir = mkdtempSync(join(tmpdir(), "detoks-gguf-"));
 		const originalPath = process.env.PATH ?? "";
 		const modelPath = join(scriptDir, "broken.gguf");
+		const serverBinary = process.platform === "win32" ? "llama-server.cmd" : "llama-server";
 		writeFileSync(
-			join(scriptDir, "llama-server"),
-			[
-				"#!/bin/sh",
-				"exit 0",
-			].join("\n"),
+			join(scriptDir, serverBinary),
+			process.platform === "win32"
+				? "@exit /b 0\r\n"
+				: [
+					"#!/bin/sh",
+					"exit 0",
+				].join("\n"),
 			"utf8",
 		);
 		writeFileSync(modelPath, "", "utf8");
-		chmodSync(join(scriptDir, "llama-server"), 0o755);
-		process.env.PATH = `${scriptDir}:${originalPath}`;
+		chmodSync(join(scriptDir, serverBinary), 0o755);
+		process.env.PATH = `${scriptDir}${delimiter}${originalPath}`;
 		const fetchMock = vi
 			.fn<typeof fetch>()
 			.mockResolvedValue({ ok: false } as Response);
@@ -268,7 +277,7 @@ describe("buildLlamaServerArgs", () => {
 		}
 	});
 
-	it("모델이 바뀌면 기존 서버를 종료하고 새 모델로 다시 띄운다", async () => {
+	it.runIf(process.platform !== "win32")("모델이 바뀌면 기존 서버를 종료하고 새 모델로 다시 띄운다", async () => {
 		const scriptDir = mkdtempSync(join(tmpdir(), "detoks-llama-"));
 		const originalPath = process.env.PATH ?? "";
 		writeFileSync(
