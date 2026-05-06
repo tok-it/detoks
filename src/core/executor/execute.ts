@@ -42,5 +42,6 @@ export const executeWithAdapter = async (request: ExecutorRequest): Promise<Exec
     rawOutput: result.rawOutput,
     exitCode: result.exitCode,
     ...(result.stderr !== undefined ? { stderr: result.stderr } : {}),
+    ...(result.transcript !== undefined ? { transcript: result.transcript } : {}),
   };
 };

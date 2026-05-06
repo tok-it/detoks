@@ -3,6 +3,7 @@ import type { ProjectInfo } from "../state/SessionStateManager.js";
 import type { CompressTextImplementation } from "../prompt/compression.js";
 import type { TraceLog } from "../utils/PipelineTracer.js";
 import type { TokenMetricsSnapshot } from "../utils/tokenMetrics.js";
+import type { PtyTranscript } from "../../integrations/subprocess/types.js";
 
 export const AdapterValues = ["codex", "gemini", "claude"] as const;
 export type Adapter = (typeof AdapterValues)[number];
@@ -50,6 +51,13 @@ export interface TaskExecutionRecord {
   blockedBy?: string;
 }
 
+export interface PipelineProgressLog {
+  stage: string;
+  status: PipelineProgressStatus;
+  message: string;
+  timestamp: number;
+}
+
 export interface PipelineExecutionResult {
   ok: boolean;
   mode: InteractionMode;
@@ -70,4 +78,8 @@ export interface PipelineExecutionResult {
   promptRepairActions?: string[];
   traceLog?: TraceLog;
   traceFilePath?: string;
+  // PTY/Adapter execution metadata
+  progressLog?: PipelineProgressLog[]; // detoks 내부 진행 로그
+  adapterTranscript?: PtyTranscript; // adapter 실행 이벤트/메타데이터
+  adapterStderr?: string; // adapter stderr 출력
 }

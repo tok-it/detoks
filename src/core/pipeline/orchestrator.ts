@@ -15,6 +15,7 @@ import { buildTokenMetrics, type TokenMetricsSnapshot } from "../utils/tokenMetr
 import type { SessionState } from "../../schemas/pipeline.js";
 import type {
   PipelineProgressEvent,
+  PipelineProgressLog,
   PipelineExecutionRequest,
   PipelineExecutionResult,
   PipelineStageStatus,
@@ -259,12 +260,24 @@ export const orchestratePipeline = async (
   request: PipelineExecutionRequest,
 ): Promise<PipelineExecutionResult> => {
   const sessionId = request.userRequest.session_id ?? generateSessionId();
+  const progressLog: PipelineProgressLog[] = [];
   PipelineTracer.clear();
+
+  // Progress 이벤트 수집 및 콜백 호출
+  const emitProgressWithLogging = async (event: PipelineProgressEvent): Promise<void> => {
+    progressLog.push({
+      stage: event.stage,
+      status: event.status,
+      message: event.message,
+      timestamp: Date.now(),
+    });
+    await emitProgressWithLogging( event);
+  };
 
   // ── Step 1: Prompt compile + Role 2.1 handoff 생성 (Role 1) ──────────────
   let compiledPrompt;
   let role2PromptInput;
-  await emitProgress(request, {
+  await emitProgressWithLogging( {
     stage: "Prompt Compiler",
     status: "start",
     message: "Prompt Compiler 시작",
@@ -296,7 +309,7 @@ export const orchestratePipeline = async (
       dataType: "CompiledPrompt", data: compiledPrompt,
       durationMs: PipelineTracer.endStage("PromptCompiler"),
     });
-    await emitProgress(request, {
+    await emitProgressWithLogging( {
       stage: "Prompt Compiler",
       status: "end",
       message: "Prompt Compiler 완료",
@@ -313,7 +326,7 @@ export const orchestratePipeline = async (
       data: { error: errorMessage },
       durationMs: PipelineTracer.endStage("PromptCompiler"),
     });
-    await emitProgress(request, {
+    await emitProgressWithLogging( {
       stage: "Prompt Compiler",
       status: "error",
       message: "Prompt Compiler 실패",
@@ -338,7 +351,7 @@ export const orchestratePipeline = async (
   }
 
   // ── Step 2: TaskGraph 생성 (Role 2.1) ────────────────────────────────────
-  await emitProgress(request, {
+  await emitProgressWithLogging( {
     stage: "Task Graph Builder",
     status: "start",
     message: "Task Graph Builder 시작",
@@ -422,14 +435,14 @@ export const orchestratePipeline = async (
       })),
     },
   });
-  await emitProgress(request, {
+  await emitProgressWithLogging( {
     stage: "Task Graph Builder",
     status: "end",
     message: "Task Graph Builder 완료",
   });
 
   // ── Step 5: 세션 상태 초기화 / 로드 (Role 2.2) ───────────────────────────
-  await emitProgress(request, {
+  await emitProgressWithLogging( {
     stage: "State Manager",
     status: "start",
     message: "State Manager: 세션 상태 로드/초기화 중",
@@ -460,7 +473,7 @@ export const orchestratePipeline = async (
     state = initSessionState(sessionId, request.userRequest.raw_input);
   }
   state = applyProjectInfo(state, request.projectInfo);
-  await emitProgress(request, {
+  await emitProgressWithLogging( {
     stage: "State Manager",
     status: "end",
     message: "State Manager: 세션 상태 준비 완료",
@@ -474,7 +487,7 @@ export const orchestratePipeline = async (
       // 이미 완료된 작업이면 스킵 (Role 2.2 / Role 3 경계)
       if (state.completed_task_ids.includes(task.id)) {
         logger.info(`작업 [${task.id}]는 세션에서 이미 완료되어 건너뜁니다`);
-        await emitProgress(request, {
+        await emitProgressWithLogging( {
           stage: "Executor",
           status: "skip",
           taskId: task.id,
@@ -512,7 +525,7 @@ export const orchestratePipeline = async (
           },
         });
         logger.warn(`작업 [${task.id}] 건너뜀 — 의존성 [${blockedBy}] 실패`);
-        await emitProgress(request, {
+        await emitProgressWithLogging( {
           stage: "Executor",
           status: "skip",
           taskId: task.id,
@@ -525,7 +538,7 @@ export const orchestratePipeline = async (
       state = { ...state, current_task_id: task.id };
 
       // ExecutionContext 생성 (Role 2.2 — ContextCompressor → ContextSelector → ContextBuilder)
-      await emitProgress(request, {
+      await emitProgressWithLogging( {
         stage: "Context Optimizer",
         status: "start",
         taskId: task.id,
@@ -538,7 +551,7 @@ export const orchestratePipeline = async (
         dataType: "ExecutionContext", data: context,
         durationMs: PipelineTracer.endStage(`ContextOptimizer:${task.id}`),
       });
-      await emitProgress(request, {
+      await emitProgressWithLogging( {
         stage: "Context Optimizer",
         status: "end",
         taskId: task.id,
@@ -548,7 +561,7 @@ export const orchestratePipeline = async (
       // Task 실행 (Role 3)
       const prompt = `[${task.type.toUpperCase()}] ${task.title}\n\nContext: ${context.context_summary}`;
       logger.info(`작업 [${task.id}] 실행 중 type=${task.type}`);
-      await emitProgress(request, {
+      await emitProgressWithLogging( {
         stage: "Executor",
         status: "start",
         taskId: task.id,
@@ -586,7 +599,7 @@ export const orchestratePipeline = async (
           dataType: "ExecutionResult", data: { task_id: task.id, success: false, raw_output: execResult.rawOutput, type: task.type },
           durationMs: PipelineTracer.endStage(`Executor:${task.id}`),
         });
-        await emitProgress(request, {
+        await emitProgressWithLogging( {
           stage: "Executor",
           status: "error",
           taskId: task.id,
@@ -600,7 +613,7 @@ export const orchestratePipeline = async (
           dataType: "ExecutionResult", data: { task_id: task.id, success: true, raw_output: execResult.rawOutput, type: task.type },
           durationMs: PipelineTracer.endStage(`Executor:${task.id}`),
         });
-        await emitProgress(request, {
+        await emitProgressWithLogging( {
           stage: "Executor",
           status: "end",
           taskId: task.id,
@@ -613,14 +626,14 @@ export const orchestratePipeline = async (
           request.userRequest.raw_input,
           compiledPrompt.compressed_prompt,
         ).state;
-        await emitProgress(request, {
+        await emitProgressWithLogging( {
           stage: "State Manager",
           status: "start",
           taskId: task.id,
           message: `State Manager(${task.id}) 저장 중`,
         });
         await SessionStateManager.saveSession(state);
-        await emitProgress(request, {
+        await emitProgressWithLogging( {
           stage: "State Manager",
           status: "end",
           taskId: task.id,
@@ -662,13 +675,13 @@ export const orchestratePipeline = async (
     compiledPrompt.compressed_prompt,
   );
   state = sessionTokenMetrics.state;
-  await emitProgress(request, {
+  await emitProgressWithLogging( {
     stage: "State Manager",
     status: "start",
     message: "State Manager: 최종 세션 저장 중",
   });
   await SessionStateManager.saveSession(state);
-  await emitProgress(request, {
+  await emitProgressWithLogging( {
     stage: "State Manager",
     status: "end",
     message: "State Manager: 최종 세션 저장 완료",
@@ -694,5 +707,6 @@ export const orchestratePipeline = async (
     promptRepairActions: compiledPrompt.repair_actions ?? [],
     ...(request.trace ? { traceLog: PipelineTracer.getTrace(sessionId) } : {}),
     ...(traceFilePath ? { traceFilePath } : {}),
+    progressLog, // detoks 내부 진행 로그
   };
 };
