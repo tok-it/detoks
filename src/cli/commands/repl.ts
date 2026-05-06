@@ -13,6 +13,7 @@ import { buildPrompt } from "../interactive/prompt-builder.js";
 import { loadAndApplyConfig } from "../config/loader.js";
 import { updateSelectedAdapter } from "../config/config-manager.js";
 import { startSpinner } from "../terminal-spinner.js";
+import { runTuiRepl } from "../tui/index.js";
 
 interface ReplModeResolution {
   useTui: boolean;
@@ -443,19 +444,23 @@ export const runReplCommand = async (baseArgs: CliArgs): Promise<void> => {
   // TUI 모드 판정
   const replMode = resolveReplMode(baseArgs);
 
-  // TUI 모드인 경우: 차후 TUI 구현과 연결 (현재는 스텁)
+  // TUI 모드인 경우: TUI REPL 실행
   if (replMode.useTui) {
-    output.write(
-      colors.info(
-        `\nTUI 모드가 활성화됨 (${replMode.reason})\n`,
-      ),
-    );
-    output.write(
-      colors.warning(
-        "주의: TUI 셸 구현은 아직 진행 중입니다. legacy text REPL로 실행됩니다.\n\n",
-      ),
-    );
-    // TODO: runTuiRepl(baseArgs) 호출
+    try {
+      await runTuiRepl({
+        adapter: baseArgs.adapter,
+        executionMode: baseArgs.executionMode,
+        verbose: baseArgs.verbose,
+      });
+      return;
+    } catch (error) {
+      // TUI 실패 시 fallback to text REPL
+      output.write(
+        colors.warning(
+          `\nTUI 모드 실행 중 오류 발생. Legacy text REPL로 전환합니다.\n${formatError(error, baseArgs.verbose)}\n\n`,
+        ),
+      );
+    }
   }
 
   const rl = createInterface({ input, output });
