@@ -153,7 +153,8 @@ async function assertExpectedServerModel(
 
 async function listLlamaServerProcesses(): Promise<Array<{ pid: number; command: string }>> {
   return await new Promise((resolve) => {
-    const child = spawn("pgrep", ["-af", "llama-server"], {
+    const processListCommand = getProcessListCommand();
+    const child = spawn(processListCommand.command, processListCommand.args, {
       stdio: ["ignore", "pipe", "pipe"],
     });
     let stdout = "";
@@ -197,7 +198,8 @@ async function listLlamaServerProcesses(): Promise<Array<{ pid: number; command:
           (
             processInfo,
           ): processInfo is { pid: number; command: string } => processInfo !== null,
-        );
+        )
+        .filter(({ command }) => isLlamaServerCommand(command));
 
       resolve(processes);
     });
@@ -215,7 +217,7 @@ function isProcessAlive(pid: number): boolean {
 
 function commandMatchesPort(command: string, port: number): boolean {
   return (
-    command.includes("llama-server") &&
+    isLlamaServerCommand(command) &&
     (command.includes(`--port ${port}`) || command.includes(`--port=${port}`))
   );
 }
@@ -233,13 +235,64 @@ export function getBinaryProbeCommand(platform: NodeJS.Platform = process.platfo
   return platform === "win32" ? "where" : "which";
 }
 
-function isLlamaServerBinaryAvailable(binary: string): boolean {
-  if (binary.includes("/") || binary.includes("\\")) {
-    return isExecutablePath(binary);
+export function getProcessListCommand(
+  platform: NodeJS.Platform = process.platform,
+): { command: string; args: string[] } {
+  if (platform !== "win32") {
+    return {
+      command: "pgrep",
+      args: ["-af", "llama-server"],
+    };
   }
 
-  const probe = spawnSync(getBinaryProbeCommand(), [binary], { stdio: "ignore" });
-  return !probe.error && probe.status === 0;
+  return {
+    command: "powershell.exe",
+    args: [
+      "-NoProfile",
+      "-NonInteractive",
+      "-Command",
+      [
+        "Get-CimInstance Win32_Process",
+        "| Where-Object { $_.CommandLine -like '*llama-server*' }",
+        "| ForEach-Object { \"$($_.ProcessId) $($_.CommandLine)\" }",
+      ].join(" "),
+    ],
+  };
+}
+
+function isLlamaServerCommand(command: string): boolean {
+  const normalized = command.toLowerCase();
+  return (
+    normalized.includes("llama-server") &&
+    !normalized.includes("get-ciminstance win32_process")
+  );
+}
+
+function candidateBinaryNames(binary: string): string[] {
+  if (process.platform !== "win32" || binary.toLowerCase().endsWith(".exe")) {
+    return [binary];
+  }
+
+  return [binary, `${binary}.exe`];
+}
+
+function isLlamaServerBinaryAvailable(binary: string): boolean {
+  if (binary.includes("/") || binary.includes("\\")) {
+    return candidateBinaryNames(binary).some(isExecutablePath);
+  }
+
+  return candidateBinaryNames(binary).some((candidate) => {
+    const probe = spawnSync(getBinaryProbeCommand(), [candidate], { stdio: "ignore" });
+    return !probe.error && probe.status === 0;
+  });
+}
+
+function resolveLlamaServerLaunchBinary(binary: string): string {
+  if (!binary.includes("/") && !binary.includes("\\")) {
+    return binary;
+  }
+
+  return candidateBinaryNames(binary).find(isExecutablePath) ?? binary;
 }
 
 async function waitForProcessExit(pid: number, timeoutMs: number): Promise<boolean> {
@@ -271,7 +324,7 @@ async function stopExistingServerProcess(port: number): Promise<void> {
 
   for (const pid of pids) {
     try {
-      process.kill(pid, "SIGTERM");
+      terminateProcess(pid, false);
     } catch {
       // 이미 종료됐거나 권한이 없으면 무시하고 다음 단계로 진행한다.
     }
@@ -289,7 +342,7 @@ async function stopExistingServerProcess(port: number): Promise<void> {
 
   for (const pid of pidsArray.filter((_, index) => !terminated[index])) {
     try {
-      process.kill(pid, "SIGKILL");
+      terminateProcess(pid, true);
     } catch {
       // 강제 종료가 불가능하면 아래 readiness 확인에서 걸러진다.
     }
@@ -303,6 +356,23 @@ async function stopExistingServerProcess(port: number): Promise<void> {
   }
 
   activeServerPid = null;
+}
+
+function terminateProcess(pid: number, force: boolean): void {
+  try {
+    if (process.platform === "win32") {
+      const args = ["/PID", String(pid), "/T"];
+      if (force) {
+        args.push("/F");
+      }
+      spawnSync("taskkill.exe", args, { stdio: "ignore" });
+      return;
+    }
+
+    process.kill(pid, force ? "SIGKILL" : "SIGTERM");
+  } catch {
+    // The process may have already exited between discovery and termination.
+  }
 }
 
 async function downloadModel(modelUrl: string, modelPath: string): Promise<void> {
@@ -458,7 +528,9 @@ async function startServerProcess(
   config: Role1RuntimeConfig,
   apiBase: string,
 ): Promise<void> {
-  const binary = config.localLlmServerBinary ?? "llama-server";
+  const binary = resolveLlamaServerLaunchBinary(
+    config.localLlmServerBinary ?? "llama-server",
+  );
   const args = buildLlamaServerArgs(config);
   logger.warn(`Starting llama.cpp server: ${binary} ${args.join(" ")}`);
   const child = spawn(binary, args, {

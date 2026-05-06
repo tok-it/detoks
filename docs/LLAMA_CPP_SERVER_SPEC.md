@@ -78,6 +78,17 @@ This document defines the current `python/llama-server` runtime contract used by
 
 ---
 
+### Windows Native Runtime
+
+Windows native execution does not require WSL when Node.js `>=24.15.0 <26`, Python `3.13.x`, `uv`, and a Windows `llama-server.exe` build are installed. If `llama-server.exe` is not on `PATH`, set `LOCAL_LLM_SERVER_BINARY` to the absolute executable path.
+
+PowerShell example:
+
+```powershell
+$env:LOCAL_LLM_SERVER_BINARY = "C:\tools\llama.cpp\llama-server.exe"
+detoks repl --adapter codex --execution-mode stub
+```
+
 ## Execution Modes
 
 ### 1. Proxy Mode

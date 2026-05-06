@@ -91,7 +91,7 @@ function buildLauncherCandidates(
   if (explicitPythonBin && explicitPythonBin !== DEFAULT_PYTHON_BIN) {
     return [
       {
-        command: "uv",
+        command: process.platform === "win32" ? "uv.exe" : "uv",
         args: ["run", "--python", explicitPythonBin, "python"],
         key: `uv:${explicitPythonBin}`,
       },
@@ -104,27 +104,50 @@ function buildLauncherCandidates(
   }
 
   const candidates: LauncherCandidate[] = [];
-  const localVenvPython = resolve(cwd, ".venv/bin/python");
-  if (existsSync(localVenvPython)) {
-    candidates.push({
-      command: localVenvPython,
-      args: [],
-      key: localVenvPython,
-    });
+  const localVenvPythons = process.platform === "win32"
+    ? [
+        resolve(cwd, ".venv/Scripts/python.exe"),
+        resolve(cwd, ".venv/Scripts/python"),
+      ]
+    : [resolve(cwd, ".venv/bin/python")];
+  for (const localVenvPython of localVenvPythons) {
+    if (existsSync(localVenvPython)) {
+      candidates.push({
+        command: localVenvPython,
+        args: [],
+        key: localVenvPython,
+      });
+    }
   }
 
   candidates.push(
     {
-      command: "uv",
+      command: process.platform === "win32" ? "uv.exe" : "uv",
       args: ["run", "--python", basePythonBin, "python"],
       key: `uv:${basePythonBin}`,
     },
-    {
+  );
+
+  if (process.platform === "win32") {
+    candidates.push(
+      {
+        command: "py",
+        args: ["-3.13"],
+        key: "py:-3.13",
+      },
+      {
+        command: "python",
+        args: [],
+        key: "python",
+      },
+    );
+  } else {
+    candidates.push({
       command: DEFAULT_PYTHON_BIN,
       args: [],
       key: DEFAULT_PYTHON_BIN,
-    },
-  );
+    });
+  }
 
   return candidates;
 }

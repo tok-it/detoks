@@ -91,16 +91,24 @@ export const runModelSetupIfNeeded = async (cwd: string = process.cwd()): Promis
   process.stdout.write(
     colors.muted("# 빠른 시작\n"),
   );
-  process.stdout.write(
-    colors.muted(
-      "export $(cat .env | xargs)\n",
-    ),
-  );
-  process.stdout.write(
-    colors.muted(
-      'llama-server -m "$LOCAL_LLM_MODEL_PATH" -ngl 32 -c 4096\n\n',
-    ),
-  );
+  if (process.platform === "win32") {
+    process.stdout.write(
+      colors.muted(
+        'llama-server.exe -m "$env:LOCAL_LLM_MODEL_PATH" --gpu-layers all --ctx-size 4096\n\n',
+      ),
+    );
+  } else {
+    process.stdout.write(
+      colors.muted(
+        "export $(cat .env | xargs)\n",
+      ),
+    );
+    process.stdout.write(
+      colors.muted(
+        'llama-server -m "$LOCAL_LLM_MODEL_PATH" -ngl 32 -c 4096\n\n',
+      ),
+    );
+  }
   process.stdout.write(
     colors.info(
       "자세한 가이드: src/cli/model-setup/LLAMA_SERVER_GUIDE.md\n\n",
