@@ -8,37 +8,18 @@ export interface RenderContext {
 export const renderScreenBorder = (ctx: RenderContext): void => {
   const { screen, dims } = ctx;
 
-  // Clear screen
+  // Clear screen only
   screen.clear();
-
-  // Top border
-  screen.cursorMoveTo(0, 0);
-  screen.write("┌" + "─".repeat(dims.columns - 2) + "┐");
-
-  // Bottom border
-  screen.cursorMoveTo(dims.rows - 1, 0);
-  screen.write("└" + "─".repeat(dims.columns - 2) + "┘");
-
-  // Left and right borders
-  for (let i = 1; i < dims.rows - 1; i++) {
-    screen.cursorMoveTo(i, 0);
-    screen.write("│");
-    screen.cursorMoveTo(i, dims.columns - 1);
-    screen.write("│");
-  }
 };
 
 export const renderHeader = (ctx: RenderContext, title: string): void => {
   const { screen, dims } = ctx;
 
   screen.cursorMoveTo(0, 0);
-  screen.write("├" + "─".repeat(dims.columns - 2) + "┤");
+  screen.write(title.padEnd(dims.columns));
 
   screen.cursorMoveTo(1, 0);
-  screen.write("│ " + title.padEnd(dims.columns - 4) + " │");
-
-  screen.cursorMoveTo(2, 0);
-  screen.write("├" + "─".repeat(dims.columns - 2) + "┤");
+  screen.write("=".repeat(dims.columns));
 };
 
 export const renderConfigInfo = (
@@ -52,10 +33,10 @@ export const renderConfigInfo = (
   for (const line of configLines) {
     if (currentRow < dims.rows - 3) {
       screen.cursorMoveTo(currentRow, 0);
-      const displayLine = line.length > dims.columns - 4
-        ? line.slice(0, dims.columns - 7) + "..."
-        : line.padEnd(dims.columns - 4);
-      screen.write("│ " + displayLine + " │");
+      const displayLine = line.length > dims.columns
+        ? line.slice(0, dims.columns - 3) + "..."
+        : line.padEnd(dims.columns);
+      screen.write(displayLine);
       currentRow += 1;
     }
   }
@@ -74,7 +55,7 @@ export const renderStatusPanel = (
   status.forEach((line) => {
     if (currentRow < dims.rows - 3) {
       screen.cursorMoveTo(currentRow, 0);
-      screen.write("│ " + line.padEnd(dims.columns - 4) + " │");
+      screen.write(line.padEnd(dims.columns));
       currentRow += 1;
     }
   });
@@ -106,30 +87,29 @@ export const renderInputArea = (ctx: RenderContext, input: string): void => {
   };
 
   const displayWidth = getDisplayWidth(input);
-  const maxInputWidth = dims.columns - 5;
+  const maxInputWidth = dims.columns - 2;
   const paddingNeeded = Math.max(0, maxInputWidth - displayWidth);
 
   screen.cursorMoveTo(inputRow - 1, 0);
-  screen.write("├" + "─".repeat(dims.columns - 2) + "┤");
+  screen.write("-".repeat(dims.columns));
 
   screen.cursorMoveTo(inputRow, 0);
-  screen.write("│ > " + input + " ".repeat(paddingNeeded) + " │");
+  screen.write("> " + input + " ".repeat(paddingNeeded));
 
-  // Cursor position after "│ > " (4 characters)
-  // Format: col 0: │, col 1: space, col 2: >, col 3: space, col 4+: input
+  // Cursor position after "> " (2 characters)
+  // Format: col 0: >, col 1: space, col 2+: input
   // CJK chars occupy 2 terminal columns but count as 1 character
-  // Cursor should be at col 4 + displayWidth
-  screen.cursorMoveTo(inputRow, 4 + displayWidth);
+  // Cursor should be at col 2 + displayWidth
+  screen.cursorMoveTo(inputRow, 2 + displayWidth);
 };
 
 export const renderFooter = (ctx: RenderContext): void => {
   const { screen, dims } = ctx;
-  const helpText = "[q: quit, ctrl+c: exit]";
-  const padding = Math.floor((dims.columns - helpText.length - 2) / 2);
+  const helpText = "[q: quit, ↑↓: scroll, Enter: run]";
 
   screen.cursorMoveTo(dims.rows - 2, 0);
-  screen.write("├" + "─".repeat(dims.columns - 2) + "┤");
+  screen.write("-".repeat(dims.columns));
 
-  screen.cursorMoveTo(dims.rows - 2, 0);
-  screen.write("│" + " ".repeat(padding) + helpText.padEnd(dims.columns - 2 - padding) + "│");
+  screen.cursorMoveTo(dims.rows - 1, 0);
+  screen.write(helpText.padEnd(dims.columns));
 };
