@@ -3,7 +3,7 @@ import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { createRequire } from "node:module";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const require = createRequire(import.meta.url);
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -17,7 +17,12 @@ const launch = (() => {
       const tsxLoader = require.resolve("tsx");
       return {
         command: process.execPath,
-        args: ["--import", tsxLoader, sourceEntry, ...cliArgs],
+        args: [
+          "--import",
+          pathToFileURL(tsxLoader).href,
+          sourceEntry,
+          ...cliArgs,
+        ],
       };
     } catch {
       // Fall back to the built JS entrypoint when tsx is unavailable.
