@@ -1,4 +1,5 @@
 import type { ScreenManager, ScreenDimensions } from "./screen-manager.js";
+import { colors } from "../colors.js";
 
 export interface RenderContext {
   screen: ScreenManager;
@@ -62,6 +63,7 @@ export const renderStatusPanel = (
 
 export const renderInputArea = (ctx: RenderContext, input: string): void => {
   const { screen, dims } = ctx;
+  const separatorRow = dims.rows - 3;
   const inputRow = dims.rows - 2;
 
   // Calculate display width of input (considering CJK characters are 2 columns wide)
@@ -82,6 +84,11 @@ export const renderInputArea = (ctx: RenderContext, input: string): void => {
     }
     return width;
   };
+
+  // Render colored separator line before input area
+  screen.cursorMoveTo(separatorRow, 0);
+  const separator = colors.prompt("━".repeat(dims.columns));
+  screen.write(separator);
 
   const displayWidth = getDisplayWidth(input);
   const maxInputWidth = dims.columns - 2;
