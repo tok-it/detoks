@@ -129,3 +129,4 @@ test_data_role2
 
 # Docs
 docs/my docs/**
+docs/my\\ docs/**
