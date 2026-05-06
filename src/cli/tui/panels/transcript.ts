@@ -60,32 +60,28 @@ export class TranscriptPanel {
     const { usableWidth, usableHeight } = getContentArea(region);
     const panelHeight = getPanelHeight(region);
 
-    // Header line
-    screen.cursorMoveTo(region.startRow, 1);
-    screen.write("│ 실시간 출력".padEnd(usableWidth + 2) + "│");
-
     // Content lines
-    const startIdx = Math.max(0, this.lines.length - (usableHeight - 1));
+    const startIdx = Math.max(0, this.lines.length - usableHeight);
     const visibleLines = this.lines.slice(startIdx);
 
-    let currentRow = region.startRow + 1;
+    let currentRow = region.startRow;
     for (const line of visibleLines) {
-      if (currentRow >= region.endRow - 1) break;
+      if (currentRow >= region.endRow) break;
 
       // Truncate line to fit in usable width
       const displayLine = line.length > usableWidth
         ? line.slice(0, usableWidth - 3) + "..."
         : line.padEnd(usableWidth);
 
-      screen.cursorMoveTo(currentRow, 1);
-      screen.write(`│ ${displayLine} │`);
+      screen.cursorMoveTo(currentRow, 0);
+      screen.write(displayLine);
       currentRow += 1;
     }
 
     // Fill remaining rows
-    while (currentRow < region.endRow - 1) {
-      screen.cursorMoveTo(currentRow, 1);
-      screen.write("│" + " ".repeat(usableWidth + 2) + "│");
+    while (currentRow < region.endRow) {
+      screen.cursorMoveTo(currentRow, 0);
+      screen.write(" ".repeat(usableWidth));
       currentRow += 1;
     }
   }

@@ -57,37 +57,33 @@ export class ResultSummaryPanel {
     if (!this.result) {
       // Empty state: render blank panel
       for (let row = region.startRow; row < region.endRow; row++) {
-        screen.cursorMoveTo(row, 1);
-        screen.write("│" + " ".repeat(usableWidth + 2) + "│");
+        screen.cursorMoveTo(row, 0);
+        screen.write(" ".repeat(usableWidth));
       }
       return;
     }
 
-    // Header line
-    screen.cursorMoveTo(region.startRow, 1);
-    screen.write("│ 실행 결과".padEnd(usableWidth + 2) + "│");
-
     // Content lines
     const lines = this.buildLines();
-    let currentRow = region.startRow + 1;
+    let currentRow = region.startRow;
 
     for (const line of lines) {
-      if (currentRow >= region.endRow - 1) break;
+      if (currentRow >= region.endRow) break;
 
       // Truncate line to fit in usable width
       const displayLine = line.length > usableWidth
         ? line.slice(0, usableWidth - 3) + "..."
         : line.padEnd(usableWidth);
 
-      screen.cursorMoveTo(currentRow, 1);
-      screen.write(`│ ${displayLine} │`);
+      screen.cursorMoveTo(currentRow, 0);
+      screen.write(displayLine);
       currentRow += 1;
     }
 
     // Fill remaining rows
-    while (currentRow < region.endRow - 1) {
-      screen.cursorMoveTo(currentRow, 1);
-      screen.write("│" + " ".repeat(usableWidth + 2) + "│");
+    while (currentRow < region.endRow) {
+      screen.cursorMoveTo(currentRow, 0);
+      screen.write(" ".repeat(usableWidth));
       currentRow += 1;
     }
   }

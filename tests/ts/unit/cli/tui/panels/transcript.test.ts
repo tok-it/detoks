@@ -240,11 +240,16 @@ describe("TranscriptPanel", () => {
   });
 
   describe("render", () => {
-    it("renders header with panel title", () => {
+    it("renders content without header", () => {
+      panel.append("Test content");
+
+      mockScreen.write.mockClear();
       panel.render(mockContext, mockRegion);
 
-      const headerCall = mockScreen.write.mock.calls[0][0];
-      expect(headerCall).toContain("실시간 출력");
+      const output = mockScreen.write.mock.calls
+        .map((c: any) => c[0])
+        .join("\n");
+      expect(output).toContain("Test content");
     });
 
     it("truncates long lines with ellipsis", () => {
@@ -254,7 +259,7 @@ describe("TranscriptPanel", () => {
       mockScreen.write.mockClear();
       panel.render(mockContext, mockRegion);
 
-      const contentCalls = mockScreen.write.mock.calls.slice(1);
+      const contentCalls = mockScreen.write.mock.calls;
       const hasEllipsis = contentCalls.some((c: any) =>
         c[0].includes("...")
       );
@@ -267,7 +272,7 @@ describe("TranscriptPanel", () => {
       mockScreen.write.mockClear();
       panel.render(mockContext, mockRegion);
 
-      const contentCalls = mockScreen.write.mock.calls.slice(1);
+      const contentCalls = mockScreen.write.mock.calls;
       const lineCall = contentCalls[0][0];
       // Line should be padded
       expect(lineCall.length).toBeGreaterThan("Short".length);
@@ -298,7 +303,7 @@ describe("TranscriptPanel", () => {
 
       const calls = mockScreen.write.mock.calls;
       // Should have content line + blank padding lines
-      expect(calls.length).toBeGreaterThan(2);
+      expect(calls.length).toBeGreaterThan(1);
     });
   });
 });

@@ -61,14 +61,10 @@ export class PipelineStatusPanel {
     const { screen } = ctx;
     const { usableWidth } = getContentArea(region);
 
-    // Header line
-    screen.cursorMoveTo(region.startRow, 1);
-    screen.write("│ 파이프라인 상태".padEnd(usableWidth + 2) + "│");
-
     // Stage lines
-    let currentRow = region.startRow + 1;
+    let currentRow = region.startRow;
     for (const stageName of STAGE_ORDER) {
-      if (currentRow >= region.endRow - 1) break;
+      if (currentRow >= region.endRow) break;
 
       const stageStatus = this.stages.get(stageName);
       if (!stageStatus) continue;
@@ -76,15 +72,15 @@ export class PipelineStatusPanel {
       const icon = STATUS_ICONS[stageStatus.status];
       const line = `${icon} ${stageName}`.padEnd(usableWidth);
 
-      screen.cursorMoveTo(currentRow, 1);
-      screen.write(`│ ${line} │`);
+      screen.cursorMoveTo(currentRow, 0);
+      screen.write(line);
       currentRow += 1;
     }
 
     // Fill remaining rows
-    while (currentRow < region.endRow - 1) {
-      screen.cursorMoveTo(currentRow, 1);
-      screen.write("│" + " ".repeat(usableWidth + 2) + "│");
+    while (currentRow < region.endRow) {
+      screen.cursorMoveTo(currentRow, 0);
+      screen.write(" ".repeat(usableWidth));
       currentRow += 1;
     }
   }
