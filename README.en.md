@@ -97,5 +97,5 @@ detoks repl --adapter codex --execution-mode stub
 
 ## Windows usage
 
-Windows native execution is not supported; use WSL Ubuntu instead.
+Windows native execution is supported when Node.js, Python 3.13, uv, and a Windows `llama-server.exe` build are installed. Set `LOCAL_LLM_SERVER_BINARY` to the executable path when it is not on `PATH`.
 See [LLAMA_CPP_SERVER_SPEC.md](./docs/LLAMA_CPP_SERVER_SPEC.md) for installation and execution details.
