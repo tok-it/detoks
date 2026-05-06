@@ -23,11 +23,12 @@ detoks는 `codex`, `gemini`, `claude` 같은 LLM CLI 앞단에서 동작하는 *
 
 ## 한눈에 보기
 
-- one-shot 실행과 REPL 모드 지원
+- one-shot 실행과 REPL 모드 지원 (text 또는 TUI)
 - task graph / context / state 관리
 - adapter / subprocess 경계 분리
 - `stub` / `real` 실행 모드
 - 세션 저장 및 재개 기반 워크플로우
+- TUI 모드: 실시간 파이프라인 상태, 어댑터 출력, 토큰 절감 메트릭스 표시
 
 ## 요구 사항
 
@@ -82,7 +83,11 @@ detoks "summarize the current repo status"
 REPL 예시:
 
 ```bash
+# Text REPL (기본값)
 detoks repl --adapter codex --execution-mode stub
+
+# TUI REPL (전체 화면 UI)
+detoks repl --adapter codex --execution-mode stub --tui
 ```
 
 ## detoks가 해주는 일

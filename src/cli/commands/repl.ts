@@ -447,11 +447,32 @@ export const runReplCommand = async (baseArgs: CliArgs): Promise<void> => {
   // TUI 모드인 경우: TUI REPL 실행
   if (replMode.useTui) {
     try {
-      await runTuiRepl({
+      // Get current model from config
+      const { getAdapterModel } = await import("../config/config-manager.js");
+      const currentModel = getAdapterModel(baseArgs.adapter);
+
+      // Determine inference strength for codex
+      let inferenceStrength: string | undefined;
+      if (baseArgs.adapter === "codex") {
+        inferenceStrength = "medium"; // Default inference strength
+      }
+
+      const tuiOptions: any = {
         adapter: baseArgs.adapter,
         executionMode: baseArgs.executionMode,
         verbose: baseArgs.verbose,
-      });
+        translationModel: "claude-3.5-sonnet",
+      };
+
+      if (currentModel) {
+        tuiOptions.adapterModel = currentModel;
+      }
+
+      if (inferenceStrength) {
+        tuiOptions.inferenceStrength = inferenceStrength;
+      }
+
+      await runTuiRepl(tuiOptions);
       return;
     } catch (error) {
       // TUI 실패 시 fallback to text REPL

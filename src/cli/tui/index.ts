@@ -6,12 +6,21 @@ import { computeLayout } from "./layout-manager.js";
 import { PipelineStatusPanel } from "./panels/pipeline-status.js";
 import { TranscriptPanel } from "./panels/transcript.js";
 import { ResultSummaryPanel } from "./panels/result-summary.js";
+import { toNormalizedRequest } from "../parse.js";
+import { orchestratePipeline } from "../../core/pipeline/orchestrator.js";
 import { colors } from "../colors.js";
+import { formatError } from "../format.js";
+import type { PipelineProgressEvent } from "../../core/pipeline/types.js";
+import { renderConfigInfo } from "./renderer.js";
 
 interface TuiRunOptions {
   adapter: CliArgs["adapter"];
   executionMode: CliArgs["executionMode"];
   verbose: boolean;
+  sessionId?: string;
+  translationModel?: string;
+  adapterModel?: string;
+  inferenceStrength?: string;
 }
 
 export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
@@ -25,11 +34,37 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
   try {
     let input = "";
     let running = true;
+    let isExecuting = false;
 
     // Initialize panels
     const pipelinePanel = new PipelineStatusPanel();
     const transcriptPanel = new TranscriptPanel();
     const resultPanel = new ResultSummaryPanel();
+    let hasExecuted = false;
+    let lastLayout: any = null;
+
+    // Build config info lines
+    const configLines: string[] = [];
+    if (options.translationModel || options.adapterModel) {
+      configLines.push(`💬 모델: ${options.translationModel || "기본값"}`);
+    }
+
+    let adapterLine = `🔗 Adapter: ${options.adapter}`;
+    if (options.adapterModel) {
+      adapterLine += ` (${options.adapterModel})`;
+    }
+    if (options.inferenceStrength) {
+      adapterLine += ` | 추론강도: ${options.inferenceStrength}`;
+    }
+    configLines.push(adapterLine);
+
+    // Optimized: only update input area
+    const renderInputOnly = (): void => {
+      const dims = screen.getDimensions();
+      const ctx = { screen, dims };
+      renderInputArea(ctx, input);
+      screen.flush();
+    };
 
     const render = (): void => {
       const dims = screen.getDimensions();
@@ -38,45 +73,168 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
 
       // Render structure
       renderScreenBorder(ctx);
-      renderHeader(ctx, "detoks repl (TUI 모드)");
+      renderHeader(ctx, "detoks repl");
 
-      // Render panels
-      pipelinePanel.render(ctx, layout.statusPanelRegion);
-      transcriptPanel.render(ctx, layout.transcriptRegion);
-      resultPanel.render(ctx, layout.resultRegion);
+      // Render config info
+      let currentRow = 3;
+      currentRow = renderConfigInfo(ctx, configLines, currentRow) + 1;
+
+      // Separator
+      screen.cursorMoveTo(currentRow, 1);
+      screen.write("├" + "─".repeat(dims.columns - 2) + "┤");
+      currentRow += 1;
+
+      // Show pipeline status only after first execution or during execution
+      if (hasExecuted) {
+        const pipelineRegion = {
+          startRow: currentRow,
+          endRow: currentRow + 6,
+          columns: dims.columns,
+        };
+        pipelinePanel.render(ctx, pipelineRegion);
+        currentRow = pipelineRegion.endRow + 1;
+
+        // Separator
+        screen.cursorMoveTo(currentRow, 1);
+        screen.write("├" + "─".repeat(dims.columns - 2) + "┤");
+        currentRow += 1;
+      } else {
+        // Show welcome message before first execution
+        screen.cursorMoveTo(currentRow, 1);
+        screen.write("│ 💡 /help로 도움말 보기, /adapter로 어댑터 변경, q로 종료".padEnd(dims.columns - 2) + " │");
+        currentRow += 1;
+      }
+
+      // Render transcript and result panels
+      const transcriptRegion = {
+        startRow: currentRow,
+        endRow: dims.rows - 4,
+        columns: dims.columns,
+      };
+      transcriptPanel.render(ctx, transcriptRegion);
 
       // Render input area
       renderInputArea(ctx, input);
       renderFooter(ctx);
+      screen.flush();
     };
 
-    // Handle input
+    // Phase 3.2: Create onProgress callback
+    const onProgress = (event: PipelineProgressEvent): void => {
+      pipelinePanel.update(event);
+      render();
+    };
+
+    // Phase 3.1: Handle user input
     const onData = (chunk: Buffer): void => {
+      if (isExecuting) {
+        return; // Ignore input while executing
+      }
+
       const char = chunk.toString();
+      let needsFullRender = false;
 
       if (char === "q" || char === "Q") {
         running = false;
-      } else if (char === "") {
+        needsFullRender = true;
+      } else if (char === "\x03") {
         // Ctrl+C
         running = false;
+        needsFullRender = true;
       } else if (char === "\r" || char === "\n") {
         if (input.trim()) {
-          running = false;
+          // Phase 3.2: Execute prompt
+          executePrompt(input);
+          input = ""; // Clear input for next prompt
         }
-      } else if (char === "") {
-        // Backspace
-        input = input.slice(0, -1);
-      } else if (char === "[A") {
+        needsFullRender = true;
+      } else if (char === "\x7f" || char === "\b") {
+        // Backspace (DEL: 0x7f or Backspace: 0x08)
+        // Remove last character by code point, not by byte
+        const charArray = Array.from(input); // Handle multi-byte characters correctly
+        if (charArray.length > 0) {
+          charArray.pop();
+          input = charArray.join("");
+        }
+        // Only update input area for backspace
+        renderInputOnly();
+        return;
+      } else if (char === "\x1b[A") {
         // Arrow Up
         transcriptPanel.scrollUp();
-      } else if (char === "[B") {
+        needsFullRender = true;
+      } else if (char === "\x1b[B") {
         // Arrow Down
         transcriptPanel.scrollDown();
-      } else if (char.length === 1 && char.charCodeAt(0) >= 32) {
+        needsFullRender = true;
+      } else if (char.charCodeAt(0) >= 32 || /[\p{L}\p{N}\p{P}\p{Z}]/u.test(char)) {
+        // Accept printable ASCII (>= 32) or any Unicode letter/number/punctuation/space
         input += char;
+        // Only update input area for normal character input (faster response)
+        renderInputOnly();
+        return;
       }
 
-      render();
+      // Full render for commands that affect layout
+      if (needsFullRender) {
+        render();
+      }
+    };
+
+    // Phase 3: Execute prompt function
+    const executePrompt = async (prompt: string): Promise<void> => {
+      isExecuting = true;
+      hasExecuted = true;
+      try {
+        // Clear previous results
+        transcriptPanel.clear();
+        resultPanel.clear();
+        pipelinePanel.reset();
+        render();
+
+        // Phase 3.1: Create normalized request
+        const request = toNormalizedRequest(
+          {
+            mode: "repl",
+            prompt,
+            adapter: options.adapter,
+            executionMode: options.executionMode,
+            verbose: options.verbose,
+            trace: false,
+            showHelp: false,
+            helpTopic: "repl",
+          },
+          {
+            mode: "repl",
+            sessionId: options.sessionId || `repl-${Date.now()}`,
+          },
+        );
+
+        // Phase 3.2: Execute via orchestrator with progress callback
+        const result = await orchestratePipeline({
+          ...request,
+          onProgress,
+        });
+
+        // Phase 3.3: Feed PTY events to transcript panel
+        if (result.adapterTranscript?.events) {
+          for (const event of result.adapterTranscript.events) {
+            transcriptPanel.addEvent(event);
+          }
+        }
+
+        // Phase 3.4: Display result
+        resultPanel.setResult(result);
+        render();
+
+      } catch (error) {
+        // Display error
+        const errorMsg = formatError(error, options.verbose);
+        transcriptPanel.append(`\n[ERROR] ${errorMsg}`);
+        render();
+      } finally {
+        isExecuting = false;
+      }
     };
 
     stdin.on("data", onData);
@@ -84,7 +242,7 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
     // Initial render
     render();
 
-    // Wait for input (blocking loop)
+    // Phase 3.5: REPL loop - wait for user input or exit
     while (running) {
       await new Promise((resolve) => setTimeout(resolve, 50));
     }
