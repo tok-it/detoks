@@ -9,6 +9,8 @@ import { logger } from "../utils/logger.js";
 let startupPromise: Promise<void> | null = null;
 let startupSignature: string | null = null;
 let activeServerPid: number | null = null;
+let lastUsedPort: number | undefined = undefined;
+let lastUsedModel: string | undefined = undefined;
 
 function isLocalHost(hostname: string): boolean {
   return ["127.0.0.1", "localhost", "::1"].includes(hostname);
@@ -592,9 +594,18 @@ export async function ensureLocalLlmRuntime(config: Role1RuntimeConfig): Promise
 
   try {
     await nextStartupPromise;
+    lastUsedPort = config.localLlmServerPort ?? 12370;
+    lastUsedModel = config.localLlmModelName;
   } finally {
     if (startupPromise === nextStartupPromise) {
       startupPromise = null;
     }
   }
+}
+
+export function getLastUsedLocalLlmInfo(): { port: number | undefined; model: string | undefined } {
+  return {
+    port: lastUsedPort,
+    model: lastUsedModel,
+  };
 }
