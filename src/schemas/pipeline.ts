@@ -268,6 +268,10 @@ export const SessionStateSchema = z.object({
     created_at: z.string().optional(),
     last_modified_at: z.string().optional(),
   }).passthrough(),
+  runtime: z.object({
+    localLlmPort: z.number().int().positive().optional(),
+    localLlmModel: z.string().optional(),
+  }).optional(),
   task_results: z.record(z.string(), TaskResultSchema).default({}),
   current_task_id: z.string().optional().nullable(),
   completed_task_ids: z.array(z.string()).default([]),
