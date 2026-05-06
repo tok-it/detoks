@@ -129,12 +129,19 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
     };
 
     // Phase 3.1: Handle user input
+    // Korean input handling considerations:
+    // 1. StringDecoder ensures complete UTF-8 characters from split chunks
+    // 2. IME composition detection: checks if last char in input matches last received char
+    //    to distinguish composition updates (replace) from new characters (append)
+    // 3. Display width calculation: Korean characters are 2 columns wide in terminal
+    // 4. Escape sequences: handled separately before character-by-character processing
     const onData = (chunk: Buffer): void => {
       if (isExecuting) {
         return; // Ignore input while executing
       }
 
       // Use StringDecoder to handle multi-byte UTF-8 sequences that may be split across chunks
+      // This ensures Korean and other Unicode characters don't get corrupted
       const text = decoder.write(chunk);
       let needsFullRender = false;
       let i = 0;
@@ -143,7 +150,8 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
       while (i < text.length) {
         let handled = false;
 
-        // Check for escape sequences first (multi-character)
+        // Check for escape sequences first (multi-character sequences)
+        // Must be processed as atomic units before character-by-character handling
         if (text.charCodeAt(i) === 0x1b && i + 2 < text.length) {
           const sequence = text.substring(i, i + 3);
           if (sequence === "\x1b[A") {
