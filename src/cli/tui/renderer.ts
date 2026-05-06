@@ -90,17 +90,49 @@ export const renderInputArea = (ctx: RenderContext, input: string): void => {
   const separator = colors.prompt("━".repeat(dims.columns));
   screen.write(separator);
 
-  const displayWidth = getDisplayWidth(input);
-  const maxInputWidth = dims.columns - 2;
-  const paddingNeeded = Math.max(0, maxInputWidth - displayWidth);
+  // Calculate available space for input ("> " = 2 chars)
+  const availableWidth = dims.columns - 2;
+  let displayInput = input;
+  let displayWidth = getDisplayWidth(input);
+  let displayOffset = 0;
+
+  // If input is too long, truncate from the left and show from the right
+  if (displayWidth > availableWidth) {
+    // Find where to start from the end to fit in availableWidth
+    const chars = Array.from(input);
+    let currentWidth = 0;
+
+    // Iterate from the end to find starting position
+    for (let i = chars.length - 1; i >= 0; i--) {
+      const char = chars[i];
+      if (!char) continue;
+      const code = char.charCodeAt(0);
+      const charWidth = (
+        (code >= 0x4e00 && code <= 0x9fff) || // CJK Unified Ideographs
+        (code >= 0x3040 && code <= 0x309f) || // Hiragana
+        (code >= 0x30a0 && code <= 0x30ff) || // Katakana
+        (code >= 0xac00 && code <= 0xd7af) || // Hangul Syllables (Korean)
+        (code >= 0x1100 && code <= 0x11ff)    // Hangul Jamo
+      ) ? 2 : 1;
+
+      if (currentWidth + charWidth > availableWidth) {
+        displayOffset = i + 1;
+        break;
+      }
+      currentWidth += charWidth;
+    }
+
+    displayInput = input.substring(displayOffset);
+    displayWidth = getDisplayWidth(displayInput);
+  }
+
+  const paddingNeeded = Math.max(0, availableWidth - displayWidth);
 
   screen.cursorMoveTo(inputRow, 0);
-  screen.write("> " + input + " ".repeat(paddingNeeded));
+  screen.write("> " + displayInput + " ".repeat(paddingNeeded));
 
-  // Cursor position after "> " (2 characters)
-  // Format: col 0: >, col 1: space, col 2+: input
-  // CJK chars occupy 2 terminal columns but count as 1 character
-  // Cursor should be at col 2 + displayWidth
+  // Cursor position after "> " + displayInput
+  // Cursor should be at col 2 + displayWidth (for visible portion)
   screen.cursorMoveTo(inputRow, 2 + displayWidth);
 };
 
