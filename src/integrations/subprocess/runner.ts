@@ -1,4 +1,11 @@
-import type { SubprocessRequest, SubprocessResult, SubprocessRunner } from "./types.js";
+import type {
+  SubprocessRequest,
+  SubprocessResult,
+  SubprocessRunner,
+  PtyResult,
+  PtyEvent,
+  PtyTranscript,
+} from "./types.js";
 import { spawn } from "node:child_process";
 import { closeSync, existsSync, openSync, readSync, statSync } from "node:fs";
 import { extname, join } from "node:path";
@@ -165,3 +172,126 @@ export const createRealSubprocessRunner = (): SubprocessRunner => ({
     });
   },
 });
+
+interface PtyRunnerOptions {
+  onEvent?: (event: PtyEvent) => void;
+}
+
+export const createPtySubprocessRunner = (
+  options?: PtyRunnerOptions,
+): SubprocessRunner & { runWithTranscript: (request: SubprocessRequest) => Promise<PtyResult> } => {
+  const baseRunner = createRealSubprocessRunner();
+
+  return {
+    run: (request: SubprocessRequest) => baseRunner.run(request),
+
+    async runWithTranscript(request: SubprocessRequest): Promise<PtyResult> {
+      return await new Promise<PtyResult>((resolve) => {
+        const env = request.env ? { ...process.env, ...request.env } : process.env;
+        const resolvedCommand = resolveCommandFromPath(request.command, env);
+        const runViaNode = resolvedCommand !== undefined && isNodeShebangScript(resolvedCommand);
+        const command = runViaNode
+          ? process.execPath
+          : resolvedCommand ?? request.command;
+        const args = runViaNode
+          ? [resolvedCommand, ...request.args]
+          : request.args;
+
+        const startTime = Date.now();
+        const events: PtyEvent[] = [];
+
+        const emitEvent = (event: Omit<PtyEvent, "timestamp">): void => {
+          const fullEvent: PtyEvent = { ...event, timestamp: Date.now() };
+          events.push(fullEvent);
+          options?.onEvent?.(fullEvent);
+        };
+
+        const child = spawn(command, args, {
+          cwd: request.cwd,
+          env,
+          shell: false,
+          stdio: ["pipe", "pipe", "pipe"],
+        });
+
+        let settled = false;
+        let stdout = "";
+        let stderr = "";
+        let exitCode = 0;
+
+        const finish = (code: number, timedOut: boolean): void => {
+          if (settled) {
+            return;
+          }
+          settled = true;
+
+          const endTime = Date.now();
+          const transcript: PtyTranscript = {
+            events,
+            startTime,
+            endTime,
+            totalDuration: endTime - startTime,
+            exitCode: code,
+            timedOut,
+          };
+
+          emitEvent({
+            type: "exit",
+            data: String(code),
+          });
+
+          resolve({
+            stdout,
+            stderr,
+            exitCode: code,
+            timedOut,
+            transcript,
+          });
+        };
+
+        child.stdout?.setEncoding("utf8");
+        child.stderr?.setEncoding("utf8");
+
+        child.stdout?.on("data", (chunk: string) => {
+          stdout += chunk;
+          emitEvent({
+            type: "chunk",
+            stream: "stdout",
+            data: chunk,
+          });
+        });
+
+        child.stderr?.on("data", (chunk: string) => {
+          stderr += chunk;
+          emitEvent({
+            type: "chunk",
+            stream: "stderr",
+            data: chunk,
+          });
+        });
+
+        child.on("error", (error) => {
+          emitEvent({
+            type: "error",
+            data: String(error),
+          });
+          finish(127, false);
+        });
+
+        child.on("close", (code, signal) => {
+          exitCode = typeof code === "number" ? code : signal ? 128 : 1;
+          finish(exitCode, false);
+        });
+
+        if (request.input !== undefined) {
+          emitEvent({
+            type: "prompt",
+            data: request.input,
+          });
+          child.stdin.write(request.input);
+        }
+
+        child.stdin.end();
+      });
+    },
+  };
+};
