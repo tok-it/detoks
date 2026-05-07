@@ -13,6 +13,7 @@ import { PipelineTracer } from "../utils/PipelineTracer.js";
 import { translateVisibleText } from "../utils/visibleText.js";
 import { buildTokenMetrics, type TokenMetricsSnapshot } from "../utils/tokenMetrics.js";
 import type { PtyTranscript } from "../../integrations/subprocess/types.js";
+import { getLastUsedLocalLlmInfo } from "../llm-client/local-runtime.js";
 import type { SessionState } from "../../schemas/pipeline.js";
 import type {
   PipelineProgressEvent,
@@ -715,6 +716,16 @@ export const orchestratePipeline = async (
     compiledPrompt.compressed_prompt,
   );
   state = sessionTokenMetrics.state;
+  const llmInfo = getLastUsedLocalLlmInfo();
+  if (llmInfo.port !== undefined || llmInfo.model !== undefined) {
+    state = {
+      ...state,
+      runtime: {
+        localLlmPort: llmInfo.port,
+        localLlmModel: llmInfo.model,
+      },
+    };
+  }
   await emitProgressWithLogging( {
     stage: "State Manager",
     status: "start",

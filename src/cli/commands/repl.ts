@@ -16,6 +16,7 @@ import {
 import { buildPrompt } from "../interactive/prompt-builder.js";
 import { playPromptBootAnimation } from "../interactive/prompt-animation.js";
 import { loadAndApplyConfig } from "../config/loader.js";
+import { loadRole1RuntimeConfig } from "../../core/prompt/config.js";
 import {
   getAdapterModel,
   getCodexReasoningEffortOverride,
@@ -491,12 +492,16 @@ export const runReplCommand = async (baseArgs: CliArgs): Promise<void> => {
   let verbose = baseArgs.verbose;
   let currentAdapter = baseArgs.adapter;
   let useAnimatedFirstPrompt = Boolean(output.isTTY);
+  const runtimeConfig = loadRole1RuntimeConfig();
+  const llmPort = runtimeConfig.localLlmServerPort ?? 12370;
+  const llmModel = runtimeConfig.localLlmModelName?.split(":")[0] || "unknown";
 
   const startMessage = [
     colors.title("detoks repl 시작"),
     `  adapter=${colors.info(baseArgs.adapter)}`,
     `  executionMode=${colors.info(baseArgs.executionMode)}`,
     `  verbose=${colors.info(String(verbose))}`,
+    `  llm=${colors.info(`port ${llmPort} | ${llmModel}`)}`,
     "",
     `${colors.muted("stub")} = 모의 출력; ${colors.muted("real")} = 어댑터의 실제 실행 경로`,
     colors.info(`명령어 목록을 보려면 ${colors.boldText('"/help"')}를 입력하세요.\n`),

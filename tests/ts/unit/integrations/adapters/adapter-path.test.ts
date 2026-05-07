@@ -149,6 +149,29 @@ describe("adapter subprocess path", () => {
     expect(result.exitCode).toBe(0);
   });
 
+  it("routes a claude request through the subprocess boundary", async () => {
+    const adapter = new ClaudeStubAdapter();
+    const result = await executeAdapterViaSubprocess(
+      adapter,
+      {
+        mode: "run",
+        prompt: "hello subprocess",
+        verbose: false,
+        model: "claude-sonnet-4-6",
+      },
+      {
+        executionMode: "real",
+        subprocessRunner: createStubSubprocessRunner(),
+      },
+    );
+
+    expect(result.success).toBe(true);
+    expect(result.rawOutput).toBe(
+      "[stub:subprocess] claude -p --output-format text --permission-mode default --model claude-sonnet-4-6",
+    );
+    expect(result.exitCode).toBe(0);
+  });
+
   it("includes a configured codex reasoning effort override in subprocess requests", async () => {
     updateCodexReasoningEffort("high");
 
