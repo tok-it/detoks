@@ -3,6 +3,28 @@ import type { PanelRegion } from "../layout-manager.js";
 import type { PipelineExecutionResult } from "../../../core/pipeline/types.js";
 import type { TokenReductionSnapshot } from "../../../core/utils/tokenMetrics.js";
 import { getContentArea } from "../layout-manager.js";
+import { colors } from "../../colors.js";
+
+const EMPTY_RESULT_LINES = [
+  "실행 결과가 아직 없습니다.",
+  "첫 실행 이후 요약 · 다음 작업 · 토큰 절감이 이 영역에 표시됩니다.",
+] as const;
+
+const truncateLine = (line: string, maxWidth: number): string => {
+  if (maxWidth <= 0) {
+    return "";
+  }
+
+  if (line.length <= maxWidth) {
+    return line.padEnd(maxWidth);
+  }
+
+  if (maxWidth <= 3) {
+    return ".".repeat(maxWidth);
+  }
+
+  return `${line.slice(0, maxWidth - 3)}...`;
+};
 
 export class ResultSummaryPanel {
   private result: PipelineExecutionResult | null = null;
@@ -54,26 +76,16 @@ export class ResultSummaryPanel {
     const { screen } = ctx;
     const { usableWidth } = getContentArea(region);
 
-    if (!this.result) {
-      // Empty state: render blank panel
-      for (let row = region.startRow; row < region.endRow; row++) {
-        screen.cursorMoveTo(row, 0);
-        screen.write(" ".repeat(usableWidth));
-      }
-      return;
-    }
-
-    // Content lines
-    const lines = this.buildLines();
+    const isEmptyState = this.result === null;
+    const lines = isEmptyState ? [...EMPTY_RESULT_LINES] : this.buildLines();
     let currentRow = region.startRow;
 
     for (const line of lines) {
       if (currentRow >= region.endRow) break;
 
-      // Truncate line to fit in usable width
-      const displayLine = line.length > usableWidth
-        ? line.slice(0, usableWidth - 3) + "..."
-        : line.padEnd(usableWidth);
+      const displayLine = isEmptyState
+        ? colors.muted(truncateLine(line, usableWidth))
+        : truncateLine(line, usableWidth);
 
       screen.cursorMoveTo(currentRow, 0);
       screen.write(displayLine);

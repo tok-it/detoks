@@ -6,6 +6,220 @@ export interface RenderContext {
   dims: ScreenDimensions;
 }
 
+interface WrappedInputLine {
+  text: string;
+  width: number;
+}
+
+export interface InputLayout {
+  separatorRow: number;
+  inputStartRow: number;
+  inputEndRow: number;
+  bottomSeparatorRow: number;
+  visibleStartIndex: number;
+  visibleLines: WrappedInputLine[];
+  cursorRow: number;
+  cursorCol: number;
+}
+
+export interface FooterContext {
+  adapter: string;
+  adapterModel?: string | undefined;
+  inferenceStrength?: string | undefined;
+  cwd: string;
+}
+
+const isWideCharacter = (char: string): boolean => {
+  const code = char.codePointAt(0) ?? 0;
+  return (
+    (code >= 0x4e00 && code <= 0x9fff) || // CJK Unified Ideographs
+    (code >= 0x3040 && code <= 0x309f) || // Hiragana
+    (code >= 0x30a0 && code <= 0x30ff) || // Katakana
+    (code >= 0xac00 && code <= 0xd7af) || // Hangul Syllables
+    (code >= 0x1100 && code <= 0x11ff) || // Hangul Jamo Extended-A
+    (code >= 0x3130 && code <= 0x318f)    // Hangul Compatibility Jamo
+  );
+};
+
+const wrapInputLines = (
+  input: string,
+  firstLineWidth: number,
+  continuationWidth: number,
+): WrappedInputLine[] => {
+  const chars = Array.from(input);
+  const lines: WrappedInputLine[] = [];
+  let currentText = "";
+  let currentWidth = 0;
+  let currentLimit = firstLineWidth;
+
+  for (const char of chars) {
+    const charWidth = isWideCharacter(char) ? 2 : 1;
+
+    if (currentText.length > 0 && currentWidth + charWidth > currentLimit) {
+      lines.push({ text: currentText, width: currentWidth });
+      currentText = "";
+      currentWidth = 0;
+      currentLimit = continuationWidth;
+    }
+
+    currentText += char;
+    currentWidth += charWidth;
+  }
+
+  if (currentText.length > 0 || lines.length === 0) {
+    lines.push({ text: currentText, width: currentWidth });
+  }
+
+  return lines;
+};
+
+const measureDisplayWidth = (text: string): number => {
+  let width = 0;
+  for (const char of text) {
+    width += isWideCharacter(char) ? 2 : 1;
+  }
+  return width;
+};
+
+const ellipsizeLeft = (text: string, maxWidth: number): string => {
+  if (maxWidth <= 0) {
+    return "";
+  }
+
+  if (measureDisplayWidth(text) <= maxWidth) {
+    return text;
+  }
+
+  if (maxWidth === 1) {
+    return "…";
+  }
+
+  const targetWidth = maxWidth - 1;
+  const chars = Array.from(text);
+  const kept: string[] = [];
+  let width = 0;
+
+  for (let i = chars.length - 1; i >= 0; i--) {
+    const char = chars[i];
+    if (!char) {
+      continue;
+    }
+    const charWidth = isWideCharacter(char) ? 2 : 1;
+    if (width + charWidth > targetWidth) {
+      break;
+    }
+    kept.push(char);
+    width += charWidth;
+  }
+
+  return `…${kept.reverse().join("")}`;
+};
+
+const ellipsizeRight = (text: string, maxWidth: number): string => {
+  if (maxWidth <= 0) {
+    return "";
+  }
+
+  if (measureDisplayWidth(text) <= maxWidth) {
+    return text;
+  }
+
+  if (maxWidth === 1) {
+    return "…";
+  }
+
+  const targetWidth = maxWidth - 1;
+  const chars = Array.from(text);
+  const kept: string[] = [];
+  let width = 0;
+
+  for (const char of chars) {
+    const charWidth = isWideCharacter(char) ? 2 : 1;
+    if (width + charWidth > targetWidth) {
+      break;
+    }
+    kept.push(char);
+    width += charWidth;
+  }
+
+  return `${kept.join("")}…`;
+};
+
+export const buildFooterText = (columns: number, footer: FooterContext): string => {
+  const sidePadding = columns >= 4 ? 1 : 0;
+  const innerColumns = Math.max(0, columns - sidePadding * 2);
+  const footerValues = [
+    footer.adapter,
+    footer.adapterModel,
+    footer.adapter === "codex" ? footer.inferenceStrength : undefined,
+    footer.cwd,
+  ].filter((value): value is string => Boolean(value));
+
+  const fullText = footerValues.join(" | ");
+
+  const finalizeFooter = (content: string): string => {
+    const contentWidth = measureDisplayWidth(content);
+    const paddedContent = content + " ".repeat(Math.max(0, innerColumns - contentWidth));
+    const sideSpace = " ".repeat(sidePadding);
+    return `${sideSpace}${paddedContent}${sideSpace}`;
+  };
+
+  if (measureDisplayWidth(fullText) <= innerColumns) {
+    return finalizeFooter(fullText);
+  }
+
+  const compactText = `${footer.adapter} | ${footer.cwd}`;
+  if (measureDisplayWidth(compactText) <= innerColumns) {
+    return finalizeFooter(compactText);
+  }
+
+  const cwdBudget = Math.max(0, innerColumns - measureDisplayWidth(footer.adapter) - 3);
+  const shortenedCwd = ellipsizeLeft(footer.cwd, cwdBudget);
+  let line = `${footer.adapter} | ${shortenedCwd}`;
+
+  if (measureDisplayWidth(line) <= innerColumns) {
+    return finalizeFooter(line);
+  }
+
+  const adapterBudget = Math.max(0, innerColumns - 3 - measureDisplayWidth(shortenedCwd));
+  const shortenedAdapter = ellipsizeRight(footer.adapter, adapterBudget);
+  line = `${shortenedAdapter} | ${shortenedCwd}`;
+
+  if (measureDisplayWidth(line) <= innerColumns) {
+    return finalizeFooter(line);
+  }
+
+  const shortened = ellipsizeRight(line, innerColumns);
+  return finalizeFooter(shortened);
+};
+
+export const measureInputLayout = (dims: ScreenDimensions, input: string): InputLayout => {
+  const firstLineWidth = Math.max(0, dims.columns - 2);
+  const continuationWidth = Math.max(0, dims.columns);
+  const allLines = wrapInputLines(input, firstLineWidth, continuationWidth);
+  const maxVisibleLines = Math.max(1, dims.rows - 3);
+  const visibleStartIndex = Math.max(0, allLines.length - maxVisibleLines);
+  const visibleLines = allLines.slice(visibleStartIndex);
+  const separatorRow = Math.max(0, dims.rows - visibleLines.length - 3);
+  const inputStartRow = separatorRow + 1;
+  const bottomSeparatorRow = dims.rows - 2;
+  const inputEndRow = dims.rows - 1;
+  const lastVisibleLine = visibleLines[visibleLines.length - 1] ?? { text: "", width: 0 };
+  const cursorRow = inputStartRow + visibleLines.length - 1;
+  const cursorCol = lastVisibleLine.width + (visibleStartIndex === 0 && visibleLines.length === 1 ? 2 : 0);
+
+  return {
+    separatorRow,
+    inputStartRow,
+    inputEndRow,
+    bottomSeparatorRow,
+    visibleStartIndex,
+    visibleLines,
+    cursorRow,
+    cursorCol,
+  };
+};
+
 export const renderScreenBorder = (ctx: RenderContext): void => {
   const { screen, dims } = ctx;
 
@@ -61,85 +275,42 @@ export const renderStatusPanel = (
   return currentRow;
 };
 
-export const renderInputArea = (ctx: RenderContext, input: string): void => {
+export const renderInputArea = (ctx: RenderContext, input: string): InputLayout => {
   const { screen, dims } = ctx;
-  const separatorRow = dims.rows - 3;
-  const inputRow = dims.rows - 2;
-
-  // Calculate display width of input (considering CJK characters are 2 columns wide)
-  const getDisplayWidth = (str: string): number => {
-    let width = 0;
-    for (const char of str) {
-      // CJK Unified Ideographs range (Chinese, Japanese, Korean characters)
-      const code = char.charCodeAt(0);
-      if ((code >= 0x4e00 && code <= 0x9fff) || // CJK Unified Ideographs
-          (code >= 0x3040 && code <= 0x309f) || // Hiragana
-          (code >= 0x30a0 && code <= 0x30ff) || // Katakana
-          (code >= 0xac00 && code <= 0xd7af) || // Hangul Syllables (Korean)
-          (code >= 0x1100 && code <= 0x11ff)) { // Hangul Jamo
-        width += 2;
-      } else {
-        width += 1;
-      }
-    }
-    return width;
-  };
+  const layout = measureInputLayout(dims, input);
 
   // Render colored separator line before input area
-  screen.cursorMoveTo(separatorRow, 0);
+  for (let row = layout.separatorRow; row <= layout.bottomSeparatorRow; row++) {
+    screen.cursorMoveTo(row, 0);
+    screen.write(" ".repeat(dims.columns));
+  }
+
+  screen.cursorMoveTo(layout.separatorRow, 0);
   const separator = colors.prompt("━".repeat(dims.columns));
   screen.write(separator);
 
-  // Calculate available space for input ("> " = 2 chars)
-  const availableWidth = dims.columns - 2;
-  let displayInput = input;
-  let displayWidth = getDisplayWidth(input);
-  let displayOffset = 0;
+  layout.visibleLines.forEach((line, index) => {
+    const row = layout.inputStartRow + index;
+    const isFirstPromptLine = layout.visibleStartIndex === 0 && index === 0;
+    const prefix = isFirstPromptLine ? "> " : "";
+    const availableWidth = isFirstPromptLine ? Math.max(0, dims.columns - 2) : dims.columns;
+    const paddingNeeded = Math.max(0, availableWidth - line.width);
 
-  // If input is too long, truncate from the left and show from the right
-  if (displayWidth > availableWidth) {
-    // Find where to start from the end to fit in availableWidth
-    const chars = Array.from(input);
-    let currentWidth = 0;
+    screen.cursorMoveTo(row, 0);
+    screen.write(prefix + line.text + " ".repeat(paddingNeeded));
+  });
 
-    // Iterate from the end to find starting position
-    for (let i = chars.length - 1; i >= 0; i--) {
-      const char = chars[i];
-      if (!char) continue;
-      const code = char.charCodeAt(0);
-      const charWidth = (
-        (code >= 0x4e00 && code <= 0x9fff) || // CJK Unified Ideographs
-        (code >= 0x3040 && code <= 0x309f) || // Hiragana
-        (code >= 0x30a0 && code <= 0x30ff) || // Katakana
-        (code >= 0xac00 && code <= 0xd7af) || // Hangul Syllables (Korean)
-        (code >= 0x1100 && code <= 0x11ff)    // Hangul Jamo
-      ) ? 2 : 1;
+  screen.cursorMoveTo(layout.bottomSeparatorRow, 0);
+  screen.write(colors.prompt("━".repeat(dims.columns)));
 
-      if (currentWidth + charWidth > availableWidth) {
-        displayOffset = i + 1;
-        break;
-      }
-      currentWidth += charWidth;
-    }
+  screen.cursorMoveTo(layout.cursorRow, layout.cursorCol);
 
-    displayInput = input.substring(displayOffset);
-    displayWidth = getDisplayWidth(displayInput);
-  }
-
-  const paddingNeeded = Math.max(0, availableWidth - displayWidth);
-
-  screen.cursorMoveTo(inputRow, 0);
-  screen.write("> " + displayInput + " ".repeat(paddingNeeded));
-
-  // Cursor position after "> " + displayInput
-  // Cursor should be at col 2 + displayWidth (for visible portion)
-  screen.cursorMoveTo(inputRow, 2 + displayWidth);
+  return layout;
 };
 
-export const renderFooter = (ctx: RenderContext): void => {
+export const renderFooter = (ctx: RenderContext, footerText: string): void => {
   const { screen, dims } = ctx;
-  const helpText = "[q: quit, ↑↓: scroll, Enter: run]";
 
   screen.cursorMoveTo(dims.rows - 1, 0);
-  screen.write(helpText.padEnd(dims.columns));
+  screen.write(colors.footer(footerText));
 };

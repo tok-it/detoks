@@ -7,13 +7,20 @@ export interface PromptState {
   translationModel: string | undefined;
 }
 
-export const buildPrompt = (state: PromptState): string => {
+export const DETOKS_PROMPT_SUFFIX = "detoks> " as const;
+
+export const buildPromptText = (state: PromptState): string => {
   const adapterName = state.adapter.toUpperCase();
   const modelInfo = state.adapterModel || "미설정";
+  return `[${adapterName}:${modelInfo}] ${DETOKS_PROMPT_SUFFIX}`;
+};
 
-  // 포맷: [어댑터:모델] detoks>
+export const buildPromptPrefixText = (state: PromptState): string =>
+  buildPromptText(state).slice(0, -DETOKS_PROMPT_SUFFIX.length);
+
+export const buildPrompt = (state: PromptState): string => {
   return colors.prompt(
-    `[${colors.boldText(adapterName)}${colors.muted(":")}${colors.info(modelInfo)}] detoks> `,
+    `[${colors.boldText(state.adapter.toUpperCase())}${colors.muted(":")}${colors.info(state.adapterModel || "미설정")}] ${DETOKS_PROMPT_SUFFIX}`,
   );
 };
 

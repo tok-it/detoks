@@ -143,11 +143,11 @@ describe("ResultSummaryPanel", () => {
       panel.render(mockContext, mockRegion);
 
       const calls = mockScreen.write.mock.calls;
-      // Should fill region with blank lines
       expect(calls.length).toBeGreaterThan(0);
 
       const output = calls.map((c: any) => c[0]).join("\n");
-      // Should not have status or summary
+      expect(output).toContain("실행 결과가 아직 없습니다.");
+      expect(output).toContain("다음 작업");
       expect(output).not.toContain("완료");
       expect(output).not.toContain("실패");
     });

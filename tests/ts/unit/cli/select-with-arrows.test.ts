@@ -82,6 +82,31 @@ describe("selectWithArrows", () => {
     expect(rendered).toContain("\x1b[2J\x1b[H");
   });
 
+  it("can render as an overlay without switching alt screen", async () => {
+    const input = createMockInput();
+    const { output, getBuffer } = createMockOutput();
+
+    const selectionPromise = selectWithArrows(
+      [{ value: "alpha", label: "Alpha" }],
+      "오버레이 테스트",
+      {
+        input: input as unknown as typeof process.stdin,
+        output: output as unknown as typeof process.stdout,
+        useAltScreen: false,
+      },
+    );
+
+    input.emit("keypress", "", { name: "return" });
+
+    await expect(selectionPromise).resolves.toBe("alpha");
+
+    const rendered = getBuffer();
+    expect(rendered).not.toContain("\x1b[?1049h");
+    expect(rendered).not.toContain("\x1b[?1049l");
+    expect(rendered).not.toContain("\x1b[?25l");
+    expect(rendered).not.toContain("\x1b[?25h");
+  });
+
   it("opens the interactive UI before resuming stdin so the selection listener remains active", async () => {
     const input = createMockInput();
     const { output } = createMockOutput();
