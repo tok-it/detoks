@@ -8,10 +8,20 @@ import type { ReplSession } from "../repl/ReplRegistry.js";
 import { runCommand } from "./run.js";
 import { colors } from "../colors.js";
 import { runModelSetupIfNeeded } from "../model-setup/index.js";
-import { showHelpMessage, handleSlashCommand } from "../repl-commands/index.js";
+import {
+  getAdapterLoginCommandSpec,
+  showHelpMessage,
+  handleSlashCommand,
+} from "../repl-commands/index.js";
 import { buildPrompt } from "../interactive/prompt-builder.js";
+import { playPromptBootAnimation } from "../interactive/prompt-animation.js";
 import { loadAndApplyConfig } from "../config/loader.js";
-import { updateSelectedAdapter } from "../config/config-manager.js";
+import {
+  getAdapterModel,
+  getCodexReasoningEffortOverride,
+  getTranslationModel,
+  updateSelectedAdapter,
+} from "../config/config-manager.js";
 import { startSpinner } from "../terminal-spinner.js";
 import { runTuiRepl } from "../tui/index.js";
 
@@ -152,15 +162,7 @@ export const getNextLoginSelectionIndex = (
 export const getLoginCommandSpec = (
   adapter: CliArgs["adapter"],
 ): { command: string; args: string[] } => {
-  if (adapter === "codex") {
-    return { command: "codex", args: ["login"] };
-  }
-
-  if (adapter === "gemini") {
-    return { command: "gemini", args: [] };
-  }
-
-  return { command: "claude", args: ["auth", "login"] };
+  return getAdapterLoginCommandSpec(adapter);
 };
 
 function formatReplCommandMenu(state: ReplRuntimeState): string {
@@ -174,6 +176,7 @@ function formatReplCommandMenu(state: ReplRuntimeState): string {
     ["/adapter claude", "이후 프롬프트의 어댑터를 claude로 변경"],
     ["/codex-models (/cms)", "Codex 모델 및 추론 강도 선택"],
     ["/gemini-models (/gms)", "Gemini 모델 선택 및 변경"],
+    ["/claude-models (/cls)", "Claude 모델 선택"],
     ["/model", "모델 변경 안내 표시"],
     ["/model <이름>", "이후 프롬프트의 모델을 변경"],
     ["/verbose", "상세 출력 선택 UI 표시"],
@@ -190,7 +193,8 @@ function formatReplCommandMenu(state: ReplRuntimeState): string {
     "",
     ...commands.map(([command, description]) => `${command.padEnd(18)} ${description}`),
     "",
-    "명령을 입력하거나 /help를 입력해 자세한 도움말을 볼 수 있습니다.",
+    "/ 뒤에 알파벳을 입력하면 TUI 자동완성 UI가 나타나고, ↑↓ 와 Enter로 바로 실행할 수 있습니다.",
+    "외부 adapter CLI 원본 명령은 /help 하단의 참고 섹션에서 확인하세요.",
   ];
 
   return `${lines.join("\n")}\n`;
@@ -439,29 +443,25 @@ export const runReplCommand = async (baseArgs: CliArgs): Promise<void> => {
   // 저장된 설정 로드 및 환경변수 적용 (CLI adapter에 맞는 모델만 로드)
   loadAndApplyConfig(baseArgs.adapter);
 
-  await runModelSetupIfNeeded();
-
   // TUI 모드 판정
   const replMode = resolveReplMode(baseArgs);
 
   // TUI 모드인 경우: TUI REPL 실행
   if (replMode.useTui) {
     try {
-      // Get current model from config
-      const { getAdapterModel } = await import("../config/config-manager.js");
       const currentModel = getAdapterModel(baseArgs.adapter);
 
       // Determine inference strength for codex
-      let inferenceStrength: string | undefined;
-      if (baseArgs.adapter === "codex") {
-        inferenceStrength = "medium"; // Default inference strength
-      }
+      const inferenceStrength =
+        baseArgs.adapter === "codex"
+          ? getCodexReasoningEffortOverride() ?? "medium"
+          : undefined;
 
       const tuiOptions: any = {
         adapter: baseArgs.adapter,
         executionMode: baseArgs.executionMode,
         verbose: baseArgs.verbose,
-        translationModel: "claude-3.5-sonnet",
+        translationModel: getTranslationModel(),
       };
 
       if (currentModel) {
@@ -484,10 +484,13 @@ export const runReplCommand = async (baseArgs: CliArgs): Promise<void> => {
     }
   }
 
+  await runModelSetupIfNeeded();
+
   const rl = createInterface({ input, output });
   const sessionId = `repl-${Date.now()}`;
   let verbose = baseArgs.verbose;
   let currentAdapter = baseArgs.adapter;
+  let useAnimatedFirstPrompt = Boolean(output.isTTY);
 
   const startMessage = [
     colors.title("detoks repl 시작"),
@@ -502,16 +505,27 @@ export const runReplCommand = async (baseArgs: CliArgs): Promise<void> => {
   output.write(startMessage);
   showHelpMessage(currentAdapter);
 
+  if (useAnimatedFirstPrompt) {
+    await playPromptBootAnimation(output, {
+      adapter: currentAdapter,
+      adapterModel: process.env.ADAPTER_MODEL,
+      translationModel: process.env.LOCAL_LLM_MODEL_NAME,
+    });
+  }
+
   try {
     while (true) {
       let line: string;
       try {
-        const promptStr = buildPrompt({
-          adapter: currentAdapter,
-          adapterModel: process.env.ADAPTER_MODEL,
-          translationModel: process.env.LOCAL_LLM_MODEL_NAME,
-        });
+        const promptStr = useAnimatedFirstPrompt
+          ? ""
+          : buildPrompt({
+              adapter: currentAdapter,
+              adapterModel: process.env.ADAPTER_MODEL,
+              translationModel: process.env.LOCAL_LLM_MODEL_NAME,
+            });
         line = (await rl.question(promptStr)).trim();
+        useAnimatedFirstPrompt = false;
       } catch (error) {
         if (
           error instanceof Error &&

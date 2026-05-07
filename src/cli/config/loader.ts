@@ -10,6 +10,8 @@ export const applyConfigToEnv = (adapter: Adapter): void => {
 
   if (modelForAdapter) {
     process.env.ADAPTER_MODEL = modelForAdapter;
+  } else {
+    delete process.env.ADAPTER_MODEL;
   }
 
   // 번역 모델 설정 (LOCAL_LLM_MODEL_NAME이 이미 설정되지 않은 경우만)

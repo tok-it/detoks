@@ -10,6 +10,7 @@ import {
   shouldEmitReplSourceBadge,
   runReplBuiltinCommand,
 } from "../../../../src/cli/commands/repl.js";
+import { formatAdapterCliReference } from "../../../../src/cli/repl-commands/index.js";
 import type { ReplSession } from "../../../../src/cli/repl/ReplRegistry.js";
 
 const lastSession: ReplSession = {
@@ -177,11 +178,26 @@ describe("repl builtin command routing", () => {
     expect(menuResult.output).toContain("/help");
     expect(menuResult.output).toContain("/codex-models (/cms)");
     expect(menuResult.output).toContain("/gemini-models (/gms)");
+    expect(menuResult.output).toContain("/claude-models (/cls)");
     expect(menuResult.output).toContain("/adapter claude");
     expect(menuResult.output).toContain("/adapter gemini");
     expect(menuResult.output).toContain("/verbose off");
     expect(menuResult.output).toContain("/quit");
     expect(menuResult.output).not.toContain("이 명령어 목록 표시");
+  });
+
+  it("renders adapter CLI references for codex, gemini, and claude", () => {
+    const reference = formatAdapterCliReference();
+
+    expect(reference).toContain("외부 adapter CLI 참고");
+    expect(reference).toContain("Codex CLI");
+    expect(reference).toContain("codex login");
+    expect(reference).toContain("codex debug models");
+    expect(reference).toContain("Gemini CLI");
+    expect(reference).toContain("gemini");
+    expect(reference).toContain("Claude Code");
+    expect(reference).toContain("claude auth login");
+    expect(reference).toContain("detoks 명령은 REPL 안에서");
   });
 
   it("keeps non-interactive guidance for /adapter and /verbose without args", () => {
