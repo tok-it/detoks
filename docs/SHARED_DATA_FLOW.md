@@ -1,10 +1,10 @@
-# 🔄 Shared Data Flow
+# Shared Data Flow
 
-## Overview
+이 문서는 역할 간 handoff에서 지켜야 할 **공유 원칙**만 짧게 정리합니다.
 
-detoks should share data between roles as **validated artifacts and explicitly defined handoff fields**.
+> 전체 schema 정의는 [SCHEMAS.md](SCHEMAS.md), 단계별 매핑은 [SCHEMA_FLOW.md](SCHEMA_FLOW.md)가 기준입니다.
 
-The recommended flow is:
+## Shared Artifact Chain
 
 ```text
 UserRequest
@@ -17,121 +17,42 @@ UserRequest
 → SessionState
 ```
 
-<!-- 한국어 설명: detoks에서는 역할 간에 단순 문자열이 아니라 구조화된 데이터 산출물을 공유해야 하며, 위 순서대로 데이터가 점진적으로 변환되어야 합니다. -->
+## Handoff Principles
 
----
+### 1. 역할 간에는 문자열이 아니라 검증 가능한 산출물을 넘긴다
 
-## Role Ownership
+- 각 단계는 가능한 한 schema-valid artifact를 출력해야 합니다.
+- 다음 단계는 자유 텍스트 해석보다 명시적 필드에 의존해야 합니다.
 
-### Role 1: AI Prompt Engineer
+### 2. `Role2PromptInput`은 `normalized_input` 기준이다
 
+- `CompiledPrompt`는 `normalized_input`과 `compressed_prompt`를 함께 가질 수 있습니다.
+- 그러나 Role 2.1 분류는 action signal 보존이 더 중요하므로 `Role2PromptInput.compiled_prompt`는 `CompiledPrompt.normalized_input`을 사용합니다.
 
-- produces `CompiledPrompt`
-- produces `Role2PromptInput`
+### 3. 스키마의 semantic meaning은 문서 하나에만 고정한다
 
-### Role 2.1: Task Graph Engineer
+- `RequestCategory` 의미 기준: [TYPE_DEFINITION.md](TYPE_DEFINITION.md)
+- 전체 schema 정의: [SCHEMAS.md](SCHEMAS.md)
 
-- produces `AnalyzedRequest`
-- produces `TaskGraph`
+### 4. 상태는 누적 복사본이 아니라 재사용 가능한 요약본이다
 
-### Role 2.2: State & Context Engineer
+- `SessionState`는 전체 transcript 저장소가 아닙니다.
+- 다음 실행에서 필요한 결과, 현재 작업 포인터, 후속 액션 중심으로 유지합니다.
 
+## Producer / Consumer Map
 
-- produces `ExecutionContext`
-- updates `SessionState`
+| 산출물 | 생산자 | 소비자 | 목적 |
+| --- | --- | --- | --- |
+| `CompiledPrompt` | Role 1 | Role 1 내부, 디버깅, batch artifact | 번역/압축 결과 보존 |
+| `Role2PromptInput` | Role 1 | Role 2.1 | 분류와 작업화 시작점 |
+| `AnalyzedRequest` | Role 2.1 | Role 2.1 내부 / 이후 단계 | 요청 의미 구조화 |
+| `TaskGraph` | Role 2.1 | Role 2.2, Role 3 | 실행 순서와 의존성 제공 |
+| `ExecutionContext` | Role 2.2 | Role 3 | 현재 실행에 필요한 문맥만 전달 |
+| `ExecutionResult` | Role 3 | Role 2.2 | 실행 결과 정규화 |
+| `SessionState` | Role 2.2 | 다음 턴 전체 | 재시작 가능한 상태 유지 |
 
-### Role 3: CLI / System Engineer
+## When To Open Another Doc
 
-
-- consumes `ExecutionContext`
-- produces `ExecutionResult`
-
-<!-- 한국어 설명: Role 1은 번역/정규화 결과와 Kompress 기반 압축 산출물을 함께 만들고, Role 2.1은 `normalized_input` 기준 handoff를 받아 이를 분류·작업 그래프로 바꾸며, Role 3는 실제 실행 결과를 생성합니다. -->
-
----
-
-## Recommended Shared Schemas
-
-### 1. UserRequest
-
-
-Raw user input entering the system.
-
-### 2. CompiledPrompt
-
-
-Translated and normalized prompt output from the Prompt Compiler. Contains both `normalized_input` (pre-compression) and `compressed_prompt` (post-compression).
-
-### 3. Role2PromptInput
-
-The handoff schema from Role 1 to Role 2.1.
-`Role2PromptInput.compiled_prompt` must contain `CompiledPrompt.normalized_input` (the translated, pre-compression text). Role 2.1 classifies task types from action signals that compression may weaken.
-Task decomposition, id generation, and depends_on assignment are handled by Role 2.1.
-
-### 4. AnalyzedRequest
-
-Request category, keywords, and candidate tasks produced by Request Analyzer.
-Task category semantics are defined in `docs/TYPE_DEFINITION.md`.
-
-### 5. TaskGraph
-
-Executable task structure with dependency order.
-
-### 6. ExecutionContext
-
-Filtered context required for the current execution step only.
-
-### 7. ExecutionResult
-
-Normalized result returned from CLI execution.
-
-### 8. SessionState
-
-Reusable state persisted for the next turn.
-
-<!-- 한국어 설명: 공유 스키마는 사용자 입력, 번역/정규화 프롬프트, Role 2 전달용 문자열(normalized_input 기준), 분류 결과, 작업 그래프, 실행 컨텍스트, 실행 결과, 세션 상태의 8단계로 나누는 것이 적절합니다. Kompress 압축은 Role 1 Prompt Compiler 단계에서 수행되지만, Role 2.1 handoff는 계속 `normalized_input`을 사용합니다. -->
-
----
-
-## Why This Structure
-
-- keeps role boundaries clear
-- makes failures easier to debug
-- allows reuse of intermediate results
-- supports state compression and deterministic orchestration
-
-<!-- 한국어 설명: 이 구조를 쓰면 역할 경계가 명확해지고, 중간 결과를 재사용할 수 있으며, 어느 단계에서 문제가 생겼는지도 추적하기 쉬워집니다. -->
-
----
-
-## Design Principle
-
-The model interprets meaning, but the system must exchange **validated structured data** between stages.
-
-<!-- 한국어 설명: 모델은 의미를 해석하더라도, 실제 시스템 단계 간 공유는 항상 검증 가능한 구조화 데이터로 이뤄져야 합니다. -->
-
----
-
-## Code Mapping
-
-The current TypeScript schema implementation for this document lives in:
-
-```text
-src/schemas/pipeline.ts
-```
-
-This file contains the shared Zod schemas for:
-
-- `UserRequest`
-- `RequestCategory`
-- `CompiledPrompt`
-- `AnalyzedRequest`
-- `Task`
-- `TaskGraph`
-- `ExecutionContext`
-- `ExecutionResult`
-- `SessionState`
-
-The semantic meaning of `RequestCategory` is defined canonically in `docs/TYPE_DEFINITION.md`.
-
-<!-- 한국어 설명: 이 문서의 공유 데이터 흐름은 실제 코드에서 `src/schemas/pipeline.ts`로 매핑되며, 여기에 역할 간에 주고받는 공용 Zod 스키마가 정의됩니다. -->
+- 구조를 보고 싶을 때: [PIPELINE.md](PIPELINE.md)
+- 필드 목록이 필요할 때: [SCHEMAS.md](SCHEMAS.md)
+- 단계별 책임과 흐름을 보고 싶을 때: [DES_DATA_FLOW.md](DES_DATA_FLOW.md)

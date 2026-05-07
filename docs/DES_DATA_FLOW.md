@@ -1,385 +1,144 @@
-> Role 1이 입력을 “번역/정규화된 프롬프트”와 Kompress 기반 압축 산출물로 만들고, Role 2.1이 `normalized_input` 기준 handoff를 “실행 가능한 작업 그래프”로 바꾸고, Role 3이 “실제 실행”으로 연결한다는 흐름입니다.
-> Role 1이 입력을 “번역/정규화된 프롬프트”와 Kompress 기반 압축 산출물로 만들고, Role 2.1이 `normalized_input` 기준 handoff를 “실행 가능한 작업 그래프”로 바꾸고, Role 3이 “실제 실행”으로 연결한다는 흐름입니다.
+# Detailed Data Flow
 
-## 가장 먼저 결론
+이 문서는 detoks의 데이터 흐름을 **설명형 walkthrough**로 풀어쓴 문서입니다.
 
-공유 데이터는 최소한 아래 순서로 바뀌어가야 합니다.
+> schema 전문은 [SCHEMAS.md](SCHEMAS.md), 단계-스키마 매핑은 [SCHEMA_FLOW.md](SCHEMA_FLOW.md)를 보세요.
 
-1. UserRequest
-2. CompiledPrompt
-3. Role2PromptInput
-4. AnalyzedRequest
-5. TaskGraph
-6. ExecutionContext
-7. ExecutionResult
-8. SessionState
+## 한 줄 요약
 
-즉,
-자연어 입력 → 번역/정규화된 프롬프트 및 압축 산출물 생성 → Role 2 handoff schema(`normalized_input`) → 요청 분석/분류 → 작업 그래프 → 실행 컨텍스트 → 실행 결과 → 상태 저장
-순서입니다.
+Role 1이 입력을 번역/정규화하고 Kompress 결과를 함께 만든 뒤, Role 2.1은 `normalized_input` 기준 handoff를 받아 요청을 작업 그래프로 바꾸고, Role 2.2와 Role 3이 그 그래프를 실제 실행과 상태로 연결합니다.
 
----
----
+## Example Walkthrough
 
-# 역할 기준으로 보면
+예시 요청:
 
-## Role 1: AI Prompt Engineer
-
-역할:
-
-- Prompt compiler
-- Korean-to-English translation
-
-즉 Role 1은 아래 데이터를 만듭니다.
-
-### 공유해야 하는 데이터 1: CompiledPrompt
-
-사용자 자연어를 압축/정제한 결과
-
-```ts
-```ts
-type CompiledPrompt = {
-	raw_input: string;
-	normalized_input: string;
-	compressed_prompt: string;
-	language: "ko" | "en" | "mixed";
-	raw_input: string;
-	normalized_input: string;
-	compressed_prompt: string;
-	language: "ko" | "en" | "mixed";
-};
+```text
+"src/core/prompt/compiler.ts를 확인하고 Role 1 handoff 계약이 현재 문서와 맞는지 정리해줘"
 ```
 
-### 공유해야 하는 데이터 2: Role2PromptInput
+### 1. UserRequest
 
-Role 2.1에 전달하는 handoff schema
+시스템은 우선 원문 입력을 `UserRequest.raw_input`으로 보관합니다.
 
-```ts
-type Role2PromptInput = {
-	compiled_prompt: string;
-};
+여기서는 아직 작업 분해를 하지 않습니다.
+
+### 2. CompiledPrompt
+
+Role 1이 아래 일을 수행합니다.
+
+- 입력 정규화
+- 한국어 → 영어 변환
+- placeholder / protected segment 보존
+- validation / repair / fallback
+- Kompress 압축
+
+이 결과가 `CompiledPrompt`입니다.
+
+중요 포인트:
+
+- `normalized_input`: 분류에 쓰일 번역/정규화 결과
+- `compressed_prompt`: Kompress 결과
+
+### 3. Role2PromptInput
+
+Role 2.1에 넘길 때는 `compressed_prompt`가 아니라 `normalized_input`을 씁니다.
+
+이유:
+
+- task classification은 action signal 보존이 중요합니다.
+- 과도한 압축은 분류 단서를 약화시킬 수 있습니다.
+
+즉 handoff는 아래 의미를 가집니다.
+
+```text
+Role2PromptInput.compiled_prompt === CompiledPrompt.normalized_input
 ```
 
-`Role2PromptInput.compiled_prompt`는 `CompiledPrompt.normalized_input`과 동일한 값을 가집니다. 분류(task type 결정)는 action signal이 살아 있는 번역/정규화 결과를 기준으로 해야 하므로, 압축 전 단계의 텍스트를 받습니다.
+### 4. AnalyzedRequest
 
-### 의미
+Role 2.1은 handoff 문자열을 받아:
 
-Role 1은 task 분해, id 생성, type 지정, depends_on 생성을 하지 않습니다.
+- 요청 분류
+- 키워드 추출
+- 작업 후보 생성
 
-- 입력을 보존하고
-- 한국어를 영어로 변환/정규화하고
-- 번역/정규화된 영문 프롬프트를 `Role2PromptInput`으로 넘깁니다.
-- 압축(Kompress)은 Role 1 Prompt Compiler 단계에서 별도 산출물(`compressed_prompt`)로 함께 생성됩니다.
+을 수행합니다.
 
----
----
+이 결과가 `AnalyzedRequest`입니다.
 
-## Role 2.1: Task Graph Engineer
+### 5. TaskGraph
 
-역할:
+그다음 Role 2.1은 후보 작업들을 실행 가능한 순서로 정리합니다.
 
-- Request classification
-- Request classification
-- Task decomposition
-- Dependency management
-- Execution order definition
+여기서 생기는 것이:
 
-Role 2.1은 `Role2PromptInput`을 받아 요청을 분석하고, 그 결과를 실행 가능한 그래프로 바꿉니다.
+- `Task.id`
+- `Task.type`
+- `Task.depends_on`
 
-### 공유해야 하는 데이터 3: AnalyzedRequest
+을 포함한 `TaskGraph`입니다.
 
-```ts
-type AnalyzedRequest = {
-	category: "explore" | "create" | "modify" | "analyze" | "validate" | "execute" | "document" | "plan";
-	keywords: string[];
-	tasks: Task[];
-};
-```
+즉 **task graph는 Role 1 결과가 아니라 Role 2.1 결과**입니다.
 
-`category`의 의미 기준은 `docs/TYPE_DEFINITION.md`를 따릅니다.
+### 6. ExecutionContext
 
-### 공유해야 하는 데이터 4: TaskGraph
+Role 2.2는 전체 그래프와 이전 상태를 보고, 지금 실행할 task에 필요한 문맥만 뽑아 `ExecutionContext`를 만듭니다.
 
-```ts
-type TaskStatus = "pending" | "running" | "completed" | "failed";
-type TaskType = RequestCategory;
+핵심은:
 
-type Task = {
-	id: string;
-	type: TaskType;
-	status: TaskStatus;
-	title: string;
-	description?: string;
-	input_hash: string;
-	output_summary?: string;
-	depends_on: string[];
-	priority?: number;
-	owner_role?: "role1" | "role2.1" | "role2.2" | "role3";
-};
-
-type TaskGraph = {
-	tasks: Task[];
-};
-```
-
-type TaskGraph = {
-	tasks: Task[];
-};
-```
-
-### 의미
-
-Role 2.1의 책임은:
-
-- 요청을 작업 유형으로 분류하고
-- 작업을 실행 단위로 쪼개고
-- 요청을 작업 유형으로 분류하고
-- 작업을 실행 단위로 쪼개고
-- 순서를 정하고
-- 선행 작업을 명확히 하는 것
+- 전체 상태를 그대로 넘기지 않음
+- 현재 task와 관련된 결과만 선택
 
 입니다.
 
----
----
+### 7. ExecutionResult
 
-## Role 2.2: State & Context Engineer
+Role 3는 `ExecutionContext`와 실행 prompt를 받아 실제 CLI / adapter를 실행하고 결과를 `ExecutionResult`로 정리합니다.
 
-역할:
+이때 중요한 필드는:
 
-- State management
-- Context compression
-- Result structuring
+- `raw_output`
+- `summary?`
+- `structured_output?`
+- `next_action?`
 
-Role 2.2는 TaskGraph와 이전 결과를 받아서 지금 실행에 필요한 문맥만 남깁니다.
-Role 2.2는 TaskGraph와 이전 결과를 받아서 지금 실행에 필요한 문맥만 남깁니다.
+입니다.
 
-### 공유해야 하는 데이터 5: ExecutionContext
+### 8. SessionState
 
-```ts
-```ts
-type ExecutionContext = {
-	session_id: string;
-	active_task_id: string;
-	shared_context: Record<string, unknown>;
-	selected_context: Record<string, unknown>;
-	context_summary?: string;
-	session_id: string;
-	active_task_id: string;
-	shared_context: Record<string, unknown>;
-	selected_context: Record<string, unknown>;
-	context_summary?: string;
-};
-```
-```
+마지막으로 Role 2.2가 결과를 다음 턴에서 이어 쓸 수 있는 형태로 저장합니다.
 
-### 공유해야 하는 데이터 6: SessionState
+이 상태는:
 
-```ts
-```ts
-type SessionState = {
-	shared_context: Record<string, unknown>;
-	task_results: Record<string, unknown>;
-	current_task_id?: string;
-	completed_task_ids: string[];
-	last_summary?: string;
-	next_action?: string;
-	shared_context: Record<string, unknown>;
-	task_results: Record<string, unknown>;
-	current_task_id?: string;
-	completed_task_ids: string[];
-	last_summary?: string;
-	next_action?: string;
-};
-```
-```
+- `task_results`
+- `current_task_id`
+- `completed_task_ids`
+- `next_action`
 
-### 의미
+같은 필드를 중심으로 유지됩니다.
 
-Role 2.2는:
-Role 2.2는:
+## 자주 헷갈리는 지점
 
-- 전체 세션을 계속 다 들고 가지 않고
-- 현재 필요한 문맥만 압축해서
-- 다음 턴에서도 재사용 가능하게 정리해야 합니다.
+### `compressed_prompt`가 곧 handoff는 아니다
 
----
----
+`CompiledPrompt` 안에는 압축 결과가 있지만, Role 2.1 handoff는 계속 `normalized_input`입니다.
 
-## Role 3: CLI / System Engineer
+### Role 1은 task를 만들지 않는다
 
-역할:
+Role 1은 번역/압축/검증까지만 담당합니다.
 
-- CLI implementation
-- Subprocess execution
-- Adapter management
+아래는 Role 2.1 책임입니다.
 
-Role 3는 앞 단계에서 정리된 구조를 받아 실제 Codex/Gemini/subprocess 실행으로 연결합니다.
-Role 3는 앞 단계에서 정리된 구조를 받아 실제 Codex/Gemini/subprocess 실행으로 연결합니다.
+- 작업 분류
+- 작업 분해
+- 의존성 연결
 
-### 공유해야 하는 데이터 7: ExecutionRequest
+### SessionState는 전체 로그 저장소가 아니다
 
-```ts
-type ExecutionRequest = {
-	task_id: string;
-	prompt: string;
-	target: "codex" | "gemini" | "claude";
-	context: ExecutionContext;
-	timeout_ms?: number;
-};
-```
+`SessionState`는 transcript 전체를 무한정 쌓는 구조가 아니라, 다음 턴에 필요한 최소 상태를 유지하는 구조입니다.
 
-### 공유해야 하는 데이터 8: ExecutionResult
+## 문서 선택 가이드
 
-```ts
-type ExecutionResult = {
-	task_id: string;
-	success: boolean;
-	raw_output: string;
-	summary?: string;
-	structured_output?: Record<string, unknown>;
-	error?: {
-		code: string;
-		message: string;
-	};
-	next_action?: string;
-	type?: RequestCategory;
-};
-```
-
-### 의미
-
-Role 3는 의미 해석을 거의 하지 않고:
-Role 3는 의미 해석을 거의 하지 않고:
-
-- 입력을 실행기로 넘기고
-- 결과를 받아서
-- 다시 구조화된 결과로 반환하는 역할입니다.
-
----
----
-
-# 결국 어떤 순서로 바뀌어야 하나
-
-## 전체 변환 순서
-
-### 1. 사용자 입력
-
-```ts
-```ts
-type UserRequest = {
-	raw_input: string;
-	session_id?: string;
-	raw_input: string;
-	session_id?: string;
-};
-```
-```
-
-### 2. Prompt Compiler 결과
-
-UserRequest → CompiledPrompt
-UserRequest → CompiledPrompt
-
-### 3. Sentence Compiler 결과
-
-CompiledPrompt → Role2PromptInput
-
-### 4. Request Analyzer 결과
-
-Role2PromptInput → AnalyzedRequest
-
-### 5. Task Graph Builder 결과
-
-AnalyzedRequest → TaskGraph
-
-### 6. Context Optimizer 결과
-
-TaskGraph + SessionState → ExecutionContext
-TaskGraph + SessionState → ExecutionContext
-
-### 7. Executor 결과
-
-ExecutionContext + CompiledPrompt → ExecutionResult
-ExecutionContext + CompiledPrompt → ExecutionResult
-
-### 8. Output Processor / State Manager 결과
-
-ExecutionResult → SessionState
-ExecutionResult → SessionState
-
----
----
-
-# 가장 추천하는 Zod 구조 묶음
-
-정리하면 최소 공용 스키마는 이 9개입니다.
-
-- UserRequestSchema
-- CompiledPromptSchema
-- AnalyzedRequestSchema
-- TaskSchema
-- TaskGraphSchema
-- ExecutionContextSchema
-- ExecutionResultSchema
-- SessionStateSchema
-
----
----
-
-# 왜 이렇게 나눠야 하나
-
-## 1. Role별 책임이 다름
-
-- Role 1: 번역/정규화
-- Role 1: 번역/정규화
-- Role 2.1: 작업화
-- Role 2.2: 상태/문맥화
-- Role 3: 실행
-
-## 2. 중간 결과를 재사용 가능
-
-한 번 분석한 결과를:
-한 번 분석한 결과를:
-
-- 다시 실행할 수도 있고
-- 다른 모델에 넘길 수도 있고
-- 디버깅에도 쓸 수 있음
-
-## 3. 실패 지점 추적이 쉬움
-
-- Prompt compile 문제인지
-- Translation guardrails 문제인지
-- Translation guardrails 문제인지
-- Task graph 문제인지
-- Context 문제인지
-- Executor 문제인지
-
-분리되어야 바로 보입니다.
-
----
----
-
-# 최종 추천
-
-이 프로젝트에서는 공유 구조를 아래처럼 가져가면 됩니다.
-
-```text
-```text
-UserRequest
-  -> CompiledPrompt
-  -> Role2PromptInput
-  -> AnalyzedRequest
-  -> TaskGraph
-  -> ExecutionContext
-  -> ExecutionResult
-  -> SessionState
-```
-```
-
-그리고 역할별 ownership은:
-
-- Role 1: CompiledPrompt, Role2PromptInput
-- Role 2.1: AnalyzedRequest, TaskGraph
-- Role 2.2: ExecutionContext, SessionState
-- Role 3: ExecutionRequest, ExecutionResult
+- 필드 정의를 보고 싶을 때: [SCHEMAS.md](SCHEMAS.md)
+- 단계별 매핑을 보고 싶을 때: [SCHEMA_FLOW.md](SCHEMA_FLOW.md)
+- 전체 구조를 짧게 보고 싶을 때: [PIPELINE.md](PIPELINE.md)

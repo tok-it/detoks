@@ -1,92 +1,71 @@
-# 🔄 Pipeline
+# Pipeline
 
-## Overview
+detoks는 사용자 입력을 구조화된 산출물로 바꾸고, 그 산출물을 다시 실행 가능한 작업과 상태로 연결하는 **stage-based pipeline**입니다.
 
-detoks operates as a **stage-based pipeline** from input to output.
+## Canonical Flow
 
+```text
+User Input
+→ Prompt Compiler
+→ Request Analyzer
+→ Task Graph Builder
+→ Context Optimizer
+→ Executor
+→ Output Processor
+→ State Manager
+→ User Output
+```
 
-<!-- 한국어 설명: detoks는 입력부터 결과 반환까지 여러 단계를 순차적으로 거치는 파이프라인 구조로 동작합니다. -->
+## Stage Summary
 
----
+| 단계 | 주요 책임 | 대표 산출물 | 소유 역할 |
+| --- | --- | --- | --- |
+| Prompt Compiler | 정규화, 번역, guardrails, Kompress 압축 | `CompiledPrompt`, `Role2PromptInput` | Role 1 |
+| Request Analyzer | 요청 분류, 키워드 추출, 작업 후보 생성 | `AnalyzedRequest` | Role 2.1 |
+| Task Graph Builder | 작업 분해, 의존성 구성 | `TaskGraph` | Role 2.1 |
+| Context Optimizer | 현재 실행에 필요한 문맥 선택 | `ExecutionContext` | Role 2.2 |
+| Executor | 대상 CLI / adapter 실행 | `ExecutionResult.raw_output` | Role 3 |
+| Output Processor | 결과 요약과 후속 액션 정리 | `ExecutionResult.summary`, `next_action` | Role 2.2 / Role 3 경계 |
+| State Manager | 다음 턴용 상태 저장 | `SessionState` | Role 2.2 |
 
-## Stages
+## Important Rules
 
-### 1. Prompt Compiler
+### 1. Role 1은 두 종류의 출력을 만든다
 
-- Mask protected segments
-- Translate Korean input to English
-- Validate and repair translated output
-- Preserve code, paths, commands, JSON keys, API names, model names, and Markdown units
-- Compress translated English text with the Kompress model
-- Validate the compressed output through guardrails
-- If compression validation fails, pass `normalized_input` as `compressed_prompt`
-<!-- 한국어 설명: Prompt Compiler는 번역 결과를 먼저 검증/보정한 뒤 영어 텍스트의 자연어 body에만 Kompress(`chopratejas/kompress-base`)를 적용합니다. code/path/command/JSON key 같은 보호 단위는 placeholder로 마스킹한 뒤 복원하며, Kompress 결과가 안전하지 않으면 재생성하지 않고 `normalized_input`을 `compressed_prompt`로 사용합니다. Role 2.1 handoff는 압축 결과와 별개로 계속 `normalized_input`을 사용합니다. -->
+- `normalized_input`: 번역/정규화 결과
+- `compressed_prompt`: Kompress 적용 결과
 
----
+둘 다 `CompiledPrompt` 안에 들어가지만, **Role 2.1 handoff는 `normalized_input` 기준**입니다.
 
-### 2. Translation Guardrails
+### 2. Kompress는 Role 1 단계에서 수행한다
 
-- Validate protected terms, placeholders, numeric constraints, filenames, commands, and completion criteria
-- Treat Korean text copied unchanged into translated output as a translation failure
-- Retry failed translation spans up to 5 total requests including fallback requests
-- Repair invalid translation output before compression
-<!-- 한국어 설명: Translation Guardrails는 번역 단계에서 필수 정보 보존 여부를 검증하고, 한글이 그대로 출력된 번역 실패를 감지하며, 실패 span은 fallback 포함 최대 5회까지 재요청합니다. 이 단계는 번역 보정 전용이며 Kompress 재시도와는 분리됩니다. -->
+- 압축은 Context Optimizer 단계가 아니라 Prompt Compiler 단계에서 수행됩니다.
+- 다만 압축 결과가 안전하지 않으면 `normalized_input`을 그대로 `compressed_prompt`로 사용합니다.
 
----
+### 3. Role 1은 task graph를 만들지 않는다
 
-### 3. Request Analyzer
+Role 1의 책임은 아래까지입니다.
 
-- Classify the compiled request
-- Extract keywords and candidate tasks
-- Use `docs/TYPE_DEFINITION.md` as the semantic source of truth for the eight top-level task types
-<!-- 한국어 설명: Request Analyzer는 Role 2.1 책임이며, Role 1이 전달한 `compiled_prompt` 문자열을 받아 요청 분류와 후보 작업 추출을 수행합니다. -->
+- 입력 보존
+- 번역/정규화
+- guardrails / repair / fallback
+- Kompress 압축
+- `Role2PromptInput` 생성
 
----
+아래 책임은 Role 2.1로 넘어갑니다.
 
-### 4. Task Graph Builder
+- task classification
+- task decomposition
+- `depends_on` 생성
+- 실행 순서 결정
 
-- Decompose the work
-- Define dependencies
-<!-- 한국어 설명: Task Graph Builder는 요청을 작업으로 분류·세분화하고 작업 간 의존 관계를 정의합니다. -->
-<!-- 한국어 설명: Task Graph Builder는 요청을 작업으로 분류·세분화하고 작업 간 의존 관계를 정의합니다. -->
+### 4. 상태는 실행 뒤에만 누적한다
 
----
+`SessionState`는 전체 로그 복제본이 아니라, 다음 턴에서 재사용할 최소 상태를 보관합니다.
 
-### 5. Context Optimizer
+## Recommended Reading
 
-- Remove duplication
-- Preserve essential information
-<!-- 한국어 설명: Context Optimizer는 중복 정보를 제거하면서 핵심 문맥은 유지합니다. -->
-
----
-
-### 6. Executor
-
-- Run the LLM CLI
-<!-- 한국어 설명: Executor는 실제로 Codex나 Gemini 같은 LLM CLI를 실행하는 단계입니다. -->
-
----
-
-### 7. Output Processor
-
-- Summarize outputs
-- Structure results
-<!-- 한국어 설명: Output Processor는 모델 결과를 요약하고 후속 처리에 적합한 형태로 구조화합니다. -->
-
----
-
-### 8. State Manager
-
-- Persist state
-- Prepare for the next turn
-<!-- 한국어 설명: State Manager는 현재 상태를 저장하고 다음 턴에서 이어서 작업할 수 있도록 준비합니다. -->
-
----
-
-## Flow
-
-Input → Translate → Validate/Repair → Compress → Analyze (`normalized_input` handoff) → Task Graph → Context → Execute → Store → Next
-
-<!-- 한국어 설명: 전체 흐름은 입력 번역, 번역 검증/보정, Role 1 단계의 Kompress 압축, 요청 분류(action signal 기반), 작업 그래프 생성, 문맥 구성, 실행, 저장, 다음 턴 준비 순서로 이어집니다. Kompress 결과가 안전하지 않으면 재생성 없이 `normalized_input`을 `compressed_prompt`로 사용하고, Role 2.1 handoff 값은 계속 `normalized_input`입니다. -->
-
----
+- 구조를 먼저 보려면: [ARCHITECTURE.md](ARCHITECTURE.md)
+- handoff 원칙을 보려면: [SHARED_DATA_FLOW.md](SHARED_DATA_FLOW.md)
+- 단계별 schema 매핑을 보려면: [SCHEMA_FLOW.md](SCHEMA_FLOW.md)
+- 전체 schema 정의를 보려면: [SCHEMAS.md](SCHEMAS.md)
