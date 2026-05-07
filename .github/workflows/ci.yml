@@ -3,8 +3,22 @@ name: CI
 on:
   push:
     branches: [dev]
+    paths-ignore:
+      - "docs/**"
+      - "README.md"
+      - "README.ko.md"
+      - "README.en.md"
   pull_request:
     branches: [dev]
+    paths-ignore:
+      - "docs/**"
+      - "README.md"
+      - "README.ko.md"
+      - "README.en.md"
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   test-typescript:
@@ -24,11 +38,27 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Type check
-        run: npm run typecheck
+      - name: Run typecheck, build, and tests in parallel
+        shell: bash
+        run: |
+          set -euo pipefail
 
-      - name: Build
-        run: npm run build
+          pids=()
 
-      - name: Run tests
-        run: npx vitest run --passWithNoTests
+          npm run typecheck &
+          pids+=($!)
+
+          npm run build &
+          pids+=($!)
+
+          npx vitest run --passWithNoTests &
+          pids+=($!)
+
+          status=0
+          for pid in "${pids[@]}"; do
+            if ! wait "$pid"; then
+              status=1
+            fi
+          done
+
+          exit "$status"
