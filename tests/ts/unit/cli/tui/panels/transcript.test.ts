@@ -23,6 +23,17 @@ describe("TranscriptPanel", () => {
   });
 
   describe("append", () => {
+    it("renders empty-state guidance before any transcript content arrives", () => {
+      panel.render(mockContext, mockRegion);
+
+      const output = mockScreen.write.mock.calls
+        .map((c: any) => c[0])
+        .join("\n");
+
+      expect(output).toContain("실행 기록이 아직 없습니다.");
+      expect(output).toContain("도구 호출");
+    });
+
     it("adds a single line to transcript", () => {
       panel.append("Hello, world!");
       mockScreen.write.mockClear();
@@ -96,6 +107,55 @@ describe("TranscriptPanel", () => {
       expect(output).toContain("Output text");
     });
 
+    it("renders tool call, file edit, and final answer blocks", () => {
+      panel.addEvent({
+        type: "chunk",
+        stream: "stdout",
+        data:
+          "{\"type\":\"thread.started\"}\n{\"type\":\"turn.started\"}\n{\"type\":\"item.started\",\"item\":{\"id\":\"item_1\",\"type\":\"command_execution\",\"command\":\"/bin/zsh -lc 'pwd'\",\"status\":\"in_progress\"}}\n{\"type\":\"item.completed\",\"item\":{\"id\":\"item_1\",\"type\":\"command_execution\",\"command\":\"/bin/zsh -lc 'pwd'\",\"aggregated_output\":\"/tmp/workdir\\n\",\"exit_code\":0,\"status\":\"completed\"}}\n{\"type\":\"item.started\",\"item\":{\"id\":\"item_2\",\"type\":\"file_change\",\"changes\":[{\"path\":\"src/cli/tui/panels/transcript.ts\",\"kind\":\"update\"}],\"status\":\"in_progress\"}}\n{\"type\":\"item.completed\",\"item\":{\"id\":\"item_2\",\"type\":\"file_change\",\"changes\":[{\"path\":\"src/cli/tui/panels/transcript.ts\",\"kind\":\"update\"}],\"status\":\"completed\"}}\n{\"type\":\"item.completed\",\"item\":{\"id\":\"item_3\",\"type\":\"agent_message\",\"text\":\"Done\"}}\n{\"type\":\"turn.completed\"}\n",
+        timestamp: Date.now(),
+      });
+
+      mockScreen.write.mockClear();
+      panel.render(mockContext, mockRegion);
+
+      const output = mockScreen.write.mock.calls
+        .map((c: any) => c[0])
+        .join("\n");
+      expect(output).toContain("[tool]");
+      expect(output).toContain("exec:");
+      expect(output).toContain("exit 0");
+      expect(output).toContain("[edit]");
+      expect(output).toContain("transcript.ts");
+      expect(output).toContain("[final]");
+      expect(output).toContain("Done");
+      expect(output).not.toContain("thread.started");
+      expect(output).not.toContain("turn.started");
+      expect(output).not.toContain("turn.completed");
+      expect(output).not.toContain("\u001b");
+    });
+
+    it("ignores Codex stderr banner noise while keeping real errors", () => {
+      panel.addEvent({
+        type: "chunk",
+        stream: "stderr",
+        data:
+          "OpenAI Codex v0.128.0 (research preview)\n--------\nworkdir: /tmp/workdir\nError: boom\n",
+        timestamp: Date.now(),
+      });
+
+      mockScreen.write.mockClear();
+      panel.render(mockContext, mockRegion);
+
+      const output = mockScreen.write.mock.calls
+        .map((c: any) => c[0])
+        .join("\n");
+      expect(output).not.toContain("OpenAI Codex");
+      expect(output).not.toContain("workdir:");
+      expect(output).toContain("[ERR]");
+      expect(output).toContain("Error: boom");
+    });
+
     it("prefixes stderr with [ERR]", () => {
       const event: PtyEvent = {
         type: "chunk",
@@ -146,6 +206,21 @@ describe("TranscriptPanel", () => {
         .map((c: any) => c[0])
         .join("\n");
       expect(output).toContain("Second");
+    });
+  });
+
+  describe("hasVisibleContent", () => {
+    it("reports visible content only when transcript has text", () => {
+      expect(panel.hasVisibleContent()).toBe(false);
+
+      panel.addEvent({
+        type: "chunk",
+        stream: "stdout",
+        data: "{\"type\":\"message.delta\",\"delta\":\"Hello\"}\n",
+        timestamp: Date.now(),
+      });
+
+      expect(panel.hasVisibleContent()).toBe(true);
     });
   });
 
@@ -304,6 +379,26 @@ describe("TranscriptPanel", () => {
       const calls = mockScreen.write.mock.calls;
       // Should have content line + blank padding lines
       expect(calls.length).toBeGreaterThan(1);
+    });
+  });
+
+  describe("appendWorkspaceDiff", () => {
+    it("renders workspace diff lines as file edit blocks", () => {
+      panel.appendWorkspaceDiff([
+        "[WORKSPACE] 새로 바뀐 파일",
+        "  M src/cli/tui/panels/transcript.ts",
+        "  ?? notes.txt",
+      ]);
+
+      mockScreen.write.mockClear();
+      panel.render(mockContext, mockRegion);
+
+      const output = mockScreen.write.mock.calls
+        .map((c: any) => c[0])
+        .join("\n");
+      expect(output).toContain("[edit]");
+      expect(output).toContain("src/cli/tui/panels/transcript.ts");
+      expect(output).toContain("notes.txt");
     });
   });
 });

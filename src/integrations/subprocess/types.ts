@@ -40,3 +40,7 @@ export interface PtyResult extends SubprocessResult {
 export interface SubprocessRunner {
   run(request: SubprocessRequest): Promise<SubprocessResult>;
 }
+
+export interface TranscriptAwareSubprocessRunner extends SubprocessRunner {
+  runWithTranscript(request: SubprocessRequest): Promise<PtyResult>;
+}

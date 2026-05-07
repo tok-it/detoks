@@ -104,6 +104,158 @@ const isNodeShebangScript = (filePath: string): boolean => {
   }
 };
 
+const quoteShellArg = (value: string): string => {
+  if (/^[A-Za-z0-9_./:-]+$/.test(value)) {
+    return value;
+  }
+
+  return `'${value.replaceAll("'", `'\"'\"'`)}'`;
+};
+
+const quoteTclArg = (value: string): string =>
+  `"${value
+    .replaceAll("\\", "\\\\")
+    .replaceAll('"', '\\"')
+    .replaceAll("$", "\\$")
+    .replaceAll("[", "\\[")
+    .replaceAll("]", "\\]")}"`;
+
+const normalizeScriptOutput = (chunk: string): string =>
+  chunk.replace(/^\u0004\b\b/, "");
+
+interface PtyInvocation {
+  command: string;
+  args: string[];
+  env?: NodeJS.ProcessEnv;
+}
+
+const buildPythonInvocation = (
+  request: SubprocessRequest,
+): PtyInvocation | null => {
+  const env = request.env ? { ...process.env, ...request.env } : process.env;
+  const pythonCommand = resolveCommandFromPath("python3", env) ?? resolveCommandFromPath("python", env);
+  if (!pythonCommand) {
+    return null;
+  }
+
+  const resolvedCommand = resolveCommandFromPath(request.command, env);
+  const runViaNode = resolvedCommand !== undefined && isNodeShebangScript(resolvedCommand);
+  const command = runViaNode
+    ? process.execPath
+    : resolvedCommand ?? request.command;
+  const args = runViaNode
+    ? [resolvedCommand, ...request.args]
+    : request.args;
+
+  const argvPayload = JSON.stringify([command, ...args]);
+  const scriptLines = [
+    "import json",
+    "import os",
+    "import pty",
+    "import sys",
+    "argv = json.loads(os.environ['DETOKS_PTY_ARGV'])",
+    "input_text = sys.stdin.read()",
+    "sent = False",
+    "def stdin_read(fd):",
+    "    global sent",
+    "    if sent:",
+    "        return b''",
+    "    sent = True",
+    "    return input_text.encode('utf-8')",
+    "status = pty.spawn(argv, stdin_read=stdin_read)",
+    "if hasattr(os, 'waitstatus_to_exitcode'):",
+    "    sys.exit(os.waitstatus_to_exitcode(status))",
+    "if os.WIFEXITED(status):",
+    "    sys.exit(os.WEXITSTATUS(status))",
+    "if os.WIFSIGNALED(status):",
+    "    sys.exit(128 + os.WTERMSIG(status))",
+    "sys.exit(1)",
+  ];
+
+  return {
+    command: pythonCommand,
+    args: ["-c", scriptLines.join("\n")],
+    env: {
+      ...env,
+      DETOKS_PTY_ARGV: argvPayload,
+    },
+  };
+};
+
+const buildExpectInvocation = (
+  request: SubprocessRequest,
+): PtyInvocation | null => {
+  const env = request.env ? { ...process.env, ...request.env } : process.env;
+  const resolvedCommand = resolveCommandFromPath(request.command, env);
+  const runViaNode = resolvedCommand !== undefined && isNodeShebangScript(resolvedCommand);
+  const command = runViaNode
+    ? process.execPath
+    : resolvedCommand ?? request.command;
+  const args = runViaNode
+    ? [resolvedCommand, ...request.args]
+    : request.args;
+
+  const expectCommand = resolveCommandFromPath("expect", env);
+  if (!expectCommand) {
+    return null;
+  }
+
+  const spawnLine = `spawn -noecho -- ${[command, ...args].map(quoteTclArg).join(" ")}`;
+  const scriptLines = [
+    "log_user 1",
+    "set timeout -1",
+    spawnLine,
+    request.input !== undefined ? `send -- ${quoteTclArg(request.input)}` : undefined,
+    "close",
+    "expect eof",
+  ].filter((line): line is string => Boolean(line));
+
+  return {
+    command: expectCommand,
+    args: ["-c", scriptLines.join("\n")],
+  };
+};
+
+const buildScriptInvocation = (
+  request: SubprocessRequest,
+): PtyInvocation | null => {
+  const env = request.env ? { ...process.env, ...request.env } : process.env;
+  const resolvedCommand = resolveCommandFromPath(request.command, env);
+  const runViaNode = resolvedCommand !== undefined && isNodeShebangScript(resolvedCommand);
+  const command = runViaNode
+    ? process.execPath
+    : resolvedCommand ?? request.command;
+  const args = runViaNode
+    ? [resolvedCommand, ...request.args]
+    : request.args;
+
+  const scriptCommand = resolveCommandFromPath("script", env);
+  if (!scriptCommand) {
+    return null;
+  }
+
+  if (process.platform === "linux") {
+    return {
+      command: scriptCommand,
+      args: ["-q", "-f", "-c", [command, ...args].map(quoteShellArg).join(" "), "/dev/null"],
+    };
+  }
+
+  if (
+    process.platform === "darwin" ||
+    process.platform === "freebsd" ||
+    process.platform === "openbsd" ||
+    process.platform === "netbsd"
+  ) {
+    return {
+      command: scriptCommand,
+      args: ["-q", "-F", "/dev/null", command, ...args],
+    };
+  }
+
+  return null;
+};
+
 export const createRealSubprocessRunner = (): SubprocessRunner => ({
   async run(request: SubprocessRequest): Promise<SubprocessResult> {
     return await new Promise<SubprocessResult>((resolve) => {
@@ -177,6 +329,149 @@ interface PtyRunnerOptions {
   onEvent?: (event: PtyEvent) => void;
 }
 
+const isCodexJsonStreamRequest = (request: SubprocessRequest): boolean =>
+  request.command === "codex" && request.args.includes("--json");
+
+const runStreamingJsonProcess = (
+  request: SubprocessRequest,
+  options?: PtyRunnerOptions,
+): Promise<PtyResult> => {
+  return new Promise<PtyResult>((resolve) => {
+    const env = request.env ? { ...process.env, ...request.env } : process.env;
+    const resolvedCommand = resolveCommandFromPath(request.command, env);
+    const runViaNode = resolvedCommand !== undefined && isNodeShebangScript(resolvedCommand);
+    const command = runViaNode
+      ? process.execPath
+      : resolvedCommand ?? request.command;
+    const args = runViaNode
+      ? [resolvedCommand, ...request.args]
+      : request.args;
+    const startTime = Date.now();
+    const events: PtyEvent[] = [];
+
+    const emitEvent = (event: Omit<PtyEvent, "timestamp">): void => {
+      const fullEvent: PtyEvent = { ...event, timestamp: Date.now() };
+      events.push(fullEvent);
+      options?.onEvent?.(fullEvent);
+    };
+
+    const child = spawn(command, args, {
+      cwd: request.cwd,
+      env,
+      shell: false,
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+
+    let settled = false;
+    let stdout = "";
+    let stderr = "";
+    let stdoutPending = "";
+    let stderrPending = "";
+
+    const finish = (code: number, timedOut: boolean): void => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+
+      const endTime = Date.now();
+      const transcript: PtyTranscript = {
+        events,
+        startTime,
+        endTime,
+        totalDuration: endTime - startTime,
+        exitCode: code,
+        timedOut,
+      };
+
+      emitEvent({
+        type: "exit",
+        data: String(code),
+      });
+
+      resolve({
+        stdout,
+        stderr,
+        exitCode: code,
+        timedOut,
+        transcript,
+      });
+    };
+
+    const pushLines = (
+      chunk: string,
+      stream: "stdout" | "stderr",
+      pending: string,
+    ): string => {
+      const combined = `${pending}${chunk}`.replace(/\r\n/g, "\n");
+      const lines = combined.split("\n");
+      const nextPending = combined.endsWith("\n") ? "" : (lines.pop() ?? "");
+
+      for (const line of lines) {
+        if (line.length > 0) {
+          emitEvent({
+            type: "chunk",
+            stream,
+            data: `${line}\n`,
+          });
+        }
+      }
+
+      return nextPending;
+    };
+
+    child.stdout?.setEncoding("utf8");
+    child.stderr?.setEncoding("utf8");
+
+    child.stdout?.on("data", (chunk: string) => {
+      stdout += chunk;
+      stdoutPending = pushLines(chunk, "stdout", stdoutPending);
+    });
+
+    child.stderr?.on("data", (chunk: string) => {
+      stderr += chunk;
+      stderrPending = pushLines(chunk, "stderr", stderrPending);
+    });
+
+    child.on("error", (error) => {
+      emitEvent({
+        type: "error",
+        data: String(error),
+      });
+      finish(127, false);
+    });
+
+    child.on("close", (code, signal) => {
+      if (stdoutPending.length > 0) {
+        emitEvent({
+          type: "chunk",
+          stream: "stdout",
+          data: stdoutPending,
+        });
+      }
+      if (stderrPending.length > 0) {
+        emitEvent({
+          type: "chunk",
+          stream: "stderr",
+          data: stderrPending,
+        });
+      }
+
+      finish(typeof code === "number" ? code : signal ? 128 : 1, false);
+    });
+
+    if (request.input !== undefined) {
+      emitEvent({
+        type: "prompt",
+        data: request.input,
+      });
+      child.stdin.write(request.input);
+    }
+
+    child.stdin.end();
+  });
+};
+
 export const createPtySubprocessRunner = (
   options?: PtyRunnerOptions,
 ): SubprocessRunner & { runWithTranscript: (request: SubprocessRequest) => Promise<PtyResult> } => {
@@ -186,16 +481,26 @@ export const createPtySubprocessRunner = (
     run: (request: SubprocessRequest) => baseRunner.run(request),
 
     async runWithTranscript(request: SubprocessRequest): Promise<PtyResult> {
+      if (isCodexJsonStreamRequest(request)) {
+        return await runStreamingJsonProcess(request, options);
+      }
+
       return await new Promise<PtyResult>((resolve) => {
         const env = request.env ? { ...process.env, ...request.env } : process.env;
-        const resolvedCommand = resolveCommandFromPath(request.command, env);
-        const runViaNode = resolvedCommand !== undefined && isNodeShebangScript(resolvedCommand);
-        const command = runViaNode
+        const ptyInvocation =
+          buildPythonInvocation(request) ?? buildExpectInvocation(request) ?? buildScriptInvocation(request);
+        const fallbackResolvedCommand = resolveCommandFromPath(request.command, env);
+        const runViaNode =
+          fallbackResolvedCommand !== undefined && isNodeShebangScript(fallbackResolvedCommand);
+        const fallbackCommand = runViaNode
           ? process.execPath
-          : resolvedCommand ?? request.command;
-        const args = runViaNode
-          ? [resolvedCommand, ...request.args]
+          : fallbackResolvedCommand ?? request.command;
+        const fallbackArgs = runViaNode
+          ? [fallbackResolvedCommand, ...request.args]
           : request.args;
+        const command = ptyInvocation?.command ?? fallbackCommand;
+        const args = ptyInvocation?.args ?? fallbackArgs;
+        const ptyEnv = ptyInvocation?.env ? { ...env, ...ptyInvocation.env } : env;
 
         const startTime = Date.now();
         const events: PtyEvent[] = [];
@@ -208,7 +513,7 @@ export const createPtySubprocessRunner = (
 
         const child = spawn(command, args, {
           cwd: request.cwd,
-          env,
+          env: ptyEnv,
           shell: false,
           stdio: ["pipe", "pipe", "pipe"],
         });
@@ -252,20 +557,22 @@ export const createPtySubprocessRunner = (
         child.stderr?.setEncoding("utf8");
 
         child.stdout?.on("data", (chunk: string) => {
-          stdout += chunk;
+          const normalizedChunk = normalizeScriptOutput(chunk);
+          stdout += normalizedChunk;
           emitEvent({
             type: "chunk",
             stream: "stdout",
-            data: chunk,
+            data: normalizedChunk,
           });
         });
 
         child.stderr?.on("data", (chunk: string) => {
-          stderr += chunk;
+          const normalizedChunk = normalizeScriptOutput(chunk);
+          stderr += normalizedChunk;
           emitEvent({
             type: "chunk",
             stream: "stderr",
-            data: chunk,
+            data: normalizedChunk,
           });
         });
 

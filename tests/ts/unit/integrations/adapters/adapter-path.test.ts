@@ -120,8 +120,8 @@ describe("adapter subprocess path", () => {
     );
 
     expect(result.success).toBe(true);
-    expect(result.rawOutput).toBe(
-      "[stub:subprocess] codex exec --model gpt-5 - --sandbox workspace-write --skip-git-repo-check --color never",
+    expect(result.rawOutput).toContain(
+      "[stub:subprocess] codex exec --model gpt-5 - --sandbox workspace-write --skip-git-repo-check --color never --json --output-last-message ",
     );
     expect(result.exitCode).toBe(0);
   });
@@ -168,8 +168,8 @@ describe("adapter subprocess path", () => {
     );
 
     expect(result.success).toBe(true);
-    expect(result.rawOutput).toBe(
-      "[stub:subprocess] codex exec -c model_reasoning_effort=high --model gpt-5 - --sandbox workspace-write --skip-git-repo-check --color never",
+    expect(result.rawOutput).toContain(
+      "[stub:subprocess] codex exec -c model_reasoning_effort=high --model gpt-5 - --sandbox workspace-write --skip-git-repo-check --color never --json --output-last-message ",
     );
     expect(result.exitCode).toBe(0);
   });

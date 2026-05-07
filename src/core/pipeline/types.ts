@@ -4,6 +4,7 @@ import type { CompressTextImplementation } from "../prompt/compression.js";
 import type { TraceLog } from "../utils/PipelineTracer.js";
 import type { TokenMetricsSnapshot } from "../utils/tokenMetrics.js";
 import type { PtyTranscript } from "../../integrations/subprocess/types.js";
+import type { PtyEvent } from "../../integrations/subprocess/types.js";
 
 export const AdapterValues = ["codex", "gemini", "claude"] as const;
 export type Adapter = (typeof AdapterValues)[number];
@@ -36,6 +37,7 @@ export interface PipelineExecutionRequest {
   env?: NodeJS.ProcessEnv;
   fetchImplementation?: typeof fetch;
   onProgress?: PipelineProgressHandler;
+  onAdapterEvent?: (event: PtyEvent) => void;
 }
 
 export interface PipelineStageStatus {

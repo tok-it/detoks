@@ -1,6 +1,6 @@
 import type { Adapter, ExecutionMode, InteractionMode } from "../pipeline/types.js";
 import type { RequestCategory } from "../../schemas/pipeline.js";
-import type { PtyTranscript } from "../../integrations/subprocess/types.js";
+import type { PtyEvent, PtyTranscript } from "../../integrations/subprocess/types.js";
 
 export interface AdapterExecutionRequest {
   mode: InteractionMode;
@@ -23,6 +23,7 @@ export interface AdapterExecutionResult {
 export interface ExecutorRequest extends AdapterExecutionRequest {
   adapter: Adapter;
   executionMode: ExecutionMode;
+  onAdapterEvent?: (event: PtyEvent) => void;
 }
 
 export interface ExecutorResult {

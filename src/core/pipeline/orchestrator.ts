@@ -12,6 +12,7 @@ import { logger } from "../utils/logger.js";
 import { PipelineTracer } from "../utils/PipelineTracer.js";
 import { translateVisibleText } from "../utils/visibleText.js";
 import { buildTokenMetrics, type TokenMetricsSnapshot } from "../utils/tokenMetrics.js";
+import type { PtyTranscript } from "../../integrations/subprocess/types.js";
 import type { SessionState } from "../../schemas/pipeline.js";
 import type {
   PipelineProgressEvent,
@@ -189,6 +190,38 @@ function applySessionTokenMetrics(
   };
 }
 
+function mergePtyTranscripts(
+  existing: PtyTranscript | undefined,
+  incoming: PtyTranscript | undefined,
+): PtyTranscript | undefined {
+  if (!incoming) {
+    return existing;
+  }
+
+  if (!existing) {
+    return {
+      ...incoming,
+      events: [...incoming.events],
+    };
+  }
+
+  const startTime = Math.min(existing.startTime, incoming.startTime);
+  const endTime = Math.max(existing.endTime, incoming.endTime);
+
+  return {
+    events: [...existing.events, ...incoming.events],
+    startTime,
+    endTime,
+    totalDuration: endTime - startTime,
+    ...(incoming.exitCode !== undefined
+      ? { exitCode: incoming.exitCode }
+      : existing.exitCode !== undefined
+        ? { exitCode: existing.exitCode }
+        : {}),
+    timedOut: existing.timedOut || incoming.timedOut,
+  };
+}
+
 function buildPipelineStages(ok: boolean): PipelineStageStatus[] {
   const resultStatus = ok ? "completed" : "failed";
   return [
@@ -261,6 +294,7 @@ export const orchestratePipeline = async (
 ): Promise<PipelineExecutionResult> => {
   const sessionId = request.userRequest.session_id ?? generateSessionId();
   const progressLog: PipelineProgressLog[] = [];
+  let adapterTranscript: PtyTranscript | undefined;
   PipelineTracer.clear();
 
   // Progress 이벤트 수집 및 콜백 호출
@@ -575,15 +609,19 @@ export const orchestratePipeline = async (
       });
 
       PipelineTracer.startStage(`Executor:${task.id}`);
+      const adapterModel = request.env?.ADAPTER_MODEL ?? process.env.ADAPTER_MODEL;
       const execResult = await executeWithAdapter({
         adapter: request.adapter,
         mode: request.mode,
         executionMode: request.executionMode,
         prompt,
         verbose: request.verbose,
+        ...(adapterModel ? { model: adapterModel } : {}),
         ...(request.userRequest.cwd ? { cwd: request.userRequest.cwd } : {}),
         sessionId,
+        ...(request.onAdapterEvent ? { onAdapterEvent: request.onAdapterEvent } : {}),
       });
+      adapterTranscript = mergePtyTranscripts(adapterTranscript, execResult.transcript);
 
       if (!execResult.ok) {
         // 실패 — Strict 모드에 따라 후속 의존 Task도 차단됨
@@ -701,6 +739,7 @@ export const orchestratePipeline = async (
     rawOutput: taskRecords.map((r) => r.rawOutput).filter(Boolean).join("\n---\n"),
     sessionId,
     taskRecords,
+    ...(adapterTranscript ? { adapterTranscript } : {}),
     compiledPrompt: compiledPrompt.compressed_prompt,
     role2Handoff: role2PromptInput.compiled_prompt,
     promptLanguage: compiledPrompt.language,

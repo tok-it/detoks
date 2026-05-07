@@ -5,8 +5,8 @@ import { CodexStubAdapter } from "../../integrations/adapters/codex/adapter.js";
 import { ClaudeStubAdapter } from "../../integrations/adapters/claude/adapter.js";
 import { GeminiStubAdapter } from "../../integrations/adapters/gemini/adapter.js";
 import {
-  createRealSubprocessRunner,
   createStubSubprocessRunner,
+  createPtySubprocessRunner,
 } from "../../integrations/subprocess/runner.js";
 
 const adapterRegistry: Record<Adapter, CliAdapter> = {
@@ -21,7 +21,9 @@ export const executeWithAdapter = async (request: ExecutorRequest): Promise<Exec
   const adapter = getAdapter(request.adapter);
   const subprocessRunner =
     request.executionMode === "real"
-      ? createRealSubprocessRunner()
+      ? createPtySubprocessRunner(
+          request.onAdapterEvent ? { onEvent: request.onAdapterEvent } : undefined,
+        )
       : createStubSubprocessRunner();
   const result = await adapter.execute({
     mode: request.mode,
