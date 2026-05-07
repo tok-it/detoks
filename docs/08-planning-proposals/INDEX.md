@@ -1,29 +1,22 @@
-# 08-planning-proposals (계획 & 제안)
+# 08-planning-proposals
 
-향후 계획, 개선 제안, 디자인 문서에 관한 문서
+현재 동작 명세가 아니라, 향후 작업 계획과 제안을 모아 둔 섹션입니다.
 
-## 📑 폴더 구조
+## 진행 계획
 
-### 루트 파일들
-- **CLAUDE_CODE_ADAPTER_PLAN.md** — Claude Code 어댑터 계획
-- **IMPROVEMENT_PROPOSALS_7_4.md** — 개선 제안 (2026-07-04)
-- **DEPENDENCY_WORKFLOW.md** — 의존성 워크플로우 설계
+- [../REAL_MODE_PIPELINE_FLOW_PLAN.md](../REAL_MODE_PIPELINE_FLOW_PLAN.md)
+- [../CLAUDE_CODE_ADAPTER_PLAN.md](../CLAUDE_CODE_ADAPTER_PLAN.md)
+- [../CODEX_JSON_TRANSCRIPT_PLAN.md](../CODEX_JSON_TRANSCRIPT_PLAN.md)
+- [../CODEX_TOOLCALL_TRANSCRIPT_PLAN.md](../CODEX_TOOLCALL_TRANSCRIPT_PLAN.md)
+- [../PTY_SESSION_CONTROLLER_PLAN/FILE_LEVEL_WORK_TABLE.md](../PTY_SESSION_CONTROLLER_PLAN/FILE_LEVEL_WORK_TABLE.md)
 
-### PTY_SESSION_CONTROLLER_PLAN/ — PTY 세션 컨트롤러 계획
-- **FILE_LEVEL_WORK_TABLE.md** — 파일 수준 작업 테이블
+## 구조 / 개선 제안
 
----
+- [../IMPROVEMENT_PROPOSALS_7_4.md](../IMPROVEMENT_PROPOSALS_7_4.md)
+- [../DEPENDENCY_WORKFLOW.md](../DEPENDENCY_WORKFLOW.md)
+- [../FOLDER_STRUCTURE.md](../FOLDER_STRUCTURE.md)
+- [../FOLDER_STRUCTURE_MIGRATION.md](../FOLDER_STRUCTURE_MIGRATION.md)
 
-## 🎯 읽기 순서
+## 요약 문서
 
-1. **IMPROVEMENT_PROPOSALS_7_4.md** — 최신 개선 제안 확인
-2. **CLAUDE_CODE_ADAPTER_PLAN.md** — Claude Code 통합 계획
-3. **PTY_SESSION_CONTROLLER_PLAN/FILE_LEVEL_WORK_TABLE.md** — 상세 구현 계획
-
----
-
-## 💡 현재 진행 중인 계획
-
-- Claude Code 어댑터 개발
-- PTY 세션 컨트롤러 구현
-- 의존성 워크플로우 개선
+- [../CODEX_REAL_STREAMING_SUMMARY.md](../CODEX_REAL_STREAMING_SUMMARY.md)

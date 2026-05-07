@@ -1,201 +1,115 @@
-# 📚 detoks 문서 인덱스
+# detoks 문서 인덱스
 
-detoks 프로젝트의 모든 문서를 카테고리별로 정리한 마스터 인덱스입니다.
+detoks 문서를 주제별로 찾기 쉽게 정리한 마스터 인덱스입니다.
 
----
+## 문서 사용 방식
 
-## 📂 폴더 구조 및 빠른 네비게이션
+- [README.md](README.md): `docs/` 진입용 짧은 가이드
+- `XX-*/INDEX.md`: 주제별 읽기 순서와 묶음 안내
+- 개별 `.md`: 실제 명세 / 기록 / 계획 문서
 
-### 🏗️ [01-architecture](01-architecture/INDEX.md) — 아키텍처 & 설계
-전체 시스템의 구조, 파이프라인, API, 데이터 스키마를 이해하는 문서
+## 먼저 읽을 핵심 문서
 
-| 폴더 | 설명 | 파일 |
-|------|------|------|
-| **overview/** | 시스템 전체 개요 | ARCHITECTURE.md, PROJECT_STRUCTURE.md, ROLES.md |
-| **pipeline/** | 파이프라인 설계 | PIPELINE.md, CLI_WRAPPER_PIPELINE.md, SHARED_DATA_FLOW.md |
-| **api/** | API 정의 | API_SPEC.md |
-| **schemas/** | 데이터 스키마 | SCHEMAS.md, TYPE_DEFINITION.md |
+| 목적 | 문서 |
+| --- | --- |
+| 시스템 전체 구조 | [ARCHITECTURE.md](ARCHITECTURE.md) |
+| 런타임/폴더 경계 | [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md) |
+| 실행 흐름 | [PIPELINE.md](PIPELINE.md) |
+| 데이터 계약 | [SCHEMAS.md](SCHEMAS.md) |
+| 내부 API 계약 | [API_SPEC.md](API_SPEC.md) |
+| 테스트 기준 | [TESTING_GUIDE.md](TESTING_GUIDE.md) |
 
-**처음 읽을 때**: ARCHITECTURE.md → PROJECT_STRUCTURE.md → PIPELINE.md
+## 카테고리별 문서 맵
 
----
+### 1. Architecture
 
-### ⚡ [02-token-efficiency](02-token-efficiency/INDEX.md) — 토큰 효율성 & 최적화
-토큰 계산, 압축, LLM별 컨텍스트 윈도우 관리에 관한 문서
+- 섹션 가이드: [01-architecture/INDEX.md](01-architecture/INDEX.md)
+- 핵심 문서:
+  - [ARCHITECTURE.md](ARCHITECTURE.md)
+  - [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md)
+  - [PIPELINE.md](PIPELINE.md)
+  - [SCHEMAS.md](SCHEMAS.md)
+  - [API_SPEC.md](API_SPEC.md)
 
-| 파일 | 설명 |
-|------|------|
-| **TOKEN_EFFICIENCY_ARCHITECTURE.md** | 현재 토큰 효율성 아키텍처 (9가지 핵심 코드) |
-| **LLM_CONTEXT_WINDOW_COMPRESSION.md** | LLM별 동적 압축 구현 가이드 (8단계) |
-| **COMPRESSION_THRESHOLD_ANALYSIS.md** | 압축 임계값 분석 |
+### 2. Token Efficiency
 
-**처음 읽을 때**: TOKEN_EFFICIENCY_ARCHITECTURE.md → LLM_CONTEXT_WINDOW_COMPRESSION.md
+- 섹션 가이드: [02-token-efficiency/INDEX.md](02-token-efficiency/INDEX.md)
+- 핵심 문서:
+  - [related-token/TOKEN_EFFICIENCY_ARCHITECTURE.md](related-token/TOKEN_EFFICIENCY_ARCHITECTURE.md)
+  - [related-token/LLM_CONTEXT_WINDOW_COMPRESSION.md](related-token/LLM_CONTEXT_WINDOW_COMPRESSION.md)
+  - [COMPRESSION_THRESHOLD_ANALYSIS.md](COMPRESSION_THRESHOLD_ANALYSIS.md)
 
----
+### 3. Roles & Workflow
 
-### 👥 [03-roles-workflow](03-roles-workflow/INDEX.md) — 역할 & 워크플로우
-Role1/Role2/Role3의 책임, 워크플로우, 규칙에 관한 문서
+- 섹션 가이드: [03-roles-workflow/INDEX.md](03-roles-workflow/INDEX.md)
+- 핵심 문서:
+  - [ROLES.md](ROLES.md)
+  - [CLI_WRAPPER_PIPELINE.md](CLI_WRAPPER_PIPELINE.md)
+  - [ROLE1_PIPELINE_IMPROVEMENT_REQUIREMENTS.md](ROLE1_PIPELINE_IMPROVEMENT_REQUIREMENTS.md)
+  - [ROLE2.2-HANDOFF-SESSION-PERSISTENCE-IMPROVEMENTS.md](ROLE2.2-HANDOFF-SESSION-PERSISTENCE-IMPROVEMENTS.md)
 
-| 파일 | 설명 |
-|------|------|
-| **WORKING_RULES.md** | detoks 작업 규칙 (Git, PR, 테스트) |
-| **ROLE1_PIPELINE_IMPROVEMENT_REQUIREMENTS.md** | Role 1 개선사항 |
-| **ROLE2.2-HANDOFF-SESSION-PERSISTENCE-IMPROVEMENTS.md** | Role 2.2 개선사항 |
-| **ROLE-DEPENDENCY-CHANGES-2026-04-28.md** | 역할 의존성 변경 기록 |
+### 4. Setup & Deployment
 
-**처음 읽을 때**: WORKING_RULES.md → 해당 Role 파일
+- 섹션 가이드: [04-setup-deployment/INDEX.md](04-setup-deployment/INDEX.md)
+- 핵심 문서:
+  - [STACK_VERSIONS.md](STACK_VERSIONS.md)
+  - [LLAMA_CPP_SERVER_SPEC.md](LLAMA_CPP_SERVER_SPEC.md)
 
----
+### 5. Testing & Quality
 
-### ⚙️ [04-setup-deployment](04-setup-deployment/INDEX.md) — 설정 & 배포
-환경 설정, 배포, LLM 서버 구성에 관한 문서
+- 섹션 가이드: [05-testing-quality/INDEX.md](05-testing-quality/INDEX.md)
+- 핵심 문서:
+  - [TESTING_GUIDE.md](TESTING_GUIDE.md)
 
-| 파일 | 설명 |
-|------|------|
-| **STACK_VERSIONS.md** | 사용 중인 라이브러리/도구 버전 |
-| **CONFIG_MULTI_LOGIN_ANALYSIS.md** | 다중 로그인 설정 분석 |
-| **CONFIG_STORAGE_ANALYSIS.md** | 저장소 설정 분석 |
-| **llm-server/LLAMA_CPP_SERVER_SPEC.md** | Llama.cpp 서버 스펙 |
+### 6. Troubleshooting
 
-**처음 읽을 때**: STACK_VERSIONS.md → CONFIG_*.md → llm-server/
+- 섹션 가이드: [06-troubleshooting/INDEX.md](06-troubleshooting/INDEX.md)
+- 핵심 문서:
+  - [PORT_CONFLICT_SOLUTION.md](PORT_CONFLICT_SOLUTION.md)
 
----
+### 7. Guidelines & Policies
 
-### ✅ [05-testing-quality](05-testing-quality/INDEX.md) — 테스팅 & 품질
-테스트 전략, 품질 보증, 테스트 케이스에 관한 문서
+- 섹션 가이드: [07-guidelines-policies/INDEX.md](07-guidelines-policies/INDEX.md)
+- 핵심 문서:
+  - [ENGINEERING_GUIDELINES.md](ENGINEERING_GUIDELINES.md)
+  - [DOCUMENTATION_POLICY.md](DOCUMENTATION_POLICY.md)
+  - [RELEASE_NOTES_TEMPLATE.md](RELEASE_NOTES_TEMPLATE.md)
 
-| 파일 | 설명 |
-|------|------|
-| **TESTING_GUIDE.md** | detoks 테스트 가이드 및 실행 방법 |
+### 8. Planning & Proposals
 
-**빠른 명령어**:
-```bash
-npm test                                    # 전체 테스트
-npm test -- --watch                         # 감시 모드
-DETOKS_REAL_BINARY_SMOKE=1 npm test        # 통합 테스트
-```
+- 섹션 가이드: [08-planning-proposals/INDEX.md](08-planning-proposals/INDEX.md)
+- 핵심 문서:
+  - [REAL_MODE_PIPELINE_FLOW_PLAN.md](REAL_MODE_PIPELINE_FLOW_PLAN.md)
+  - [CLAUDE_CODE_ADAPTER_PLAN.md](CLAUDE_CODE_ADAPTER_PLAN.md)
+  - [CODEX_JSON_TRANSCRIPT_PLAN.md](CODEX_JSON_TRANSCRIPT_PLAN.md)
+  - [CODEX_TOOLCALL_TRANSCRIPT_PLAN.md](CODEX_TOOLCALL_TRANSCRIPT_PLAN.md)
 
----
+## source of truth 정리
 
-### 🔧 [06-troubleshooting](06-troubleshooting/INDEX.md) — 문제 해결
-일반적인 문제, 버그 리포트, 해결 방법에 관한 문서
+| 주제 | 기준 문서 | 보조 문서 |
+| --- | --- | --- |
+| 전체 구조 | [ARCHITECTURE.md](ARCHITECTURE.md) | [CLI_WRAPPER_PIPELINE.md](CLI_WRAPPER_PIPELINE.md) |
+| 파이프라인 단계 | [PIPELINE.md](PIPELINE.md) | [SHARED_DATA_FLOW.md](SHARED_DATA_FLOW.md), [SCHEMA_FLOW.md](SCHEMA_FLOW.md), [DES_DATA_FLOW.md](DES_DATA_FLOW.md) |
+| 스키마 | [SCHEMAS.md](SCHEMAS.md) | [API_SPEC.md](API_SPEC.md), [SCHEMA_FLOW.md](SCHEMA_FLOW.md) |
+| Task type 의미 | [TYPE_DEFINITION.md](TYPE_DEFINITION.md) | [API_SPEC.md](API_SPEC.md), [SCHEMAS.md](SCHEMAS.md) |
+| 로컬 LLM 런타임 | [LLAMA_CPP_SERVER_SPEC.md](LLAMA_CPP_SERVER_SPEC.md) | [PORT_CONFLICT_SOLUTION.md](PORT_CONFLICT_SOLUTION.md) |
+| 테스트 | [TESTING_GUIDE.md](TESTING_GUIDE.md) | 섹션별 테스트 파일 |
 
-| 파일 | 설명 |
-|------|------|
-| **CLI_TOP3_TROUBLESHOOTING.md** | 🔥 상위 3개 문제 (먼저 읽기) |
-| **CLI_TROUBLESHOOTING_PRESENTATION.md** | 상세 해결 가이드 |
-| **PORT_CONFLICT_SOLUTION.md** | 포트 충돌 해결 |
-| **ADAPTER_MODEL_BUG_FIX.md** | 어댑터/모델 버그 수정 |
+## 역사성 / 계획성 문서
 
-**문제가 생겼을 때**: CLI_TOP3_TROUBLESHOOTING.md부터 시작
+아래 문서는 현재 동작 명세라기보다 계획, 비교, 마이그레이션 기록에 가깝습니다.
 
----
+- [FOLDER_STRUCTURE.md](FOLDER_STRUCTURE.md)
+- [FOLDER_STRUCTURE_MIGRATION.md](FOLDER_STRUCTURE_MIGRATION.md)
+- [IMPROVEMENT_PROPOSALS_7_4.md](IMPROVEMENT_PROPOSALS_7_4.md)
+- [ROLE-DEPENDENCY-CHANGES-2026-04-28.md](ROLE-DEPENDENCY-CHANGES-2026-04-28.md)
+- [CODEX_REAL_STREAMING_SUMMARY.md](CODEX_REAL_STREAMING_SUMMARY.md)
 
-### 📖 [07-guidelines-policies](07-guidelines-policies/INDEX.md) — 가이드라인 & 정책
-코드 스타일, 문서 정책, 릴리스 가이드에 관한 문서
+## 추천 읽기 순서
 
-| 파일 | 설명 |
-|------|------|
-| **ENGINEERING_GUIDELINES.md** | 코드 작성 가이드라인 |
-| **DOCUMENTATION_POLICY.md** | 문서 작성 정책 |
-| **RELEASE_NOTES_TEMPLATE.md** | 릴리스 노트 템플릿 |
-
-**코드 작성 전**: ENGINEERING_GUIDELINES.md 읽기
-
----
-
-### 🚀 [08-planning-proposals](08-planning-proposals/INDEX.md) — 계획 & 제안
-향후 계획, 개선 제안, 디자인 문서에 관한 문서
-
-| 파일 | 설명 |
-|------|------|
-| **IMPROVEMENT_PROPOSALS_7_4.md** | 최신 개선 제안 |
-| **CLAUDE_CODE_ADAPTER_PLAN.md** | Claude Code 어댑터 계획 |
-| **DEPENDENCY_WORKFLOW.md** | 의존성 워크플로우 설계 |
-| **PTY_SESSION_CONTROLLER_PLAN/** | PTY 세션 컨트롤러 계획 |
-
----
-
-### 📝 [my-docs](my-docs/INDEX.md) — 내부용 문서 (Git Push 금지)
-일일 로그, TMUX 자동화, 내부 분석 문서 (보안상 Push 금지)
-
----
-
-## 🎯 상황별 문서 선택 가이드
-
-### 🆕 프로젝트 처음 시작
-1. [01-architecture/overview/ARCHITECTURE.md](01-architecture/INDEX.md)
-2. [01-architecture/pipeline/PIPELINE.md](01-architecture/INDEX.md)
-3. [03-roles-workflow/WORKING_RULES.md](03-roles-workflow/INDEX.md)
-
-### 🐛 버그 또는 오류 발생
-1. [06-troubleshooting/CLI_TOP3_TROUBLESHOOTING.md](06-troubleshooting/INDEX.md)
-2. 해당 문제 파일 참고
-3. [CLAUDE.md](../CLAUDE.md) (프로젝트 루트)
-
-### 💻 새로운 코드 작성
-1. [07-guidelines-policies/ENGINEERING_GUIDELINES.md](07-guidelines-policies/INDEX.md)
-2. [01-architecture/overview/PROJECT_STRUCTURE.md](01-architecture/INDEX.md)
-3. 해당 모듈 코드 분석
-
-### 🧪 테스트 작성
-1. [05-testing-quality/TESTING_GUIDE.md](05-testing-quality/INDEX.md)
-2. 기존 테스트 파일 참고
-
-### 📄 문서 작성
-1. [07-guidelines-policies/DOCUMENTATION_POLICY.md](07-guidelines-policies/INDEX.md)
-2. 동일한 폴더의 기존 문서 참고
-
-### 💰 토큰 효율성 개선
-1. [02-token-efficiency/TOKEN_EFFICIENCY_ARCHITECTURE.md](02-token-efficiency/INDEX.md)
-2. [02-token-efficiency/LLM_CONTEXT_WINDOW_COMPRESSION.md](02-token-efficiency/INDEX.md)
-
-### 🚀 릴리스 준비
-1. [07-guidelines-policies/RELEASE_NOTES_TEMPLATE.md](07-guidelines-policies/INDEX.md)
-2. [04-setup-deployment/STACK_VERSIONS.md](04-setup-deployment/INDEX.md)
-
----
-
-## 📊 문서 통계
-
-| 섹션 | 파일 수 | 주요 주제 |
-|------|--------|---------|
-| **01-architecture** | 7 | 시스템 구조, 파이프라인, API, 스키마 |
-| **02-token-efficiency** | 3 | 토큰 최적화, LLM별 압축 |
-| **03-roles-workflow** | 4 | 역할 정의, 워크플로우, 규칙 |
-| **04-setup-deployment** | 4 | 환경 설정, LLM 서버 |
-| **05-testing-quality** | 1 | 테스트 전략 |
-| **06-troubleshooting** | 4 | 문제 해결 |
-| **07-guidelines-policies** | 3 | 가이드라인, 정책 |
-| **08-planning-proposals** | 4 | 개선 제안, 계획 |
-| **my-docs** | 7 | 내부용 (보안) |
-| **총계** | **37** | |
-
----
-
-## 🔗 외부 링크
-
-- **GitHub**: [detoks 저장소](https://github.com/...)
-- **이슈 추적**: [Issues](https://github.com/.../issues)
-- **프로젝트 보드**: [Projects](https://github.com/.../projects)
-
----
-
-## 📝 마지막 업데이트
-
-- **최종 수정**: 2026-05-07
-- **문서 구조 정리**: 8개 카테고리로 재정리
-- **새로운 가이드**: LLM별 동적 압축 구현 가이드 추가
-
----
-
-## 💡 팁
-
-- 📌 **자주 찾는 파일**: 북마크에 추가하세요
-- 🔍 **전체 검색**: `docs/` 폴더에서 파일명이나 내용 검색
-- 📱 **모바일 접근**: GitHub 웹에서도 읽기 가능
-- 🤖 **AI 활용**: Claude 등 AI에 문서 내용 제공하여 도움받기
-
----
-
-**더 이상의 질문이 있으신가요?** 해당 카테고리의 INDEX.md를 참고하세요!
+1. [ARCHITECTURE.md](ARCHITECTURE.md)
+2. [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md)
+3. [PIPELINE.md](PIPELINE.md)
+4. [SCHEMAS.md](SCHEMAS.md)
+5. [API_SPEC.md](API_SPEC.md)
+6. [TESTING_GUIDE.md](TESTING_GUIDE.md)

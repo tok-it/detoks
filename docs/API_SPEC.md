@@ -10,11 +10,9 @@ Instead, its primary APIs are the contracts between:
 - CLI layer
 - TypeScript core pipeline
 - llama.cpp inference client
-- llama.cpp inference client
 - CLI adapter integrations
 - state persistence layer
 
-<!-- 한국어 설명: 이 문서는 detoks의 현재 내부 API 계약을 정의합니다. 아직 외부 공개용 HTTP API는 없고, CLI·코어 파이프라인·llama.cpp 클라이언트·어댑터·상태 저장 계층 간의 인터페이스를 명세하는 문서입니다. -->
 <!-- 한국어 설명: 이 문서는 detoks의 현재 내부 API 계약을 정의합니다. 아직 외부 공개용 HTTP API는 없고, CLI·코어 파이프라인·llama.cpp 클라이언트·어댑터·상태 저장 계층 간의 인터페이스를 명세하는 문서입니다. -->
 
 ---

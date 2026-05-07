@@ -52,9 +52,6 @@ User Output
 - Translation guardrails
 - Request analysis
 - LLM client boundary
-- Prompt processing
-- Translation guardrails
-- LLM client boundary
 - State management
 <!-- 한국어 설명: Core Layer는 전체 실행 순서를 조율하고, 세션 상태를 일관되게 관리하는 중심 계층입니다. -->
 

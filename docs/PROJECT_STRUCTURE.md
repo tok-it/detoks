@@ -1,102 +1,56 @@
 # 📁 Project Structure
 
-This scaffold limits **Python** to the llama.cpp inference server and keeps application logic in **TypeScript**.
+detoks는 **TypeScript 애플리케이션 + Python llama.cpp 서버** 경계를 유지하는 구조를 기본으로 합니다.
 
-## Tree
+## 대표 디렉터리
 
 ```text
 detoks/
 ├── docs/
-├── scripts/
 ├── python/
-│   └── llama-server/
-│       ├── models/
-│       ├── config/
-│       └── run.py
-│   └── llama-server/
-│       ├── models/
-│       ├── config/
-│       └── run.py
+│   ├── llama-server/
+│   └── llama_server/
+├── scripts/
 ├── src/
 │   ├── cli/
-│   │   ├── commands/
-│   │   └── repl/
 │   ├── core/
-│   │   ├── context/
-│   │   ├── executor/
-│   │   ├── output/
-│   │   ├── pipeline/
-│   │   ├── state/
-│   │   ├── task-graph/
-│   │   ├── translate/
-│   │   ├── prompt/
-│   │   ├── guardrails/
-│   │   └── llm-client/
-│   │   ├── task-graph/
-│   │   ├── translate/
-│   │   ├── prompt/
-│   │   ├── guardrails/
-│   │   └── llm-client/
 │   ├── integrations/
-│   │   ├── adapters/
-│   │   │   ├── codex/
-│   │   │   └── gemini/
-│   │   └── subprocess/
 │   ├── schemas/
 │   ├── types/
 │   └── utils/
 └── tests/
+    ├── python/
     └── ts/
-        ├── integration/
-        └── unit/
 ```
 
-## Ownership
+> 이 트리는 대표 구조만 보여 줍니다. 세부 파일 이동 계획은 [FOLDER_STRUCTURE.md](FOLDER_STRUCTURE.md)가 아니라 실제 디렉터리 상태를 기준으로 판단해야 합니다.
 
-- `python/llama-server/*`: LLM inference server (llama.cpp runtime only)
-- `src/core/translate`, `src/core/prompt`, `src/core/guardrails`: TypeScript implementation for Role 1
-- `src/*`: TypeScript implementation for Roles 1, 2.1, 2.2, and 3
-- `src/integrations/*`: External tool integrations (Codex, Gemini, subprocess handling)
-- `tests/python/*`: Python tests for llama-server only
-- `tests/ts/*`: TypeScript tests for application logic, including Role 1 modules
+## 주요 책임
 
-## Mapping
+- `python/llama-server`, `python/llama_server`
+  - llama.cpp 서버 실행, 설정, Python 런타임 경계
+- `src/cli`
+  - CLI entrypoint, REPL, TUI, 사용자 입력 흐름
+- `src/core`
+  - 파이프라인, 번역, 압축, guardrails, task graph, state, executor
+- `src/integrations`
+  - 외부 CLI / subprocess / adapter 경계
+- `src/schemas`
+  - Zod 기반 런타임 계약 정의
+- `tests/ts`, `tests/python`
+  - TypeScript / Python 검증 경계
 
-- `python/llama-server`: Model loading, inference endpoint, server configuration
-- `python/llama-server`: Model loading, inference endpoint, server configuration
-- `src/cli`: CLI layer, REPL, and user-facing commands
-- `src/core/pipeline`: pipeline orchestration
-- `src/core/task-graph`: request analysis, task graph generation, and dependency ordering
-- `src/core/context`: context compression and optimization
-- `src/core/output`: output summarization and result structuring
-- `src/core/state`: session state management
-- `src/core/executor`: execution flow coordination
-- `src/core/translate`: Korean-to-English translation pipeline
-- `src/core/prompt`: prompt compression
-- `src/core/guardrails`: validate and repair translated output
-- `src/core/llm-client`: handles communication with llama.cpp
-- `src/core/translate`: Korean-to-English translation pipeline
-- `src/core/prompt`: prompt compression
-- `src/core/guardrails`: validate and repair translated output
-- `src/core/llm-client`: handles communication with llama.cpp
-- `src/integrations/adapters/*`: target CLI integrations such as Codex and Gemini
-- `src/integrations/subprocess`: process spawning and I/O bridging
-- `src/schemas`: TypeScript-side runtime schemas and validation definitions
-- `src/types`: shared TypeScript types
-- `src/utils`: shared TypeScript utilities
-- `scripts`: developer automation scripts
+## 소유 경계
 
-## Design Rule
+- Python은 **llama.cpp inference server 전용**입니다.
+- 애플리케이션 로직은 TypeScript `src/**`에 둡니다.
+- Role 1 관련 핵심 구현은 `src/core/translate`, `src/core/prompt`, `src/core/guardrails`에 모입니다.
+- LLM 호출 경계는 `src/core/llm-client`를 통해 통일합니다.
+- 외부 도구 연동은 `src/integrations/**`에 격리합니다.
 
-- Core logic must reside under src/core
-- Translation, prompt processing, and LLM interaction are treated as core pipeline responsibilities
-- Python is limited to running the LLM server and must not contain application logic
-- All LLM interaction must go through src/core/llm-client
-- No direct dependency on Python modules from TypeScript
-- External integrations must remain isolated under src/integrations
-- Core logic must reside under src/core
-- Translation, prompt processing, and LLM interaction are treated as core pipeline responsibilities
-- Python is limited to running the LLM server and must not contain application logic
-- All LLM interaction must go through src/core/llm-client
-- No direct dependency on Python modules from TypeScript
-- External integrations must remain isolated under src/integrations
+## 읽을 때의 기준
+
+- 시스템 구조를 보려면 [ARCHITECTURE.md](ARCHITECTURE.md)
+- 파이프라인 단계를 보려면 [PIPELINE.md](PIPELINE.md)
+- 데이터 계약을 보려면 [SCHEMAS.md](SCHEMAS.md)
+- 세부 문서 맵을 보려면 [INDEX.md](INDEX.md)

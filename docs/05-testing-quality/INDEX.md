@@ -1,35 +1,15 @@
-# 05-testing-quality (테스팅 & 품질)
+# 05-testing-quality
 
-테스트 전략, 품질 보증, 테스트 케이스에 관한 문서
+테스트 전략과 실행 기준을 모아 둔 섹션입니다.
 
-## 📑 파일 목록
+## 핵심 문서
 
-- **TESTING_GUIDE.md** — detoks 테스트 가이드
-  - 단위 테스트 작성
-  - 통합 테스트 작성
-  - 테스트 실행 방법
-  - Vitest 활용
+- [../TESTING_GUIDE.md](../TESTING_GUIDE.md): 테스트 우선순위, 명령, 범위 선택 기준
 
----
-
-## 🎯 읽기 순서
-
-1. **TESTING_GUIDE.md** — 테스트 전략 및 실행 방법 이해
-
----
-
-## 💡 빠른 테스트 명령어
+## 빠른 실행
 
 ```bash
-# 전체 테스트 실행
-npm test
-
-# 감시 모드
-npm test -- --watch
-
-# 특정 파일만 테스트
-npm test -- src/core/utils/tokenMetrics
-
-# 실제 바이너리 통합 테스트
-DETOKS_REAL_BINARY_SMOKE=1 npm test
+rtk npm test
+rtk npm run typecheck
+rtk npm test -- tests/ts/unit/cli/parse.test.ts
 ```

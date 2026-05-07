@@ -1,40 +1,23 @@
-# 03-roles-workflow (역할 & 워크플로우)
+# 03-roles-workflow
 
-Role1/Role2/Role3의 책임, 워크플로우, 규칙에 관한 문서
+Role 1 / 2 / 3의 책임, handoff, 개선 기록을 정리한 문서 묶음입니다.
 
-## 📑 파일 목록
+## 핵심 문서
 
-- **WORKING_RULES.md** — detoks 프로젝트 작업 규칙
-  - Git 워크플로우
-  - PR 정책
-  - 타입 체크, 테스트 규칙
-  
-- **ROLE1_PIPELINE_IMPROVEMENT_REQUIREMENTS.md** — Role 1 개선 요구사항
-  - Prompt Compiler 개선사항
-  - 프롬프트 검증
-  
-- **ROLE2.2-HANDOFF-SESSION-PERSISTENCE-IMPROVEMENTS.md** — Role 2.2 개선사항
-  - Context Optimizer 개선
-  - 세션 상태 관리
-  
-- **ROLE-DEPENDENCY-CHANGES-2026-04-28.md** — 역할 의존성 변경 기록
+- [../ROLES.md](../ROLES.md): 역할별 기본 책임
+- [../CLI_WRAPPER_PIPELINE.md](../CLI_WRAPPER_PIPELINE.md): 역할이 실제 CLI 흐름에 어떻게 연결되는지 설명
+- [../ROLE1_PIPELINE_IMPROVEMENT_REQUIREMENTS.md](../ROLE1_PIPELINE_IMPROVEMENT_REQUIREMENTS.md): Role 1 개선 요구사항
+- [../ROLE2.2-HANDOFF-SESSION-PERSISTENCE-IMPROVEMENTS.md](../ROLE2.2-HANDOFF-SESSION-PERSISTENCE-IMPROVEMENTS.md): Role 2.2 개선 요구사항
 
----
+## 상세 / 작업 문서
 
-## 🎯 읽기 순서
+- [../role1/IMPLEMENTATION_TASKS.md](../role1/IMPLEMENTATION_TASKS.md)
+- [../role1/PROMPT_COMPRESSION_DIRECTIONS.md](../role1/PROMPT_COMPRESSION_DIRECTIONS.md)
+- [../ROLE-DEPENDENCY-CHANGES-2026-04-28.md](../ROLE-DEPENDENCY-CHANGES-2026-04-28.md)
 
-1. **WORKING_RULES.md** — 전반적인 작업 규칙 이해
-2. **ROLE1_PIPELINE_IMPROVEMENT_REQUIREMENTS.md** — Role 1의 책임과 개선점
-3. **ROLE2.2-HANDOFF-SESSION-PERSISTENCE-IMPROVEMENTS.md** — Role 2.2의 책임
-4. **ROLE-DEPENDENCY-CHANGES-2026-04-28.md** — 최신 변경 사항 확인
+## 권장 읽기 순서
 
----
-
-## 🔄 역할 분담
-
-| 역할 | 책임 | 주요 파일 |
-|------|------|---------|
-| **Role 1** | 프롬프트 컴파일, 압축, 번역 | ROLE1_PIPELINE_IMPROVEMENT_REQUIREMENTS.md |
-| **Role 2.1** | Task Graph 생성, 의존성 분석 | ROLE-DEPENDENCY-CHANGES-2026-04-28.md |
-| **Role 2.2** | Context Optimizer, State Manager | ROLE2.2-HANDOFF-SESSION-PERSISTENCE-IMPROVEMENTS.md |
-| **Role 3** | Executor, LLM 실행 | (api-spec 참고) |
+1. [../ROLES.md](../ROLES.md)
+2. [../CLI_WRAPPER_PIPELINE.md](../CLI_WRAPPER_PIPELINE.md)
+3. [../ROLE1_PIPELINE_IMPROVEMENT_REQUIREMENTS.md](../ROLE1_PIPELINE_IMPROVEMENT_REQUIREMENTS.md)
+4. 필요 시 Role별 상세 문서 확인
