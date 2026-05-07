@@ -114,3 +114,17 @@ describe("runModelSetupIfNeeded", () => {
     }
   });
 });
+
+describe("TRANSLATION_MODELS", () => {
+  it("includes the Qwen3.5-2B translation option", () => {
+    const qwenModel = TRANSLATION_MODELS.find(
+      (model) => model.modelName === "Qwen3.5-2B-GGUF",
+    );
+
+    expect(qwenModel).toMatchObject({
+      id: "qwen35-2b",
+      hfRepo: "lmstudio-community/Qwen3.5-2B-GGUF",
+      hfFile: "Qwen3.5-2B-Q4_K_M.gguf",
+    });
+  });
+});
