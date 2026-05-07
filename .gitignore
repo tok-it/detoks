@@ -71,6 +71,9 @@ yarn.lock
 
 # Project-specific
 .repl-session.json
+.detoks/
+.serena/
+session-report*.html
 .devlogs/
 daily-reports/
 .prompts/
