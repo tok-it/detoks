@@ -63,10 +63,20 @@ Semantic meaning is defined in `docs/TYPE_DEFINITION.md`.
 ### Task
 
 ```ts
+type TaskStatus = "pending" | "running" | "completed" | "failed";
+type TaskType = RequestCategory;
+
 type Task = {
   id: string;
-  type: string;
+  type: TaskType;
+  status: TaskStatus;
+  title: string;
+  description?: string;
+  input_hash: string;
+  output_summary?: string;
   depends_on: string[];
+  priority?: number;
+  owner_role?: "role1" | "role2.1" | "role2.2" | "role3";
 };
 ```
 

@@ -42,7 +42,7 @@ The wrapper CLI may call all stages, but each stage still has its own owner.
 
 - Prompt Compiler
 - Korean-to-English translation
-- Compressed English prompt handoff
+- Normalized English prompt handoff
 
 ### Role 2.1: Task Graph Engineer
 

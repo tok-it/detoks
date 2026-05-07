@@ -1,5 +1,5 @@
-> Role 1이 입력을 “번역/정규화된 프롬프트”로 만들고, Role 2.1이 그것을 “실행 가능한 작업 그래프”로 바꾸고, Role 3이 “실제 실행”으로 연결한다는 흐름입니다. 압축(Kompress)은 task 실행 시 필요한 context 단계에서 수행됩니다.
-> Role 1이 입력을 “번역/정규화된 프롬프트”로 만들고, Role 2.1이 그것을 “실행 가능한 작업 그래프”로 바꾸고, Role 3이 “실제 실행”으로 연결한다는 흐름입니다. 압축(Kompress)은 task 실행 시 필요한 context 단계에서 수행됩니다.
+> Role 1이 입력을 “번역/정규화된 프롬프트”와 Kompress 기반 압축 산출물로 만들고, Role 2.1이 `normalized_input` 기준 handoff를 “실행 가능한 작업 그래프”로 바꾸고, Role 3이 “실제 실행”으로 연결한다는 흐름입니다.
+> Role 1이 입력을 “번역/정규화된 프롬프트”와 Kompress 기반 압축 산출물로 만들고, Role 2.1이 `normalized_input` 기준 handoff를 “실행 가능한 작업 그래프”로 바꾸고, Role 3이 “실제 실행”으로 연결한다는 흐름입니다.
 
 ## 가장 먼저 결론
 
@@ -15,7 +15,7 @@
 8. SessionState
 
 즉,
-자연어 입력 → 번역/정규화된 프롬프트 → Role 2 handoff schema → 요청 분석/분류 → 작업 그래프 → 실행 컨텍스트(→ 압축) → 실행 결과 → 상태 저장
+자연어 입력 → 번역/정규화된 프롬프트 및 압축 산출물 생성 → Role 2 handoff schema(`normalized_input`) → 요청 분석/분류 → 작업 그래프 → 실행 컨텍스트 → 실행 결과 → 상태 저장
 순서입니다.
 
 ---
@@ -69,7 +69,7 @@ Role 1은 task 분해, id 생성, type 지정, depends_on 생성을 하지 않�
 - 입력을 보존하고
 - 한국어를 영어로 변환/정규화하고
 - 번역/정규화된 영문 프롬프트를 `Role2PromptInput`으로 넘깁니다.
-- 압축(Kompress)은 task 실행 context 단계에서 별도로 수행됩니다.
+- 압축(Kompress)은 Role 1 Prompt Compiler 단계에서 별도 산출물(`compressed_prompt`)로 함께 생성됩니다.
 
 ---
 ---
@@ -101,18 +101,17 @@ type AnalyzedRequest = {
 ### 공유해야 하는 데이터 4: TaskGraph
 
 ```ts
+type TaskStatus = "pending" | "running" | "completed" | "failed";
+type TaskType = RequestCategory;
+
 type Task = {
 	id: string;
-	type: string;
+	type: TaskType;
+	status: TaskStatus;
 	title: string;
 	description?: string;
-	depends_on: string[];
-	priority?: number;
-	owner_role?: "role1" | "role2.1" | "role2.2" | "role3";
-	id: string;
-	type: string;
-	title: string;
-	description?: string;
+	input_hash: string;
+	output_summary?: string;
 	depends_on: string[];
 	priority?: number;
 	owner_role?: "role1" | "role2.1" | "role2.2" | "role3";
@@ -221,45 +220,31 @@ Role 3는 앞 단계에서 정리된 구조를 받아 실제 Codex/Gemini/subpro
 ### 공유해야 하는 데이터 7: ExecutionRequest
 
 ```ts
-```ts
 type ExecutionRequest = {
 	task_id: string;
 	prompt: string;
 	target: "codex" | "gemini" | "claude";
 	context: ExecutionContext;
 	timeout_ms?: number;
-	task_id: string;
-	prompt: string;
-	target: "codex" | "gemini" | "claude";
-	context: ExecutionContext;
-	timeout_ms?: number;
 };
-```
 ```
 
 ### 공유해야 하는 데이터 8: ExecutionResult
 
 ```ts
-```ts
 type ExecutionResult = {
 	task_id: string;
 	success: boolean;
 	raw_output: string;
+	summary?: string;
 	structured_output?: Record<string, unknown>;
 	error?: {
 		code: string;
 		message: string;
 	};
-	task_id: string;
-	success: boolean;
-	raw_output: string;
-	structured_output?: Record<string, unknown>;
-	error?: {
-		code: string;
-		message: string;
-	};
+	next_action?: string;
+	type?: RequestCategory;
 };
-```
 ```
 
 ### 의미

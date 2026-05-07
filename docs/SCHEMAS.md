@@ -49,7 +49,7 @@ type CompiledPrompt = {
 ```
 
 **책임:** Role 1 (AI Prompt Engineer)  
-**설명:** 자연어를 정규화하고 Kompress 기반으로 압축한 결과. 공식 Role 2.1 handoff는 `compressed_prompt`만 사용하고, 나머지 필드는 Role 1 내부 검증/디버그 metadata다.
+**설명:** 자연어를 정규화하고 Kompress 기반으로 압축한 결과. `normalized_input`은 Role 2.1 handoff의 원문이고, `compressed_prompt`는 Role 1이 함께 생성하는 압축 산출물이다. 나머지 필드는 Role 1 내부 검증/디버그 metadata다.
 
 ---
 
@@ -62,7 +62,7 @@ type Role2PromptInput = {
 ```
 
 **책임:** Role 1 (AI Prompt Engineer)  
-**설명:** Role 1이 Role 2.1로 넘기는 handoff schema. 값은 `CompiledPrompt.compressed_prompt`와 동일한 압축 영문 프롬프트 전문이다. task 분해 / id / depends_on 생성은 Role 2.1 담당.
+**설명:** Role 1이 Role 2.1로 넘기는 handoff schema. 값은 `CompiledPrompt.normalized_input`과 동일한 번역/정규화 영문 프롬프트 전문이다. task 분해 / id / depends_on 생성은 Role 2.1 담당.
 
 ---
 
@@ -224,8 +224,11 @@ type ExecutionResult = {
 	task_id: string;
 	success: boolean;
 	raw_output: string;
+	summary?: string;
 	structured_output?: Record<string, unknown>;
 	error?: ExecutionError;
+	next_action?: string;
+	type?: RequestCategory;
 };
 ```
 

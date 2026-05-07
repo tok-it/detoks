@@ -92,11 +92,12 @@ type Role2PromptInput = {
 6. validate
 7. repair
 8. translation fallback
-9. `CompiledPrompt` (normalized_input 확정)
-10. `Role2PromptInput` ← normalized_input 사용 (분류 우선)
-11. Kompress compression on natural-language body (task 실행 context 단계)
-12. compression validate
-13. invalid하면 `normalized_input`을 `compressed_prompt`로 사용
+9. `normalized_input` 확정
+10. Kompress compression on natural-language body
+11. compression validate
+12. invalid하면 `normalized_input`을 `compressed_prompt`로 사용
+13. `CompiledPrompt` 생성
+14. `Role2PromptInput` ← normalized_input 사용 (분류 우선)
 
 **Role 1 내부 batch artifact:**
 - `run_metadata` + `results[]` 구조를 사용한다.
@@ -133,11 +134,17 @@ type AnalyzedRequest = {
 #### 4. TaskGraph
 
 ```ts
+type TaskStatus = "pending" | "running" | "completed" | "failed";
+type TaskType = RequestCategory;
+
 type Task = {
   id: string;
-  type: string;
+  type: TaskType;
+  status: TaskStatus;
   title: string;
   description?: string;
+  input_hash: string;
+  output_summary?: string;
   depends_on: string[];
   priority?: number;
   owner_role?: "role1" | "role2.1" | "role2.2" | "role3";
@@ -150,7 +157,7 @@ type TaskGraph = {
 
 **입력:** `Role2PromptInput`
 
-**의미:** 압축된 영문 프롬프트 전문을 바탕으로 실행 가능한 그래프로 변환
+**의미:** 번역/정규화된 영문 프롬프트 전문을 바탕으로 실행 가능한 그래프로 변환
 
 ---
 
@@ -220,11 +227,14 @@ type ExecutionResult = {
   task_id: string;
   success: boolean;
   raw_output: string;
+  summary?: string;
   structured_output?: Record<string, unknown>;
   error?: {
     code: string;
     message: string;
   };
+  next_action?: string;
+  type?: RequestCategory;
 };
 ```
 
@@ -252,7 +262,7 @@ type ExecutionResult = {
 
 ### 1. Role별 책임이 명확
 
-- **Role 1:** 번역/정규화 담당 (압축은 task 실행 context 단계에서 수행)
+- **Role 1:** 번역/정규화 및 Kompress 압축 담당 (`Role2PromptInput` handoff는 `normalized_input` 기준)
 - **Role 2.1:** 작업화만 담당
 - **Role 2.2:** 상태/문맥 관리
 - **Role 3:** 실행만 담당
