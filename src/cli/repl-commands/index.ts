@@ -1,5 +1,6 @@
 import { stdout as output } from "node:process";
 import { createInterface } from "node:readline/promises";
+import { spawnSync } from "node:child_process";
 import { join } from "node:path";
 import { homedir } from "node:os";
 import type { Adapter } from "../../core/pipeline/types.js";
@@ -8,11 +9,13 @@ import {
   claudeLogout,
   getAdapterStatus,
   getAdapterModels,
+  getClaudeAvailableModels,
   codexLogout,
   geminiLogout,
 } from "../adapter-info/index.js";
 import { selectWithArrows } from "../interactive/select-with-arrows.js";
-import type { SelectWithArrowsStreams } from "../interactive/select-with-arrows.js";
+import type { SelectOption, SelectWithArrowsStreams } from "../interactive/select-with-arrows.js";
+import { invalidateCache } from "../cache/cache-manager.js";
 import {
   getCodexReasoningEffortOverride,
   updateAdapterModel,
@@ -119,6 +122,12 @@ const getAuthenticatedCommands = (
 
   return [
     {
+      name: "claude-models",
+      aliases: ["cls"],
+      description: "Claude 모델 선택",
+      usage: "/claude-models",
+    },
+    {
       name: "logout",
       aliases: ["out"],
       description: "현재 어댑터에서 로그아웃",
@@ -165,11 +174,140 @@ export const isSlashCommand = (
   return input.startsWith("/") && getSlashCommand(input, adapter) !== null;
 };
 
-const getLoginHint = (adapter: Adapter): string =>
-  adapter === "claude" ? "claude auth login" : `${adapter} login`;
+export const getAdapterLoginCommandSpec = (
+  adapter: Adapter,
+): { command: string; args: string[] } => {
+  if (adapter === "codex") {
+    return { command: "codex", args: ["login"] };
+  }
+
+  if (adapter === "gemini") {
+    return { command: "gemini", args: [] };
+  }
+
+  return { command: "claude", args: ["auth", "login"] };
+};
+
+const getLoginHint = (adapter: Adapter): string => {
+  const spec = getAdapterLoginCommandSpec(adapter);
+  return [spec.command, ...spec.args].join(" ").trim();
+};
 
 const getLogoutHint = (adapter: Adapter): string =>
   adapter === "claude" ? "claude auth logout" : `${adapter} logout`;
+
+interface AdapterCliReferenceSection {
+  title: string;
+  commands: string[];
+  note?: string;
+}
+
+const getAdapterCliReferenceSections = (): AdapterCliReferenceSection[] => [
+  {
+    title: "Codex CLI",
+    commands: [
+      "codex login",
+      "codex login status",
+      "codex debug models",
+      "codex logout",
+    ],
+    note: "로그인 / 상태 / 모델 조회 / 로그아웃은 Codex 원본 CLI에서 처리합니다.",
+  },
+  {
+    title: "Gemini CLI",
+    commands: ["gemini"],
+    note: "인증 진입은 gemini로 하고, 모델 선택은 detoks /gms가 맡습니다.",
+  },
+  {
+    title: "Claude Code",
+    commands: [
+      "claude auth login",
+      "claude auth status --json",
+      "claude --model <model>",
+      "claude auth logout",
+    ],
+    note: "Claude는 auth 후 detoks /claude-models가 모델 선택을 맡고, 실행 시 --model로 전달됩니다.",
+  },
+];
+
+export const formatAdapterCliReference = (): string => {
+  const lines: string[] = [
+    "",
+    `${colors.title("외부 adapter CLI 참고")}`,
+    "",
+  ];
+
+  for (const section of getAdapterCliReferenceSections()) {
+    lines.push(`  ${colors.boldText(section.title)}`);
+    for (const command of section.commands) {
+      lines.push(`    ${colors.muted(command)}`);
+    }
+    if (section.note) {
+      lines.push(`    ${colors.muted(section.note)}`);
+    }
+    lines.push("");
+  }
+
+  lines.push(
+    colors.muted(
+      "  detoks 명령은 REPL 안에서, adapter CLI 원본 명령은 외부 터미널에서 사용하세요.",
+    ),
+  );
+  lines.push("");
+
+  return `${lines.join("\n")}\n`;
+};
+
+const buildSlashCommandMenuOptions = (
+  adapter: Adapter,
+): SelectOption[] =>
+  getActiveSlashCommands(adapter).map((command) => ({
+    value: command.usage,
+    label: `${command.usage}${command.aliases?.length ? ` (${command.aliases.join(", ")})` : ""} — ${command.description}`,
+  }));
+
+const formatSlashCommandMenuText = (adapter: Adapter): string => {
+  const commands = getActiveSlashCommands(adapter);
+  const maxUsageLen = Math.max(
+    ...commands.map((command) => command.usage.length),
+    0,
+  );
+
+  const lines = [
+    "REPL 명령 선택",
+    "",
+    ...commands.map((command) => {
+      const aliases = command.aliases?.length ? ` (${command.aliases.join(", ")})` : "";
+      return `${command.usage.padEnd(maxUsageLen + 1)}${aliases} ${command.description}`;
+    }),
+    "",
+    "↑↓ 선택 · Enter 실행 · ESC 취소",
+  ];
+
+  return `${lines.join("\n")}\n`;
+};
+
+const openSlashCommandMenu = async (
+  adapter: Adapter,
+  streams?: SelectWithArrowsStreams,
+): Promise<string | null> => {
+  const options = buildSlashCommandMenuOptions(adapter);
+
+  if (options.length === 0) {
+    output.write(colors.warning("\n선택 가능한 명령이 없습니다.\n\n"));
+    return null;
+  }
+
+  if (!process.stdin.isTTY || !process.stdout.isTTY) {
+    output.write(formatSlashCommandMenuText(adapter));
+    return null;
+  }
+
+  return await selectWithArrows(options, "REPL 명령 선택", {
+    ...streams,
+    useAltScreen: Boolean(streams?.onOpen),
+  });
+};
 
 export const showHelpMessage = (adapter: Adapter): void => {
   output.write(`\n${colors.title("사용 가능한 명령어\n")}`);
@@ -214,7 +352,69 @@ export const showHelpMessage = (adapter: Adapter): void => {
     );
   }
 
+  output.write(formatAdapterCliReference());
   output.write("\n");
+};
+
+const runAdapterAuthLogin = (
+  adapter: Adapter,
+  streams?: SelectWithArrowsStreams,
+): boolean => {
+  const status = getAdapterStatus(adapter);
+  if (status.authenticated) {
+    output.write(
+      colors.success(
+        `\n✓ ${adapter.toUpperCase()}는 이미 인증되어 있습니다 (${status.account || status.authType || "인증됨"})\n\n`,
+      ),
+    );
+    return true;
+  }
+
+  const { command, args } = getAdapterLoginCommandSpec(adapter);
+
+  output.write(`\n${colors.title(`${adapter.toUpperCase()} 인증`)}`);
+  output.write(
+    colors.muted(
+      `\n다음 명령을 실행합니다: ${[command, ...args].join(" ")}\n\n`,
+    ),
+  );
+
+  streams?.onOpen?.();
+  try {
+    const result = spawnSync(command, args, {
+      cwd: process.cwd(),
+      env: process.env,
+      stdio: "inherit",
+    });
+
+    if (result.error) {
+      output.write(
+        colors.error(
+          `\n✗ 인증 명령 실행 실패. ${result.error.message}\n\n`,
+        ),
+      );
+      return false;
+    }
+
+    if (result.status === 0) {
+      invalidateCache("adapter-status", adapter);
+      invalidateCache("adapter-config", adapter);
+      invalidateCache("adapter-models", adapter);
+      output.write(
+        colors.success(`\n✓ ${adapter.toUpperCase()} 인증이 완료되었습니다.\n\n`),
+      );
+      return true;
+    }
+
+    output.write(
+      colors.warning(
+        `\n⚠️  ${adapter.toUpperCase()} 인증이 완료되지 않았습니다. 외부 터미널에서 '${getLoginHint(adapter)}'를 다시 시도하세요.\n\n`,
+      ),
+    );
+    return false;
+  } finally {
+    streams?.onClose?.();
+  }
 };
 
 export const handleSlashCommand = async (
@@ -227,6 +427,7 @@ export const handleSlashCommand = async (
     onVerboseToggle: (enabled: boolean) => void;
     onAdapterChange: (newAdapter: Adapter) => Promise<void>;
     onExit: () => Promise<void>;
+    onMainScreenRestore?: () => void;
     onInteractiveStart?: () => void;
     onInteractiveEnd?: () => void;
   },
@@ -235,7 +436,17 @@ export const handleSlashCommand = async (
   const selectStreams: SelectWithArrowsStreams = {
     ...(state.onInteractiveStart ? { onOpen: state.onInteractiveStart } : {}),
     ...(state.onInteractiveEnd ? { onClose: state.onInteractiveEnd } : {}),
+    useAltScreen: Boolean(state.onInteractiveStart),
   };
+  if (input.trim() === "/") {
+    const selected = await openSlashCommandMenu(adapter, selectStreams);
+    if (!selected) {
+      return true;
+    }
+
+    return await handleSlashCommand(selected, state);
+  }
+
   const cmd = getSlashCommand(input, adapter);
   if (!cmd) return false;
 
@@ -249,11 +460,15 @@ export const handleSlashCommand = async (
       return true;
 
     case "model": {
-      return await handleTranslationModel(selectStreams);
+      const handled = await handleTranslationModel(selectStreams);
+      state.onMainScreenRestore?.();
+      return handled;
     }
 
     case "adapter": {
-      return await handleAdapterSwitch(adapter, state.onAdapterChange, selectStreams);
+      const handled = await handleAdapterSwitch(adapter, state.onAdapterChange, selectStreams);
+      state.onMainScreenRestore?.();
+      return handled;
     }
 
     case "mode":
@@ -275,15 +490,31 @@ export const handleSlashCommand = async (
       return true;
 
     case "codex-models": {
-      return await handleCodexModels(selectStreams);
+      const handled = await handleCodexModels(selectStreams);
+      state.onMainScreenRestore?.();
+      return handled;
     }
 
     case "gemini-models": {
-      return await handleGeminiModels(selectStreams);
+      const handled = await handleGeminiModels(selectStreams);
+      state.onMainScreenRestore?.();
+      return handled;
+    }
+
+    case "claude-models": {
+      const handled = await handleClaudeModels(selectStreams);
+      state.onMainScreenRestore?.();
+      return handled;
     }
 
     case "logout": {
       return await handleLogout(adapter);
+    }
+
+    case "login": {
+      const handled = runAdapterAuthLogin(adapter, selectStreams);
+      state.onMainScreenRestore?.();
+      return handled;
     }
 
     case "exit":
@@ -295,7 +526,7 @@ export const handleSlashCommand = async (
   }
 };
 
-const handleCodexModels = async (streams?: SelectWithArrowsStreams): Promise<boolean> => {
+export const handleCodexModels = async (streams?: SelectWithArrowsStreams): Promise<boolean> => {
   const models = getAdapterModels("codex");
 
   if (models.length === 0) {
@@ -435,7 +666,7 @@ const selectCodexReasoningEffort = async (
   return selected as CodexReasoningEffort;
 };
 
-const handleGeminiModels = async (streams?: SelectWithArrowsStreams): Promise<boolean> => {
+export const handleGeminiModels = async (streams?: SelectWithArrowsStreams): Promise<boolean> => {
   const models = getAdapterModels("gemini");
 
   if (models.length === 0) {
@@ -463,6 +694,34 @@ const handleGeminiModels = async (streams?: SelectWithArrowsStreams): Promise<bo
   return true;
 };
 
+export const handleClaudeModels = async (streams?: SelectWithArrowsStreams): Promise<boolean> => {
+  const models = getClaudeAvailableModels();
+
+  if (models.length === 0) {
+    output.write(colors.warning("\n모델을 불러올 수 없습니다.\n\n"));
+    return true;
+  }
+
+  const options = models.map((m) => ({
+    value: m.slug,
+    label: `${m.slug} — ${m.display_name}`,
+  }));
+
+  const selected = await selectWithArrows(options, "Claude 모델 선택", streams);
+
+  if (selected) {
+    process.env.ADAPTER_MODEL = selected;
+    updateAdapterModel("claude", selected);
+    output.write(
+      colors.muted(
+        `  설정 저장됨: ~/.detoks/settings.json\n\n`,
+      ),
+    );
+  }
+
+  return true;
+};
+
 const handleLogout = async (adapter: Adapter): Promise<boolean> => {
   output.write(`\n${colors.title(`${adapter.toUpperCase()} 로그아웃\n`)}`);
 
@@ -474,6 +733,9 @@ const handleLogout = async (adapter: Adapter): Promise<boolean> => {
         : claudeLogout();
 
   if (success) {
+    invalidateCache("adapter-status", adapter);
+    invalidateCache("adapter-config", adapter);
+    invalidateCache("adapter-models", adapter);
     output.write(
       colors.success(`✓ ${adapter.toUpperCase()}에서 로그아웃되었습니다.\n\n`),
     );
@@ -604,7 +866,7 @@ const handleTranslationModel = async (streams?: SelectWithArrowsStreams): Promis
   return true;
 };
 
-const handleAdapterSwitch = async (
+export const handleAdapterSwitch = async (
   currentAdapter: Adapter,
   onAdapterChange: (newAdapter: Adapter) => Promise<void>,
   streams?: SelectWithArrowsStreams,
@@ -631,35 +893,26 @@ const handleAdapterSwitch = async (
 
   const newAdapter = selected as Adapter;
 
-  if (newAdapter === currentAdapter) {
-    output.write(colors.info(`\n현재 어댑터: ${currentAdapter}\n\n`));
-    return true;
-  }
-
-  const newAdapterStatus = getAdapterStatus(newAdapter);
-
-  if (!newAdapterStatus.authenticated) {
-    output.write(
-      colors.warning(
-        `\n⚠️  ${newAdapter.toUpperCase()}는 인증이 필요합니다.\n\n`,
-      ),
-    );
-    output.write(
-      colors.muted(
-        `다른 터미널에서 다음 명령을 실행한 후 다시 시도하세요:\n`,
-      ),
-    );
-    output.write(colors.info(`  ${getLoginHint(newAdapter)}\n\n`));
+  if (!runAdapterAuthLogin(newAdapter, streams)) {
     return true;
   }
 
   await onAdapterChange(newAdapter);
 
-  output.write(
-    colors.success(
-      `\n✓ 어댑터가 '${newAdapter.toUpperCase()}'로 변경되었습니다.\n\n`,
-    ),
-  );
+  if (newAdapter === "codex") {
+    await handleCodexModels(streams);
+  } else if (newAdapter === "gemini") {
+    await handleGeminiModels(streams);
+  } else if (newAdapter === "claude") {
+    await handleClaudeModels(streams);
+  } else {
+    const adapterLabel = String(newAdapter).toUpperCase();
+    output.write(
+      colors.success(
+        `\n✓ 어댑터가 '${adapterLabel}'로 설정되었습니다.\n\n`,
+      ),
+    );
+  }
 
   return true;
 };

@@ -120,8 +120,31 @@ describe("adapter subprocess path", () => {
     );
 
     expect(result.success).toBe(true);
+    expect(result.rawOutput).toContain(
+      "[stub:subprocess] codex exec --model gpt-5 - --sandbox workspace-write --skip-git-repo-check --color never --json --output-last-message ",
+    );
+    expect(result.exitCode).toBe(0);
+  });
+
+  it("routes a claude request through the subprocess boundary", async () => {
+    const adapter = new ClaudeStubAdapter();
+    const result = await executeAdapterViaSubprocess(
+      adapter,
+      {
+        mode: "run",
+        prompt: "hello subprocess",
+        verbose: false,
+        model: "claude-sonnet-4-6",
+      },
+      {
+        executionMode: "real",
+        subprocessRunner: createStubSubprocessRunner(),
+      },
+    );
+
+    expect(result.success).toBe(true);
     expect(result.rawOutput).toBe(
-      "[stub:subprocess] codex exec --model gpt-5 - --sandbox workspace-write --skip-git-repo-check --color never",
+      "[stub:subprocess] claude -p --output-format text --permission-mode default --model claude-sonnet-4-6",
     );
     expect(result.exitCode).toBe(0);
   });
@@ -168,8 +191,8 @@ describe("adapter subprocess path", () => {
     );
 
     expect(result.success).toBe(true);
-    expect(result.rawOutput).toBe(
-      "[stub:subprocess] codex exec -c model_reasoning_effort=high --model gpt-5 - --sandbox workspace-write --skip-git-repo-check --color never",
+    expect(result.rawOutput).toContain(
+      "[stub:subprocess] codex exec -c model_reasoning_effort=high --model gpt-5 - --sandbox workspace-write --skip-git-repo-check --color never --json --output-last-message ",
     );
     expect(result.exitCode).toBe(0);
   });

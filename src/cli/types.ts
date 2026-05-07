@@ -37,6 +37,7 @@ export interface CliArgs {
   executionMode: ExecutionMode;
   verbose: boolean;
   trace: boolean;
+  tui?: "force" | "disabled"; // undefined = auto (TUI if interactive TTY), "force" = always TUI, "disabled" = legacy text REPL
   showHelp: boolean;
   helpTopic?:
     | "main"

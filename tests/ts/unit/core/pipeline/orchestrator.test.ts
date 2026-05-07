@@ -85,6 +85,21 @@ describe("orchestratePipeline", () => {
       adapter: "codex",
       rawOutput: "[mock-real] codex",
       exitCode: 0,
+      transcript: {
+        events: [
+          {
+            type: "chunk",
+            timestamp: 1,
+            stream: "stdout",
+            data: "[mock-real] codex",
+          },
+        ],
+        startTime: 1,
+        endTime: 2,
+        totalDuration: 1,
+        exitCode: 0,
+        timedOut: false,
+      },
     });
 
     const result = await orchestratePipeline({
@@ -95,14 +110,19 @@ describe("orchestratePipeline", () => {
       userRequest: {
         raw_input: "hello detoks",
       },
+      env: {
+        ADAPTER_MODEL: "claude-sonnet-4-6",
+      },
     });
 
     expect(result.ok).toBe(true);
     expect(result.rawOutput).toBe("[mock-real] codex");
+    expect(result.adapterTranscript?.events).toHaveLength(1);
     expect(executeWithAdapterMock).toHaveBeenCalledWith(
       expect.objectContaining({
         adapter: "codex",
         executionMode: "real",
+        model: "claude-sonnet-4-6",
       }),
     );
   });

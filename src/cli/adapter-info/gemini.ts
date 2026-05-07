@@ -1,6 +1,8 @@
 import { readFileSync, existsSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
+import { invalidateCache, readCache, writeCache } from "../cache/cache-manager.js";
+import { CACHE_TTL_MS } from "../cache/cache-policy.js";
 
 export interface GeminiLoginStatus {
   authenticated: boolean;
@@ -26,28 +28,39 @@ const getGeminiConfigPath = (): string => {
 };
 
 export const getGeminiConfig = (): GeminiConfig => {
+  const cached = readCache<GeminiConfig>("adapter-config", "gemini", CACHE_TTL_MS.adapterConfig);
+  if (cached) {
+    return cached;
+  }
+
   try {
     const content = readFileSync(getGeminiConfigPath(), "utf-8");
     const config = JSON.parse(content);
-    return {
+    const result = {
       currentModel: config.model?.name || undefined,
       authType: config.security?.auth?.selectedType || "unknown",
     };
+    writeCache("adapter-config", "gemini", result, CACHE_TTL_MS.adapterConfig);
+    return result;
   } catch {
     return {};
   }
 };
 
 export const getGeminiLoginStatus = (): GeminiLoginStatus => {
-  try {
-    const config = getGeminiConfig();
-    return {
-      authenticated: !!config.authType,
-      authType: config.authType,
-    };
-  } catch {
-    return { authenticated: false, authType: undefined };
+  const cached = readCache<GeminiLoginStatus>("adapter-status", "gemini", CACHE_TTL_MS.adapterStatus);
+  if (cached) {
+    return cached;
   }
+
+  const config = getGeminiConfig();
+  const status = {
+    authenticated: !!config.authType,
+    authType: config.authType,
+  };
+
+  writeCache("adapter-status", "gemini", status, CACHE_TTL_MS.adapterStatus);
+  return status;
 };
 
 export const getGeminiAvailableModels = () => {
@@ -60,6 +73,8 @@ export const geminiLogout = (): boolean => {
     if (existsSync(configPath)) {
       unlinkSync(configPath);
     }
+    invalidateCache("adapter-status", "gemini");
+    invalidateCache("adapter-config", "gemini");
     return true;
   } catch {
     return false;

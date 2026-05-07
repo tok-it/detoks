@@ -523,4 +523,53 @@ describe("parseCliArgs", () => {
       /체크포인트 restore에는 <checkpoint-id> 하나만 필요합니다/,
     );
   });
+
+  it("parses repl with explicit --tui flag to force TUI mode", () => {
+    const parsed = parseCliArgs(["repl", "--tui"]);
+    expect(parsed).toEqual({
+      mode: "repl",
+      adapter: "codex",
+      executionMode: "real",
+      verbose: false,
+      trace: false,
+      tui: "force",
+      showHelp: false,
+      helpTopic: "repl",
+    });
+  });
+
+  it("parses repl with explicit --no-tui flag to disable TUI mode", () => {
+    const parsed = parseCliArgs(["repl", "--no-tui"]);
+    expect(parsed).toEqual({
+      mode: "repl",
+      adapter: "codex",
+      executionMode: "real",
+      verbose: false,
+      trace: false,
+      tui: "disabled",
+      showHelp: false,
+      helpTopic: "repl",
+    });
+  });
+
+  it("parses repl with --tui and other flags", () => {
+    const parsed = parseCliArgs(["repl", "--tui", "--adapter", "claude", "--verbose"]);
+    expect(parsed).toEqual({
+      mode: "repl",
+      adapter: "claude",
+      executionMode: "real",
+      verbose: true,
+      trace: false,
+      tui: "force",
+      showHelp: false,
+      helpTopic: "repl",
+    });
+  });
+
+  it("documents TUI mode options in repl help", () => {
+    const usage = getCliUsage("repl");
+    expect(usage).toContain("--tui");
+    expect(usage).toContain("--no-tui");
+    expect(usage).toContain("interactive TTY");
+  });
 });

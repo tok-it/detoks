@@ -1,23 +1,8 @@
 # detoks
 
-detoks는 LLM CLI(codex, gemini, claude 등) 앞단에서 동작하는 **interactive wrapper shell**로,
-입력·출력·세션을 최적화하여 **토큰 사용을 줄이고 개발 효율을 극대화**하는 시스템입니다.
-
----
-
-## 🔔 업데이트 안내
-
-`claude` 어댑터가 포함된 새 버전을 사용하려면, 설치된 detoks를 최신 릴리스로 업데이트하세요.
-
-- 전역 설치: `npm install -g @sorlros/detoks@latest`
-- 전역 업데이트: `npm update -g @sorlros/detoks`
-- 로컬 설치: `npm install @sorlros/detoks@latest`
-
-새 기능과 변경점은 GitHub Releases 또는 릴리스 노트에서 함께 안내하는 것을 권장합니다.
-
----
-
-## ✅ 유저 실행 요건
+<p align="right">
+  <a href="./README.en.md">English</a> | <a href="./README.ko.md">한국어</a>
+</p>
 
 detoks는 `codex`, `gemini`, `claude` 같은 LLM CLI 앞단에서 동작하는 **interactive wrapper CLI**입니다.
 입력, 컨텍스트, 세션, 실행 경계를 정리해 **LLM CLI 작업 흐름을 더 안정적이고 재현 가능하게** 만드는 것이 목표입니다.
@@ -38,11 +23,12 @@ detoks는 `codex`, `gemini`, `claude` 같은 LLM CLI 앞단에서 동작하는 *
 
 ## 한눈에 보기
 
-- one-shot 실행과 REPL 모드 지원
+- one-shot 실행과 REPL 모드 지원 (text 또는 TUI)
 - task graph / context / state 관리
 - adapter / subprocess 경계 분리
 - `stub` / `real` 실행 모드
 - 세션 저장 및 재개 기반 워크플로우
+- TUI 모드: 실시간 파이프라인 상태, 어댑터 출력, 토큰 절감 메트릭스 표시
 
 ## 요구 사항
 
@@ -97,7 +83,11 @@ detoks "summarize the current repo status"
 REPL 예시:
 
 ```bash
+# Text REPL (기본값)
 detoks repl --adapter codex --execution-mode stub
+
+# TUI REPL (전체 화면 UI)
+detoks repl --adapter codex --execution-mode stub --tui
 ```
 
 ## detoks가 해주는 일

@@ -1,14 +1,16 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { mkdtempSync, rmSync } from "node:fs";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
 import { CodexStubAdapter } from "../../../../../src/integrations/adapters/codex/adapter.js";
 import { ClaudeStubAdapter } from "../../../../../src/integrations/adapters/claude/adapter.js";
 import { GeminiStubAdapter } from "../../../../../src/integrations/adapters/gemini/adapter.js";
-import type { SubprocessRequest } from "../../../../../src/integrations/subprocess/types.js";
-import type { SubprocessRunner } from "../../../../../src/integrations/subprocess/types.js";
+import type { SubprocessRequest, TranscriptAwareSubprocessRunner } from "../../../../../src/integrations/subprocess/types.js";
 
 const capturedRequests: SubprocessRequest[] = [];
 
-const fakeRunner: SubprocessRunner = {
-  async run(request) {
+const fakeRunner: TranscriptAwareSubprocessRunner = {
+  async run(request: SubprocessRequest) {
     capturedRequests.push(request);
     return {
       stdout: `[fake:${request.command}] ${request.input ?? ""}`,
@@ -17,7 +19,53 @@ const fakeRunner: SubprocessRunner = {
       timedOut: false,
     };
   },
+  async runWithTranscript(request: SubprocessRequest) {
+    capturedRequests.push(request);
+    return {
+      stdout: `[fake:${request.command}] ${request.input ?? ""}`,
+      stderr: "",
+      exitCode: request.command === "gemini" ? 3 : 0,
+      timedOut: false,
+      transcript: {
+        events: [
+          {
+            type: "chunk",
+            timestamp: 1,
+            stream: "stdout",
+            data: `[fake:${request.command}]`,
+          },
+          {
+            type: "exit",
+            timestamp: 2,
+            data: String(request.command === "gemini" ? 3 : 0),
+          },
+        ],
+        startTime: 1,
+        endTime: 2,
+        totalDuration: 1,
+        exitCode: request.command === "gemini" ? 3 : 0,
+        timedOut: false,
+      },
+    };
+  },
 };
+
+const tempDirs: string[] = [];
+
+beforeEach(() => {
+  const home = mkdtempSync(join(tmpdir(), "detoks-real-path-"));
+  tempDirs.push(home);
+  vi.stubEnv("HOME", home);
+});
+
+afterEach(() => {
+  for (const dir of tempDirs.splice(0)) {
+    rmSync(dir, { recursive: true, force: true });
+  }
+
+  vi.unstubAllEnvs();
+  vi.restoreAllMocks();
+});
 
 describe("adapter execution modes", () => {
   it("records codex real execution requests with the codex command", async () => {
@@ -51,6 +99,9 @@ describe("adapter execution modes", () => {
           "--skip-git-repo-check",
           "--color",
           "never",
+          "--json",
+          "--output-last-message",
+          expect.any(String),
         ],
         cwd: "/workspace",
         input: "real prompt",
@@ -58,6 +109,7 @@ describe("adapter execution modes", () => {
     ]);
     expect(realResult.rawOutput).toBe("[fake:codex] real prompt");
     expect(realResult.exitCode).toBe(0);
+    expect(realResult.transcript?.events).toHaveLength(2);
   });
 
   it("records gemini real execution requests with the gemini command", async () => {

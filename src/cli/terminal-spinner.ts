@@ -39,7 +39,7 @@ const createNoopSpinner = (stream: NodeJS.WriteStream): Spinner => ({
   },
 });
 
-const renderSpinnerFrame = (frameIndex: number): string => {
+export const buildPacmanTrackFrame = (frameIndex: number): string => {
   const cycleIndex = frameIndex % FRAME_CYCLE_LENGTH;
   const pacman = PACMAN_FRAMES[cycleIndex % PACMAN_FRAMES.length] ?? "";
   const pacmanColor = PACMAN_COLORS[frameIndex % PACMAN_COLORS.length] ?? chalk.yellow;
@@ -64,7 +64,7 @@ export const startSpinner = (
     stream.write("\r\x1b[K");
   };
   const renderFrame = () => {
-    const frame = renderSpinnerFrame(frameIndex);
+    const frame = buildPacmanTrackFrame(frameIndex);
     stream.write(`\r${frame}`);
     frameIndex += 1;
   };

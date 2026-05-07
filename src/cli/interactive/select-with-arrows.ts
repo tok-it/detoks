@@ -12,6 +12,7 @@ export interface SelectWithArrowsStreams {
   output?: typeof defaultOutput;
   onOpen?: () => void;
   onClose?: () => void;
+  useAltScreen?: boolean;
 }
 
 type KeyInfo = {
@@ -92,6 +93,7 @@ export const selectWithArrows = async (
 ): Promise<string | null> => {
   const input = streams.input ?? defaultInput;
   const output = streams.output ?? defaultOutput;
+  const useAltScreen = streams.useAltScreen ?? true;
 
   if (options.length === 0) {
     output.write(colors.warning("선택 가능한 항목이 없습니다.\n\n"));
@@ -186,8 +188,10 @@ export const selectWithArrows = async (
     }
 
     input.resume();
-    output.write(EXIT_ALT_SCREEN);
-    output.write(SHOW_CURSOR);
+    if (useAltScreen) {
+      output.write(EXIT_ALT_SCREEN);
+      output.write(SHOW_CURSOR);
+    }
     streams.onClose?.();
   };
 
@@ -249,8 +253,10 @@ export const selectWithArrows = async (
     streams.onOpen?.();
     input.setRawMode(true);
     input.resume();
-    output.write(ENTER_ALT_SCREEN);
-    output.write(HIDE_CURSOR);
+    if (useAltScreen) {
+      output.write(ENTER_ALT_SCREEN);
+      output.write(HIDE_CURSOR);
+    }
     renderMenu();
   });
 };

@@ -20,12 +20,30 @@ const subprocessMocks = vi.hoisted(() => {
     })),
   }));
 
-  return { createStubRunner, createRealRunner };
+  const createPtyRunner = vi.fn(() => ({
+    run: createRealRunner().run,
+    runWithTranscript: vi.fn(async (request: { command: string }) => ({
+      stdout: `[real-runner:${request.command}]`,
+      stderr: "",
+      exitCode: 0,
+      timedOut: false,
+      transcript: {
+        events: [],
+        startTime: 1,
+        endTime: 1,
+        totalDuration: 0,
+        timedOut: false,
+      },
+    })),
+  }));
+
+  return { createStubRunner, createRealRunner, createPtyRunner };
 });
 
 vi.mock("../../../../../src/integrations/subprocess/runner.js", () => ({
   createStubSubprocessRunner: subprocessMocks.createStubRunner,
   createRealSubprocessRunner: subprocessMocks.createRealRunner,
+  createPtySubprocessRunner: subprocessMocks.createPtyRunner,
 }));
 
 describe("executeWithAdapter", () => {
@@ -97,5 +115,18 @@ describe("executeWithAdapter", () => {
     expect(result.rawOutput).toBe("[real-runner:codex]");
     expect(result.exitCode).toBe(0);
     expect(subprocessMocks.createRealRunner).toHaveBeenCalledTimes(1);
+  });
+
+  it("preserves transcript data when the real path exposes it", async () => {
+    const result = await executeWithAdapter({
+      adapter: "codex",
+      mode: "run",
+      executionMode: "real",
+      prompt: "hello transcript",
+      verbose: false,
+      onAdapterEvent: vi.fn(),
+    });
+
+    expect(result.transcript).toBeDefined();
   });
 });
