@@ -41,20 +41,19 @@ describe('getLLMModelConfig', () => {
     expect(getLLMModelConfig('')).toBeNull();
   });
 
-  it('로컬 모델 설정이 올바르다', () => {
-    const mistral = getLLMModelConfig('local-mistral-7b');
-    expect(mistral).not.toBeNull();
-    expect(mistral!.provider).toBe('local');
-    expect(mistral!.contextWindowTokens).toBe(8192);
+  it('Gemini 모델 설정이 올바르다', () => {
+    const gemini = getLLMModelConfig('gemini-2.0-flash');
+    expect(gemini).not.toBeNull();
+    expect(gemini!.provider).toBe('google');
+    expect(gemini!.contextWindowTokens).toBe(1000000);
   });
 });
 
 describe('getAvailableModels', () => {
-  it('Claude, GPT, Gemini, 로컬 모델을 모두 포함한다', () => {
+  it('Claude, GPT, Gemini 모델을 모두 포함한다', () => {
     const models = getAvailableModels();
     expect(models).toContain('claude-3.5-sonnet');
     expect(models).toContain('gpt-4-turbo');
     expect(models).toContain('gemini-2.0-flash');
-    expect(models).toContain('local-mistral-7b');
   });
 });

@@ -1,6 +1,6 @@
 export interface LLMModelConfig {
   modelName: string;
-  provider: 'anthropic' | 'openai' | 'google' | 'local';
+  provider: 'anthropic' | 'openai' | 'google';
   contextWindowTokens: number;
   tokenEncoderType: 'o200k_base' | 'cl100k_base' | 'gpt2';
   reservedTokens: {
@@ -77,21 +77,6 @@ export const LLM_MODELS: Record<string, LLMModelConfig> = {
     reservedTokens: { systemPrompt: 300, outputBuffer: 2000, safetyMargin: 500 },
   },
 
-  // ── Local
-  'local-llama2-13b': {
-    modelName: 'llama-2-13b-chat',
-    provider: 'local',
-    contextWindowTokens: 4096,
-    tokenEncoderType: 'gpt2',
-    reservedTokens: { systemPrompt: 200, outputBuffer: 512, safetyMargin: 100 },
-  },
-  'local-mistral-7b': {
-    modelName: 'mistral-7b-instruct',
-    provider: 'local',
-    contextWindowTokens: 8192,
-    tokenEncoderType: 'gpt2',
-    reservedTokens: { systemPrompt: 300, outputBuffer: 1024, safetyMargin: 200 },
-  },
 };
 
 export function getLLMModelConfig(modelName: string): LLMModelConfig | null {
