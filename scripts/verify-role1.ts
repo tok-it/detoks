@@ -2,6 +2,7 @@
 
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { get_encoding } from "tiktoken";
 import { runBatchPromptPipeline } from "../src/core/pipeline/batch.js";
 import { shutdownManagedLocalLlmRuntime } from "../src/core/llm-client/local-runtime.js";
@@ -11,12 +12,15 @@ import {
 } from "../src/core/prompt/config.js";
 import { mask_protected_segments } from "../src/core/translate/masking.js";
 
+type RuntimeProvider = "llama-server" | "node-llama-cpp";
+
 interface VerifyOptions {
   prompt?: string;
   filePath: string;
   limit?: number;
   index?: number;
   outputPath?: string;
+  runtimeProvider?: RuntimeProvider;
   debug: boolean;
 }
 
@@ -75,6 +79,7 @@ function getUsage(): string {
   return [
     "Usage:",
     "  npm run verify:role1 -- --prompt \"새 파일을 생성해\"",
+    "  npm run verify:role1 -- --prompt \"새 파일을 생성해\" --runtime-provider node-llama-cpp",
     "  npm run verify:role1 -- --file tests/data/row_data.json --limit 5",
     "  npm run verify:role1 -- --file tests/data/row_data.json --index 12 --debug --output tmp/role1-result.json",
     "",
@@ -84,17 +89,19 @@ function getUsage(): string {
     "  --limit <n>        앞에서부터 n개만 실행",
     "  --index <n>        0-based 특정 인덱스 1개만 실행",
     "  --output <path>    결과 JSON 저장 경로",
+    "  --runtime-provider <llama-server|node-llama-cpp>  Role 1 로컬 LLM 런타임 강제 지정",
     "  --debug            PIPELINE_MODE=debug로 실행",
     "  --help             도움말 출력",
   ].join("\n");
 }
 
-function parseArgs(argv: string[]): VerifyOptions {
+export function parseArgs(argv: string[]): VerifyOptions {
   let prompt: string | undefined;
   let filePath = "tests/data/row_data.json";
   let limit: number | undefined;
   let index: number | undefined;
   let outputPath: string | undefined;
+  let runtimeProvider: RuntimeProvider | undefined;
   let debug = false;
 
   for (let i = 0; i < argv.length; i += 1) {
@@ -143,6 +150,18 @@ function parseArgs(argv: string[]): VerifyOptions {
       continue;
     }
 
+    if (current === "--runtime-provider") {
+      const value = argv[i + 1];
+      if (value !== "llama-server" && value !== "node-llama-cpp") {
+        throw new Error(
+          "--runtime-provider must be one of: llama-server, node-llama-cpp",
+        );
+      }
+      runtimeProvider = value;
+      i += 1;
+      continue;
+    }
+
     if (!current.startsWith("--") && !prompt) {
       prompt = current;
       continue;
@@ -176,8 +195,23 @@ function parseArgs(argv: string[]): VerifyOptions {
   if (outputPath !== undefined) {
     parsed.outputPath = outputPath;
   }
+  if (runtimeProvider !== undefined) {
+    parsed.runtimeProvider = runtimeProvider;
+  }
 
   return parsed;
+}
+
+export function buildScriptEnv(
+  options: Pick<VerifyOptions, "debug" | "runtimeProvider">,
+): NodeJS.ProcessEnv {
+  return {
+    ...process.env,
+    ...(options.debug ? { PIPELINE_MODE: "debug" } : {}),
+    ...(options.runtimeProvider
+      ? { LOCAL_LLM_RUNTIME_PROVIDER: options.runtimeProvider }
+      : {}),
+  };
 }
 
 function loadInputs(options: VerifyOptions): string[] {
@@ -245,12 +279,8 @@ function calculateTokenReductionRate(
 
 async function main(): Promise<void> {
   const options = parseArgs(process.argv.slice(2));
-  const runtimeConfig = loadRole1RuntimeConfig({
-    env: {
-      ...process.env,
-      ...(options.debug ? { PIPELINE_MODE: "debug" } : {}),
-    },
-  });
+  const scriptEnv = buildScriptEnv(options);
+  const runtimeConfig = loadRole1RuntimeConfig({ env: scriptEnv });
   const policies = loadRole1Policies();
   const inputs = loadInputs(options);
 
@@ -260,6 +290,8 @@ async function main(): Promise<void> {
         {
           ok: true,
           mode: "role1-verify",
+          runtime_provider:
+            runtimeConfig.localLlmRuntimeProvider ?? "(not set)",
           model: runtimeConfig.localLlmModelName ?? "(not set)",
           api_base: runtimeConfig.localLlmApiBase ?? "(not set)",
           api_key: maskApiKey(runtimeConfig.localLlmApiKey),
@@ -272,10 +304,7 @@ async function main(): Promise<void> {
     );
 
     const batchResult = await runBatchPromptPipeline(inputs, {
-      env: {
-        ...process.env,
-        ...(options.debug ? { PIPELINE_MODE: "debug" } : {}),
-      },
+      env: scriptEnv,
     });
     const encoding = get_encoding("o200k_base");
 
@@ -473,8 +502,15 @@ async function main(): Promise<void> {
   }
 }
 
-main().catch((error) => {
-  const message = error instanceof Error ? error.message : String(error);
-  console.error(JSON.stringify({ ok: false, error: message }, null, 2));
-  process.exitCode = 1;
-});
+function isMainModule(): boolean {
+  const entryPath = process.argv[1];
+  return entryPath !== undefined && resolve(entryPath) === fileURLToPath(import.meta.url);
+}
+
+if (isMainModule()) {
+  main().catch((error) => {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(JSON.stringify({ ok: false, error: message }, null, 2));
+    process.exitCode = 1;
+  });
+}
