@@ -335,17 +335,21 @@ const summarizeToolItem = (
   itemType: string,
 ): string | null => {
   const label = itemType.replaceAll("_", " ").trim();
-  const summary =
-    summarizeText(
-      getStringField(item, ["title", "name", "summary", "text", "output"]) ??
-        extractJsonText(item) ??
-        "",
-      2,
-    ) || "";
 
   if (phase === "started") {
-    return summary.length > 0 ? `${label}: ${summary}` : `${label}: started`;
+    return null;
   }
+
+  const summarySource =
+    phase === "completed" || phase === "updated" || phase === "progress"
+      ? getStringField(item, ["output", "result", "text", "summary", "title", "name"]) ??
+        extractJsonText(item) ??
+        ""
+      : getStringField(item, ["title", "name", "summary", "text", "output"]) ??
+        extractJsonText(item) ??
+        "";
+
+  const summary = summarizeText(summarySource, 2) || "";
 
   if (phase === "completed" || phase === "updated" || phase === "progress") {
     return summary.length > 0 ? `${label}: ${summary}` : `${label}: done`;
@@ -411,9 +415,17 @@ const classifyJsonLine = (line: string): ClassifiedLine | null => {
           return null;
         }
 
-        const toolText = summarizeToolItem(item, phase, itemType) ?? text;
+        const toolText = summarizeToolItem(item, phase, itemType);
         if (toolText) {
           return { kind: "tool", text: toolText };
+        }
+
+        if (phase === "started") {
+          return null;
+        }
+
+        if (text) {
+          return { kind: "tool", text };
         }
       }
 
