@@ -7,7 +7,7 @@ import { ContextProcessingError } from '../errors/StateErrors.js';
  *   압축 (ContextCompressor) → 의존성 결과 선택 (ContextSelector) → ExecutionContext 생성
  */
 export class ContextBuilder {
-  static build(state: SessionState, task: Task): ExecutionContext {
+  static build(state: SessionState, task: Task, modelName?: string): ExecutionContext {
     if (!state || !task) {
       throw new ContextProcessingError('Invalid input for ContextBuilder.build', {
         hasState: !!state,
@@ -16,8 +16,8 @@ export class ContextBuilder {
     }
 
     try {
-      // 1. 압축 — 토큰 임계 초과 시 오래된 task 결과를 summary로 축소
-      const compressedState = ContextCompressor.compress(state);
+      // 1. 압축 — LLM별 동적 임계값 기반으로 오래된 task 결과를 summary로 축소
+      const compressedState = ContextCompressor.compress(state, modelName);
 
       // 2. 의존성 결과 선택 — task.depends_on 기반으로 관련 결과만 선택
       const selectedContext = this.selectDependencyResults(compressedState, task);

@@ -12,6 +12,7 @@ import { logger } from "../utils/logger.js";
 import { PipelineTracer } from "../utils/PipelineTracer.js";
 import { translateVisibleText } from "../utils/visibleText.js";
 import { buildTokenMetrics, type TokenMetricsSnapshot } from "../utils/tokenMetrics.js";
+import { getLLMModelConfig } from "../llm-client/llm-models.js";
 import type { PtyTranscript } from "../../integrations/subprocess/types.js";
 import { getLastUsedLocalLlmInfo } from "../llm-client/local-runtime.js";
 import type { SessionState } from "../../schemas/pipeline.js";
@@ -23,6 +24,24 @@ import type {
   PipelineStageStatus,
   TaskExecutionRecord,
 } from "./types.js";
+
+const ADAPTER_MODEL_MAP: Record<string, string> = {
+  claude: 'claude-3.5-sonnet',
+  gemini: 'gemini-2.0-flash',
+  codex: 'gpt-4-turbo',
+};
+
+/**
+ * adapter 타입과 환경변수(ADAPTER_MODEL)를 조합해 llm-models 키를 반환합니다.
+ * 미지원 모델명이 넘어오면 fallback으로 adapter 기본값을 씁니다.
+ */
+function resolveModelName(adapter: string, env?: NodeJS.ProcessEnv): string {
+  const envModel = env?.ADAPTER_MODEL ?? process.env.ADAPTER_MODEL;
+  if (envModel && getLLMModelConfig(envModel)) {
+    return envModel;
+  }
+  return ADAPTER_MODEL_MAP[adapter] ?? 'claude-3.5-sonnet';
+}
 
 function generateSessionId(): string {
   return createHash("sha256").update(String(Date.now())).digest("hex").slice(0, 12);
@@ -582,7 +601,7 @@ export const orchestratePipeline = async (
         message: `Context Optimizer(${task.id}) 시작`,
       });
       PipelineTracer.startStage(`ContextOptimizer:${task.id}`);
-      const context = ContextBuilder.build(state, task);
+      const context = ContextBuilder.build(state, task, resolveModelName(request.adapter, request.env));
       await PipelineTracer.trace({
         sessionId, stage: "ContextOptimizer", role: "role2.2", phase: "output",
         dataType: "ExecutionContext", data: context,

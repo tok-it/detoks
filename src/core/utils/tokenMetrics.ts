@@ -2,6 +2,38 @@ import { get_encoding } from "tiktoken";
 
 export const TOKEN_METRIC_MODEL = "o200k_base" as const;
 
+type SupportedEncoderType = 'o200k_base' | 'cl100k_base' | 'gpt2';
+type TiktokenEncoder = ReturnType<typeof get_encoding>;
+
+const encoderCache = new Map<string, TiktokenEncoder>();
+
+export function getTokenEncoder(encoderType: SupportedEncoderType): TiktokenEncoder {
+  const cached = encoderCache.get(encoderType);
+  if (cached) return cached;
+
+  try {
+    const encoder = get_encoding(encoderType);
+    encoderCache.set(encoderType, encoder);
+    return encoder;
+  } catch {
+    // 지원하지 않는 인코더 타입은 기본값으로 대체
+    const fallback = get_encoding('o200k_base');
+    encoderCache.set(encoderType, fallback);
+    return fallback;
+  }
+}
+
+export function countTokensWithEncoder(
+  text: string,
+  encoderType: SupportedEncoderType = 'o200k_base',
+): number {
+  try {
+    return getTokenEncoder(encoderType).encode(text).length;
+  } catch {
+    return Math.ceil(text.length / 4);
+  }
+}
+
 export interface TokenReductionSnapshot {
   originalTokens: number;
   optimizedTokens: number;
@@ -15,22 +47,8 @@ export interface TokenMetricsSnapshot {
   output: TokenReductionSnapshot;
 }
 
-let _encoder: ReturnType<typeof get_encoding> | null = null;
-
-function getEncoder() {
-  if (!_encoder) {
-    _encoder = get_encoding(TOKEN_METRIC_MODEL);
-  }
-
-  return _encoder;
-}
-
 export function countTokens(text: string): number {
-  try {
-    return getEncoder().encode(text).length;
-  } catch {
-    return Math.ceil(text.length / 4);
-  }
+  return countTokensWithEncoder(text, TOKEN_METRIC_MODEL);
 }
 
 function buildReduction(
