@@ -119,6 +119,53 @@ describe("PipelineStatusPanel", () => {
       expect(output).toContain("• Editing");
       expect(output).toContain("Executor: start · Executor 실행 중");
     });
+
+    it("derives Inspecting from read-only tool calls", () => {
+      const event: ActionTimelineEvent = {
+        kind: "tool_call",
+        source: "adapter",
+        summary: "exec: rg -n foo src",
+        timestamp: Date.now(),
+      };
+
+      panel.updateActionTimelineEvent(event);
+      panel.render(mockContext, mockRegion);
+
+      const output = mockScreen.write.mock.calls
+        .map((c: any) => c[0])
+        .join("\n");
+
+      expect(output).toContain("• Inspecting");
+      expect(output).toContain("rg -n foo src");
+    });
+
+    it("derives Waiting for CI after a successful git push", () => {
+      const event: ActionTimelineEvent = {
+        kind: "tool_result",
+        source: "git",
+        summary: "exit 0 · pushed",
+        timestamp: Date.now(),
+        rawPayload: {
+          type: "item.completed",
+          item: {
+            type: "command_execution",
+            command: "git push origin dev",
+            status: "completed",
+            exit_code: 0,
+          },
+        },
+      };
+
+      panel.updateActionTimelineEvent(event);
+      panel.render(mockContext, mockRegion);
+
+      const output = mockScreen.write.mock.calls
+        .map((c: any) => c[0])
+        .join("\n");
+
+      expect(output).toContain("• Waiting for CI");
+      expect(output).toContain("exit 0 · pushed");
+    });
   });
 
   describe("reset", () => {

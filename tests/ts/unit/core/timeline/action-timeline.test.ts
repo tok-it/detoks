@@ -30,7 +30,7 @@ describe("action timeline helpers", () => {
               timestamp: 1,
               stream: "stdout",
               data:
-                "{\"type\":\"item.started\",\"item\":{\"type\":\"command_execution\",\"command\":\"npm run typecheck\",\"status\":\"in_progress\"}}\n{\"type\":\"item.completed\",\"item\":{\"type\":\"command_execution\",\"command\":\"npm run typecheck\",\"aggregated_output\":\"ok\\n\",\"exit_code\":0,\"status\":\"completed\"}}\n{\"type\":\"item.completed\",\"item\":{\"type\":\"command_execution\",\"command\":\"git push origin dev\",\"aggregated_output\":\"pushed\\n\",\"exit_code\":0,\"status\":\"completed\"}}\n{\"type\":\"item.completed\",\"item\":{\"type\":\"file_change\",\"changes\":[{\"path\":\"src/core/timeline/action-timeline.ts\",\"kind\":\"update\"}],\"status\":\"completed\"}}\n",
+                "{\"type\":\"item.started\",\"item\":{\"type\":\"command_execution\",\"command\":\"rg -n \\\"foo\\\" src\",\"status\":\"in_progress\"}}\n{\"type\":\"item.started\",\"item\":{\"type\":\"command_execution\",\"command\":\"npm run typecheck\",\"status\":\"in_progress\"}}\n{\"type\":\"item.completed\",\"item\":{\"type\":\"command_execution\",\"command\":\"npm run typecheck\",\"aggregated_output\":\"ok\\n\",\"exit_code\":0,\"status\":\"completed\"}}\n{\"type\":\"item.started\",\"item\":{\"type\":\"command_execution\",\"command\":\"git commit -m \\\"feat: update\\\"\",\"status\":\"in_progress\"}}\n{\"type\":\"item.completed\",\"item\":{\"type\":\"command_execution\",\"command\":\"git commit -m \\\"feat: update\\\"\",\"aggregated_output\":\"commit\\n\",\"exit_code\":0,\"status\":\"completed\"}}\n{\"type\":\"item.completed\",\"item\":{\"type\":\"command_execution\",\"command\":\"git push origin dev\",\"aggregated_output\":\"pushed\\n\",\"exit_code\":0,\"status\":\"completed\"}}\n{\"type\":\"item.completed\",\"item\":{\"type\":\"file_change\",\"changes\":[{\"path\":\"src/core/timeline/action-timeline.ts\",\"kind\":\"update\"}],\"status\":\"completed\"}}\n",
             },
           ],
           startTime: 1,
@@ -54,6 +54,12 @@ describe("action timeline helpers", () => {
     expect(timeline.some((event) => event.kind === "git_operation")).toBe(true);
     expect(recap?.details).toContain("요약: 1개 작업을 모두 완료했습니다");
     expect(recap?.details).toContain("다음 작업: 파이프라인이 완료되었습니다.");
+    expect(recap?.details?.join("\n")).toContain("진행 단계:");
+    expect(recap?.details?.join("\n")).toContain("Planning");
+    expect(recap?.details?.join("\n")).toContain("Inspecting");
+    expect(recap?.details?.join("\n")).toContain("Validating");
+    expect(recap?.details?.join("\n")).toContain("Committing");
+    expect(recap?.details?.join("\n")).toContain("Waiting for CI");
     expect(recap?.details?.join("\n")).toContain("편집:");
     expect(recap?.details?.join("\n")).toContain("검증:");
     expect(recap?.details?.join("\n")).toContain("git:");

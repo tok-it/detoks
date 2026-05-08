@@ -126,6 +126,155 @@ const isValidationCommand = (command: string): boolean =>
 const isGitCommand = (command: string): boolean =>
   /\bgit\b\s+(add|commit|push|status|diff|checkout|merge|rebase)\b/i.test(command);
 
+const PIPELINE_STAGE_TO_WORK_STATE: Record<string, string> = {
+  "Prompt Compiler": "Planning",
+  "Task Graph Builder": "Inspecting",
+  "Context Optimizer": "Inspecting",
+  "Executor": "Editing",
+  "State Manager": "Committing",
+};
+
+const INSPECTION_COMMAND_PATTERN =
+  /\b(?:cat|sed|grep|rg|find|ls|pwd|head|tail|awk|git\s+(?:status|diff|log|show))\b/i;
+
+const EDITING_COMMAND_PATTERN =
+  /\b(?:apply_patch|touch|mkdir|cp|mv|rm|tee|nano|vim|vi)\b/i;
+
+const WORK_STATE_ORDER = [
+  "Planning",
+  "Inspecting",
+  "Editing",
+  "Validating",
+  "Committing",
+  "Pushing",
+  "Waiting for CI",
+] as const;
+
+const getTimelineCommand = (event: ActionTimelineEvent): string | null => {
+  const rawPayload = event.rawPayload;
+  const item = getRecordField(rawPayload, "item");
+  const command = getStringField(item ?? rawPayload, ["command"]);
+  if (command) {
+    return summarizeCommand(command);
+  }
+
+  const summary = summarizeCommand(event.summary);
+  if (summary.startsWith("exec: ")) {
+    return summarizeCommand(summary.slice("exec: ".length));
+  }
+
+  if (summary.startsWith("git ")) {
+    return summary;
+  }
+
+  return null;
+};
+
+const getTimelinePhase = (event: ActionTimelineEvent): string => {
+  const rawPayload = event.rawPayload;
+  if (!rawPayload || typeof rawPayload !== "object" || Array.isArray(rawPayload)) {
+    return "";
+  }
+
+  const record = rawPayload as Record<string, unknown>;
+  return normalizeEventType(record.type ?? record.method ?? "");
+};
+
+export const deriveActionWorkState = (event: ActionTimelineEvent): string | null => {
+  if (event.kind === "validation") {
+    return "Validating";
+  }
+
+  if (event.kind === "file_edit") {
+    return "Editing";
+  }
+
+  if (event.kind === "stage_update") {
+    if (!event.stage) {
+      return event.summary;
+    }
+
+    if (event.stage === "Executor" && event.summary.includes("start")) {
+      return "Editing";
+    }
+
+    if (event.stage === "Executor" && event.summary.includes("end")) {
+      return "Validating";
+    }
+
+    return PIPELINE_STAGE_TO_WORK_STATE[event.stage] ?? event.stage;
+  }
+
+  const command = getTimelineCommand(event);
+  if (!command) {
+    return null;
+  }
+
+  const lower = command.toLowerCase();
+  const phase = getTimelinePhase(event);
+
+  if (lower.includes("git push")) {
+    return phase.includes("completed") ? "Waiting for CI" : "Pushing";
+  }
+
+  if (lower.includes("git add") || lower.includes("git commit") || lower.includes("git merge") || lower.includes("git rebase")) {
+    return "Committing";
+  }
+
+  if (isValidationCommand(command)) {
+    return "Validating";
+  }
+
+  if (INSPECTION_COMMAND_PATTERN.test(command)) {
+    return "Inspecting";
+  }
+
+  if (EDITING_COMMAND_PATTERN.test(command)) {
+    return "Editing";
+  }
+
+  if (event.kind === "tool_result" && lower.includes("exit 0")) {
+    return "Editing";
+  }
+
+  if (event.kind === "tool_call" || event.kind === "tool_result" || event.kind === "git_operation") {
+    return "Editing";
+  }
+
+  return null;
+};
+
+export const collectActionWorkStates = (events: readonly ActionTimelineEvent[]): string[] => {
+  const states: string[] = [];
+  for (const event of events) {
+    const state = deriveActionWorkState(event);
+    if (state && !states.includes(state)) {
+      states.push(state);
+    }
+  }
+
+  const rankedStates = [...states].sort((left, right) => {
+    const leftIndex = WORK_STATE_ORDER.indexOf(left as (typeof WORK_STATE_ORDER)[number]);
+    const rightIndex = WORK_STATE_ORDER.indexOf(right as (typeof WORK_STATE_ORDER)[number]);
+
+    if (leftIndex === -1 && rightIndex === -1) {
+      return left.localeCompare(right);
+    }
+
+    if (leftIndex === -1) {
+      return 1;
+    }
+
+    if (rightIndex === -1) {
+      return -1;
+    }
+
+    return leftIndex - rightIndex;
+  });
+
+  return rankedStates;
+};
+
 const summarizeFileChange = (item: Record<string, unknown>, phase: string): string | null => {
   const changes = getArrayField(item, "changes");
   const changeSummaries = (changes ?? [])
@@ -287,6 +436,7 @@ const buildTurnRecapEvent = (
   result: Pick<PipelineExecutionResult, "summary" | "nextAction">,
   events: readonly ActionTimelineEvent[],
 ): ActionTimelineEvent => {
+  const workStates = collectActionWorkStates(events);
   const fileEdits = events
     .filter((event) => event.kind === "file_edit")
     .map((event) => event.summary)
@@ -307,6 +457,9 @@ const buildTurnRecapEvent = (
   const details: string[] = [];
   details.push(`요약: ${result.summary}`);
   details.push(`다음 작업: ${result.nextAction}`);
+  if (workStates.length > 0) {
+    details.push(`진행 단계: ${workStates.join(" · ")}`);
+  }
 
   if (tools.length > 0) {
     details.push(`도구: ${tools.slice(0, 2).join(" · ")}`);
