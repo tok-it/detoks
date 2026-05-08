@@ -7,7 +7,7 @@ import { colors } from "../../colors.js";
 
 const EMPTY_TRANSCRIPT_LINES = [
   "실행 기록이 아직 없습니다.",
-  "첫 프롬프트를 입력하면 도구 호출, 파일 변경, 최종 답변이 이 영역에 표시됩니다.",
+  "명령을 실행하면 원본 CLI 출력이 이 영역에 표시됩니다.",
   "↑/↓ 로 이전 출력 스크롤",
 ] as const;
 
@@ -724,9 +724,7 @@ export class TranscriptPanel {
       const prefix =
         entry.kind === "recap"
               ? "[recap] "
-              : entry.kind === "diagnostic"
-                ? "[ERR] "
-                : "";
+              : "";
       const line = truncateLine(`${prefix}${entry.text}`, usableWidth);
       const displayLine = isEmptyState
         ? colors.muted(line)

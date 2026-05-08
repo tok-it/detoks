@@ -534,15 +534,8 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
 
         const workspaceAfter = captureWorkspaceSnapshot(executionCwd);
         const workspaceDiff = diffWorkspaceSnapshots(workspaceBefore, workspaceAfter);
-        if (workspaceDiff.length > 0) {
-          transcriptPanel.appendWorkspaceDiff(workspaceDiff);
-        }
 
         const actionTimeline = buildActionTimeline(result, workspaceDiff);
-        const turnRecap = [...actionTimeline].reverse().find((event) => event.kind === "turn_recap");
-        if (turnRecap) {
-          transcriptPanel.appendTurnRecap(turnRecap);
-        }
 
         // Phase 3.4: Display result
         resultPanel.setResult({

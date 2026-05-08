@@ -32,7 +32,7 @@ describe("TranscriptPanel", () => {
         .join("\n");
 
       expect(output).toContain("실행 기록이 아직 없습니다.");
-      expect(output).toContain("도구 호출");
+      expect(output).toContain("원본 CLI 출력");
     });
 
     it("adds a single line to transcript", () => {
@@ -192,7 +192,6 @@ describe("TranscriptPanel", () => {
         .join("\n");
       expect(output).not.toContain("OpenAI Codex");
       expect(output).not.toContain("workdir:");
-      expect(output).toContain("[ERR]");
       expect(output).toContain("Error: boom");
     });
 
@@ -211,7 +210,6 @@ describe("TranscriptPanel", () => {
       const output = mockScreen.write.mock.calls
         .map((c: any) => c[0])
         .join("\n");
-      expect(output).toContain("[ERR]");
       expect(output).toContain("Error message");
     });
 

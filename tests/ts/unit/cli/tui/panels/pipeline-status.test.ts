@@ -37,9 +37,9 @@ describe("PipelineStatusPanel", () => {
 
       expect(mockScreen.write).toHaveBeenCalled();
       const calls = mockScreen.write.mock.calls;
-      // Should contain the completed stage indicator (✓)
+      // Should contain the completed stage indicator (blue circle)
       const output = calls.map((c: any) => c[0]).join("\n");
-      expect(output).toContain("✓");
+      expect(output).toContain("●");
       expect(output).toContain("Prompt Compiler");
     });
 
@@ -62,7 +62,7 @@ describe("PipelineStatusPanel", () => {
       const output = mockScreen.write.mock.calls
         .map((c: any) => c[0])
         .join("\n");
-      expect(output).toContain("✗");
+      expect(output).toContain("●");
       expect(output).toContain("Task Graph Builder");
     });
 
@@ -79,7 +79,7 @@ describe("PipelineStatusPanel", () => {
       const output = mockScreen.write.mock.calls
         .map((c: any) => c[0])
         .join("\n");
-      expect(output).toContain("↷");
+      expect(output).toContain("○");
     });
 
     it("supports info status", () => {
@@ -95,7 +95,7 @@ describe("PipelineStatusPanel", () => {
       const output = mockScreen.write.mock.calls
         .map((c: any) => c[0])
         .join("\n");
-      expect(output).toContain("·");
+      expect(output).toContain("●");
     });
   });
 
@@ -116,7 +116,7 @@ describe("PipelineStatusPanel", () => {
         .map((c: any) => c[0])
         .join("\n");
 
-      expect(output).toContain("• Editing");
+      expect(output).toContain("● Editing");
       expect(output).toContain("Executor: start · Executor 실행 중");
     });
 
@@ -135,7 +135,7 @@ describe("PipelineStatusPanel", () => {
         .map((c: any) => c[0])
         .join("\n");
 
-      expect(output).toContain("• Inspecting");
+      expect(output).toContain("● Inspecting");
       expect(output).toContain("rg -n foo src");
     });
 
@@ -163,8 +163,35 @@ describe("PipelineStatusPanel", () => {
         .map((c: any) => c[0])
         .join("\n");
 
-      expect(output).toContain("• Waiting for CI");
+      expect(output).toContain("● Waiting for CI");
       expect(output).toContain("exit 0 · pushed");
+    });
+
+    it("renders ALL BLUE when every stage succeeds", () => {
+      for (const stage of [
+        "Prompt Compiler",
+        "Task Graph Builder",
+        "Context Optimizer",
+        "Executor",
+        "State Manager",
+      ] as const) {
+        panel.update({
+          stage,
+          status: "end",
+          message: `${stage} 완료`,
+        });
+      }
+
+      panel.render(mockContext, mockRegion);
+
+      const output = mockScreen.write.mock.calls
+        .map((c: any) => c[0])
+        .join("\n");
+
+      expect(output).toContain("ALL BLUE");
+      expect(output).toContain("✓");
+      expect(output).toContain("● Prompt Compiler");
+      expect(output).toContain("● Task Graph Builder");
     });
   });
 
@@ -193,13 +220,13 @@ describe("PipelineStatusPanel", () => {
         .map((c: any) => c[0])
         .join("\n");
 
-      // Count bullet points (start status indicator)
-      const bulletCount = (output.match(/•/g) || []).length;
-      expect(bulletCount).toBeGreaterThan(0);
+      // Count waiting circles
+      const circleCount = (output.match(/●/g) || []).length;
+      expect(circleCount).toBeGreaterThan(0);
 
       // Shouldn't have error or success indicators
+      expect(output).not.toContain("ALL BLUE");
       expect(output).not.toContain("✓");
-      expect(output).not.toContain("✗");
     });
   });
 

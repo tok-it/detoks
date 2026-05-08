@@ -2,9 +2,6 @@ import type { AdapterExecutionContext, CliAdapter } from "./interface.js";
 import type { AdapterExecutionRequest, AdapterExecutionResult } from "../../core/executor/types.js";
 import { createPtySubprocessRunner } from "../subprocess/runner.js";
 import { createActionTimelineEvent } from "../../core/timeline/types.js";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
-import { join } from "node:path";
-import { tmpdir } from "node:os";
 import type {
   PtyEvent,
   PtyResult,
@@ -42,80 +39,20 @@ export const executeAdapterViaSubprocess = async (
       // Timeline hooks must never break adapter execution.
     }
   };
-  const codexArtifacts = adapter.target === "codex"
-    ? (() => {
-        const tempDir = mkdtempSync(join(tmpdir(), "detoks-codex-"));
-        const outputPath = join(tempDir, "last-message.txt");
-
-        return {
-          request: {
-            ...subprocessRequest,
-            args: [
-              ...subprocessRequest.args,
-              "--json",
-              "--output-last-message",
-              outputPath,
-            ],
-          },
-          outputPath,
-          cleanup: () => rmSync(tempDir, { recursive: true, force: true }),
-        };
-      })()
-    : null;
-  const effectiveRequest = codexArtifacts?.request ?? subprocessRequest;
-  const resolveRawOutput = (result: { stdout: string; stderr: string; exitCode: number; timedOut: boolean }): string => {
-    const codexLastMessage = codexArtifacts
-      ? (() => {
-          try {
-            const text = readFileSync(codexArtifacts.outputPath, "utf8").trim();
-            return text.length > 0 ? text : undefined;
-          } catch {
-            return undefined;
-          }
-        })()
-      : undefined;
-
-    return (
-      codexLastMessage ??
-      ((!result.timedOut && result.exitCode === 0) ? result.stdout : (result.stdout || result.stderr))
-    );
-  };
 
   const transcriptAwareRunner = context.subprocessRunner as TranscriptAwareSubprocessRunner;
-  try {
-    await emitTimelineEvent(
-      `${adapter.target} 실행: ${subprocessRequest.command} ${subprocessRequest.args.join(" ")}`.trim(),
-      "tool_call",
-      {
-        command: subprocessRequest.command,
-        args: subprocessRequest.args,
-        cwd: subprocessRequest.cwd,
-      },
-    );
+  await emitTimelineEvent(
+    `${adapter.target} 실행: ${subprocessRequest.command} ${subprocessRequest.args.join(" ")}`.trim(),
+    "tool_call",
+    {
+      command: subprocessRequest.command,
+      args: subprocessRequest.args,
+      cwd: subprocessRequest.cwd,
+    },
+  );
 
-    if (typeof transcriptAwareRunner.runWithTranscript === "function") {
-      const result = await transcriptAwareRunner.runWithTranscript(effectiveRequest);
-      await emitTimelineEvent(
-        `${adapter.target} 완료: exit ${result.exitCode}${result.timedOut ? " (timeout)" : ""}`,
-        "tool_result",
-        {
-          stdout: result.stdout,
-          stderr: result.stderr,
-          exitCode: result.exitCode,
-          timedOut: result.timedOut,
-        },
-      );
-
-      return {
-        success: !result.timedOut && result.exitCode === 0,
-        rawOutput: resolveRawOutput(result),
-        exitCode: result.exitCode,
-        ...(result.stderr.length > 0 ? { stderr: result.stderr } : {}),
-        transcript: result.transcript,
-      };
-    }
-
-    const result = await context.subprocessRunner.run(effectiveRequest);
+  if (typeof transcriptAwareRunner.runWithTranscript === "function") {
+    const result = await transcriptAwareRunner.runWithTranscript(subprocessRequest);
     await emitTimelineEvent(
       `${adapter.target} 완료: exit ${result.exitCode}${result.timedOut ? " (timeout)" : ""}`,
       "tool_result",
@@ -129,13 +66,31 @@ export const executeAdapterViaSubprocess = async (
 
     return {
       success: !result.timedOut && result.exitCode === 0,
-      rawOutput: resolveRawOutput(result),
+      rawOutput: !result.timedOut && result.exitCode === 0 ? result.stdout : (result.stdout || result.stderr),
       exitCode: result.exitCode,
       ...(result.stderr.length > 0 ? { stderr: result.stderr } : {}),
+      transcript: result.transcript,
     };
-  } finally {
-    codexArtifacts?.cleanup();
   }
+
+  const result = await context.subprocessRunner.run(subprocessRequest);
+  await emitTimelineEvent(
+    `${adapter.target} 완료: exit ${result.exitCode}${result.timedOut ? " (timeout)" : ""}`,
+    "tool_result",
+    {
+      stdout: result.stdout,
+      stderr: result.stderr,
+      exitCode: result.exitCode,
+      timedOut: result.timedOut,
+    },
+  );
+
+  return {
+    success: !result.timedOut && result.exitCode === 0,
+    rawOutput: !result.timedOut && result.exitCode === 0 ? result.stdout : (result.stdout || result.stderr),
+    exitCode: result.exitCode,
+    ...(result.stderr.length > 0 ? { stderr: result.stderr } : {}),
+  };
 };
 
 export const executeAdapterViaPtySubprocess = async (
