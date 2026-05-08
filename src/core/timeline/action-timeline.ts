@@ -265,6 +265,53 @@ export const collectActionWorkStates = (events: readonly ActionTimelineEvent[]):
   return rankedStates;
 };
 
+const summarizeFileEdits = (events: readonly ActionTimelineEvent[]): string | null => {
+  const counts = new Map<string, number>();
+  let total = 0;
+
+  for (const event of events) {
+    if (event.kind !== "file_edit") {
+      continue;
+    }
+
+    total += 1;
+    const match = /^(수정|추가|삭제|이름변경|복사|미추적|충돌|형식변경|변경)\s+/.exec(event.summary);
+    const label = match?.[1] ?? "변경";
+    counts.set(label, (counts.get(label) ?? 0) + 1);
+  }
+
+  if (total === 0) {
+    return null;
+  }
+
+  const orderedLabels = [
+    "수정",
+    "추가",
+    "삭제",
+    "이름변경",
+    "복사",
+    "미추적",
+    "충돌",
+    "형식변경",
+    "변경",
+  ];
+
+  const parts = orderedLabels
+    .map((label) => {
+      const count = counts.get(label);
+      if (!count) {
+        return null;
+      }
+
+      return `${label} ${count}개`;
+    })
+    .filter((part): part is string => Boolean(part));
+
+  return parts.length > 0
+    ? `파일 변경 ${total}개 (${parts.join(" · ")})`
+    : `파일 변경 ${total}개`;
+};
+
 const summarizeFileChange = (item: Record<string, unknown>, phase: string): string | null => {
   const changes = getArrayField(item, "changes");
   const changeSummaries = (changes ?? [])
@@ -427,10 +474,6 @@ const buildTurnRecapEvent = (
   events: readonly ActionTimelineEvent[],
 ): ActionTimelineEvent => {
   const workStates = collectActionWorkStates(events);
-  const fileEdits = events
-    .filter((event) => event.kind === "file_edit")
-    .map((event) => event.summary)
-    .filter((summary) => summary.length > 0);
   const validations = events
     .filter((event) => event.kind === "validation")
     .map((event) => event.summary)
@@ -451,11 +494,13 @@ const buildTurnRecapEvent = (
     details.push(`진행 단계: ${workStates.join(" · ")}`);
   }
 
+  const fileEditSummary = summarizeFileEdits(events);
+  if (fileEditSummary) {
+    details.push(fileEditSummary);
+  }
+
   if (tools.length > 0) {
     details.push(`도구: ${tools.slice(0, 2).join(" · ")}`);
-  }
-  if (fileEdits.length > 0) {
-    details.push(`편집: ${fileEdits.slice(0, 3).join(" · ")}`);
   }
   if (validations.length > 0) {
     details.push(`검증: ${validations.slice(0, 2).join(" · ")}`);

@@ -127,7 +127,7 @@ export const parseWorkspaceStatusLine = (line: string): WorkspaceStatusEntry | n
     };
   }
 
-  const match = /^(.{2})\s+(.*)$/.exec(normalized);
+  const match = /^(.{1,2})\s+(.*)$/.exec(normalized);
   if (!match) {
     return null;
   }

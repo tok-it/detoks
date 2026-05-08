@@ -60,7 +60,9 @@ describe("action timeline helpers", () => {
     expect(recap?.details?.join("\n")).toContain("Validating");
     expect(recap?.details?.join("\n")).toContain("Committing");
     expect(recap?.details?.join("\n")).toContain("Waiting for CI");
-    expect(recap?.details?.join("\n")).toContain("편집:");
+    expect(recap?.details?.join("\n")).toContain("파일 변경");
+    expect(recap?.details?.join("\n")).toContain("수정 1개");
+    expect(recap?.details?.join("\n")).toContain("변경 2개");
     expect(recap?.details?.join("\n")).toContain("검증:");
     expect(recap?.details?.join("\n")).toContain("git:");
   });
