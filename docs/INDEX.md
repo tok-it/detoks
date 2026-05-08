@@ -111,6 +111,7 @@ DETOKS_REAL_BINARY_SMOKE=1 npm test        # 통합 테스트
 |------|------|
 | **IMPROVEMENT_PROPOSALS_7_4.md** | 최신 개선 제안 |
 | **CLAUDE_CODE_ADAPTER_PLAN.md** | Claude Code 어댑터 계획 |
+| **NODE_LLAMA_CPP_MIGRATION_PLAN.md** | `node-llama-cpp` 기반 로컬 LLM 전환 설계 |
 | **DEPENDENCY_WORKFLOW.md** | 의존성 워크플로우 설계 |
 | **PTY_SESSION_CONTROLLER_PLAN/** | PTY 세션 컨트롤러 계획 |
 
