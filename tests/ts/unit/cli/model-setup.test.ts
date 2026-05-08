@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -52,12 +52,22 @@ function createWorkspace(): { root: string; cwd: string; home: string } {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  delete process.env.LOCAL_LLM_MODEL_NAME;
+  delete process.env.MODEL_NAME;
+  delete process.env.LOCAL_LLM_MODEL_PATH;
+  delete process.env.LOCAL_LLM_HF_REPO;
+  delete process.env.LOCAL_LLM_HF_FILE;
 });
 
 afterEach(() => {
   cleanupTTY();
   vi.unstubAllEnvs();
   vi.restoreAllMocks();
+  delete process.env.LOCAL_LLM_MODEL_NAME;
+  delete process.env.MODEL_NAME;
+  delete process.env.LOCAL_LLM_MODEL_PATH;
+  delete process.env.LOCAL_LLM_HF_REPO;
+  delete process.env.LOCAL_LLM_HF_FILE;
 
   for (const dir of tempDirs.splice(0)) {
     rmSync(dir, { force: true, recursive: true });
@@ -109,6 +119,44 @@ describe("runModelSetupIfNeeded", () => {
           model: selectedModel.modelName,
         },
       });
+    } finally {
+      stdoutWriteSpy.mockRestore();
+    }
+  });
+
+  it("reuses an existing GGUF file without re-downloading it", async () => {
+    const { cwd, home } = createWorkspace();
+    vi.stubEnv("HOME", home);
+    setTTY(true, true);
+    const stdoutWriteSpy = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
+    const selectedModel = TRANSLATION_MODELS[0]!;
+    const modelDir = join(home, ".detoks", "models");
+    const modelPath = join(modelDir, selectedModel.hfFile);
+    mkdirSync(modelDir, { recursive: true });
+    writeFileSync(modelPath, "GGUFseed", "utf8");
+    mocks.selectModel.mockResolvedValue(selectedModel);
+
+    try {
+      await runModelSetupIfNeeded(cwd);
+
+      const envPath = join(cwd, ".env");
+      const configPath = join(home, ".detoks", "settings.json");
+
+      expect(mocks.downloadModel).not.toHaveBeenCalled();
+      expect(existsSync(envPath)).toBe(true);
+      expect(existsSync(configPath)).toBe(true);
+      expect(readFileSync(modelPath, "utf8")).toBe("GGUFseed");
+      expect(readFileSync(envPath, "utf8")).toContain(
+        `LOCAL_LLM_MODEL_PATH=${modelPath}`,
+      );
+      expect(JSON.parse(readFileSync(configPath, "utf8"))).toMatchObject({
+        translation: {
+          model: selectedModel.modelName,
+        },
+      });
+      expect(stdoutWriteSpy).toHaveBeenCalledWith(
+        expect.stringContaining("모델이 이미 다운로드되어 있습니다."),
+      );
     } finally {
       stdoutWriteSpy.mockRestore();
     }

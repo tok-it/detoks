@@ -255,6 +255,12 @@ async function waitForProcessExit(pid: number, timeoutMs: number): Promise<boole
   return false;
 }
 
+function clearManagedRuntimeState(): void {
+  startupPromise = null;
+  startupSignature = null;
+  activeServerPid = null;
+}
+
 async function stopExistingServerProcess(port: number): Promise<void> {
   const processes = (await listLlamaServerProcesses()).filter(({ command }) =>
     commandMatchesPort(command, port),
@@ -601,6 +607,34 @@ export async function ensureLocalLlmRuntime(config: Role1RuntimeConfig): Promise
       startupPromise = null;
     }
   }
+}
+
+export async function shutdownManagedLocalLlmRuntime(): Promise<boolean> {
+  const pid = activeServerPid;
+  clearManagedRuntimeState();
+
+  if (pid === null || !isProcessAlive(pid)) {
+    return false;
+  }
+
+  try {
+    process.kill(pid, "SIGTERM");
+  } catch {
+    return false;
+  }
+
+  const terminated = await waitForProcessExit(pid, 5_000);
+  if (terminated) {
+    return true;
+  }
+
+  try {
+    process.kill(pid, "SIGKILL");
+  } catch {
+    return false;
+  }
+
+  return await waitForProcessExit(pid, 5_000);
 }
 
 export function getLastUsedLocalLlmInfo(): { port: number | undefined; model: string | undefined } {

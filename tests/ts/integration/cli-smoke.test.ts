@@ -51,6 +51,17 @@ const runCliFromCwd = (cwd: string, args: string[]) =>
     encoding: "utf8",
   });
 
+const runCliFromCwdWithEnv = (
+  cwd: string,
+  args: string[],
+  env: NodeJS.ProcessEnv,
+) =>
+  spawnSync(process.execPath, ["--import", tsxLoader, cliEntry, ...args], {
+    cwd,
+    encoding: "utf8",
+    env: { ...process.env, ...env },
+  });
+
 const runCliWithInputFromCwd = (
   cwd: string,
   args: string[],
@@ -1447,6 +1458,94 @@ describe("detoks CLI smoke", () => {
         stages: failedPipelineStages,
         rawOutput: "LLM client requires LOCAL_LLM_MODEL_NAME",
       });
+    } finally {
+      rmSync(tempDir, { force: true, recursive: true });
+    }
+  });
+
+  it("runs model reset through the CLI entrypoint and preserves gguf files", () => {
+    const tempDir = mkdtempSync(join(tmpdir(), "detoks-cli-model-reset-"));
+
+    try {
+      const cwd = join(tempDir, "project");
+      const home = join(tempDir, "home");
+      const modelDir = join(home, ".detoks", "models");
+      const ggufPath = join(modelDir, "kept-model.gguf");
+      const envPath = join(cwd, ".env");
+      const envLocalPath = join(cwd, ".env.local");
+      const configPath = join(home, ".detoks", "settings.json");
+
+      mkdirSync(cwd, { recursive: true });
+      mkdirSync(modelDir, { recursive: true });
+      writeFileSync(
+        envPath,
+        [
+          "LOCAL_LLM_MODEL_NAME=kept-model",
+          "LOCAL_LLM_MODEL_PATH=/custom/models/kept-model.gguf",
+          "LOCAL_LLM_HF_REPO=repo/model",
+          "LOCAL_LLM_HF_FILE=kept-model.gguf",
+          "OTHER_VALUE=kept",
+        ].join("\n"),
+        "utf8",
+      );
+      writeFileSync(
+        envLocalPath,
+        [
+          "MODEL_NAME=legacy-model",
+          "LOCAL_LLM_MODEL_NAME=override-model",
+          "LOCAL_LLM_MODEL_PATH=/override/override-model.gguf",
+        ].join("\n"),
+        "utf8",
+      );
+      writeFileSync(ggufPath, "GGUF", "utf8");
+      mkdirSync(join(home, ".detoks"), { recursive: true });
+      writeFileSync(
+        configPath,
+        JSON.stringify(
+          {
+            version: "1.0",
+            lastUpdated: "2026-05-08T00:00:00.000Z",
+            adapter: {
+              selected: "codex",
+              models: {
+                codex: undefined,
+                gemini: undefined,
+              },
+            },
+            translation: {
+              model: "override-model",
+            },
+          },
+          null,
+          2,
+        ),
+        "utf8",
+      );
+
+      const result = runCliFromCwdWithEnv(cwd, ["model", "reset"], {
+        HOME: home,
+        LOCAL_LLM_MODEL_NAME: "kept-model",
+        MODEL_NAME: "legacy-model",
+        LOCAL_LLM_MODEL_PATH: "/custom/models/kept-model.gguf",
+        LOCAL_LLM_HF_REPO: "repo/model",
+        LOCAL_LLM_HF_FILE: "kept-model.gguf",
+      });
+
+      expect(result.error).toBeUndefined();
+      expect(result.status).toBe(0);
+      expect(parseCliJson(result.stdout)).toEqual({
+        ok: true,
+        mode: "model-reset",
+        reset: true,
+        mutatesState: true,
+        message: "번역 모델 설정을 초기화했습니다. GGUF 파일은 삭제하지 않았습니다.",
+      });
+      expect(readFileSync(envPath, "utf8")).toContain("OTHER_VALUE=kept");
+      expect(readFileSync(envPath, "utf8")).not.toContain("LOCAL_LLM_MODEL_NAME");
+      expect(readFileSync(envPath, "utf8")).not.toContain("LOCAL_LLM_MODEL_PATH");
+      expect(readFileSync(envLocalPath, "utf8")).not.toContain("MODEL_NAME");
+      expect(readFileSync(envLocalPath, "utf8")).not.toContain("LOCAL_LLM_MODEL_NAME");
+      expect(readFileSync(ggufPath, "utf8")).toBe("GGUF");
     } finally {
       rmSync(tempDir, { force: true, recursive: true });
     }
