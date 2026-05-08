@@ -2,6 +2,7 @@ import type { PipelineExecutionResult } from "../pipeline/types.js";
 import type { ActionTimelineEvent } from "./types.js";
 import { createActionTimelineEvent } from "./types.js";
 import type { PtyTranscript } from "../../integrations/subprocess/types.js";
+import { formatWorkspaceStatusEntry, parseWorkspaceStatusLine } from "./workspace-status.js";
 
 const normalizeLine = (value: string): string =>
   value.replace(/\u001b\[[0-?]*[ -/]*[@-~]/g, "").replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, "").trim();
@@ -22,17 +23,6 @@ const dedupeEvents = (events: readonly ActionTimelineEvent[]): ActionTimelineEve
 
   return output;
 };
-
-const summarizeWorkspaceLine = (line: string): string | null => {
-  const normalized = normalizeLine(line);
-  if (normalized.length === 0) {
-    return null;
-  }
-
-  return normalized.replace(/^\[WORKSPACE\]\s*/, "").replace(/^\s+/, "");
-};
-
-const looksLikeGitStatusLine = (value: string): boolean => /^[MARCUD!?]{1,2}\s/.test(value) || value.startsWith("?? ");
 
 const getRecordField = (value: unknown, key: string): Record<string, unknown> | null => {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
@@ -507,21 +497,24 @@ export const buildActionTimeline = (
   }
 
   for (const line of workspaceDiffLines) {
-    const summary = summarizeWorkspaceLine(line);
+    const summary = normalizeLine(line).replace(/^\[WORKSPACE\]\s*/, "").replace(/^\s+/, "");
     if (!summary) {
       continue;
     }
 
-    if (looksLikeGitStatusLine(summary)) {
-      events.push(
-        createActionTimelineEvent({
-          kind: "file_edit",
-          source: "workspace",
-          summary,
-          rawPayload: line,
-        }),
-      );
+    const parsed = parseWorkspaceStatusLine(summary);
+    if (!parsed) {
+      continue;
     }
+
+    events.push(
+      createActionTimelineEvent({
+        kind: "file_edit",
+        source: "workspace",
+        summary: formatWorkspaceStatusEntry(parsed),
+        rawPayload: parsed,
+      }),
+    );
   }
 
   const deduped = dedupeEvents(events);
