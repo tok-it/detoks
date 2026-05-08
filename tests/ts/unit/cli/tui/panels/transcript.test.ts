@@ -136,6 +136,30 @@ describe("TranscriptPanel", () => {
       expect(output).not.toContain("\u001b");
     });
 
+    it("renders validation and git commands as dedicated blocks", () => {
+      panel.addEvent({
+        type: "chunk",
+        stream: "stdout",
+        data:
+          "{\"type\":\"item.started\",\"item\":{\"id\":\"item_4\",\"type\":\"command_execution\",\"command\":\"npm run typecheck\",\"status\":\"in_progress\"}}\n{\"type\":\"item.completed\",\"item\":{\"id\":\"item_4\",\"type\":\"command_execution\",\"command\":\"npm run typecheck\",\"aggregated_output\":\"ok\\n\",\"exit_code\":0,\"status\":\"completed\"}}\n{\"type\":\"item.started\",\"item\":{\"id\":\"item_5\",\"type\":\"command_execution\",\"command\":\"git push origin dev\",\"status\":\"in_progress\"}}\n{\"type\":\"item.completed\",\"item\":{\"id\":\"item_5\",\"type\":\"command_execution\",\"command\":\"git push origin dev\",\"aggregated_output\":\"pushed\\n\",\"exit_code\":0,\"status\":\"completed\"}}\n",
+        timestamp: Date.now(),
+      });
+
+      mockScreen.write.mockClear();
+      panel.render(mockContext, mockRegion);
+
+      const output = mockScreen.write.mock.calls
+        .map((c: any) => c[0])
+        .join("\n");
+
+      expect(output).toContain("[validation]");
+      expect(output).toContain("Ran npm run typecheck");
+      expect(output).toContain("exit 0 · ok");
+      expect(output).toContain("[git]");
+      expect(output).toContain("git push origin dev");
+      expect(output).toContain("exit 0 · pushed");
+    });
+
     it("ignores Codex stderr banner noise while keeping real errors", () => {
       panel.addEvent({
         type: "chunk",

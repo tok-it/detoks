@@ -64,7 +64,7 @@ const truncateLine = (line: string, maxWidth: number): string => {
   return `${line.slice(0, maxWidth - 3)}...`;
 };
 
-type TranscriptEntryKind = "tool" | "edit" | "final" | "diagnostic" | "recap" | "raw";
+type TranscriptEntryKind = "tool" | "validation" | "git" | "edit" | "final" | "diagnostic" | "recap" | "raw";
 
 interface TranscriptEntry {
   kind: TranscriptEntryKind;
@@ -73,6 +73,8 @@ interface TranscriptEntry {
 
 type ClassifiedLine =
   | { kind: "tool"; text: string }
+  | { kind: "validation"; text: string }
+  | { kind: "git"; text: string }
   | { kind: "edit"; text: string }
   | { kind: "final"; text: string }
   | { kind: "diagnostic"; text: string }
@@ -225,17 +227,18 @@ const summarizeText = (text: string, maxLines = 3): string => {
 const summarizeCommand = (command: string): string =>
   sanitizeText(command).replace(/\s+/g, " ").trim();
 
+const isValidationCommand = (command: string): boolean =>
+  /\b(npm run (typecheck|build|lint)|vitest|npm test|pnpm test|yarn test|bun test|tsc)\b/i.test(command);
+
+const isGitCommand = (command: string): boolean =>
+  /\bgit\b\s+(add|commit|push|status|diff|checkout|merge|rebase)\b/i.test(command);
+
 const summarizeCommandExecution = (
   item: Record<string, unknown>,
   phase: string,
 ): string | null => {
   const command = getStringField(item, ["command"]);
   const commandSummary = command ? summarizeCommand(command) : null;
-
-  if (phase === "started") {
-    return commandSummary ? `exec: ${commandSummary}` : "exec";
-  }
-
   const exitCode = getNumberField(item, ["exit_code", "exitCode"]);
   const output = summarizeText(
     getStringField(item, ["aggregated_output", "output", "stdout", "result", "text"]) ??
@@ -243,12 +246,66 @@ const summarizeCommandExecution = (
       "",
   );
 
+  if (phase === "started") {
+    return commandSummary ? `exec: ${commandSummary}` : "exec";
+  }
+
   const resultSummary = exitCode === null ? "done" : `exit ${exitCode}`;
   if (output.length > 0) {
     return `${resultSummary} · ${output}`;
   }
 
   return resultSummary;
+};
+
+const classifyCommandExecution = (
+  item: Record<string, unknown>,
+  phase: string,
+): ClassifiedLine | null => {
+  const command = getStringField(item, ["command"]);
+  const commandSummary = command ? summarizeCommand(command) : null;
+  const exitCode = getNumberField(item, ["exit_code", "exitCode"]);
+  const output = summarizeText(
+    getStringField(item, ["aggregated_output", "output", "stdout", "result", "text"]) ??
+      extractJsonText(item) ??
+      "",
+  );
+  const resultSummary = exitCode === null ? "done" : `exit ${exitCode}`;
+
+  if (command && isValidationCommand(command)) {
+    return {
+      kind: "validation",
+      text:
+        phase === "started"
+          ? `Ran ${commandSummary ?? "validation command"}`
+          : output.length > 0
+            ? `${resultSummary} · ${output}`
+            : resultSummary,
+    };
+  }
+
+  if (command && isGitCommand(command)) {
+    return {
+      kind: "git",
+      text:
+        phase === "started"
+          ? commandSummary ?? "git operation"
+          : output.length > 0
+            ? `${resultSummary} · ${output}`
+            : resultSummary,
+    };
+  }
+
+  const toolText =
+    phase === "started"
+      ? commandSummary
+        ? `exec: ${commandSummary}`
+        : "exec"
+      : output.length > 0
+        ? `${resultSummary} · ${output}`
+        : resultSummary;
+
+  return toolText ? { kind: "tool", text: toolText } : null;
 };
 
 const summarizeFileChange = (
@@ -371,6 +428,13 @@ const classifyJsonLine = (line: string): ClassifiedLine | null => {
 
     if (item) {
       if (isToolItemType(itemType)) {
+        if (itemType === "command_execution") {
+          const commandExecution = classifyCommandExecution(item, phase);
+          if (commandExecution) {
+            return commandExecution;
+          }
+        }
+
         const toolText = summarizeToolItem(item, phase, itemType) ?? text;
         if (toolText) {
           return { kind: "tool", text: toolText };
@@ -672,6 +736,10 @@ export class TranscriptPanel {
       const prefix =
         entry.kind === "tool"
           ? "[tool] "
+          : entry.kind === "validation"
+            ? "[validation] "
+          : entry.kind === "git"
+            ? "[git] "
           : entry.kind === "edit"
             ? "[edit] "
           : entry.kind === "final"
@@ -686,6 +754,10 @@ export class TranscriptPanel {
         ? colors.muted(line)
         : entry.kind === "tool"
           ? colors.info(line)
+          : entry.kind === "validation"
+            ? colors.warning(line)
+          : entry.kind === "git"
+            ? colors.header(line)
           : entry.kind === "edit"
             ? colors.success(line)
           : entry.kind === "final"
