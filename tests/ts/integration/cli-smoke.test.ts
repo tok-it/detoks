@@ -199,15 +199,39 @@ const createFakeBinary = (
     binaryPath,
     `#!/usr/bin/env node
 let input = "";
-process.stdin.setEncoding("utf8");
-process.stdin.on("data", (chunk) => {
-  input += chunk;
-});
-process.stdin.on("end", () => {
+let finished = false;
+let finishTimer = null;
+const finish = () => {
+  if (finished) {
+    return;
+  }
+  finished = true;
+  if (finishTimer !== null) {
+    clearTimeout(finishTimer);
+    finishTimer = null;
+  }
   ${options.stderr ? `process.stderr.write(${JSON.stringify(options.stderr)});` : ""}
   process.stdout.write(\`[fake:${command}] \${input}\`);
   process.exit(${options.exitCode ?? 0});
+};
+const scheduleFinish = () => {
+  if (finished) {
+    return;
+  }
+  if (finishTimer !== null) {
+    clearTimeout(finishTimer);
+  }
+  finishTimer = setTimeout(finish, 10);
+};
+process.stdin.setEncoding("utf8");
+process.stdin.on("data", (chunk) => {
+  input += chunk;
+  scheduleFinish();
 });
+process.stdin.on("end", finish);
+process.stdin.on("error", finish);
+process.stdin.resume();
+scheduleFinish();
 `,
     "utf8",
   );
