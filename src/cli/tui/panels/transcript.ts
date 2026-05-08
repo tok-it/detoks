@@ -273,26 +273,32 @@ const classifyCommandExecution = (
   const resultSummary = exitCode === null ? "done" : `exit ${exitCode}`;
 
   if (command && isValidationCommand(command)) {
+    if (phase !== "completed" && phase !== "updated" && phase !== "progress") {
+      return null;
+    }
+
     return {
       kind: "validation",
-      text:
-        phase === "started"
-          ? `Ran ${commandSummary ?? "validation command"}`
-          : output.length > 0
-            ? `${resultSummary} · ${output}`
-            : resultSummary,
+      text: commandSummary
+        ? `${commandSummary} · ${output.length > 0 ? output : resultSummary}`
+        : output.length > 0
+          ? output
+          : resultSummary,
     };
   }
 
   if (command && isGitCommand(command)) {
+    if (phase !== "completed" && phase !== "updated" && phase !== "progress") {
+      return null;
+    }
+
     return {
       kind: "git",
-      text:
-        phase === "started"
-          ? commandSummary ?? "git operation"
-          : output.length > 0
-            ? `${resultSummary} · ${output}`
-            : resultSummary,
+      text: commandSummary
+        ? `${commandSummary} · ${output.length > 0 ? output : resultSummary}`
+        : output.length > 0
+          ? output
+          : resultSummary,
     };
   }
 

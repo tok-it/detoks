@@ -153,11 +153,9 @@ describe("TranscriptPanel", () => {
         .join("\n");
 
       expect(output).toContain("[validation]");
-      expect(output).toContain("Ran npm run typecheck");
-      expect(output).toContain("exit 0 · ok");
+      expect(output).toContain("npm run typecheck · ok");
       expect(output).toContain("[git]");
-      expect(output).toContain("git push origin dev");
-      expect(output).toContain("exit 0 · pushed");
+      expect(output).toContain("git push origin dev · pushed");
     });
 
     it("ignores Codex stderr banner noise while keeping real errors", () => {
