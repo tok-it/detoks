@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	buildLlamaServerArgs,
+	buildNodeLlamaSidecarSpawnSpec,
 	getBinaryProbeCommand,
 	ensureLocalLlmRuntime,
 	shutdownManagedLocalLlmRuntime,
@@ -11,6 +12,7 @@ import {
 
 afterEach(async () => {
 	await shutdownManagedLocalLlmRuntime();
+	delete process.env.DETOKS_NODE_LLAMA_SIDECAR_ENTRY;
 	vi.restoreAllMocks();
 	vi.unstubAllGlobals();
 });
@@ -134,6 +136,46 @@ describe("buildLlamaServerArgs", () => {
 		expect(args).toContain("0");
 	});
 
+	it("node-llama-cpp sidecar 기동 스펙에 현재 런타임 설정을 싣는다", () => {
+		const scriptDir = mkdtempSync(join(tmpdir(), "detoks-node-sidecar-spec-"));
+		const sidecarPath = join(scriptDir, "fake-sidecar.mjs");
+		writeFileSync(sidecarPath, "process.exit(0);\n", "utf8");
+		process.env.DETOKS_NODE_LLAMA_SIDECAR_ENTRY = sidecarPath;
+
+		try {
+			const spec = buildNodeLlamaSidecarSpawnSpec({
+				localLlmApiBase: "http://127.0.0.1:12370/v1",
+				localLlmModelName: "detoks-local",
+				localLlmRuntimeProvider: "node-llama-cpp",
+				localLlmAutoStart: true,
+				localLlmServerHost: "127.0.0.1",
+				localLlmServerPort: 12370,
+				localLlmModelDir: "/Users/test/.detoks/models",
+				localLlmHfFile: "detoks.gguf",
+				localLlmGpuLayers: "all",
+				localLlmContextSize: 4096,
+				localLlmTopK: 40,
+				localLlmTopP: 0.95,
+				localLlmMaxTokens: 512,
+				pipelineMode: "safe",
+				requestTimeout: 30000,
+				translationMaxAttempts: 5,
+				temperature: 0,
+			});
+
+			expect(spec.command).toBe(process.execPath);
+			expect(spec.args).toEqual([sidecarPath]);
+			expect(spec.env?.DETOKS_NODE_LLAMA_CONFIG).toContain(
+				'"modelName":"detoks-local"',
+			);
+			expect(spec.env?.DETOKS_NODE_LLAMA_CONFIG).toContain(
+				'"modelDir":"/Users/test/.detoks/models"',
+			);
+		} finally {
+			rmSync(scriptDir, { recursive: true, force: true });
+		}
+	});
+
 	it("이미 떠 있는 서버가 현재 모델과 같으면 그대로 재사용한다", async () => {
 		const fetchMock = vi
 			.fn<typeof fetch>()
@@ -161,6 +203,7 @@ describe("buildLlamaServerArgs", () => {
 				localLlmApiBase: "http://127.0.0.1:12370/v1",
 				localLlmModelName:
 					"mradermacher/gemma-4-e2b-it-heretic-ara-GGUF:Q4_K_S",
+				localLlmRuntimeProvider: "llama-server",
 				localLlmAutoStart: true,
 				localLlmServerHost: "127.0.0.1",
 				localLlmServerPort: 12370,
@@ -198,6 +241,7 @@ describe("buildLlamaServerArgs", () => {
 					localLlmApiBase: "http://127.0.0.1:12370/v1",
 					localLlmModelName:
 						"mradermacher/gemma-4-e2b-it-heretic-ara-GGUF:Q4_K_S",
+					localLlmRuntimeProvider: "llama-server",
 					localLlmAutoStart: true,
 					localLlmServerBinary: "llama-server",
 					localLlmServerHost: "127.0.0.1",
@@ -248,6 +292,7 @@ describe("buildLlamaServerArgs", () => {
 					localLlmApiBase: "http://127.0.0.1:12370/v1",
 					localLlmModelName: "broken-model",
 					localLlmModelPath: modelPath,
+					localLlmRuntimeProvider: "llama-server",
 					localLlmAutoStart: true,
 					localLlmServerBinary: "llama-server",
 					localLlmServerHost: "127.0.0.1",
@@ -349,6 +394,7 @@ describe("buildLlamaServerArgs", () => {
 					localLlmApiBase: "http://127.0.0.1:12370/v1",
 					localLlmModelName:
 						"mradermacher/gemma-4-e2b-it-heretic-ara-GGUF:Q4_K_S",
+					localLlmRuntimeProvider: "llama-server",
 					localLlmAutoStart: true,
 					localLlmServerBinary: "llama-server",
 					localLlmServerHost: "127.0.0.1",
@@ -432,6 +478,7 @@ describe("buildLlamaServerArgs", () => {
 			await ensureLocalLlmRuntime({
 				localLlmApiBase: "http://127.0.0.1:12370/v1",
 				localLlmModelName: "detoks-local",
+				localLlmRuntimeProvider: "llama-server",
 				localLlmAutoStart: true,
 				localLlmServerBinary: "llama-server",
 				localLlmServerHost: "127.0.0.1",
@@ -455,6 +502,71 @@ describe("buildLlamaServerArgs", () => {
 			expect(killSpy).toHaveBeenCalledWith(expect.any(Number), "SIGTERM");
 		} finally {
 			process.env.PATH = originalPath;
+			rmSync(scriptDir, { recursive: true, force: true });
+		}
+	});
+
+	it("node-llama-cpp provider는 sidecar를 기동하고 종료할 수 있다", async () => {
+		const scriptDir = mkdtempSync(join(tmpdir(), "detoks-node-sidecar-"));
+		const sidecarPath = join(scriptDir, "fake-sidecar.mjs");
+		writeFileSync(
+			sidecarPath,
+			[
+				'import { createServer } from "node:http";',
+				'const config = JSON.parse(process.env.DETOKS_NODE_LLAMA_CONFIG ?? "{}");',
+				'const host = config.host ?? "127.0.0.1";',
+				"const port = Number(config.port ?? 12472);",
+				'const model = config.modelName ?? "detoks-local";',
+				"const server = createServer((req, res) => {",
+				'  if (req.url === "/health") {',
+				'    res.writeHead(200, {"content-type": "application/json"});',
+				'    res.end(JSON.stringify({status: "ok"}));',
+				"    return;",
+				"  }",
+				'  if (req.url === "/v1/models") {',
+				'    res.writeHead(200, {"content-type": "application/json"});',
+				'    res.end(JSON.stringify({data: [{id: model, aliases: [model]}]}));',
+				"    return;",
+				"  }",
+				"  res.writeHead(404);",
+				"  res.end();",
+				"});",
+				"server.listen(port, host);",
+				'process.on("SIGTERM", () => server.close(() => process.exit(0)));',
+				'process.on("SIGINT", () => server.close(() => process.exit(0)));',
+			].join("\n"),
+			"utf8",
+		);
+		process.env.DETOKS_NODE_LLAMA_SIDECAR_ENTRY = sidecarPath;
+
+		try {
+			await expect(
+				ensureLocalLlmRuntime({
+					localLlmApiBase: "http://127.0.0.1:12472/v1",
+					localLlmModelName: "detoks-local",
+					localLlmRuntimeProvider: "node-llama-cpp",
+					localLlmAutoStart: true,
+					localLlmServerHost: "127.0.0.1",
+					localLlmServerPort: 12472,
+					localLlmModelDir: "/Users/test/.detoks/models",
+					localLlmHfFile: "detoks.gguf",
+					localLlmGpuLayers: "0",
+					localLlmDevice: "none",
+					localLlmContextSize: 4096,
+					localLlmTopK: 40,
+					localLlmTopP: 0.95,
+					localLlmMaxTokens: 512,
+					pipelineMode: "safe",
+					requestTimeout: 30000,
+					translationMaxAttempts: 5,
+					temperature: 0,
+				}),
+			).resolves.toBeUndefined();
+
+			const healthResponse = await fetch("http://127.0.0.1:12472/health");
+			expect(healthResponse.ok).toBe(true);
+			await expect(shutdownManagedLocalLlmRuntime()).resolves.toBe(true);
+		} finally {
 			rmSync(scriptDir, { recursive: true, force: true });
 		}
 	});

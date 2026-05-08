@@ -1,16 +1,37 @@
 import { spawn, spawnSync } from "node:child_process";
-import { accessSync, closeSync, constants, createWriteStream, existsSync, mkdirSync, openSync, readSync, statSync } from "node:fs";
-import { dirname } from "node:path";
+import { accessSync, constants, createWriteStream, existsSync, mkdirSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import type { Role1RuntimeConfig } from "../prompt/config.js";
+import { assertValidGgufModelFile } from "./gguf-file.js";
 import { logger } from "../utils/logger.js";
+
+const NODE_LLAMA_CONFIG_ENV = "DETOKS_NODE_LLAMA_CONFIG";
+const NODE_LLAMA_SIDECAR_ENTRY_ENV = "DETOKS_NODE_LLAMA_SIDECAR_ENTRY";
+
+type LocalLlmRuntimeProvider = NonNullable<
+  Role1RuntimeConfig["localLlmRuntimeProvider"]
+>;
+
+interface ManagedRuntimeSpawnSpec {
+  command: string;
+  args: string[];
+  env?: NodeJS.ProcessEnv;
+  logPrefix: string;
+  description: string;
+}
 
 let startupPromise: Promise<void> | null = null;
 let startupSignature: string | null = null;
 let activeServerPid: number | null = null;
 let lastUsedPort: number | undefined = undefined;
 let lastUsedModel: string | undefined = undefined;
+
+function getRuntimeProvider(config: Role1RuntimeConfig): LocalLlmRuntimeProvider {
+  return config.localLlmRuntimeProvider ?? "node-llama-cpp";
+}
 
 function isLocalHost(hostname: string): boolean {
   return ["127.0.0.1", "localhost", "::1"].includes(hostname);
@@ -97,7 +118,9 @@ async function fetchLoadedModelIds(apiBase: string): Promise<string[]> {
 
         if ("aliases" in item && Array.isArray(item.aliases)) {
           item.aliases
-            .filter((alias: unknown): alias is string => typeof alias === "string")
+            .filter(
+              (alias: unknown): alias is string => typeof alias === "string",
+            )
             .forEach((alias: string) => modelIds.add(alias));
         }
       }
@@ -125,8 +148,41 @@ async function fetchLoadedModelIds(apiBase: string): Promise<string[]> {
   }
 }
 
+function buildNodeLlamaSidecarConfig(
+  config: Role1RuntimeConfig,
+): Record<string, unknown> {
+  return {
+    apiBase: config.localLlmApiBase,
+    modelName: config.localLlmModelName,
+    modelDir: config.localLlmModelDir,
+    modelPath: config.localLlmModelPath,
+    modelUrl: config.localLlmModelUrl,
+    hfRepo: config.localLlmHfRepo,
+    hfFile: config.localLlmHfFile,
+    host: config.localLlmServerHost ?? "127.0.0.1",
+    port: config.localLlmServerPort ?? 12370,
+    contextSize: config.localLlmContextSize ?? 4096,
+    topK: config.localLlmTopK ?? 40,
+    topP: config.localLlmTopP ?? 0.95,
+    maxTokens: config.localLlmMaxTokens ?? 512,
+    gpuLayers: config.localLlmGpuLayers ?? "all",
+    device: config.localLlmDevice,
+  };
+}
+
 function buildStartupSignature(config: Role1RuntimeConfig): string {
+  const provider = getRuntimeProvider(config);
+
+  if (provider === "node-llama-cpp") {
+    return JSON.stringify({
+      provider,
+      sidecar: buildNodeLlamaSidecarConfig(config),
+      apiBase: config.localLlmApiBase ?? "",
+    });
+  }
+
   return JSON.stringify({
+    provider,
     binary: config.localLlmServerBinary ?? "llama-server",
     args: buildLlamaServerArgs(config),
     apiBase: config.localLlmApiBase ?? "",
@@ -142,7 +198,10 @@ async function assertExpectedServerModel(
   }
 
   const loadedModelIds = await fetchLoadedModelIds(apiBase);
-  if (loadedModelIds.length === 0 || loadedModelIds.includes(expectedModelName)) {
+  if (
+    loadedModelIds.length === 0 ||
+    loadedModelIds.includes(expectedModelName)
+  ) {
     return;
   }
 
@@ -151,7 +210,9 @@ async function assertExpectedServerModel(
   );
 }
 
-async function listLlamaServerProcesses(): Promise<Array<{ pid: number; command: string }>> {
+async function listLlamaServerProcesses(): Promise<
+  Array<{ pid: number; command: string }>
+> {
   return await new Promise((resolve) => {
     const child = spawn("pgrep", ["-af", "llama-server"], {
       stdio: ["ignore", "pipe", "pipe"],
@@ -196,7 +257,8 @@ async function listLlamaServerProcesses(): Promise<Array<{ pid: number; command:
         .filter(
           (
             processInfo,
-          ): processInfo is { pid: number; command: string } => processInfo !== null,
+          ): processInfo is { pid: number; command: string } =>
+            processInfo !== null,
         );
 
       resolve(processes);
@@ -229,7 +291,9 @@ function isExecutablePath(binary: string): boolean {
   }
 }
 
-export function getBinaryProbeCommand(platform: NodeJS.Platform = process.platform): string {
+export function getBinaryProbeCommand(
+  platform: NodeJS.Platform = process.platform,
+): string {
   return platform === "win32" ? "where" : "which";
 }
 
@@ -238,7 +302,9 @@ function isLlamaServerBinaryAvailable(binary: string): boolean {
     return isExecutablePath(binary);
   }
 
-  const probe = spawnSync(getBinaryProbeCommand(), [binary], { stdio: "ignore" });
+  const probe = spawnSync(getBinaryProbeCommand(), [binary], {
+    stdio: "ignore",
+  });
   return !probe.error && probe.status === 0;
 }
 
@@ -266,7 +332,9 @@ async function stopExistingServerProcess(port: number): Promise<void> {
     commandMatchesPort(command, port),
   );
   const pids = new Set<number>(
-    processes.map(({ pid }) => pid).concat(activeServerPid ? [activeServerPid] : []),
+    processes
+      .map(({ pid }) => pid)
+      .concat(activeServerPid ? [activeServerPid] : []),
   );
 
   if (pids.size === 0) {
@@ -316,7 +384,9 @@ async function downloadModel(modelUrl: string, modelPath: string): Promise<void>
 
   const response = await fetch(modelUrl);
   if (!response.ok || !response.body) {
-    throw new Error(`Failed to download GGUF model: ${response.status} ${response.statusText}`);
+    throw new Error(
+      `Failed to download GGUF model: ${response.status} ${response.statusText}`,
+    );
   }
 
   const totalBytes = Number(response.headers.get("content-length") ?? 0);
@@ -354,40 +424,7 @@ async function ensureModelFile(config: Role1RuntimeConfig): Promise<void> {
   }
 
   if (existsSync(config.localLlmModelPath)) {
-    const stats = statSync(config.localLlmModelPath);
-    if (!stats.isFile()) {
-      throw new Error(
-        `로컬 GGUF 모델 파일이 유효하지 않습니다: ${config.localLlmModelPath} (일반 파일이 아닙니다). detoks는 이 파일을 자동 삭제/재다운로드하지 않습니다. .env의 LOCAL_LLM_MODEL_PATH / LOCAL_LLM_HF_FILE을 올바른 GGUF 파일로 맞추거나 파일을 수동으로 교체하세요.`,
-      );
-    }
-
-    if (stats.size === 0) {
-      throw new Error(
-        `로컬 GGUF 모델 파일이 비어 있습니다: ${config.localLlmModelPath} (0바이트). detoks는 이 파일을 자동 삭제/재다운로드하지 않습니다. .env의 LOCAL_LLM_MODEL_PATH / LOCAL_LLM_HF_FILE을 올바른 GGUF 파일로 맞추거나 파일을 수동으로 교체하세요.`,
-      );
-    }
-
-    if (stats.size < 4) {
-      throw new Error(
-        `로컬 GGUF 모델 파일이 너무 작습니다: ${config.localLlmModelPath} (${stats.size}바이트). detoks는 이 파일을 자동 삭제/재다운로드하지 않습니다. .env의 LOCAL_LLM_MODEL_PATH / LOCAL_LLM_HF_FILE을 올바른 GGUF 파일로 맞추거나 파일을 수동으로 교체하세요.`,
-      );
-    }
-
-    if (stats.size >= 4) {
-      const fd = openSync(config.localLlmModelPath, "r");
-      try {
-        const header = Buffer.alloc(4);
-        const bytesRead = readSync(fd, header, 0, 4, 0);
-        if (bytesRead < 4 || header.toString("utf8", 0, 4) !== "GGUF") {
-          throw new Error(
-            `로컬 GGUF 모델 파일 헤더가 올바르지 않습니다: ${config.localLlmModelPath}. detoks는 이 파일을 자동 삭제/재다운로드하지 않습니다. .env의 LOCAL_LLM_MODEL_PATH / LOCAL_LLM_HF_FILE을 올바른 GGUF 파일로 맞추거나 파일을 수동으로 교체하세요.`,
-          );
-        }
-      } finally {
-        closeSync(fd);
-      }
-    }
-
+    assertValidGgufModelFile(config.localLlmModelPath);
     return;
   }
 
@@ -398,7 +435,7 @@ async function ensureModelFile(config: Role1RuntimeConfig): Promise<void> {
   }
 
   await downloadModel(config.localLlmModelUrl, config.localLlmModelPath);
-  await ensureModelFile(config);
+  assertValidGgufModelFile(config.localLlmModelPath);
 }
 
 export function buildLlamaServerArgs(config: Role1RuntimeConfig): string[] {
@@ -409,7 +446,9 @@ export function buildLlamaServerArgs(config: Role1RuntimeConfig): string[] {
   } else {
     const hfRepo = config.localLlmHfRepo ?? config.localLlmModelName;
     if (!hfRepo) {
-      throw new Error("Role 1 local LLM requires LOCAL_LLM_MODEL_PATH or LOCAL_LLM_HF_REPO");
+      throw new Error(
+        "Role 1 local LLM requires LOCAL_LLM_MODEL_PATH or LOCAL_LLM_HF_REPO",
+      );
     }
 
     args.push("-hf", hfRepo);
@@ -454,25 +493,83 @@ export function buildLlamaServerArgs(config: Role1RuntimeConfig): string[] {
   }
 
   if (config.localLlmSleepIdleSeconds !== undefined) {
-    args.push("--sleep-idle-seconds", String(config.localLlmSleepIdleSeconds));
+    args.push(
+      "--sleep-idle-seconds",
+      String(config.localLlmSleepIdleSeconds),
+    );
   }
 
   return args;
 }
 
-async function startServerProcess(
+function resolveNodeLlamaSidecarCommand(): { command: string; args: string[] } {
+  const overrideEntry = process.env[NODE_LLAMA_SIDECAR_ENTRY_ENV]?.trim();
+  if (overrideEntry) {
+    return {
+      command: process.execPath,
+      args: [overrideEntry],
+    };
+  }
+
+  const currentFilePath = fileURLToPath(import.meta.url);
+  const currentDir = dirname(currentFilePath);
+  const jsEntry = resolve(currentDir, "node-llama-sidecar.js");
+  if (existsSync(jsEntry)) {
+    return {
+      command: process.execPath,
+      args: [jsEntry],
+    };
+  }
+
+  const tsEntry = resolve(currentDir, "node-llama-sidecar.ts");
+  if (existsSync(tsEntry)) {
+    return {
+      command: process.execPath,
+      args: ["--import", "tsx", tsEntry],
+    };
+  }
+
+  throw new Error(
+    "node-llama-cpp sidecar entry를 찾을 수 없습니다. dist 빌드 결과 또는 source sidecar 파일이 필요합니다.",
+  );
+}
+
+export function buildNodeLlamaSidecarSpawnSpec(
+  config: Role1RuntimeConfig,
+): ManagedRuntimeSpawnSpec {
+  const { command, args } = resolveNodeLlamaSidecarCommand();
+  return {
+    command,
+    args,
+    env: {
+      ...process.env,
+      [NODE_LLAMA_CONFIG_ENV]: JSON.stringify(buildNodeLlamaSidecarConfig(config)),
+    },
+    logPrefix: "node-llama-cpp",
+    description: "Starting node-llama-cpp sidecar",
+  };
+}
+
+async function startManagedRuntimeProcess(
+  spec: ManagedRuntimeSpawnSpec,
   config: Role1RuntimeConfig,
   apiBase: string,
 ): Promise<void> {
-  const binary = config.localLlmServerBinary ?? "llama-server";
-  const args = buildLlamaServerArgs(config);
-  logger.warn(`Starting llama.cpp server: ${binary} ${args.join(" ")}`);
-  const child = spawn(binary, args, {
+  logger.warn(`${spec.description}: ${spec.command} ${spec.args.join(" ")}`);
+  const child = spawn(spec.command, spec.args, {
     detached: true,
     stdio: ["ignore", "pipe", "pipe"],
+    env: spec.env,
   });
   child.stdout.setEncoding("utf8");
   child.stderr.setEncoding("utf8");
+  const recentOutputLines: string[] = [];
+  const rememberLine = (line: string): void => {
+    recentOutputLines.push(line);
+    if (recentOutputLines.length > 5) {
+      recentOutputLines.shift();
+    }
+  };
   if (child.pid) {
     activeServerPid = child.pid;
   }
@@ -481,14 +578,20 @@ async function startServerProcess(
       .trimEnd()
       .split(/\r?\n/u)
       .filter(Boolean)
-      .forEach((line) => logger.warn(`[llama-server] ${line}`));
+      .forEach((line) => {
+        rememberLine(line);
+        logger.warn(`[${spec.logPrefix}] ${line}`);
+      });
   });
   child.stderr.on("data", (chunk) => {
     String(chunk)
       .trimEnd()
       .split(/\r?\n/u)
       .filter(Boolean)
-      .forEach((line) => logger.warn(`[llama-server] ${line}`));
+      .forEach((line) => {
+        rememberLine(line);
+        logger.warn(`[${spec.logPrefix}] ${line}`);
+      });
   });
   child.unref();
 
@@ -499,16 +602,62 @@ async function startServerProcess(
         if (activeServerPid === child.pid) {
           activeServerPid = null;
         }
-        reject(new Error(`Failed to start llama.cpp server with ${binary}: ${error.message}`));
+        reject(
+          new Error(
+            `Failed to start ${spec.logPrefix} runtime with ${spec.command}: ${error.message}`,
+          ),
+        );
       });
       child.once("exit", (code) => {
         if (activeServerPid === child.pid) {
           activeServerPid = null;
         }
-        reject(new Error(`llama.cpp server exited before becoming ready: ${code ?? "unknown"}`));
+        const bestOutputLine =
+          [...recentOutputLines]
+            .reverse()
+            .find((line) => line.startsWith("Error:") || !line.startsWith("    at ")) ??
+          recentOutputLines[recentOutputLines.length - 1];
+        const lastOutput =
+          bestOutputLine
+            ? ` Last output: ${bestOutputLine}`
+            : "";
+        reject(
+          new Error(
+            `${spec.logPrefix} runtime exited before becoming ready: ${code ?? "unknown"}${lastOutput}`,
+          ),
+        );
       });
     }),
   ]);
+}
+
+async function startServerProcess(
+  config: Role1RuntimeConfig,
+  apiBase: string,
+): Promise<void> {
+  const binary = config.localLlmServerBinary ?? "llama-server";
+  const args = buildLlamaServerArgs(config);
+  await startManagedRuntimeProcess(
+    {
+      command: binary,
+      args,
+      logPrefix: "llama-server",
+      description: "Starting llama.cpp server",
+    },
+    config,
+    apiBase,
+  );
+}
+
+async function startNodeLlamaSidecar(
+  config: Role1RuntimeConfig,
+  apiBase: string,
+): Promise<void> {
+  await startManagedRuntimeProcess(
+    buildNodeLlamaSidecarSpawnSpec(config),
+    config,
+    apiBase,
+  );
 }
 
 function shouldRetryWithoutGpu(config: Role1RuntimeConfig): boolean {
@@ -526,6 +675,7 @@ async function startLocalServer(config: Role1RuntimeConfig): Promise<void> {
     return;
   }
 
+  const provider = getRuntimeProvider(config);
   if (await isServerReady(apiBase)) {
     try {
       await assertExpectedServerModel(apiBase, config.localLlmModelName);
@@ -533,22 +683,35 @@ async function startLocalServer(config: Role1RuntimeConfig): Promise<void> {
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       logger.warn(`Existing llama.cpp server does not match current model; reloading: ${message}`);
+
+      if (provider === "node-llama-cpp" && activeServerPid === null) {
+        throw new Error(
+          `현재 ${apiBase}에서 다른 로컬 LLM 서버가 응답 중이며 detoks가 직접 띄운 프로세스가 아닙니다. 해당 서버를 중지하거나 LOCAL_LLM_SERVER_PORT를 변경한 뒤 다시 시도하세요.`,
+        );
+      }
+
       await ensureModelFile(config);
       await stopExistingServerProcess(config.localLlmServerPort ?? 12370);
     }
   }
 
-  const binary = config.localLlmServerBinary ?? "llama-server";
-  if (!isLlamaServerBinaryAvailable(binary)) {
-    throw new Error(
-      `로컬 llama.cpp 서버 바이너리를 찾을 수 없습니다: ${binary}. llama-server를 설치하거나 LOCAL_LLM_AUTO_START=0으로 자동 시작을 끄세요.`,
-    );
+  if (provider === "llama-server") {
+    const binary = config.localLlmServerBinary ?? "llama-server";
+    if (!isLlamaServerBinaryAvailable(binary)) {
+      throw new Error(
+        `로컬 llama.cpp 서버 바이너리를 찾을 수 없습니다: ${binary}. llama-server를 설치하거나 LOCAL_LLM_AUTO_START=0으로 자동 시작을 끄세요.`,
+      );
+    }
+
+    await ensureModelFile(config);
   }
 
-  await ensureModelFile(config);
-
   try {
-    await startServerProcess(config, apiBase);
+    if (provider === "node-llama-cpp") {
+      await startNodeLlamaSidecar(config, apiBase);
+    } else {
+      await startServerProcess(config, apiBase);
+    }
     await assertExpectedServerModel(apiBase, config.localLlmModelName);
   } catch (error) {
     if (!shouldRetryWithoutGpu(config)) {
@@ -557,19 +720,24 @@ async function startLocalServer(config: Role1RuntimeConfig): Promise<void> {
 
     const message = error instanceof Error ? error.message : String(error);
     logger.warn(`llama.cpp GPU startup failed, retrying with CPU only: ${message}`);
-    await startServerProcess(
-      {
-        ...config,
-        localLlmDevice: "none",
-        localLlmGpuLayers: "0",
-      },
-      apiBase,
-    );
+    const cpuOnlyConfig = {
+      ...config,
+      localLlmDevice: "none",
+      localLlmGpuLayers: "0",
+    } satisfies Role1RuntimeConfig;
+
+    if (provider === "node-llama-cpp") {
+      await startNodeLlamaSidecar(cpuOnlyConfig, apiBase);
+    } else {
+      await startServerProcess(cpuOnlyConfig, apiBase);
+    }
     await assertExpectedServerModel(apiBase, config.localLlmModelName);
   }
 }
 
-export async function ensureLocalLlmRuntime(config: Role1RuntimeConfig): Promise<void> {
+export async function ensureLocalLlmRuntime(
+  config: Role1RuntimeConfig,
+): Promise<void> {
   if (config.localLlmAutoStart === false) {
     return;
   }
@@ -637,7 +805,10 @@ export async function shutdownManagedLocalLlmRuntime(): Promise<boolean> {
   return await waitForProcessExit(pid, 5_000);
 }
 
-export function getLastUsedLocalLlmInfo(): { port: number | undefined; model: string | undefined } {
+export function getLastUsedLocalLlmInfo(): {
+  port: number | undefined;
+  model: string | undefined;
+} {
   return {
     port: lastUsedPort,
     model: lastUsedModel,

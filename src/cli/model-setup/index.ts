@@ -79,7 +79,6 @@ export const runModelSetupIfNeeded = async (cwd: string = process.cwd()): Promis
     colors.success(`✓ 설정 완료!\n\n`),
   );
 
-  // llama-server 실행 안내
   process.stdout.write(
     colors.title("다음 단계: llama-server 실행\n\n"),
   );

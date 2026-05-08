@@ -1,6 +1,7 @@
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
+import { homedir } from "node:os";
 import { afterEach, describe, expect, it } from "vitest";
 import {
 	loadRole1Policies,
@@ -36,6 +37,7 @@ describe("loadRole1RuntimeConfig", () => {
 		expect(config.localLlmModelName).toBe(
 			"mradermacher/gemma-4-e2b-it-heretic-ara-GGUF:Q4_K_S",
 		);
+		expect(config.localLlmRuntimeProvider).toBe("llama-server");
 		expect(config.localLlmAutoStart).toBe(true);
 		expect(config.localLlmServerBinary).toBe("llama-server");
 		expect(config.localLlmServerHost).toBe("127.0.0.1");
@@ -47,6 +49,7 @@ describe("loadRole1RuntimeConfig", () => {
 		expect(config.localLlmSleepIdleSeconds).toBe(1200);
 		expect(config.localLlmMaxTokens).toBe(512);
 		expect(config.localLlmReasoning).toBe("off");
+		expect(config.localLlmModelDir).toBe(join(homedir(), ".detoks", "models"));
 		expect(config.localLlmHfRepo).toBe(
 			"mradermacher/gemma-4-e2b-it-heretic-ara-GGUF:Q4_K_S",
 		);
@@ -73,6 +76,8 @@ describe("loadRole1RuntimeConfig", () => {
 				"LOCAL_LLM_TOP_K=12",
 				"LOCAL_LLM_TOP_P=0.88",
 				"LOCAL_LLM_SLEEP_IDLE_SECONDS=900",
+				"LOCAL_LLM_RUNTIME_PROVIDER=llama-server",
+				"LOCAL_LLM_MODEL_DIR=/tmp/detoks-models",
 				"KOMPRESS_PYTHON_BIN=python3.13",
 				"KOMPRESS_MODEL_ID=chopratejas/kompress-small",
 				"KOMPRESS_STARTUP_TIMEOUT=45000",
@@ -92,6 +97,8 @@ describe("loadRole1RuntimeConfig", () => {
 		expect(config.localLlmTopK).toBe(12);
 		expect(config.localLlmTopP).toBe(0.88);
 		expect(config.localLlmSleepIdleSeconds).toBe(900);
+		expect(config.localLlmRuntimeProvider).toBe("llama-server");
+		expect(config.localLlmModelDir).toBe("/tmp/detoks-models");
 		expect(config.kompressPythonBin).toBe("python3.13");
 		expect(config.kompressModelId).toBe("chopratejas/kompress-small");
 		expect(config.kompressStartupTimeout).toBe(45000);

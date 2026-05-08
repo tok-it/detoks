@@ -53,7 +53,9 @@ function createWorkspace(): { root: string; cwd: string; home: string } {
 beforeEach(() => {
   vi.clearAllMocks();
   delete process.env.LOCAL_LLM_MODEL_NAME;
+  delete process.env.LOCAL_LLM_RUNTIME_PROVIDER;
   delete process.env.MODEL_NAME;
+  delete process.env.LOCAL_LLM_MODEL_DIR;
   delete process.env.LOCAL_LLM_MODEL_PATH;
   delete process.env.LOCAL_LLM_HF_REPO;
   delete process.env.LOCAL_LLM_HF_FILE;
@@ -64,7 +66,9 @@ afterEach(() => {
   vi.unstubAllEnvs();
   vi.restoreAllMocks();
   delete process.env.LOCAL_LLM_MODEL_NAME;
+  delete process.env.LOCAL_LLM_RUNTIME_PROVIDER;
   delete process.env.MODEL_NAME;
+  delete process.env.LOCAL_LLM_MODEL_DIR;
   delete process.env.LOCAL_LLM_MODEL_PATH;
   delete process.env.LOCAL_LLM_HF_REPO;
   delete process.env.LOCAL_LLM_HF_FILE;
