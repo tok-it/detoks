@@ -5,7 +5,7 @@ Role 1 / 2 / 3의 책임, handoff, 개선 기록을 정리한 문서 묶음입�
 ## 핵심 문서
 
 - [../ROLES.md](../ROLES.md): 역할별 기본 책임
-- [../CLI_WRAPPER_PIPELINE.md](../CLI_WRAPPER_PIPELINE.md): 역할이 실제 CLI 흐름에 어떻게 연결되는지 설명
+- [../PIPELINE.md](../PIPELINE.md): 역할이 실제 파이프라인과 CLI 흐름에 어떻게 연결되는지 설명
 - [../ROLE1_PIPELINE_IMPROVEMENT_REQUIREMENTS.md](../ROLE1_PIPELINE_IMPROVEMENT_REQUIREMENTS.md): Role 1 개선 요구사항
 - [../ROLE2.2-HANDOFF-SESSION-PERSISTENCE-IMPROVEMENTS.md](../ROLE2.2-HANDOFF-SESSION-PERSISTENCE-IMPROVEMENTS.md): Role 2.2 개선 요구사항
 
@@ -18,6 +18,6 @@ Role 1 / 2 / 3의 책임, handoff, 개선 기록을 정리한 문서 묶음입�
 ## 권장 읽기 순서
 
 1. [../ROLES.md](../ROLES.md)
-2. [../CLI_WRAPPER_PIPELINE.md](../CLI_WRAPPER_PIPELINE.md)
+2. [../PIPELINE.md](../PIPELINE.md)
 3. [../ROLE1_PIPELINE_IMPROVEMENT_REQUIREMENTS.md](../ROLE1_PIPELINE_IMPROVEMENT_REQUIREMENTS.md)
 4. 필요 시 Role별 상세 문서 확인

@@ -44,7 +44,7 @@ detoks 문서를 주제별로 찾기 쉽게 정리한 마스터 인덱스입니�
 - 섹션 가이드: [03-roles-workflow/INDEX.md](03-roles-workflow/INDEX.md)
 - 핵심 문서:
   - [ROLES.md](ROLES.md)
-  - [CLI_WRAPPER_PIPELINE.md](CLI_WRAPPER_PIPELINE.md)
+  - [PIPELINE.md](PIPELINE.md)
   - [ROLE1_PIPELINE_IMPROVEMENT_REQUIREMENTS.md](ROLE1_PIPELINE_IMPROVEMENT_REQUIREMENTS.md)
   - [ROLE2.2-HANDOFF-SESSION-PERSISTENCE-IMPROVEMENTS.md](ROLE2.2-HANDOFF-SESSION-PERSISTENCE-IMPROVEMENTS.md)
 
@@ -88,9 +88,9 @@ detoks 문서를 주제별로 찾기 쉽게 정리한 마스터 인덱스입니�
 
 | 주제 | 기준 문서 | 보조 문서 |
 | --- | --- | --- |
-| 전체 구조 | [ARCHITECTURE.md](ARCHITECTURE.md) | [CLI_WRAPPER_PIPELINE.md](CLI_WRAPPER_PIPELINE.md) |
-| 파이프라인 단계 | [PIPELINE.md](PIPELINE.md) | [SHARED_DATA_FLOW.md](SHARED_DATA_FLOW.md), [SCHEMA_FLOW.md](SCHEMA_FLOW.md), [DES_DATA_FLOW.md](DES_DATA_FLOW.md) |
-| 스키마 | [SCHEMAS.md](SCHEMAS.md) | [API_SPEC.md](API_SPEC.md), [SCHEMA_FLOW.md](SCHEMA_FLOW.md) |
+| 전체 구조 | [ARCHITECTURE.md](ARCHITECTURE.md) | [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md), [ROLES.md](ROLES.md) |
+| 파이프라인 단계 | [PIPELINE.md](PIPELINE.md) | [ROLES.md](ROLES.md) |
+| 스키마 | [SCHEMAS.md](SCHEMAS.md) | [API_SPEC.md](API_SPEC.md), [PIPELINE.md](PIPELINE.md) |
 | Task type 의미 | [TYPE_DEFINITION.md](TYPE_DEFINITION.md) | [API_SPEC.md](API_SPEC.md), [SCHEMAS.md](SCHEMAS.md) |
 | 로컬 LLM 런타임 | [LLAMA_CPP_SERVER_SPEC.md](LLAMA_CPP_SERVER_SPEC.md) | [PORT_CONFLICT_SOLUTION.md](PORT_CONFLICT_SOLUTION.md) |
 | 테스트 | [TESTING_GUIDE.md](TESTING_GUIDE.md) | 섹션별 테스트 파일 |

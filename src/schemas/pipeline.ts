@@ -5,7 +5,7 @@ import { z } from "zod";
  *
  * 문서 매핑:
  * - docs/SCHEMAS.md
- * - docs/SHARED_DATA_FLOW.md
+ * - docs/PIPELINE.md
  * - docs/API_SPEC.md
  *
  * 역할별 스키마 소유 범위:

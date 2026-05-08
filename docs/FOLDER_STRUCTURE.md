@@ -14,10 +14,6 @@ docs/
 │   │   └── ROLES.md
 │   ├── pipeline/
 │   │   ├── PIPELINE.md
-│   │   ├── CLI_WRAPPER_PIPELINE.md
-│   │   ├── SHARED_DATA_FLOW.md
-│   │   ├── SCHEMA_FLOW.md
-│   │   ├── DES_DATA_FLOW.md
 │   │   └── REAL_MODE_PIPELINE_FLOW_PLAN.md
 │   ├── api/
 │   │   └── API_SPEC.md

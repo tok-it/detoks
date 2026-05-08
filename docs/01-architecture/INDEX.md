@@ -15,10 +15,7 @@
 ## 보조 문서
 
 - [../ROLES.md](../ROLES.md): 역할 정의
-- [../CLI_WRAPPER_PIPELINE.md](../CLI_WRAPPER_PIPELINE.md): CLI orchestration 관점의 흐름
-- [../SHARED_DATA_FLOW.md](../SHARED_DATA_FLOW.md): 역할 간 handoff 요약
-- [../SCHEMA_FLOW.md](../SCHEMA_FLOW.md): 단계별 스키마 흐름
-- [../DES_DATA_FLOW.md](../DES_DATA_FLOW.md): 상세 데이터 흐름 설명
+- [../PIPELINE.md](../PIPELINE.md): 역할 간 handoff, schema 흐름, CLI orchestration까지 포함한 실행 흐름 기준 문서
 - [../TYPE_DEFINITION.md](../TYPE_DEFINITION.md): `RequestCategory` 의미 정의
 
 ## 참고 / 계획 문서
