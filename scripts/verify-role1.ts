@@ -158,14 +158,25 @@ function parseArgs(argv: string[]): VerifyOptions {
     throw new Error("--index must be a non-negative integer");
   }
 
-  return {
-    prompt,
+  const parsed: VerifyOptions = {
     filePath,
-    limit,
-    index,
-    outputPath,
     debug,
   };
+
+  if (prompt !== undefined) {
+    parsed.prompt = prompt;
+  }
+  if (limit !== undefined) {
+    parsed.limit = limit;
+  }
+  if (index !== undefined) {
+    parsed.index = index;
+  }
+  if (outputPath !== undefined) {
+    parsed.outputPath = outputPath;
+  }
+
+  return parsed;
 }
 
 function loadInputs(options: VerifyOptions): string[] {
@@ -247,9 +258,9 @@ async function main(): Promise<void> {
       {
         ok: true,
         mode: "role1-verify",
-        model: runtimeConfig.modelName ?? "(not set)",
-        api_base: runtimeConfig.openaiApiBase ?? "(not set)",
-        api_key: maskApiKey(runtimeConfig.openaiApiKey),
+        model: runtimeConfig.localLlmModelName ?? "(not set)",
+        api_base: runtimeConfig.localLlmApiBase ?? "(not set)",
+        api_key: maskApiKey(runtimeConfig.localLlmApiKey),
         pipeline_mode: options.debug ? "debug" : runtimeConfig.pipelineMode,
         input_count: inputs.length,
       },
