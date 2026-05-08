@@ -36,6 +36,7 @@ export const executeWithAdapter = async (request: ExecutorRequest): Promise<Exec
   }, {
     executionMode: request.executionMode,
     subprocessRunner,
+    ...(request.onActionTimelineEvent ? { onActionTimelineEvent: request.onActionTimelineEvent } : {}),
   });
 
   return {

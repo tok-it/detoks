@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { TranscriptPanel } from "../../../../../../src/cli/tui/panels/transcript.js";
 import type { PtyEvent } from "../../../../../../src/integrations/subprocess/types.js";
+import type { ActionTimelineEvent } from "../../../../../../src/core/timeline/types.js";
 
 describe("TranscriptPanel", () => {
   let panel: TranscriptPanel;
@@ -399,6 +400,33 @@ describe("TranscriptPanel", () => {
       expect(output).toContain("[edit]");
       expect(output).toContain("src/cli/tui/panels/transcript.ts");
       expect(output).toContain("notes.txt");
+    });
+  });
+
+  describe("appendTurnRecap", () => {
+    it("renders recap blocks from action timeline events", () => {
+      const recapEvent: ActionTimelineEvent = {
+        kind: "turn_recap",
+        source: "detoks",
+        summary: "턴 종료 recap",
+        timestamp: Date.now(),
+        details: [
+          "요약: 1개 작업을 모두 완료했습니다",
+          "다음 작업: 파이프라인이 완료되었습니다.",
+        ],
+      };
+
+      panel.appendTurnRecap(recapEvent);
+
+      mockScreen.write.mockClear();
+      panel.render(mockContext, mockRegion);
+
+      const output = mockScreen.write.mock.calls
+        .map((c: any) => c[0])
+        .join("\n");
+      expect(output).toContain("[recap]");
+      expect(output).toContain("턴 종료 recap");
+      expect(output).toContain("파이프라인이 완료되었습니다.");
     });
   });
 });

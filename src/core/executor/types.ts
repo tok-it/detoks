@@ -1,6 +1,7 @@
 import type { Adapter, ExecutionMode, InteractionMode } from "../pipeline/types.js";
 import type { RequestCategory } from "../../schemas/pipeline.js";
 import type { PtyEvent, PtyTranscript } from "../../integrations/subprocess/types.js";
+import type { ActionTimelineEvent, ActionTimelineSink } from "../timeline/types.js";
 
 export interface AdapterExecutionRequest {
   mode: InteractionMode;
@@ -18,12 +19,14 @@ export interface AdapterExecutionResult {
   exitCode: number;
   stderr?: string;
   transcript?: PtyTranscript; // PTY 실행 기록 (optional)
+  actionTimeline?: ActionTimelineEvent[];
 }
 
 export interface ExecutorRequest extends AdapterExecutionRequest {
   adapter: Adapter;
   executionMode: ExecutionMode;
   onAdapterEvent?: (event: PtyEvent) => void;
+  onActionTimelineEvent?: ActionTimelineSink;
 }
 
 export interface ExecutorResult {
@@ -33,4 +36,5 @@ export interface ExecutorResult {
   exitCode: number;
   stderr?: string;
   transcript?: PtyTranscript; // PTY 실행 기록 (optional)
+  actionTimeline?: ActionTimelineEvent[];
 }

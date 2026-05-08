@@ -1,6 +1,7 @@
 import type { RenderContext } from "../renderer.js";
 import type { PanelRegion } from "../layout-manager.js";
 import type { PtyEvent } from "../../../integrations/subprocess/types.js";
+import type { ActionTimelineEvent } from "../../../core/timeline/types.js";
 import { getContentArea, getPanelHeight } from "../layout-manager.js";
 import { colors } from "../../colors.js";
 
@@ -63,7 +64,7 @@ const truncateLine = (line: string, maxWidth: number): string => {
   return `${line.slice(0, maxWidth - 3)}...`;
 };
 
-type TranscriptEntryKind = "tool" | "edit" | "final" | "diagnostic" | "raw";
+type TranscriptEntryKind = "tool" | "edit" | "final" | "diagnostic" | "recap" | "raw";
 
 interface TranscriptEntry {
   kind: TranscriptEntryKind;
@@ -547,6 +548,24 @@ export class TranscriptPanel {
     }
   }
 
+  appendTurnRecap(event: ActionTimelineEvent): void {
+    if (event.kind !== "turn_recap") {
+      return;
+    }
+
+    this.commitPendingFinalText();
+    const lines = event.details && event.details.length > 0
+      ? [event.summary, ...event.details]
+      : [event.summary];
+
+    for (const line of lines) {
+      const normalized = sanitizeText(line);
+      if (normalized.length > 0) {
+        this.pushEntry("recap", normalized);
+      }
+    }
+  }
+
   append(chunk: string): void {
     const normalized = chunk.replace(/\r\n/g, "\n");
     const lines = normalized.split("\n");
@@ -655,8 +674,10 @@ export class TranscriptPanel {
           ? "[tool] "
           : entry.kind === "edit"
             ? "[edit] "
-            : entry.kind === "final"
+          : entry.kind === "final"
               ? "[final] "
+            : entry.kind === "recap"
+              ? "[recap] "
               : entry.kind === "diagnostic"
                 ? "[ERR] "
                 : "";
@@ -667,9 +688,11 @@ export class TranscriptPanel {
           ? colors.info(line)
           : entry.kind === "edit"
             ? colors.success(line)
-            : entry.kind === "final"
+          : entry.kind === "final"
               ? colors.header(line)
-              : entry.kind === "diagnostic"
+            : entry.kind === "recap"
+              ? colors.info(line)
+            : entry.kind === "diagnostic"
                 ? colors.error(line)
                 : line;
 

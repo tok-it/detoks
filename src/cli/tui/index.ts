@@ -31,6 +31,7 @@ import {
 } from "./workspace-diff.js";
 import { toNormalizedRequest } from "../parse.js";
 import { orchestratePipeline } from "../../core/pipeline/orchestrator.js";
+import { buildActionTimeline } from "../../core/timeline/action-timeline.js";
 import { readRole1ModelName } from "../../core/prompt/config.js";
 import { colors } from "../colors.js";
 import { formatError } from "../format.js";
@@ -498,6 +499,10 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
             transcriptPanel.addEvent(event);
             render();
           },
+          onActionTimelineEvent: (event) => {
+            pipelinePanel.updateActionTimelineEvent(event);
+            render();
+          },
         });
 
         // Phase 3.3: Feed PTY events to transcript panel
@@ -520,8 +525,17 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
           transcriptPanel.appendWorkspaceDiff(workspaceDiff);
         }
 
+        const actionTimeline = buildActionTimeline(result, workspaceDiff);
+        const turnRecap = [...actionTimeline].reverse().find((event) => event.kind === "turn_recap");
+        if (turnRecap) {
+          transcriptPanel.appendTurnRecap(turnRecap);
+        }
+
         // Phase 3.4: Display result
-        resultPanel.setResult(result);
+        resultPanel.setResult({
+          ...result,
+          ...(actionTimeline.length > 0 ? { actionTimeline } : {}),
+        });
         render();
 
       } catch (error) {

@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { PipelineStatusPanel } from "../../../../../../src/cli/tui/panels/pipeline-status.js";
 import type { PipelineProgressEvent } from "../../../../../../src/core/pipeline/types.js";
+import type { ActionTimelineEvent } from "../../../../../../src/core/timeline/types.js";
 
 describe("PipelineStatusPanel", () => {
   let panel: PipelineStatusPanel;
@@ -95,6 +96,28 @@ describe("PipelineStatusPanel", () => {
         .map((c: any) => c[0])
         .join("\n");
       expect(output).toContain("·");
+    });
+  });
+
+  describe("updateActionTimelineEvent", () => {
+    it("renders a derived work state line", () => {
+      const event: ActionTimelineEvent = {
+        kind: "stage_update",
+        source: "pipeline",
+        stage: "Executor",
+        summary: "Executor: start · Executor 실행 중",
+        timestamp: Date.now(),
+      };
+
+      panel.updateActionTimelineEvent(event);
+      panel.render(mockContext, mockRegion);
+
+      const output = mockScreen.write.mock.calls
+        .map((c: any) => c[0])
+        .join("\n");
+
+      expect(output).toContain("• Editing");
+      expect(output).toContain("Executor: start · Executor 실행 중");
     });
   });
 
