@@ -1,121 +1,79 @@
 # Llama.cpp Server Spec
 
-This document defines the current `python/llama-server` runtime contract used by detoks.
+This document defines the current detoks runtime contract for the prebuilt `llama-server` binary.
 
-<!-- 한국어 설명: 이 문서는 detoks에서 사용하는 현재 `python/llama-server` 런타임 계약을 정의합니다. 구현된 범위만 명시하며, 아직 없는 기능은 포함하지 않습니다. -->
+<!-- 한국어 설명: 이 문서는 detoks가 사용하는 prebuilt `llama-server` 바이너리의 현재 런타임 계약을 정의합니다. Python wrapper가 아니라 실제 TypeScript 런처와 llama.cpp 서버 경계를 기준으로 설명합니다. -->
 
 ---
 
 ## Scope
 
-- OpenAI-compatible chat completions endpoint for TypeScript `src/core/llm-client`
-- Health check endpoint for runtime readiness
-- Environment-based runtime configuration
-- Optional upstream proxy mode for an external llama.cpp-compatible server
-- Role 1 local llama.cpp server auto-start on `127.0.0.1:12370`
+- OpenAI-compatible chat completions endpoint consumed by TypeScript `src/core/llm-client`
+- Health check endpoint used for runtime readiness
+- Model listing endpoint used for loaded-model verification
+- Environment-based local server auto-start on `127.0.0.1:12370`
 - GGUF model loading from a local path or Hugging Face GGUF repository
 
-<!-- 한국어 설명: 이 명세는 TypeScript 클라이언트가 호출하는 채팅 완성 endpoint, 헬스체크, 환경변수 설정, 외부 llama.cpp 서버 프록시 모드, 그리고 Role 1 번역용 로컬 llama.cpp 서버 자동 실행을 다룹니다. -->
+<!-- 한국어 설명: 이 명세는 TypeScript 클라이언트가 호출하는 채팅 완성 endpoint, readiness 확인용 헬스체크, 모델 식별용 `/v1/models`, 그리고 Role 1 번역용 로컬 llama.cpp 서버 자동 실행을 다룹니다. -->
 
 ---
 
 ## Non-Goals
 
-- Streaming responses
-- Public API stability guarantees
-- WebSocket support
+- Streaming response handling in detoks
+- Public API stability guarantees beyond the current TypeScript boundary
 - Multi-model routing
 - Batch inference
-- Model download lifecycle management
+- Detoks-owned inbound auth for the local auto-started server
+- Python proxy or mock runtime modes
 
-<!-- 한국어 설명: 스트리밍, 공개 API 안정성 보장, WebSocket, 멀티 모델 라우팅, 배치 추론, 모델 다운로드 관리 같은 항목은 현재 범위에 없습니다. -->
+<!-- 한국어 설명: detoks는 현재 스트리밍, 멀티 모델 라우팅, 배치 추론, 로컬 auto-start 서버용 인증 계층, 예전 Python proxy/mock 모드를 계약 범위에 포함하지 않습니다. -->
 
 ---
 
 ## Runtime Location
 
-- Server entrypoint: `python/llama-server/run.py`
-- Importable package: `python/llama_server`
+- TypeScript launcher: `src/core/llm-client/local-runtime.ts`
 - TypeScript client boundary: `src/core/llm-client/client.ts`
+- External runtime binary: `LOCAL_LLM_SERVER_BINARY`, default `llama-server`
+- Manual setup guide: `src/cli/model-setup/LLAMA_SERVER_GUIDE.md`
 
-<!-- 한국어 설명: 실행 엔트리포인트는 하이픈 경로를 유지하고, Python import는 언더스코어 패키지를 사용합니다. TypeScript는 `src/core/llm-client`만 통해 이 서버와 통신합니다. -->
+<!-- 한국어 설명: detoks는 TypeScript 런처가 외부 `llama-server` 바이너리를 직접 실행하고, TypeScript 클라이언트가 OpenAI-compatible HTTP 경계만 사용합니다. -->
 
 ---
 
 ## Default Configuration
 
-| Key                          | Default                                               | Description                                                     |
-| ---------------------------- | ----------------------------------------------------- | --------------------------------------------------------------- |
-| `LLAMA_SERVER_HOST`          | `127.0.0.1`                                           | Bind host                                                       |
-| `LLAMA_SERVER_PORT`          | `12370`                                               | Bind port                                                       |
-| `LLAMA_SERVER_API_PREFIX`    | `/v1`                                                 | API prefix                                                      |
-| `LLAMA_SERVER_HEALTH_PATH`   | `/health`                                             | Health endpoint path                                            |
-| `LOCAL_LLM_MODEL_NAME`       | `mradermacher/gemma-4-e2b-it-heretic-ara-GGUF:Q4_K_S` | Default model id and alias requested by Role 1 clients          |
-| `REQUEST_TIMEOUT`            | `30`                                                  | Upstream timeout in seconds                                     |
-| `LLAMA_SERVER_API_KEY`       | unset                                                 | Optional Bearer auth for inbound requests                       |
-| `LLAMA_CPP_API_BASE`         | unset                                                 | Upstream OpenAI-compatible llama.cpp base URL                   |
-| `LLAMA_CPP_API_KEY`          | unset                                                 | Optional Bearer auth for upstream requests                      |
-| `LLAMA_SERVER_RESPONSE_TEXT` | unset                                                 | Mock response text for local/serverless verification            |
-| `LOCAL_LLM_API_BASE`         | `http://127.0.0.1:12370/v1`                           | TypeScript Role 1 local LLM API base                            |
-| `LOCAL_LLM_AUTO_START`       | `1`                                                   | Auto-start local llama.cpp server for Role 1                    |
-| `LOCAL_LLM_SERVER_BINARY`    | `llama-server`                                        | llama.cpp server executable                                     |
-| `LOCAL_LLM_SERVER_HOST`      | `127.0.0.1`                                           | Auto-start bind host                                            |
-| `LOCAL_LLM_SERVER_PORT`      | `12370`                                               | Auto-start bind port                                            |
-| `LOCAL_LLM_DEVICE`           | unset                                                 | Optional llama.cpp device selector, e.g. `none`                 |
-| `LOCAL_LLM_GPU_LAYERS`       | `all`                                                 | llama.cpp GPU offload layer count                               |
-| `LOCAL_LLM_CONTEXT_SIZE`     | `4096`                                                | llama.cpp prompt context size                                   |
-| `LOCAL_LLM_TOP_K`            | `40`                                                  | llama.cpp top-k sampling                                        |
-| `LOCAL_LLM_TOP_P`            | `0.95`                                                | llama.cpp top-p sampling                                        |
-| `LOCAL_LLM_SLEEP_IDLE_SECONDS` | `1200`                                              | Idle seconds before the local model is unloaded                 |
-| `LOCAL_LLM_MAX_TOKENS`       | `512`                                                 | Maximum generated tokens per Role 1 translation span            |
-| `LOCAL_LLM_REASONING`        | `off`                                                 | llama.cpp reasoning mode for chat templates                     |
-| `LOCAL_LLM_HF_REPO`          | `mradermacher/gemma-4-e2b-it-heretic-ara-GGUF:Q4_K_S` | Hugging Face GGUF repo and quant used when no model path exists |
-| `LOCAL_LLM_HF_FILE`          | `gemma-4-e2b-it-heretic-ara.Q4_K_S.gguf`              | Exact Hugging Face GGUF file                                    |
-| `LOCAL_LLM_MODEL_PATH`       | unset                                                 | Optional local GGUF model path                                  |
-| `LOCAL_LLM_MODEL_URL`        | unset                                                 | Optional download URL when model path is missing                |
+| Key                            | Default                                               | Description                                                     |
+| ------------------------------ | ----------------------------------------------------- | --------------------------------------------------------------- |
+| `LOCAL_LLM_API_BASE`           | `http://127.0.0.1:12370/v1`                           | TypeScript Role 1 local LLM API base                            |
+| `LOCAL_LLM_API_KEY`            | unset                                                 | Optional Bearer token forwarded by the TypeScript client        |
+| `LOCAL_LLM_MODEL_NAME`         | `mradermacher/gemma-4-e2b-it-heretic-ara-GGUF:Q4_K_S` | Default model id and alias requested by Role 1 clients          |
+| `LOCAL_LLM_AUTO_START`         | `1`                                                   | Auto-start local llama.cpp server for Role 1                    |
+| `LOCAL_LLM_SERVER_BINARY`      | `llama-server`                                        | Prebuilt llama.cpp server executable                            |
+| `LOCAL_LLM_SERVER_HOST`        | `127.0.0.1`                                           | Auto-start bind host                                            |
+| `LOCAL_LLM_SERVER_PORT`        | `12370`                                               | Auto-start bind port                                            |
+| `LOCAL_LLM_DEVICE`             | unset                                                 | Optional llama.cpp device selector, e.g. `none`                 |
+| `LOCAL_LLM_GPU_LAYERS`         | `all`                                                 | llama.cpp GPU offload layer count                               |
+| `LOCAL_LLM_CONTEXT_SIZE`       | `4096`                                                | llama.cpp prompt context size                                   |
+| `LOCAL_LLM_TOP_K`              | `40`                                                  | llama.cpp top-k sampling                                        |
+| `LOCAL_LLM_TOP_P`              | `0.95`                                                | llama.cpp top-p sampling                                        |
+| `LOCAL_LLM_SLEEP_IDLE_SECONDS` | `1200`                                                | Idle seconds before the local model is unloaded                 |
+| `LOCAL_LLM_MAX_TOKENS`         | `512`                                                 | Maximum generated tokens per Role 1 translation span            |
+| `LOCAL_LLM_REASONING`          | `off`                                                 | llama.cpp reasoning mode for chat templates                     |
+| `LOCAL_LLM_HF_REPO`            | `mradermacher/gemma-4-e2b-it-heretic-ara-GGUF:Q4_K_S` | Hugging Face GGUF repo and quant used when no model path exists |
+| `LOCAL_LLM_HF_FILE`            | `gemma-4-e2b-it-heretic-ara.Q4_K_S.gguf`              | Exact Hugging Face GGUF file                                    |
+| `LOCAL_LLM_MODEL_PATH`         | unset                                                 | Optional local GGUF model path                                  |
+| `LOCAL_LLM_MODEL_URL`          | unset                                                 | Optional download URL when model path is missing                |
+| `REQUEST_TIMEOUT`              | `30000`                                               | Client-side request timeout in milliseconds                     |
 
-<!-- 한국어 설명: 기본 모델명은 현재 로컬 서버 기본값입니다. Python 서버는 upstream 프록시 또는 mock 응답 모드로 동작하고, TypeScript Role 1 경로는 필요 시 llama.cpp `llama-server`를 로컬에서 자동 실행합니다. -->
+<!-- 한국어 설명: 현재 Role 1 로컬 추론 계약은 `LOCAL_LLM_*` 계열 환경변수와 `REQUEST_TIMEOUT`을 기준으로 동작합니다. 예전 Python wrapper 전용 `LLAMA_SERVER_*`, `LLAMA_CPP_API_BASE`, `LLAMA_SERVER_RESPONSE_TEXT` 계약은 포함하지 않습니다. -->
 
 ---
 
 ## Execution Modes
 
-### 1. Proxy Mode
-
-Condition:
-
-- `LLAMA_CPP_API_BASE` is set
-
-Behavior:
-
-- Incoming `POST /v1/chat/completions` request is forwarded to `{LLAMA_CPP_API_BASE}/chat/completions`
-- Request body is passed through in OpenAI-compatible shape
-- Upstream JSON is preserved as `raw_response`
-
-### 2. Mock Mode
-
-Condition:
-
-- `LLAMA_SERVER_RESPONSE_TEXT` is set
-
-Behavior:
-
-- Server returns a fixed assistant message without contacting an upstream server
-- Intended for contract tests and local verification only
-
-### 3. Invalid Runtime State
-
-Condition:
-
-- Neither `LLAMA_CPP_API_BASE` nor `LLAMA_SERVER_RESPONSE_TEXT` is set
-
-Behavior:
-
-- Chat completion requests fail with `503 Service Unavailable`
-
-<!-- 한국어 설명: 현재 서버는 자체 llama.cpp 프로세스를 직접 관리하지 않고, upstream 프록시 또는 mock 응답 두 모드만 지원합니다. -->
-
-### 4. Role 1 Auto-Start Mode
+### 1. Role 1 Auto-Start Mode
 
 Condition:
 
@@ -126,26 +84,41 @@ Condition:
 Behavior:
 
 - The launcher re-reads `.env` and `.env.local` on each startup, so updated sampling or model values are applied on the next run
-- If `LOCAL_LLM_API_BASE` health check is already ready, reuse the running server
-- Before reusing an already-running local server, query `/v1/models` and verify that the expected `LOCAL_LLM_MODEL_NAME` is present
-- If another model or mismatched launch args are already running on the same port, stop the existing server and relaunch with the current env values
-- If `LOCAL_LLM_MODEL_PATH` exists, start `llama-server -m <path>`
 - If `LOCAL_LLM_API_BASE` is left at the default local placeholder, derive the runtime base from `LOCAL_LLM_SERVER_HOST` / `LOCAL_LLM_SERVER_PORT` so port changes stay in sync
+- If `LOCAL_LLM_MODEL_PATH` exists, start `llama-server -m <path>`
 - If `LOCAL_LLM_MODEL_PATH` is missing and `LOCAL_LLM_MODEL_URL` is set, download the GGUF file first
-- If no local model path is set, start `llama-server -hf <LOCAL_LLM_HF_REPO> --hf-file <LOCAL_LLM_HF_FILE>` and let llama.cpp handle Hugging Face GGUF download/cache
-- Pass `--gpu-layers <LOCAL_LLM_GPU_LAYERS>`, default `all`, so Metal/GPU offload is requested on supported llama.cpp builds
+- If no local model path is set, start `llama-server -hf <LOCAL_LLM_HF_REPO> --hf-file <LOCAL_LLM_HF_FILE>`
+- Pass `--alias <LOCAL_LLM_MODEL_NAME>` so `/v1/models` can be verified against the expected model id
+- Pass `--host`, `--port`, `--ctx-size`, `--top-k`, `--top-p`, `--reasoning`, and `--sleep-idle-seconds` from the current runtime config
+- Pass `--gpu-layers <LOCAL_LLM_GPU_LAYERS>`, default `all`, so Metal or GPU offload is requested on supported builds
 - If GPU startup fails before readiness, retry once with `--device none --gpu-layers 0`
-- Pass `--ctx-size <LOCAL_LLM_CONTEXT_SIZE>`, default `4096`, instead of inheriting very large model context defaults
-- Pass `--top-k <LOCAL_LLM_TOP_K>`, default `40`, to control local sampling
-- Pass `--top-p <LOCAL_LLM_TOP_P>`, default `0.95`, to control nucleus sampling
 - Role 1 chat completion requests include `max_tokens`, capped by `LOCAL_LLM_MAX_TOKENS`
-- Pass `--reasoning off` by default so Gemma chat templates do not spend translation budget on hidden reasoning
-- Pass `--sleep-idle-seconds <LOCAL_LLM_SLEEP_IDLE_SECONDS>`, default `1200`, so the model is unloaded after 20 minutes of idle time
-- The default Hugging Face GGUF quant is explicitly `Q4_K_S`
-- The server is opened on `LOCAL_LLM_SERVER_HOST:LOCAL_LLM_SERVER_PORT`, default `127.0.0.1:12370`
 - Empty, truncated, or non-GGUF model files fail before `llama-server` launch and are not auto-deleted or re-downloaded
 
-<!-- 한국어 설명: Role 1 번역은 기본적으로 12370 포트의 로컬 llama.cpp 서버를 준비한 뒤 OpenAI-compatible `/v1/chat/completions`를 호출합니다. -->
+### 2. Existing Local Server Reuse
+
+Condition:
+
+- `LOCAL_LLM_API_BASE` points to localhost
+- `GET /health` already returns success
+
+Behavior:
+
+- Reuse the running server when `/v1/models` includes the expected `LOCAL_LLM_MODEL_NAME`
+- If the running model does not match, stop the existing server on the configured port and relaunch with the current env values
+
+### 3. Remote or Manually Managed Server Mode
+
+Condition:
+
+- `LOCAL_LLM_API_BASE` points to a non-local host, or local auto-start is disabled
+
+Behavior:
+
+- detoks does not spawn or supervise the server process
+- detoks still expects the same OpenAI-compatible `/v1/chat/completions` contract and a usable `/v1/models` response when model verification is needed
+
+<!-- 한국어 설명: Role 1 번역은 기본적으로 prebuilt `llama-server`를 로컬에서 직접 띄우고, 이미 실행 중인 서버가 있으면 `/health`와 `/v1/models`로 재사용 여부를 판단합니다. 원격 서버를 쓰는 경우에는 detoks가 프로세스를 관리하지 않습니다. -->
 
 ---
 
@@ -157,21 +130,29 @@ Purpose:
 
 - Runtime liveness and minimal readiness check
 
-Response:
+Rules:
 
-```json
-{
-	"ok": true,
-	"model": "mradermacher/gemma-4-e2b-it-heretic-ara-GGUF:Q4_K_S",
-	"backend": "configured"
-}
-```
+- Returns `200 OK` when the server is ready to accept requests
+- detoks currently treats any successful `200` response as ready
+- Response body shape is not normalized by detoks
+
+### `GET /v1/models`
+
+Purpose:
+
+- Verify that the loaded model matches `LOCAL_LLM_MODEL_NAME`
+
+Accepted response patterns:
+
+- `data[].id`
+- `data[].aliases[]`
+- `models[].name`
+- `models[].model`
 
 Rules:
 
-- Returns `200 OK`
-- `ok` is `true` when either proxy mode or mock mode is configured
-- `ok` is `false` when no inference backend is configured
+- detoks treats an empty or unparseable model list as a verification failure
+- The expected model name may appear either as the model id or as an alias
 
 ### `POST /v1/chat/completions`
 
@@ -190,20 +171,12 @@ Required request shape:
 			"content": "Translate this text"
 		}
 	],
-	"temperature": 0
+	"temperature": 0,
+	"max_tokens": 512
 }
 ```
 
-Current validation rules:
-
-- `model`: non-empty string
-- `messages`: non-empty array
-- `message.role`: `system` | `user` | `assistant`
-- `message.content`: string
-- `temperature`: number greater than or equal to `0`
-- Unknown top-level fields are rejected
-
-Successful response shape:
+Successful response shape consumed by detoks:
 
 ```json
 {
@@ -220,122 +193,47 @@ Successful response shape:
 			},
 			"finish_reason": "stop"
 		}
-	],
-	"usage": {
-		"prompt_tokens": 0,
-		"completion_tokens": 0,
-		"total_tokens": 0
-	},
-	"raw_response": {
-		"choices": [
-			{
-				"message": {
-					"content": "Translated text"
-				}
-			}
-		]
-	}
+	]
 }
 ```
 
-<!-- 한국어 설명: 성공 응답은 OpenAI chat completion 형식을 따르며, upstream 응답이 있으면 `raw_response`에 그대로 유지합니다. -->
+<!-- 한국어 설명: detoks는 `/health` 본문을 엄격히 해석하지 않고 readiness만 판단합니다. 대신 `/v1/models`는 모델 식별에 실제로 사용하고, `/v1/chat/completions`는 OpenAI-compatible 응답 구조를 전제로 파싱합니다. -->
+
+---
+
+## Launcher Preflight And Error Contract
+
+The TypeScript launcher performs these checks before or during server startup:
+
+- Missing binary: throw a friendly error when `LOCAL_LLM_SERVER_BINARY` cannot be resolved
+- Invalid GGUF file: fail fast when the configured local file is missing, empty, too small, or does not start with the `GGUF` header
+- GPU fallback: retry once with CPU-only settings when GPU startup fails before readiness
+- Model mismatch: stop and relaunch a localhost server that is running a different model on the configured port
+- Request timeout: the client aborts `POST /v1/chat/completions` after `REQUEST_TIMEOUT`
+
+Representative local startup error:
+
+```text
+로컬 llama.cpp 서버 바이너리를 찾을 수 없습니다: llama-server. llama-server를 설치하거나 LOCAL_LLM_AUTO_START=0으로 자동 시작을 끄세요.
+```
+
+Representative request timeout error:
+
+```text
+LLM request timed out after 30000ms
+```
+
+<!-- 한국어 설명: 오류 계약의 핵심은 서버 내부 에러 JSON이 아니라, detoks TypeScript 런처와 클라이언트가 어떤 조건에서 fail-fast 하는지입니다. -->
 
 ---
 
 ## Authentication
 
-Inbound request auth:
+- detoks does not provision or enforce inbound auth for the locally auto-started `llama-server`
+- If `LOCAL_LLM_API_KEY` is set, the TypeScript client forwards `Authorization: Bearer <LOCAL_LLM_API_KEY>` to `POST /v1/chat/completions`
+- The local auto-start contract assumes no extra auth is required for `/health` and `/v1/models`
 
-- Disabled by default
-- Enabled only when `LLAMA_SERVER_API_KEY` is set
-- Requires `Authorization: Bearer <LLAMA_SERVER_API_KEY>`
-
-Upstream request auth:
-
-- Disabled by default
-- Enabled only when `LLAMA_CPP_API_KEY` is set
-- Sends `Authorization: Bearer <LLAMA_CPP_API_KEY>` to upstream
-
-Auth failure response:
-
-```json
-{
-	"error": {
-		"message": "Unauthorized"
-	}
-}
-```
-
-<!-- 한국어 설명: 현재 인증은 단순 Bearer 토큰 비교만 수행하며, role/tenant/session 개념은 없습니다. -->
-
----
-
-## Error Contract
-
-### Invalid JSON
-
-Status:
-
-- `400 Bad Request`
-
-Body:
-
-```json
-{
-	"error": {
-		"message": "Invalid JSON body"
-	}
-}
-```
-
-### Invalid Request Schema
-
-Status:
-
-- `400 Bad Request`
-
-Body:
-
-```json
-{
-	"error": {
-		"message": "Invalid chat completions request",
-		"details": []
-	}
-}
-```
-
-### Missing Backend Configuration or Upstream Failure
-
-Status:
-
-- `503 Service Unavailable`
-
-Body:
-
-```json
-{
-	"error": {
-		"message": "No inference backend configured. Set LLAMA_CPP_API_BASE or LLAMA_SERVER_RESPONSE_TEXT."
-	}
-}
-```
-
-### Unknown Path
-
-Status:
-
-- `404 Not Found`
-
-Body:
-
-```json
-{
-	"error": {
-		"message": "Not found"
-	}
-}
-```
+<!-- 한국어 설명: 현재 detoks는 로컬 auto-start 서버 앞에 별도 인증 계층을 두지 않습니다. 필요한 경우 요청 헤더 전달만 지원하고, 서버 쪽 인증 설정은 외부에서 맞춰야 합니다. -->
 
 ---
 
@@ -347,10 +245,12 @@ The current TypeScript client assumes:
 - Request path is `chat/completions`
 - Response contains `choices[0].message.content`
 - `message.content` may be either a string or an array of `{ text: string }`
+- `GET /health` returns `200 OK` when the server is usable
+- `GET /v1/models` exposes the loaded model id or alias
 
-This means the Python server must preserve OpenAI-compatible response semantics at this boundary.
+This means the prebuilt `llama-server` process must preserve OpenAI-compatible response semantics at this boundary.
 
-<!-- 한국어 설명: TypeScript는 `choices[0].message.content`를 직접 파싱하므로, Python 서버는 이 응답 구조를 깨면 안 됩니다. -->
+<!-- 한국어 설명: TypeScript는 `choices[0].message.content`와 `/v1/models` 결과를 직접 해석하므로, prebuilt `llama-server`는 이 경계의 호환성을 깨면 안 됩니다. -->
 
 ---
 
@@ -361,10 +261,10 @@ The following are intentionally not specified yet:
 - streaming chunk format
 - token counting accuracy
 - prompt truncation policy
-- context window policy
+- context window policy beyond `LOCAL_LLM_CONTEXT_SIZE`
 - concurrency limits
-- retry policy inside the Python server
-- advanced local llama.cpp process supervision
+- remote server auth negotiation beyond a forwarded bearer token
+- proxy or mock modes from the removed Python wrapper
 - automatic GGUF file discovery rules beyond explicit path, URL, or Hugging Face repo
 
-<!-- 한국어 설명: 위 항목들은 아직 팀 차원의 계약이 없으므로, 이후 필요할 때 별도 명세로 고정해야 합니다. -->
+<!-- 한국어 설명: 위 항목들은 아직 팀 차원의 고정 계약이 아니므로, 필요해지면 별도 명세로 추가해야 합니다. -->

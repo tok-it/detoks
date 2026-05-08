@@ -47,8 +47,8 @@ npm run add:py:dev -- <package>
 Examples:
 
 ```bash
-npm run add:py -- pydantic
-npm run add:py:dev -- pytest
+npm run add:py -- "headroom-ai[ml]"
+npm run add:py:dev -- ruff
 ```
 
 <!-- 한국어 설명: Python은 pip install만으로는 pyproject.toml이 갱신되지 않으므로, 공통 명령을 통해 선언과 설치를 함께 관리합니다. -->
@@ -56,9 +56,9 @@ npm run add:py:dev -- pytest
 ## Rules
 
 - Do not create extra `package.json` files under `src/*`.
-- Do not create extra `pyproject.toml` files under `python/llama-server/*`.
+- Do not create extra `pyproject.toml` files under `python/*`.
 - If a dependency is shared by multiple TypeScript modules, add it once at the root.
-- If a dependency is needed only for llama-server Python work, still add it to the root `pyproject.toml`.
+- If a dependency is needed only for Python worker support, still add it to the root `pyproject.toml`.
 
 <!-- 한국어 설명: 언어별 의존성은 루트에서만 선언하고, 역할별 하위 폴더에는 별도 패키지 기준 파일을 만들지 않는 것이 팀 규칙입니다. -->
 
