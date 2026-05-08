@@ -722,17 +722,7 @@ export class TranscriptPanel {
       }
 
       const prefix =
-        entry.kind === "tool"
-          ? "[tool] "
-          : entry.kind === "validation"
-            ? "[validation] "
-          : entry.kind === "git"
-            ? "[git] "
-          : entry.kind === "edit"
-            ? "[edit] "
-          : entry.kind === "final"
-              ? "[final] "
-            : entry.kind === "recap"
+        entry.kind === "recap"
               ? "[recap] "
               : entry.kind === "diagnostic"
                 ? "[ERR] "
@@ -740,21 +730,11 @@ export class TranscriptPanel {
       const line = truncateLine(`${prefix}${entry.text}`, usableWidth);
       const displayLine = isEmptyState
         ? colors.muted(line)
-        : entry.kind === "tool"
-          ? colors.info(line)
-          : entry.kind === "validation"
-            ? colors.warning(line)
-          : entry.kind === "git"
-            ? colors.header(line)
-          : entry.kind === "edit"
-            ? colors.success(line)
-          : entry.kind === "final"
-              ? colors.header(line)
-            : entry.kind === "recap"
-              ? colors.info(line)
-            : entry.kind === "diagnostic"
-                ? colors.error(line)
-                : line;
+        : entry.kind === "diagnostic"
+          ? colors.error(line)
+          : entry.kind === "recap"
+            ? colors.info(line)
+            : line;
 
       screen.cursorMoveTo(currentRow, 0);
       screen.write(displayLine);

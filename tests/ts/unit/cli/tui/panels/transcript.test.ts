@@ -123,16 +123,12 @@ describe("TranscriptPanel", () => {
       const output = mockScreen.write.mock.calls
         .map((c: any) => c[0])
         .join("\n");
-      expect(output).toContain("[tool]");
       expect(output).toContain("/bin/zsh -lc 'pwd' · /tmp/workdir");
-      expect(output).toContain("[edit]");
       expect(output).toContain("transcript.ts");
-      expect(output).toContain("[final]");
       expect(output).toContain("Done");
       expect(output).not.toContain("thread.started");
       expect(output).not.toContain("turn.started");
       expect(output).not.toContain("turn.completed");
-      expect(output).not.toContain("exec:");
       expect(output).not.toContain("changes:");
       expect(output).not.toContain("\u001b");
     });
@@ -153,10 +149,10 @@ describe("TranscriptPanel", () => {
         .map((c: any) => c[0])
         .join("\n");
 
-      expect(output).toContain("[validation]");
       expect(output).toContain("npm run typecheck · ok");
-      expect(output).toContain("[git]");
       expect(output).toContain("git push origin dev · pushed");
+      expect(output).not.toContain("[validation]");
+      expect(output).not.toContain("[git]");
     });
 
     it("hides generic tool started events and keeps completion summaries", () => {
@@ -175,7 +171,6 @@ describe("TranscriptPanel", () => {
         .map((c: any) => c[0])
         .join("\n");
 
-      expect(output).toContain("[tool]");
       expect(output).toContain("mcp tool call: done");
       expect(output).not.toContain("started");
     });
@@ -441,9 +436,9 @@ describe("TranscriptPanel", () => {
       const output = mockScreen.write.mock.calls
         .map((c: any) => c[0])
         .join("\n");
-      expect(output).toContain("[edit]");
       expect(output).toContain("src/cli/tui/panels/transcript.ts");
       expect(output).toContain("notes.txt");
+      expect(output).not.toContain("[edit]");
     });
   });
 
