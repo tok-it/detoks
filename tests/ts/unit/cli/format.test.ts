@@ -76,7 +76,7 @@ describe("formatSuccess", () => {
 
     expect(formatted).toContain("토큰 절감");
     expect(formatted).toContain("입력");
-    expect(formatted).toContain("출력");
+    expect(formatted).toContain("작업 결과 요약");
     expect(formatted).toContain("기준");
     expect(formatted).toContain("o200k_base");
   });

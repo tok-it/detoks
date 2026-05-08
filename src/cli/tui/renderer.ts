@@ -26,6 +26,7 @@ export interface FooterContext {
   adapter: string;
   adapterModel?: string | undefined;
   inferenceStrength?: string | undefined;
+  tokenSavings?: string | undefined;
   cwd: string;
 }
 
@@ -152,6 +153,7 @@ export const buildFooterText = (columns: number, footer: FooterContext): string 
     footer.adapter,
     footer.adapterModel,
     footer.adapter === "codex" ? footer.inferenceStrength : undefined,
+    footer.tokenSavings,
     footer.cwd,
   ].filter((value): value is string => Boolean(value));
 
@@ -168,14 +170,34 @@ export const buildFooterText = (columns: number, footer: FooterContext): string 
     return finalizeFooter(fullText);
   }
 
-  const compactText = `${footer.adapter} | ${footer.cwd}`;
+  const compactText = footer.tokenSavings
+    ? `${footer.adapter} | ${footer.tokenSavings} | ${footer.cwd}`
+    : `${footer.adapter} | ${footer.cwd}`;
   if (measureDisplayWidth(compactText) <= innerColumns) {
     return finalizeFooter(compactText);
   }
 
+  const tokenAwareCwdBudget = footer.tokenSavings
+    ? Math.max(
+        0,
+        innerColumns -
+          measureDisplayWidth(footer.adapter) -
+          measureDisplayWidth(footer.tokenSavings) -
+          6,
+      )
+    : Math.max(0, innerColumns - measureDisplayWidth(footer.adapter) - 3);
+  const tokenAwareShortenedCwd = ellipsizeLeft(footer.cwd, tokenAwareCwdBudget);
+  let line = footer.tokenSavings
+    ? `${footer.adapter} | ${footer.tokenSavings} | ${tokenAwareShortenedCwd}`
+    : `${footer.adapter} | ${tokenAwareShortenedCwd}`;
+
+  if (measureDisplayWidth(line) <= innerColumns) {
+    return finalizeFooter(line);
+  }
+
   const cwdBudget = Math.max(0, innerColumns - measureDisplayWidth(footer.adapter) - 3);
   const shortenedCwd = ellipsizeLeft(footer.cwd, cwdBudget);
-  let line = `${footer.adapter} | ${shortenedCwd}`;
+  line = `${footer.adapter} | ${shortenedCwd}`;
 
   if (measureDisplayWidth(line) <= innerColumns) {
     return finalizeFooter(line);

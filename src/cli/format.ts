@@ -165,7 +165,7 @@ function formatResultHuman(result: CliExecutionResult, ok: boolean): string {
       "",
       colors.header("토큰 절감"),
       `${colors.bullet} ${colors.muted("입력")} ${formatTokenReductionSnapshot(result.tokenMetrics.input)}`,
-      `${colors.bullet} ${colors.muted("출력")} ${formatTokenReductionSnapshot(result.tokenMetrics.output)}`,
+      `${colors.bullet} ${colors.muted("작업 결과 요약")} ${formatTokenReductionSnapshot(result.tokenMetrics.output)}`,
       `${colors.bullet} ${colors.muted("기준")} ${result.tokenMetrics.model}`,
     );
   }
@@ -421,7 +421,7 @@ const formatHomeSessionPreview = (
       ? `   ${colors.info("입력 토큰 절감:")} ${formatTokenReductionSnapshot(session.tokenMetrics.input)}`
       : null,
     session.tokenMetrics
-      ? `   ${colors.info("출력 토큰 절감:")} ${formatTokenReductionSnapshot(session.tokenMetrics.output)}`
+      ? `   ${colors.info("작업 결과 요약 절감:")} ${formatTokenReductionSnapshot(session.tokenMetrics.output)}`
       : null,
     session.tokenMetrics
       ? `   ${colors.muted("기준:")} ${colors.muted(session.tokenMetrics.model)}`
@@ -484,7 +484,7 @@ const formatSessionListRow = (
       ? `   ${colors.info("입력 토큰 절감:")} ${formatTokenReductionSnapshot(session.tokenMetrics.input)}`
       : null,
     session.tokenMetrics
-      ? `   ${colors.info("출력 토큰 절감:")} ${formatTokenReductionSnapshot(session.tokenMetrics.output)}`
+      ? `   ${colors.info("작업 결과 요약 절감:")} ${formatTokenReductionSnapshot(session.tokenMetrics.output)}`
       : null,
     session.tokenMetrics
       ? `   ${colors.muted("기준:")} ${colors.muted(session.tokenMetrics.model)}`

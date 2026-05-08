@@ -24,6 +24,8 @@ import type {
   PipelineStageStatus,
   TaskExecutionRecord,
 } from "./types.js";
+import { createActionTimelineEvent } from "../timeline/types.js";
+import type { ActionTimelineEvent } from "../timeline/types.js";
 
 const ADAPTER_MODEL_MAP: Record<string, string> = {
   claude: 'claude-3.5-sonnet',
@@ -314,8 +316,22 @@ export const orchestratePipeline = async (
 ): Promise<PipelineExecutionResult> => {
   const sessionId = request.userRequest.session_id ?? generateSessionId();
   const progressLog: PipelineProgressLog[] = [];
+  const actionTimeline: ActionTimelineEvent[] = [];
   let adapterTranscript: PtyTranscript | undefined;
   PipelineTracer.clear();
+
+  const emitActionTimelineWithLogging = async (event: ActionTimelineEvent): Promise<void> => {
+    actionTimeline.push(event);
+    if (!request.onActionTimelineEvent) {
+      return;
+    }
+
+    try {
+      await request.onActionTimelineEvent(event);
+    } catch {
+      // Timeline callbacks must not break the pipeline.
+    }
+  };
 
   // Progress 이벤트 수집 및 콜백 호출
   const emitProgressWithLogging = async (event: PipelineProgressEvent): Promise<void> => {
@@ -325,6 +341,14 @@ export const orchestratePipeline = async (
       message: event.message,
       timestamp: Date.now(),
     });
+    const timelineEvent = createActionTimelineEvent({
+      kind: "stage_update",
+      source: "pipeline",
+      stage: event.stage,
+      summary: `${event.stage}: ${event.status} · ${event.message}`,
+      rawPayload: event,
+    });
+    await emitActionTimelineWithLogging(timelineEvent);
     if (request.onProgress) {
       request.onProgress(event);
     }
@@ -401,6 +425,7 @@ export const orchestratePipeline = async (
       rawOutput: errorMessage,
       sessionId,
       taskRecords: [],
+      ...(actionTimeline.length ? { actionTimeline } : {}),
       ...(request.trace ? { traceLog: PipelineTracer.getTrace(sessionId) } : {}),
       ...(traceFilePath ? { traceFilePath } : {}),
     };
@@ -431,6 +456,15 @@ export const orchestratePipeline = async (
     sessionId, stage: "DAGValidator", role: "role2.1", phase: "output",
     dataType: "DAGValidationResult", data: validation,
   });
+  const validationEvent = createActionTimelineEvent({
+    kind: "validation",
+    source: "validation",
+    summary: validation.valid
+      ? `작업 그래프 검증 통과 (${graph.tasks.length}개 작업)`
+      : `작업 그래프 검증 실패: ${validation.reason}`,
+    rawPayload: validation,
+  });
+    await emitActionTimelineWithLogging(validationEvent);
   if (!validation.valid) {
     logger.error(`DAG 검증 실패: ${translateVisibleText(validation.reason)} — ${translateVisibleText(validation.detail)}`);
     const traceFilePath = request.trace
@@ -453,6 +487,7 @@ export const orchestratePipeline = async (
       promptInferenceTimeSec: compiledPrompt.inference_time_sec ?? 0,
       promptValidationErrors: compiledPrompt.validation_errors ?? [],
       promptRepairActions: compiledPrompt.repair_actions ?? [],
+      ...(actionTimeline.length ? { actionTimeline } : {}),
       ...(request.trace ? { traceLog: PipelineTracer.getTrace(sessionId) } : {}),
       ...(traceFilePath ? { traceFilePath } : {}),
     };
@@ -640,6 +675,7 @@ export const orchestratePipeline = async (
         ...(request.userRequest.cwd ? { cwd: request.userRequest.cwd } : {}),
         sessionId,
         ...(request.onAdapterEvent ? { onAdapterEvent: request.onAdapterEvent } : {}),
+        onActionTimelineEvent: emitActionTimelineWithLogging,
       });
       adapterTranscript = mergePtyTranscripts(adapterTranscript, execResult.transcript);
 
@@ -776,6 +812,7 @@ export const orchestratePipeline = async (
     promptInferenceTimeSec: compiledPrompt.inference_time_sec ?? 0,
     promptValidationErrors: compiledPrompt.validation_errors ?? [],
     promptRepairActions: compiledPrompt.repair_actions ?? [],
+    ...(actionTimeline.length ? { actionTimeline } : {}),
     ...(request.trace ? { traceLog: PipelineTracer.getTrace(sessionId) } : {}),
     ...(traceFilePath ? { traceFilePath } : {}),
     progressLog, // detoks 내부 진행 로그

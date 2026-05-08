@@ -1,12 +1,13 @@
 import type { RenderContext } from "../renderer.js";
 import type { PanelRegion } from "../layout-manager.js";
 import type { PtyEvent } from "../../../integrations/subprocess/types.js";
+import type { ActionTimelineEvent } from "../../../core/timeline/types.js";
 import { getContentArea, getPanelHeight } from "../layout-manager.js";
 import { colors } from "../../colors.js";
 
 const EMPTY_TRANSCRIPT_LINES = [
   "실행 기록이 아직 없습니다.",
-  "첫 프롬프트를 입력하면 도구 호출, 파일 변경, 최종 답변이 이 영역에 표시됩니다.",
+  "명령을 실행하면 원본 CLI 출력이 이 영역에 표시됩니다.",
   "↑/↓ 로 이전 출력 스크롤",
 ] as const;
 
@@ -63,7 +64,7 @@ const truncateLine = (line: string, maxWidth: number): string => {
   return `${line.slice(0, maxWidth - 3)}...`;
 };
 
-type TranscriptEntryKind = "tool" | "edit" | "final" | "diagnostic" | "raw";
+type TranscriptEntryKind = "tool" | "validation" | "git" | "edit" | "final" | "diagnostic" | "recap" | "raw";
 
 interface TranscriptEntry {
   kind: TranscriptEntryKind;
@@ -72,6 +73,8 @@ interface TranscriptEntry {
 
 type ClassifiedLine =
   | { kind: "tool"; text: string }
+  | { kind: "validation"; text: string }
+  | { kind: "git"; text: string }
   | { kind: "edit"; text: string }
   | { kind: "final"; text: string }
   | { kind: "diagnostic"; text: string }
@@ -224,36 +227,70 @@ const summarizeText = (text: string, maxLines = 3): string => {
 const summarizeCommand = (command: string): string =>
   sanitizeText(command).replace(/\s+/g, " ").trim();
 
-const summarizeCommandExecution = (
+const isValidationCommand = (command: string): boolean =>
+  /\b(npm run (typecheck|build|lint)|vitest|npm test|pnpm test|yarn test|bun test|tsc)\b/i.test(command);
+
+const isGitCommand = (command: string): boolean =>
+  /\bgit\b\s+(add|commit|push|status|diff|checkout|merge|rebase)\b/i.test(command);
+
+const classifyCommandExecution = (
   item: Record<string, unknown>,
   phase: string,
-): string | null => {
+): ClassifiedLine | null => {
   const command = getStringField(item, ["command"]);
   const commandSummary = command ? summarizeCommand(command) : null;
-
-  if (phase === "started") {
-    return commandSummary ? `exec: ${commandSummary}` : "exec";
-  }
-
   const exitCode = getNumberField(item, ["exit_code", "exitCode"]);
   const output = summarizeText(
     getStringField(item, ["aggregated_output", "output", "stdout", "result", "text"]) ??
       extractJsonText(item) ??
       "",
   );
-
   const resultSummary = exitCode === null ? "done" : `exit ${exitCode}`;
-  if (output.length > 0) {
-    return `${resultSummary} · ${output}`;
+
+  if (phase !== "completed" && phase !== "updated" && phase !== "progress") {
+    return null;
   }
 
-  return resultSummary;
+  if (command && isValidationCommand(command)) {
+    return {
+      kind: "validation",
+      text: commandSummary
+        ? `${commandSummary} · ${output.length > 0 ? output : resultSummary}`
+        : output.length > 0
+          ? output
+          : resultSummary,
+    };
+  }
+
+  if (command && isGitCommand(command)) {
+    return {
+      kind: "git",
+      text: commandSummary
+        ? `${commandSummary} · ${output.length > 0 ? output : resultSummary}`
+        : output.length > 0
+          ? output
+          : resultSummary,
+    };
+  }
+
+  const toolText =
+    commandSummary
+      ? `${commandSummary} · ${output.length > 0 ? output : resultSummary}`
+      : output.length > 0
+        ? output
+        : resultSummary;
+
+  return toolText ? { kind: "tool", text: toolText } : null;
 };
 
 const summarizeFileChange = (
   item: Record<string, unknown>,
   phase: string,
 ): string | null => {
+  if (phase !== "completed" && phase !== "updated" && phase !== "progress") {
+    return null;
+  }
+
   const changes = getArrayField(item, "changes");
   const changeSummaries = (changes ?? [])
     .map((change) => {
@@ -286,10 +323,10 @@ const summarizeFileChange = (
       : getStringField(item, ["path", "filePath", "file_name", "filename"]) ?? "";
 
   if (summary.length === 0) {
-    return phase === "completed" ? "파일 변경 완료" : "파일 변경 중";
+    return "파일 변경 완료";
   }
 
-  return phase === "completed" ? `applied: ${summary}` : `changes: ${summary}`;
+  return `applied: ${summary}`;
 };
 
 const summarizeToolItem = (
@@ -297,22 +334,22 @@ const summarizeToolItem = (
   phase: string,
   itemType: string,
 ): string | null => {
-  if (itemType === "command_execution") {
-    return summarizeCommandExecution(item, phase);
-  }
-
   const label = itemType.replaceAll("_", " ").trim();
-  const summary =
-    summarizeText(
-      getStringField(item, ["title", "name", "summary", "text", "output"]) ??
-        extractJsonText(item) ??
-        "",
-      2,
-    ) || "";
 
   if (phase === "started") {
-    return summary.length > 0 ? `${label}: ${summary}` : `${label}: started`;
+    return null;
   }
+
+  const summarySource =
+    phase === "completed" || phase === "updated" || phase === "progress"
+      ? getStringField(item, ["output", "result", "text", "summary", "title", "name"]) ??
+        extractJsonText(item) ??
+        ""
+      : getStringField(item, ["title", "name", "summary", "text", "output"]) ??
+        extractJsonText(item) ??
+        "";
+
+  const summary = summarizeText(summarySource, 2) || "";
 
   if (phase === "completed" || phase === "updated" || phase === "progress") {
     return summary.length > 0 ? `${label}: ${summary}` : `${label}: done`;
@@ -370,9 +407,25 @@ const classifyJsonLine = (line: string): ClassifiedLine | null => {
 
     if (item) {
       if (isToolItemType(itemType)) {
-        const toolText = summarizeToolItem(item, phase, itemType) ?? text;
+        if (itemType === "command_execution") {
+          const commandExecution = classifyCommandExecution(item, phase);
+          if (commandExecution) {
+            return commandExecution;
+          }
+          return null;
+        }
+
+        const toolText = summarizeToolItem(item, phase, itemType);
         if (toolText) {
           return { kind: "tool", text: toolText };
+        }
+
+        if (phase === "started") {
+          return null;
+        }
+
+        if (text) {
+          return { kind: "tool", text };
         }
       }
 
@@ -547,6 +600,24 @@ export class TranscriptPanel {
     }
   }
 
+  appendTurnRecap(event: ActionTimelineEvent): void {
+    if (event.kind !== "turn_recap") {
+      return;
+    }
+
+    this.commitPendingFinalText();
+    const lines = event.details && event.details.length > 0
+      ? [event.summary, ...event.details]
+      : [event.summary];
+
+    for (const line of lines) {
+      const normalized = sanitizeText(line);
+      if (normalized.length > 0) {
+        this.pushEntry("recap", normalized);
+      }
+    }
+  }
+
   append(chunk: string): void {
     const normalized = chunk.replace(/\r\n/g, "\n");
     const lines = normalized.split("\n");
@@ -651,27 +722,17 @@ export class TranscriptPanel {
       }
 
       const prefix =
-        entry.kind === "tool"
-          ? "[tool] "
-          : entry.kind === "edit"
-            ? "[edit] "
-            : entry.kind === "final"
-              ? "[final] "
-              : entry.kind === "diagnostic"
-                ? "[ERR] "
-                : "";
+        entry.kind === "recap"
+              ? "[recap] "
+              : "";
       const line = truncateLine(`${prefix}${entry.text}`, usableWidth);
       const displayLine = isEmptyState
         ? colors.muted(line)
-        : entry.kind === "tool"
-          ? colors.info(line)
-          : entry.kind === "edit"
-            ? colors.success(line)
-            : entry.kind === "final"
-              ? colors.header(line)
-              : entry.kind === "diagnostic"
-                ? colors.error(line)
-                : line;
+        : entry.kind === "diagnostic"
+          ? colors.error(line)
+          : entry.kind === "recap"
+            ? colors.info(line)
+            : line;
 
       screen.cursorMoveTo(currentRow, 0);
       screen.write(displayLine);

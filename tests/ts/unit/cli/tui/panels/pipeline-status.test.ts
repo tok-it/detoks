@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { PipelineStatusPanel } from "../../../../../../src/cli/tui/panels/pipeline-status.js";
 import type { PipelineProgressEvent } from "../../../../../../src/core/pipeline/types.js";
+import type { ActionTimelineEvent } from "../../../../../../src/core/timeline/types.js";
 
 describe("PipelineStatusPanel", () => {
   let panel: PipelineStatusPanel;
@@ -36,9 +37,9 @@ describe("PipelineStatusPanel", () => {
 
       expect(mockScreen.write).toHaveBeenCalled();
       const calls = mockScreen.write.mock.calls;
-      // Should contain the completed stage indicator (✓)
+      // Should contain the completed stage indicator (blue circle)
       const output = calls.map((c: any) => c[0]).join("\n");
-      expect(output).toContain("✓");
+      expect(output).toContain("●");
       expect(output).toContain("Prompt Compiler");
     });
 
@@ -61,7 +62,7 @@ describe("PipelineStatusPanel", () => {
       const output = mockScreen.write.mock.calls
         .map((c: any) => c[0])
         .join("\n");
-      expect(output).toContain("✗");
+      expect(output).toContain("●");
       expect(output).toContain("Task Graph Builder");
     });
 
@@ -78,7 +79,7 @@ describe("PipelineStatusPanel", () => {
       const output = mockScreen.write.mock.calls
         .map((c: any) => c[0])
         .join("\n");
-      expect(output).toContain("↷");
+      expect(output).toContain("○");
     });
 
     it("supports info status", () => {
@@ -94,7 +95,103 @@ describe("PipelineStatusPanel", () => {
       const output = mockScreen.write.mock.calls
         .map((c: any) => c[0])
         .join("\n");
-      expect(output).toContain("·");
+      expect(output).toContain("●");
+    });
+  });
+
+  describe("updateActionTimelineEvent", () => {
+    it("renders a derived work state line", () => {
+      const event: ActionTimelineEvent = {
+        kind: "stage_update",
+        source: "pipeline",
+        stage: "Executor",
+        summary: "Executor: start · Executor 실행 중",
+        timestamp: Date.now(),
+      };
+
+      panel.updateActionTimelineEvent(event);
+      panel.render(mockContext, mockRegion);
+
+      const output = mockScreen.write.mock.calls
+        .map((c: any) => c[0])
+        .join("\n");
+
+      expect(output).toContain("● Editing");
+      expect(output).toContain("Executor: start · Executor 실행 중");
+    });
+
+    it("derives Inspecting from read-only tool calls", () => {
+      const event: ActionTimelineEvent = {
+        kind: "tool_call",
+        source: "adapter",
+        summary: "exec: rg -n foo src",
+        timestamp: Date.now(),
+      };
+
+      panel.updateActionTimelineEvent(event);
+      panel.render(mockContext, mockRegion);
+
+      const output = mockScreen.write.mock.calls
+        .map((c: any) => c[0])
+        .join("\n");
+
+      expect(output).toContain("● Inspecting");
+      expect(output).toContain("rg -n foo src");
+    });
+
+    it("derives Waiting for CI after a successful git push", () => {
+      const event: ActionTimelineEvent = {
+        kind: "tool_result",
+        source: "git",
+        summary: "exit 0 · pushed",
+        timestamp: Date.now(),
+        rawPayload: {
+          type: "item.completed",
+          item: {
+            type: "command_execution",
+            command: "git push origin dev",
+            status: "completed",
+            exit_code: 0,
+          },
+        },
+      };
+
+      panel.updateActionTimelineEvent(event);
+      panel.render(mockContext, mockRegion);
+
+      const output = mockScreen.write.mock.calls
+        .map((c: any) => c[0])
+        .join("\n");
+
+      expect(output).toContain("● Waiting for CI");
+      expect(output).toContain("exit 0 · pushed");
+    });
+
+    it("renders ALL BLUE when every stage succeeds", () => {
+      for (const stage of [
+        "Prompt Compiler",
+        "Task Graph Builder",
+        "Context Optimizer",
+        "Executor",
+        "State Manager",
+      ] as const) {
+        panel.update({
+          stage,
+          status: "end",
+          message: `${stage} 완료`,
+        });
+      }
+
+      panel.render(mockContext, mockRegion);
+
+      const output = mockScreen.write.mock.calls
+        .map((c: any) => c[0])
+        .join("\n");
+
+      expect(output).toContain("ALL BLUE");
+      expect(output).toContain("✓");
+      expect(output).toContain("● Prompt Compiler");
+      expect(output).toContain("● Task Graph Builder");
     });
   });
 
@@ -123,13 +220,13 @@ describe("PipelineStatusPanel", () => {
         .map((c: any) => c[0])
         .join("\n");
 
-      // Count bullet points (start status indicator)
-      const bulletCount = (output.match(/•/g) || []).length;
-      expect(bulletCount).toBeGreaterThan(0);
+      // Count waiting circles
+      const circleCount = (output.match(/●/g) || []).length;
+      expect(circleCount).toBeGreaterThan(0);
 
       // Shouldn't have error or success indicators
+      expect(output).not.toContain("ALL BLUE");
       expect(output).not.toContain("✓");
-      expect(output).not.toContain("✗");
     });
   });
 

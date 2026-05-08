@@ -2,12 +2,13 @@ import type { RenderContext } from "../renderer.js";
 import type { PanelRegion } from "../layout-manager.js";
 import type { PipelineExecutionResult } from "../../../core/pipeline/types.js";
 import type { TokenReductionSnapshot } from "../../../core/utils/tokenMetrics.js";
+import { getTurnRecapLines } from "../../../core/timeline/action-timeline.js";
 import { getContentArea } from "../layout-manager.js";
 import { colors } from "../../colors.js";
 
 const EMPTY_RESULT_LINES = [
   "실행 결과가 아직 없습니다.",
-  "첫 실행 이후 요약 · 다음 작업 · 토큰 절감이 이 영역에 표시됩니다.",
+  "첫 실행 이후 작업 타임라인 · 다음 작업 · 토큰 절감이 이 영역에 표시됩니다.",
 ] as const;
 
 const truncateLine = (line: string, maxWidth: number): string => {
@@ -61,12 +62,24 @@ export class ResultSummaryPanel {
     lines.push(`요약: ${this.result.summary}`);
     lines.push(`다음 작업: ${this.result.nextAction}`);
 
+    const turnRecap = [...(this.result.actionTimeline ?? [])]
+      .reverse()
+      .find((event) => event.kind === "turn_recap");
+
+    if (turnRecap) {
+      lines.push("");
+      lines.push("작업 타임라인");
+      for (const line of getTurnRecapLines(turnRecap)) {
+        lines.push(`  ${line}`);
+      }
+    }
+
     // Token metrics
     if (this.result.tokenMetrics) {
       lines.push("");
       lines.push("토큰 절감");
       lines.push(`  입력: ${this.formatTokenReduction(this.result.tokenMetrics.input)}`);
-      lines.push(`  출력: ${this.formatTokenReduction(this.result.tokenMetrics.output)}`);
+      lines.push(`  작업 결과 요약: ${this.formatTokenReduction(this.result.tokenMetrics.output)}`);
     }
 
     return lines;

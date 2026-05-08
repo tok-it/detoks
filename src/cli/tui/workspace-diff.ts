@@ -1,4 +1,8 @@
 import { spawnSync } from "node:child_process";
+import {
+  formatWorkspaceStatusEntry,
+  parseWorkspaceStatusLine,
+} from "../../core/timeline/workspace-status.js";
 
 export interface WorkspaceSnapshot {
   statusLines: string[];
@@ -42,7 +46,8 @@ export const diffWorkspaceSnapshots = (
 
   const lines = ["[WORKSPACE] 새로 바뀐 파일"];
   for (const line of newLines.slice(0, 12)) {
-    lines.push(`  ${line}`);
+    const parsed = parseWorkspaceStatusLine(line);
+    lines.push(`  ${parsed ? formatWorkspaceStatusEntry(parsed) : line.trimStart()}`);
   }
 
   if (newLines.length > 12) {

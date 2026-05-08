@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import { ResultSummaryPanel } from "../../../../../../src/cli/tui/panels/result-summary.js";
 import type { PipelineExecutionResult } from "../../../../../../src/core/pipeline/types.js";
 import type { TokenReductionSnapshot, TokenMetricsSnapshot } from "../../../../../../src/core/utils/tokenMetrics.js";
+import type { ActionTimelineEvent } from "../../../../../../src/core/timeline/types.js";
 
 const mockResult = (overrides: Partial<PipelineExecutionResult> = {}): PipelineExecutionResult => ({
   ok: true,
@@ -147,7 +148,7 @@ describe("ResultSummaryPanel", () => {
 
       const output = calls.map((c: any) => c[0]).join("\n");
       expect(output).toContain("실행 결과가 아직 없습니다.");
-      expect(output).toContain("다음 작업");
+      expect(output).toContain("작업 타임라인");
       expect(output).not.toContain("완료");
       expect(output).not.toContain("실패");
     });
@@ -212,7 +213,36 @@ describe("ResultSummaryPanel", () => {
 
       expect(output).toContain("토큰 절감");
       expect(output).toContain("입력");
-      expect(output).toContain("출력");
+      expect(output).toContain("작업 결과 요약");
+    });
+
+    it("renders the action timeline section from the recap event", () => {
+      const result = mockResult({
+        actionTimeline: [
+          {
+            kind: "turn_recap",
+            source: "detoks",
+            summary: "턴 종료 recap",
+            timestamp: Date.now(),
+            details: [
+              "요약: 1개 작업을 모두 완료했습니다",
+              "다음 작업: 파이프라인이 완료되었습니다.",
+            ],
+          } as ActionTimelineEvent,
+        ],
+      });
+
+      panel.setResult(result);
+      mockScreen.write.mockClear();
+      panel.render(mockContext, mockRegion);
+
+      const output = mockScreen.write.mock.calls
+        .map((c: any) => c[0])
+        .join("\n");
+
+      expect(output).toContain("작업 타임라인");
+      expect(output).toContain("턴 종료 recap");
+      expect(output).toContain("파이프라인이 완료되었습니다.");
     });
 
     it("omits token metrics section when not available", () => {
