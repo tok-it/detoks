@@ -233,31 +233,6 @@ const isValidationCommand = (command: string): boolean =>
 const isGitCommand = (command: string): boolean =>
   /\bgit\b\s+(add|commit|push|status|diff|checkout|merge|rebase)\b/i.test(command);
 
-const summarizeCommandExecution = (
-  item: Record<string, unknown>,
-  phase: string,
-): string | null => {
-  const command = getStringField(item, ["command"]);
-  const commandSummary = command ? summarizeCommand(command) : null;
-  const exitCode = getNumberField(item, ["exit_code", "exitCode"]);
-  const output = summarizeText(
-    getStringField(item, ["aggregated_output", "output", "stdout", "result", "text"]) ??
-      extractJsonText(item) ??
-      "",
-  );
-
-  if (phase === "started") {
-    return commandSummary ? `exec: ${commandSummary}` : "exec";
-  }
-
-  const resultSummary = exitCode === null ? "done" : `exit ${exitCode}`;
-  if (output.length > 0) {
-    return `${resultSummary} · ${output}`;
-  }
-
-  return resultSummary;
-};
-
 const classifyCommandExecution = (
   item: Record<string, unknown>,
   phase: string,
@@ -272,11 +247,11 @@ const classifyCommandExecution = (
   );
   const resultSummary = exitCode === null ? "done" : `exit ${exitCode}`;
 
-  if (command && isValidationCommand(command)) {
-    if (phase !== "completed" && phase !== "updated" && phase !== "progress") {
-      return null;
-    }
+  if (phase !== "completed" && phase !== "updated" && phase !== "progress") {
+    return null;
+  }
 
+  if (command && isValidationCommand(command)) {
     return {
       kind: "validation",
       text: commandSummary
@@ -288,10 +263,6 @@ const classifyCommandExecution = (
   }
 
   if (command && isGitCommand(command)) {
-    if (phase !== "completed" && phase !== "updated" && phase !== "progress") {
-      return null;
-    }
-
     return {
       kind: "git",
       text: commandSummary
@@ -303,12 +274,10 @@ const classifyCommandExecution = (
   }
 
   const toolText =
-    phase === "started"
-      ? commandSummary
-        ? `exec: ${commandSummary}`
-        : "exec"
+    commandSummary
+      ? `${commandSummary} · ${output.length > 0 ? output : resultSummary}`
       : output.length > 0
-        ? `${resultSummary} · ${output}`
+        ? output
         : resultSummary;
 
   return toolText ? { kind: "tool", text: toolText } : null;
@@ -318,6 +287,10 @@ const summarizeFileChange = (
   item: Record<string, unknown>,
   phase: string,
 ): string | null => {
+  if (phase !== "completed" && phase !== "updated" && phase !== "progress") {
+    return null;
+  }
+
   const changes = getArrayField(item, "changes");
   const changeSummaries = (changes ?? [])
     .map((change) => {
@@ -350,10 +323,10 @@ const summarizeFileChange = (
       : getStringField(item, ["path", "filePath", "file_name", "filename"]) ?? "";
 
   if (summary.length === 0) {
-    return phase === "completed" ? "파일 변경 완료" : "파일 변경 중";
+    return "파일 변경 완료";
   }
 
-  return phase === "completed" ? `applied: ${summary}` : `changes: ${summary}`;
+  return `applied: ${summary}`;
 };
 
 const summarizeToolItem = (
@@ -361,10 +334,6 @@ const summarizeToolItem = (
   phase: string,
   itemType: string,
 ): string | null => {
-  if (itemType === "command_execution") {
-    return summarizeCommandExecution(item, phase);
-  }
-
   const label = itemType.replaceAll("_", " ").trim();
   const summary =
     summarizeText(
@@ -439,6 +408,7 @@ const classifyJsonLine = (line: string): ClassifiedLine | null => {
           if (commandExecution) {
             return commandExecution;
           }
+          return null;
         }
 
         const toolText = summarizeToolItem(item, phase, itemType) ?? text;

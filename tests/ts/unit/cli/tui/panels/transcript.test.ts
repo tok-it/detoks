@@ -124,8 +124,7 @@ describe("TranscriptPanel", () => {
         .map((c: any) => c[0])
         .join("\n");
       expect(output).toContain("[tool]");
-      expect(output).toContain("exec:");
-      expect(output).toContain("exit 0");
+      expect(output).toContain("/bin/zsh -lc 'pwd' · /tmp/workdir");
       expect(output).toContain("[edit]");
       expect(output).toContain("transcript.ts");
       expect(output).toContain("[final]");
@@ -133,6 +132,8 @@ describe("TranscriptPanel", () => {
       expect(output).not.toContain("thread.started");
       expect(output).not.toContain("turn.started");
       expect(output).not.toContain("turn.completed");
+      expect(output).not.toContain("exec:");
+      expect(output).not.toContain("changes:");
       expect(output).not.toContain("\u001b");
     });
 
