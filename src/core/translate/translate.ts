@@ -246,6 +246,9 @@ async function translate_span(
 			timeout_ms: options.config.requestTimeout,
 		},
 		{
+			...(options.config.localLlmRuntimeProvider
+				? { localLlmRuntimeProvider: options.config.localLlmRuntimeProvider }
+				: {}),
 			...(options.config.localLlmApiBase
 				? { apiBase: options.config.localLlmApiBase }
 				: {}),
@@ -254,6 +257,36 @@ async function translate_span(
 				: {}),
 			...(options.config.localLlmModelName
 				? { localLlmModelName: options.config.localLlmModelName }
+				: {}),
+			...(options.config.localLlmModelDir
+				? { localLlmModelDir: options.config.localLlmModelDir }
+				: {}),
+			...(options.config.localLlmModelPath
+				? { localLlmModelPath: options.config.localLlmModelPath }
+				: {}),
+			...(options.config.localLlmHfRepo
+				? { localLlmHfRepo: options.config.localLlmHfRepo }
+				: {}),
+			...(options.config.localLlmHfFile
+				? { localLlmHfFile: options.config.localLlmHfFile }
+				: {}),
+			...(options.config.localLlmDevice
+				? { localLlmDevice: options.config.localLlmDevice }
+				: {}),
+			...(options.config.localLlmGpuLayers
+				? { localLlmGpuLayers: options.config.localLlmGpuLayers }
+				: {}),
+			...(options.config.localLlmContextSize
+				? { localLlmContextSize: options.config.localLlmContextSize }
+				: {}),
+			...(options.config.localLlmTopK !== undefined
+				? { localLlmTopK: options.config.localLlmTopK }
+				: {}),
+			...(options.config.localLlmTopP !== undefined
+				? { localLlmTopP: options.config.localLlmTopP }
+				: {}),
+			...(options.config.localLlmMaxTokens !== undefined
+				? { localLlmMaxTokens: options.config.localLlmMaxTokens }
 				: {}),
 			...(options.fetchImplementation
 				? { fetchImplementation: options.fetchImplementation }

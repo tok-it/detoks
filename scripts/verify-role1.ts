@@ -277,6 +277,17 @@ function calculateTokenReductionRate(
   );
 }
 
+function resolveRuntimeApiBaseLabel(
+  runtimeProvider: RuntimeProvider | undefined,
+  apiBase: string | undefined,
+): string {
+  if (runtimeProvider === "node-llama-cpp") {
+    return "(unused: in-process runtime)";
+  }
+
+  return apiBase ?? "(not set)";
+}
+
 async function main(): Promise<void> {
   const options = parseArgs(process.argv.slice(2));
   const scriptEnv = buildScriptEnv(options);
@@ -293,7 +304,10 @@ async function main(): Promise<void> {
           runtime_provider:
             runtimeConfig.localLlmRuntimeProvider ?? "(not set)",
           model: runtimeConfig.localLlmModelName ?? "(not set)",
-          api_base: runtimeConfig.localLlmApiBase ?? "(not set)",
+          api_base: resolveRuntimeApiBaseLabel(
+            runtimeConfig.localLlmRuntimeProvider,
+            runtimeConfig.localLlmApiBase,
+          ),
           api_key: maskApiKey(runtimeConfig.localLlmApiKey),
           pipeline_mode: options.debug ? "debug" : runtimeConfig.pipelineMode,
           input_count: inputs.length,

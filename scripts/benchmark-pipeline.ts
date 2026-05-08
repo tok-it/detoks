@@ -134,6 +134,17 @@ export function buildScriptEnv(
   };
 }
 
+function resolveRuntimeApiBaseLabel(
+  runtimeProvider: RuntimeProvider | undefined,
+  apiBase: string | undefined,
+): string {
+  if (runtimeProvider === 'node-llama-cpp') {
+    return '(unused: in-process runtime)';
+  }
+
+  return apiBase ?? '(not set)';
+}
+
 let _enc: ReturnType<typeof get_encoding> | null = null;
 function countTokens(text: string): number {
   try {
@@ -234,7 +245,10 @@ async function runBenchmark(args: BenchmarkArgs): Promise<BenchmarkResult> {
     runtime: {
       provider: runtimeConfig.localLlmRuntimeProvider ?? 'llama-server',
       model: runtimeConfig.localLlmModelName ?? '(not set)',
-      api_base: runtimeConfig.localLlmApiBase ?? '(not set)',
+      api_base: resolveRuntimeApiBaseLabel(
+        runtimeConfig.localLlmRuntimeProvider,
+        runtimeConfig.localLlmApiBase,
+      ),
     },
     compression: {
       input_tokens_before: inputTokensBefore,

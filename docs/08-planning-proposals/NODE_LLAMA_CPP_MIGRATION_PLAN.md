@@ -1,5 +1,12 @@
 # node-llama-cpp 전환 설계안
 
+> 상태 메모
+>
+> 이 문서는 초기 설계 검토 기록이다.
+> 현재 detoks 구현은 여기서 한때 권장했던 `Node sidecar + HTTP 유지`가 아니라,
+> `src/core/llm-client/node-llama-runtime.ts`를 통한 **in-process 직접 호출**로 정리됐다.
+> 아래의 sidecar 관련 내용은 폐기된 대안 또는 검토 이력으로 읽어야 한다.
+
 ## 목적
 
 detoks의 Role 1 로컬 추론 경로를 외부 prebuilt `llama-server` 바이너리 기반에서 `node-llama-cpp` 기반으로 전환한다.
