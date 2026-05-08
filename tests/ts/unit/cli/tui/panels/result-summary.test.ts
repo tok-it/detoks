@@ -212,7 +212,7 @@ describe("ResultSummaryPanel", () => {
 
       expect(output).toContain("토큰 절감");
       expect(output).toContain("입력");
-      expect(output).toContain("출력");
+      expect(output).toContain("작업 결과 요약");
     });
 
     it("omits token metrics section when not available", () => {

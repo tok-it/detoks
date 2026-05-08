@@ -66,7 +66,7 @@ export class ResultSummaryPanel {
       lines.push("");
       lines.push("토큰 절감");
       lines.push(`  입력: ${this.formatTokenReduction(this.result.tokenMetrics.input)}`);
-      lines.push(`  출력: ${this.formatTokenReduction(this.result.tokenMetrics.output)}`);
+      lines.push(`  작업 결과 요약: ${this.formatTokenReduction(this.result.tokenMetrics.output)}`);
     }
 
     return lines;
