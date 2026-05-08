@@ -2,28 +2,30 @@ import { get_encoding } from "tiktoken";
 
 export const TOKEN_METRIC_MODEL = "o200k_base" as const;
 
-export type SupportedEncoderType = 'o200k_base' | 'cl100k_base' | 'approximate';
-type TiktokenEncoderType = Exclude<SupportedEncoderType, 'approximate'>;
+export type SupportedEncoderType = 'o200k_base' | 'cl100k_base' | 'gpt2';
 type TiktokenEncoder = ReturnType<typeof get_encoding>;
 
 const encoderCache = new Map<string, TiktokenEncoder>();
 
-export function getTokenEncoder(encoderType: TiktokenEncoderType): TiktokenEncoder {
+export function getTokenEncoder(encoderType: SupportedEncoderType): TiktokenEncoder {
   const cached = encoderCache.get(encoderType);
   if (cached) return cached;
 
-  const encoder = get_encoding(encoderType);
-  encoderCache.set(encoderType, encoder);
-  return encoder;
+  try {
+    const encoder = get_encoding(encoderType);
+    encoderCache.set(encoderType, encoder);
+    return encoder;
+  } catch {
+    const fallback = get_encoding('o200k_base');
+    encoderCache.set(encoderType, fallback);
+    return fallback;
+  }
 }
 
 export function countTokensWithEncoder(
   text: string,
   encoderType: SupportedEncoderType = 'o200k_base',
 ): number {
-  if (encoderType === 'approximate') {
-    return Math.ceil(text.length / 4);
-  }
   try {
     return getTokenEncoder(encoderType).encode(text).length;
   } catch {

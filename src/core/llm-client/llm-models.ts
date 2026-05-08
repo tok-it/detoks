@@ -2,7 +2,7 @@ export interface LLMModelConfig {
   modelName: string;
   provider: 'anthropic' | 'openai' | 'google';
   contextWindowTokens: number;
-  tokenEncoderType: 'o200k_base' | 'cl100k_base' | 'approximate';
+  tokenEncoderType: 'o200k_base' | 'cl100k_base' | 'gpt2';
   reservedTokens: {
     systemPrompt: number;
     outputBuffer: number;
@@ -66,14 +66,14 @@ export const LLM_MODELS: Record<string, LLMModelConfig> = {
     modelName: 'gemini-2.0-flash',
     provider: 'google',
     contextWindowTokens: 1000000,
-    tokenEncoderType: 'approximate',
+    tokenEncoderType: 'gpt2',
     reservedTokens: { systemPrompt: 500, outputBuffer: 8000, safetyMargin: 1000 },
   },
   'gemini-pro': {
     modelName: 'gemini-pro',
     provider: 'google',
     contextWindowTokens: 32768,
-    tokenEncoderType: 'approximate',
+    tokenEncoderType: 'gpt2',
     reservedTokens: { systemPrompt: 300, outputBuffer: 2000, safetyMargin: 500 },
   },
 
