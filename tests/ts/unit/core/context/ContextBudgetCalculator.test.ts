@@ -51,8 +51,8 @@ describe('calculateCompressionThreshold', () => {
   });
 
   it('최솟값은 500이다', () => {
-    // local-llama2-13b: 4096 - (200+512+100) = 3284 → 3284*0.8 = 2627 > 500
-    const threshold = ContextBudgetCalculator.calculateCompressionThreshold('local-llama2-13b');
+    // gpt-4: 8192 - 2800 = 5392 → 5392*0.8 = 4313 > 500
+    const threshold = ContextBudgetCalculator.calculateCompressionThreshold('gpt-4');
     expect(threshold).toBeGreaterThanOrEqual(500);
   });
 });
