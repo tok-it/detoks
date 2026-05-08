@@ -23,7 +23,7 @@ Its goal is to make LLM CLI workflows more stable and reproducible by organizing
 
 - Node.js `>=24.15.0 <26`
 - `codex` or `gemini` CLI when using the corresponding adapter
-- Python `3.13.x` when using the local `llama-server`
+- Optional Python `3.13.x`, currently used only for Kompress compression and the Python-backed PTY fallback path, not for the local `llama-server` itself
 
 See [STACK_VERSIONS.md](./docs/STACK_VERSIONS.md) and [LLAMA_CPP_SERVER_SPEC.md](./docs/LLAMA_CPP_SERVER_SPEC.md) for version details.
 

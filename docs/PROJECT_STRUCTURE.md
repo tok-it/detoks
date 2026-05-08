@@ -1,6 +1,6 @@
 # 📁 Project Structure
 
-This scaffold limits **Python** to the llama.cpp inference server and keeps application logic in **TypeScript**.
+This scaffold keeps the main application logic in **TypeScript** and uses **Python** only for the Kompress worker plus limited utility fallback paths.
 
 ## Tree
 
@@ -9,14 +9,9 @@ detoks/
 ├── docs/
 ├── scripts/
 ├── python/
-│   └── llama-server/
-│       ├── models/
-│       ├── config/
-│       └── run.py
-│   └── llama-server/
-│       ├── models/
-│       ├── config/
-│       └── run.py
+│   └── llama_server/
+│       ├── __init__.py
+│       └── kompress_worker.py
 ├── src/
 │   ├── cli/
 │   │   ├── commands/
@@ -27,11 +22,6 @@ detoks/
 │   │   ├── output/
 │   │   ├── pipeline/
 │   │   ├── state/
-│   │   ├── task-graph/
-│   │   ├── translate/
-│   │   ├── prompt/
-│   │   ├── guardrails/
-│   │   └── llm-client/
 │   │   ├── task-graph/
 │   │   ├── translate/
 │   │   ├── prompt/
@@ -53,17 +43,15 @@ detoks/
 
 ## Ownership
 
-- `python/llama-server/*`: LLM inference server (llama.cpp runtime only)
+- `python/llama_server/kompress_worker.py`: Python Kompress worker only
 - `src/core/translate`, `src/core/prompt`, `src/core/guardrails`: TypeScript implementation for Role 1
 - `src/*`: TypeScript implementation for Roles 1, 2.1, 2.2, and 3
 - `src/integrations/*`: External tool integrations (Codex, Gemini, subprocess handling)
-- `tests/python/*`: Python tests for llama-server only
 - `tests/ts/*`: TypeScript tests for application logic, including Role 1 modules
 
 ## Mapping
 
-- `python/llama-server`: Model loading, inference endpoint, server configuration
-- `python/llama-server`: Model loading, inference endpoint, server configuration
+- `python/llama_server`: Kompress worker support code only
 - `src/cli`: CLI layer, REPL, and user-facing commands
 - `src/core/pipeline`: pipeline orchestration
 - `src/core/task-graph`: request analysis, task graph generation, and dependency ordering
@@ -71,10 +59,6 @@ detoks/
 - `src/core/output`: output summarization and result structuring
 - `src/core/state`: session state management
 - `src/core/executor`: execution flow coordination
-- `src/core/translate`: Korean-to-English translation pipeline
-- `src/core/prompt`: prompt compression
-- `src/core/guardrails`: validate and repair translated output
-- `src/core/llm-client`: handles communication with llama.cpp
 - `src/core/translate`: Korean-to-English translation pipeline
 - `src/core/prompt`: prompt compression
 - `src/core/guardrails`: validate and repair translated output
@@ -88,15 +72,10 @@ detoks/
 
 ## Design Rule
 
-- Core logic must reside under src/core
+- Core logic must reside under `src/core`
 - Translation, prompt processing, and LLM interaction are treated as core pipeline responsibilities
-- Python is limited to running the LLM server and must not contain application logic
-- All LLM interaction must go through src/core/llm-client
-- No direct dependency on Python modules from TypeScript
-- External integrations must remain isolated under src/integrations
-- Core logic must reside under src/core
-- Translation, prompt processing, and LLM interaction are treated as core pipeline responsibilities
-- Python is limited to running the LLM server and must not contain application logic
-- All LLM interaction must go through src/core/llm-client
-- No direct dependency on Python modules from TypeScript
-- External integrations must remain isolated under src/integrations
+- The local llama.cpp serving path must rely on the external prebuilt `llama-server` binary rather than Python
+- Python is limited to worker or utility subprocesses and must not contain application logic
+- All LLM interaction must go through `src/core/llm-client`
+- TypeScript may integrate Python only through explicit subprocess boundaries
+- External integrations must remain isolated under `src/integrations`

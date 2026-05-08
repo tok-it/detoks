@@ -13,20 +13,20 @@ This file defines the initial version baseline for **detoks**.
 | TS validation | zod | `4.3.6` | TypeScript-side schema validation with full z.record() and z.nullable() support for complex schemas. |
 | TS testing | vitest | `3.2.4` | Fast unit/integration testing for the TypeScript layers. |
 | TS Node types | `@types/node` | `24.3.1` | Matches the Node 24 runtime family used by this project. |
-| Python runtime | Python | `3.13.13` | Mature maintenance release with installers, safer for team standardization than Python 3.14.x. |
-| Python validation | pydantic | `2.13.3` | Current stable validation layer for llama-server configuration and runtime payloads. |
-| Python testing | pytest | `9.0.3` | Current stable test runner for Python 3.13-compatible llama-server modules. |
-| Python linting | ruff | `0.15.9` | Fast lint/format gate for the Python-only llama-server area. |
-| Python typing | mypy | `1.20.1` | Static typing checks for llama-server modules and runtime contracts. |
-<!-- 한국어 설명: 위 표는 TypeScript 영역과 Python llama-server 영역이 함께 동작할 수 있도록 호환성을 고려해 정한 공통 버전 기준입니다. -->
+| Python runtime | Python | `3.13.13` | Used only for the Kompress worker and Python-backed PTY fallback paths, not for local llama-server serving. |
+| Python compression runtime | headroom-ai[ml] | `0.13.1` | Provides the Kompress worker backend used by Role 1 prompt compression. |
+| Python linting | ruff | `0.15.9` | Fast lint/format gate for the remaining Python worker area. |
+| Python typing | mypy | `1.20.1` | Static typing checks for the remaining Python worker code. |
+<!-- 한국어 설명: 위 표는 TypeScript 영역과 Python Kompress worker 영역이 함께 동작할 수 있도록 호환성을 고려해 정한 공통 버전 기준입니다. -->
 
 ## Language Boundary Rules
 
-- Python is limited to the llama.cpp inference server under `python/llama-server`.
+- The local llama.cpp serving path uses the external prebuilt `llama-server` binary.
+- Python is limited to the Kompress worker under `python/llama_server` plus utility fallback paths.
 - **Roles 2.1, 2.2, and 3** use TypeScript under `src`.
 - Translation, prompt processing, guardrails, and LLM client access live under `src/core`.
 - The TypeScript application must talk to llama.cpp through `src/core/llm-client`.
-<!-- 한국어 설명: Python은 llama.cpp 추론 서버에만 한정하고, 애플리케이션 로직은 TypeScript의 src/core 아래에 둡니다. -->
+<!-- 한국어 설명: 로컬 llama.cpp 서빙은 외부 prebuilt `llama-server`를 사용하고, Python은 Kompress worker와 일부 유틸 fallback에만 한정합니다. 애플리케이션 로직은 TypeScript의 src/core 아래에 둡니다. -->
 
 ## Standard Library Versions
 

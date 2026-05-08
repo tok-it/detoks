@@ -63,15 +63,22 @@ function parseArgs(): BenchmarkArgs {
   };
 
   for (let i = 0; i < args.length; i++) {
-    if (args[i] === '--input' && i + 1 < args.length) {
-      result.input = args[++i];
-    } else if (args[i] === '--adapter' && i + 1 < args.length) {
-      result.adapter = args[++i] as 'codex' | 'gemini';
-    } else if (args[i] === '--execution-mode' && i + 1 < args.length) {
-      result.executionMode = args[++i] as 'stub' | 'real';
-    } else if (args[i] === '--output' && i + 1 < args.length) {
-      result.output = args[++i];
-    } else if (args[i] === '--verbose') {
+    const current = args[i];
+    const next = args[i + 1];
+
+    if (current === '--input' && next !== undefined) {
+      result.input = next;
+      i += 1;
+    } else if (current === '--adapter' && next !== undefined) {
+      result.adapter = next as 'codex' | 'gemini';
+      i += 1;
+    } else if (current === '--execution-mode' && next !== undefined) {
+      result.executionMode = next as 'stub' | 'real';
+      i += 1;
+    } else if (current === '--output' && next !== undefined) {
+      result.output = next;
+      i += 1;
+    } else if (current === '--verbose') {
       result.verbose = true;
     }
   }

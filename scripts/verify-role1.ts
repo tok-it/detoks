@@ -4,6 +4,7 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { get_encoding } from "tiktoken";
 import { runBatchPromptPipeline } from "../src/core/pipeline/batch.js";
+import { shutdownManagedLocalLlmRuntime } from "../src/core/llm-client/local-runtime.js";
 import {
   loadRole1Policies,
   loadRole1RuntimeConfig,
@@ -158,14 +159,25 @@ function parseArgs(argv: string[]): VerifyOptions {
     throw new Error("--index must be a non-negative integer");
   }
 
-  return {
-    prompt,
+  const parsed: VerifyOptions = {
     filePath,
-    limit,
-    index,
-    outputPath,
     debug,
   };
+
+  if (prompt !== undefined) {
+    parsed.prompt = prompt;
+  }
+  if (limit !== undefined) {
+    parsed.limit = limit;
+  }
+  if (index !== undefined) {
+    parsed.index = index;
+  }
+  if (outputPath !== undefined) {
+    parsed.outputPath = outputPath;
+  }
+
+  return parsed;
 }
 
 function loadInputs(options: VerifyOptions): string[] {
@@ -242,218 +254,222 @@ async function main(): Promise<void> {
   const policies = loadRole1Policies();
   const inputs = loadInputs(options);
 
-  console.log(
-    JSON.stringify(
-      {
-        ok: true,
-        mode: "role1-verify",
-        model: runtimeConfig.modelName ?? "(not set)",
-        api_base: runtimeConfig.openaiApiBase ?? "(not set)",
-        api_key: maskApiKey(runtimeConfig.openaiApiKey),
-        pipeline_mode: options.debug ? "debug" : runtimeConfig.pipelineMode,
-        input_count: inputs.length,
-      },
-      null,
-      2,
-    ),
-  );
-
-  const batchResult = await runBatchPromptPipeline(inputs, {
-    env: {
-      ...process.env,
-      ...(options.debug ? { PIPELINE_MODE: "debug" } : {}),
-    },
-  });
-  const encoding = get_encoding("o200k_base");
-
   try {
-    const results: VerificationItem[] = batchResult.results.map((item, index) => {
-      const inputPromptTokens = encodeTokenCount(encoding, item.raw_input);
-      const phMaskedInput = mask_protected_segments(item.raw_input, {
-        protected_terms: policies.protectedTerms,
-        preferred_translations: policies.preferredTranslations,
-        model_names: runtimeConfig.localLlmModelName
-          ? [runtimeConfig.localLlmModelName]
-          : [],
-      }).masked_text;
-      const normalizedInput = item.normalized_input ?? "";
-      const normalizedInputTokens = encodeTokenCount(encoding, normalizedInput);
-      const compiledPrompt = item.compiled_prompt ?? "";
-      const compiledPromptTokens = encodeTokenCount(encoding, compiledPrompt);
-
-      return {
-        index: options.index !== undefined ? options.index : index,
-        raw_input: item.raw_input,
-        ph_masked_input: phMaskedInput,
-        normalized_input: normalizedInput,
-        compiled_prompt: compiledPrompt,
-        role2_handoff: item.role2_handoff ?? "",
-        language: item.language ?? "en",
-        status: item.status,
-        inference_time_sec: item.inference_time_sec ?? 0,
-        input_prompt_tokens: inputPromptTokens,
-        normalized_input_tokens: normalizedInputTokens,
-        compiled_prompt_tokens: compiledPromptTokens,
-        token_reduction_rate: calculateTokenReductionRate(
-          inputPromptTokens,
-          compiledPromptTokens,
-        ),
-        translation_token_reduction_rate: calculateTokenReductionRate(
-          inputPromptTokens,
-          normalizedInputTokens,
-        ),
-        compression_token_reduction_rate: calculateTokenReductionRate(
-          normalizedInputTokens,
-          compiledPromptTokens,
-        ),
-        validation_errors: item.validation_errors,
-        repair_actions: item.repair_actions,
-        ...(item.error ? { error: item.error } : {}),
-        ...(item.debug ? { debug: item.debug } : {}),
-      };
-    });
-
-    for (const item of results) {
-      console.log(
-        JSON.stringify(
-          {
-            index: item.index,
-            status: item.status,
-            language: item.language,
-            raw_input: item.raw_input,
-            ph_masked_input: item.ph_masked_input,
-            normalized_input: item.normalized_input,
-            compiled_prompt: item.compiled_prompt,
-            role2_handoff: item.role2_handoff,
-            inference_time_sec: item.inference_time_sec,
-            input_prompt_tokens: item.input_prompt_tokens,
-            normalized_input_tokens: item.normalized_input_tokens,
-            compiled_prompt_tokens: item.compiled_prompt_tokens,
-            token_reduction_rate: item.token_reduction_rate,
-            translation_token_reduction_rate:
-              item.translation_token_reduction_rate,
-            compression_token_reduction_rate:
-              item.compression_token_reduction_rate,
-            validation_errors: item.validation_errors,
-            repair_actions: item.repair_actions,
-            ...(item.error ? { error: item.error } : {}),
-            ...(options.debug && item.debug
-              ? {
-                  debug: {
-                    masked_text: item.debug.masked_text,
-                    placeholder_count: item.debug.placeholders.length,
-                    span_count: item.debug.spans.length,
-                    fallback_span_count: item.debug.fallback_span_count,
-                  },
-                }
-              : {}),
-          },
-          null,
-          2,
-        ),
-      );
-    }
-
-    const completedCount = results.filter((item) => item.status === "completed").length;
-    const failedCount = results.length - completedCount;
-    const inferenceSamples = results
-      .map((item) => item.inference_time_sec)
-      .filter((value) => value > 0);
-    const reductionSamples = results
-      .map((item) => item.token_reduction_rate)
-      .filter((value): value is number => value !== null);
-    const translationReductionSamples = results
-      .map((item) => item.translation_token_reduction_rate)
-      .filter((value): value is number => value !== null);
-    const compressionReductionSamples = results
-      .map((item) => item.compression_token_reduction_rate)
-      .filter((value): value is number => value !== null);
-    const summary: VerificationSummary = {
-      completed_count: completedCount,
-      failed_count: failedCount,
-      average_inference_time_sec:
-        inferenceSamples.length > 0
-          ? roundMetric(
-              inferenceSamples.reduce((sum, value) => sum + value, 0) /
-                inferenceSamples.length,
-            )
-          : 0,
-      average_token_reduction_rate:
-        reductionSamples.length > 0
-          ? roundMetric(
-              reductionSamples.reduce((sum, value) => sum + value, 0) /
-                reductionSamples.length,
-            )
-          : 0,
-      average_translation_token_reduction_rate:
-        translationReductionSamples.length > 0
-          ? roundMetric(
-              translationReductionSamples.reduce((sum, value) => sum + value, 0) /
-                translationReductionSamples.length,
-            )
-          : 0,
-      average_compression_token_reduction_rate:
-        compressionReductionSamples.length > 0
-          ? roundMetric(
-              compressionReductionSamples.reduce((sum, value) => sum + value, 0) /
-                compressionReductionSamples.length,
-            )
-          : 0,
-      compression_fallback_count: results.filter((item) =>
-        item.repair_actions.includes("compression_fallback_to_normalized_input")
-      ).length,
-      repair_action_item_count: results.filter((item) =>
-        item.repair_actions.length > 0
-      ).length,
-      validation_failed_count: results.filter((item) =>
-        item.validation_errors.length > 0
-      ).length,
-    };
-
     console.log(
       JSON.stringify(
         {
-          ok: failedCount === 0,
-          mode: "role1-verify-summary",
-          ...summary,
+          ok: true,
+          mode: "role1-verify",
+          model: runtimeConfig.localLlmModelName ?? "(not set)",
+          api_base: runtimeConfig.localLlmApiBase ?? "(not set)",
+          api_key: maskApiKey(runtimeConfig.localLlmApiKey),
+          pipeline_mode: options.debug ? "debug" : runtimeConfig.pipelineMode,
+          input_count: inputs.length,
         },
         null,
         2,
       ),
     );
 
-    if (options.outputPath) {
-      const absoluteOutputPath = isAbsolute(options.outputPath)
-        ? options.outputPath
-        : join(process.cwd(), options.outputPath);
-      mkdirSync(dirname(absoluteOutputPath), { recursive: true });
-      writeFileSync(
-        absoluteOutputPath,
-        JSON.stringify(
-          {
-            summary,
-            run_metadata: batchResult.run_metadata,
-            results,
-          },
-          null,
-          2,
-        ),
-        "utf8",
-      );
+    const batchResult = await runBatchPromptPipeline(inputs, {
+      env: {
+        ...process.env,
+        ...(options.debug ? { PIPELINE_MODE: "debug" } : {}),
+      },
+    });
+    const encoding = get_encoding("o200k_base");
+
+    try {
+      const results: VerificationItem[] = batchResult.results.map((item, index) => {
+        const inputPromptTokens = encodeTokenCount(encoding, item.raw_input);
+        const phMaskedInput = mask_protected_segments(item.raw_input, {
+          protected_terms: policies.protectedTerms,
+          preferred_translations: policies.preferredTranslations,
+          model_names: runtimeConfig.localLlmModelName
+            ? [runtimeConfig.localLlmModelName]
+            : [],
+        }).masked_text;
+        const normalizedInput = item.normalized_input ?? "";
+        const normalizedInputTokens = encodeTokenCount(encoding, normalizedInput);
+        const compiledPrompt = item.compiled_prompt ?? "";
+        const compiledPromptTokens = encodeTokenCount(encoding, compiledPrompt);
+
+        return {
+          index: options.index !== undefined ? options.index : index,
+          raw_input: item.raw_input,
+          ph_masked_input: phMaskedInput,
+          normalized_input: normalizedInput,
+          compiled_prompt: compiledPrompt,
+          role2_handoff: item.role2_handoff ?? "",
+          language: item.language ?? "en",
+          status: item.status,
+          inference_time_sec: item.inference_time_sec ?? 0,
+          input_prompt_tokens: inputPromptTokens,
+          normalized_input_tokens: normalizedInputTokens,
+          compiled_prompt_tokens: compiledPromptTokens,
+          token_reduction_rate: calculateTokenReductionRate(
+            inputPromptTokens,
+            compiledPromptTokens,
+          ),
+          translation_token_reduction_rate: calculateTokenReductionRate(
+            inputPromptTokens,
+            normalizedInputTokens,
+          ),
+          compression_token_reduction_rate: calculateTokenReductionRate(
+            normalizedInputTokens,
+            compiledPromptTokens,
+          ),
+          validation_errors: item.validation_errors,
+          repair_actions: item.repair_actions,
+          ...(item.error ? { error: item.error } : {}),
+          ...(item.debug ? { debug: item.debug } : {}),
+        };
+      });
+
+      for (const item of results) {
+        console.log(
+          JSON.stringify(
+            {
+              index: item.index,
+              status: item.status,
+              language: item.language,
+              raw_input: item.raw_input,
+              ph_masked_input: item.ph_masked_input,
+              normalized_input: item.normalized_input,
+              compiled_prompt: item.compiled_prompt,
+              role2_handoff: item.role2_handoff,
+              inference_time_sec: item.inference_time_sec,
+              input_prompt_tokens: item.input_prompt_tokens,
+              normalized_input_tokens: item.normalized_input_tokens,
+              compiled_prompt_tokens: item.compiled_prompt_tokens,
+              token_reduction_rate: item.token_reduction_rate,
+              translation_token_reduction_rate:
+                item.translation_token_reduction_rate,
+              compression_token_reduction_rate:
+                item.compression_token_reduction_rate,
+              validation_errors: item.validation_errors,
+              repair_actions: item.repair_actions,
+              ...(item.error ? { error: item.error } : {}),
+              ...(options.debug && item.debug
+                ? {
+                    debug: {
+                      masked_text: item.debug.masked_text,
+                      placeholder_count: item.debug.placeholders.length,
+                      span_count: item.debug.spans.length,
+                      fallback_span_count: item.debug.fallback_span_count,
+                    },
+                  }
+                : {}),
+            },
+            null,
+            2,
+          ),
+        );
+      }
+
+      const completedCount = results.filter((item) => item.status === "completed").length;
+      const failedCount = results.length - completedCount;
+      const inferenceSamples = results
+        .map((item) => item.inference_time_sec)
+        .filter((value) => value > 0);
+      const reductionSamples = results
+        .map((item) => item.token_reduction_rate)
+        .filter((value): value is number => value !== null);
+      const translationReductionSamples = results
+        .map((item) => item.translation_token_reduction_rate)
+        .filter((value): value is number => value !== null);
+      const compressionReductionSamples = results
+        .map((item) => item.compression_token_reduction_rate)
+        .filter((value): value is number => value !== null);
+      const summary: VerificationSummary = {
+        completed_count: completedCount,
+        failed_count: failedCount,
+        average_inference_time_sec:
+          inferenceSamples.length > 0
+            ? roundMetric(
+                inferenceSamples.reduce((sum, value) => sum + value, 0) /
+                  inferenceSamples.length,
+              )
+            : 0,
+        average_token_reduction_rate:
+          reductionSamples.length > 0
+            ? roundMetric(
+                reductionSamples.reduce((sum, value) => sum + value, 0) /
+                  reductionSamples.length,
+              )
+            : 0,
+        average_translation_token_reduction_rate:
+          translationReductionSamples.length > 0
+            ? roundMetric(
+                translationReductionSamples.reduce((sum, value) => sum + value, 0) /
+                  translationReductionSamples.length,
+              )
+            : 0,
+        average_compression_token_reduction_rate:
+          compressionReductionSamples.length > 0
+            ? roundMetric(
+                compressionReductionSamples.reduce((sum, value) => sum + value, 0) /
+                  compressionReductionSamples.length,
+              )
+            : 0,
+        compression_fallback_count: results.filter((item) =>
+          item.repair_actions.includes("compression_fallback_to_normalized_input")
+        ).length,
+        repair_action_item_count: results.filter((item) =>
+          item.repair_actions.length > 0
+        ).length,
+        validation_failed_count: results.filter((item) =>
+          item.validation_errors.length > 0
+        ).length,
+      };
 
       console.log(
         JSON.stringify(
           {
-            ok: true,
-            output: absoluteOutputPath,
+            ok: failedCount === 0,
+            mode: "role1-verify-summary",
+            ...summary,
           },
           null,
           2,
         ),
       );
+
+      if (options.outputPath) {
+        const absoluteOutputPath = isAbsolute(options.outputPath)
+          ? options.outputPath
+          : join(process.cwd(), options.outputPath);
+        mkdirSync(dirname(absoluteOutputPath), { recursive: true });
+        writeFileSync(
+          absoluteOutputPath,
+          JSON.stringify(
+            {
+              summary,
+              run_metadata: batchResult.run_metadata,
+              results,
+            },
+            null,
+            2,
+          ),
+          "utf8",
+        );
+
+        console.log(
+          JSON.stringify(
+            {
+              ok: true,
+              output: absoluteOutputPath,
+            },
+            null,
+            2,
+          ),
+        );
+      }
+    } finally {
+      encoding.free();
     }
   } finally {
-    encoding.free();
+    await shutdownManagedLocalLlmRuntime();
   }
 }
 

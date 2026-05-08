@@ -6,9 +6,11 @@ import {
 	buildLlamaServerArgs,
 	getBinaryProbeCommand,
 	ensureLocalLlmRuntime,
+	shutdownManagedLocalLlmRuntime,
 } from "../../../../../src/core/llm-client/local-runtime.js";
 
-afterEach(() => {
+afterEach(async () => {
+	await shutdownManagedLocalLlmRuntime();
 	vi.restoreAllMocks();
 	vi.unstubAllGlobals();
 });
@@ -365,6 +367,92 @@ describe("buildLlamaServerArgs", () => {
 			).resolves.toBeUndefined();
 
 			expect(killSpy).toHaveBeenCalledWith(22222, "SIGTERM");
+		} finally {
+			process.env.PATH = originalPath;
+			rmSync(scriptDir, { recursive: true, force: true });
+		}
+	});
+
+	it("직접 띄운 llama-server는 명시적으로 종료할 수 있다", async () => {
+		const scriptDir = mkdtempSync(join(tmpdir(), "detoks-llama-stop-"));
+		const originalPath = process.env.PATH ?? "";
+		writeFileSync(
+			join(scriptDir, "llama-server"),
+			[
+				"#!/bin/sh",
+				"trap 'exit 0' TERM INT",
+				"sleep 30",
+			].join("\n"),
+			"utf8",
+		);
+		chmodSync(join(scriptDir, "llama-server"), 0o755);
+		process.env.PATH = `${scriptDir}:${originalPath}`;
+
+		const killSignals = new Map<number, Array<NodeJS.Signals | number | undefined>>();
+		const killSpy = vi.spyOn(process, "kill").mockImplementation(
+			((pid: number, signal?: NodeJS.Signals | number) => {
+				const history = killSignals.get(pid) ?? [];
+				history.push(signal);
+				killSignals.set(pid, history);
+
+				if (signal === 0) {
+					if (history.includes("SIGTERM") || history.includes("SIGKILL")) {
+						throw new Error("ESRCH");
+					}
+
+					return true;
+				}
+
+				return true;
+			}) as typeof process.kill,
+		);
+		const fetchMock = vi
+			.fn<typeof fetch>()
+			.mockResolvedValueOnce({
+				ok: false,
+			} as Response)
+			.mockResolvedValueOnce({
+				ok: true,
+			} as Response)
+			.mockResolvedValueOnce({
+				ok: true,
+				json: async () => ({
+					data: [
+						{
+							id: "detoks-local",
+							aliases: ["detoks-local"],
+						},
+					],
+				}),
+			} as Response);
+
+		vi.stubGlobal("fetch", fetchMock);
+
+		try {
+			await ensureLocalLlmRuntime({
+				localLlmApiBase: "http://127.0.0.1:12370/v1",
+				localLlmModelName: "detoks-local",
+				localLlmAutoStart: true,
+				localLlmServerBinary: "llama-server",
+				localLlmServerHost: "127.0.0.1",
+				localLlmServerPort: 12370,
+				localLlmGpuLayers: "0",
+				localLlmDevice: "none",
+				localLlmContextSize: 4096,
+				localLlmTopK: 40,
+				localLlmTopP: 0.95,
+				localLlmSleepIdleSeconds: 1200,
+				localLlmReasoning: "off",
+				localLlmHfRepo: "repo/model",
+				localLlmHfFile: "model.gguf",
+				pipelineMode: "safe",
+				requestTimeout: 30000,
+				translationMaxAttempts: 5,
+				temperature: 0,
+			});
+
+			await expect(shutdownManagedLocalLlmRuntime()).resolves.toBe(true);
+			expect(killSpy).toHaveBeenCalledWith(expect.any(Number), "SIGTERM");
 		} finally {
 			process.env.PATH = originalPath;
 			rmSync(scriptDir, { recursive: true, force: true });

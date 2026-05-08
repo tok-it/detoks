@@ -62,9 +62,9 @@ User Output
 
 ### 3. LLM Layer
 
-- llama.cpp inference server
+- prebuilt `llama-server` inference server
 - Model loading and endpoint configuration
-<!-- 한국어 설명: LLM Layer는 Python의 llama-server로 제한되며, 모델 로딩과 추론 endpoint 구성을 담당합니다. -->
+<!-- 한국어 설명: LLM Layer는 TypeScript 런처가 직접 관리하는 prebuilt `llama-server`와 그 HTTP 경계로 구성되며, 모델 로딩과 추론 endpoint 구성을 담당합니다. -->
 
 ---
 
