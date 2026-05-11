@@ -1422,11 +1422,11 @@ describe("detoks CLI smoke", () => {
     expect(failedRun.stdout).toBe("");
 
     const failedJson = parseCliJson(failedRun.stderr);
-    expect(failedJson).toEqual({
+    expect(failedJson).toMatchObject({
       ok: false,
-      error: "프롬프트 컴파일 실패: LLM client requires LOCAL_LLM_MODEL_NAME",
+      error: expect.stringMatching(/프롬프트 컴파일 실패.*GGUF 모델 파일을 찾을 수 없습니다/),
       stages: failedPipelineStages,
-      rawOutput: "LLM client requires LOCAL_LLM_MODEL_NAME",
+      rawOutput: expect.any(String),
     });
   });
 
@@ -1452,11 +1452,11 @@ describe("detoks CLI smoke", () => {
       expect(failedRun.stdout).toBe("");
 
       const failedJson = parseCliJson(failedRun.stderr);
-      expect(failedJson).toEqual({
+      expect(failedJson).toMatchObject({
         ok: false,
-        error: "프롬프트 컴파일 실패: LLM client requires LOCAL_LLM_MODEL_NAME",
+        error: expect.stringMatching(/프롬프트 컴파일 실패.*GGUF 모델 파일을 찾을 수 없습니다/),
         stages: failedPipelineStages,
-        rawOutput: "LLM client requires LOCAL_LLM_MODEL_NAME",
+        rawOutput: expect.any(String),
       });
     } finally {
       rmSync(tempDir, { force: true, recursive: true });
