@@ -1,6 +1,7 @@
 import {
   getLlama,
   LlamaChatSession,
+  QwenChatWrapper,
   type ChatHistoryItem,
   type Llama,
   type LlamaModel,
@@ -142,7 +143,8 @@ async function completePromptOnce(
     topK: number;
     topP: number;
     signal: AbortSignal;
-    mode: "completePrompt" | "generateResponse";
+    mode: "completePrompt" | "promptWithMeta";
+    qwenVariation?: "3" | "3.5";
   },
 ): Promise<string> {
   const context = await model.createContext({
@@ -150,53 +152,30 @@ async function completePromptOnce(
   });
   const session = new LlamaChatSession({
     contextSequence: context.getSequence(),
+    ...(options.mode === "promptWithMeta"
+      ? {
+          chatWrapper: new QwenChatWrapper({
+            variation: options.qwenVariation ?? "3",
+            thoughts: "discourage",
+          }),
+        }
+      : {}),
   });
 
   try {
     session.setChatHistory(chatHistory);
 
-    if (options.mode === "generateResponse") {
-      const generateResponseSession = session as LlamaChatSession & {
-        _chat: {
-          generateResponse: (
-            history: ChatHistoryItem[],
-            responseOptions: {
-              abortOnNonText: boolean;
-              maxTokens: number;
-              temperature: number;
-              topK: number;
-              topP: number;
-              trimWhitespaceSuffix: boolean;
-              signal: AbortSignal;
-            },
-          ) => Promise<{ response: string }>;
-        };
-      };
-      const responseHistory: ChatHistoryItem[] = [
-        ...chatHistory,
-        {
-          type: "user",
-          text: prompt,
-        },
-        {
-          type: "model",
-          response: [],
-        },
-      ];
-      const result = await generateResponseSession._chat.generateResponse(
-        responseHistory,
-        {
-          abortOnNonText: false,
-          maxTokens: options.maxTokens,
-          temperature: options.temperature,
-          topK: options.topK,
-          topP: options.topP,
-          trimWhitespaceSuffix: true,
-          signal: options.signal,
-        },
-      );
+    if (options.mode === "promptWithMeta") {
+      const result = await session.promptWithMeta(prompt, {
+        maxTokens: options.maxTokens,
+        temperature: options.temperature,
+        topK: options.topK,
+        topP: options.topP,
+        trimWhitespaceSuffix: true,
+        signal: options.signal,
+      });
 
-      return result.response;
+      return result.responseText;
     }
 
     return await session.completePrompt(prompt, {
@@ -211,6 +190,23 @@ async function completePromptOnce(
     session.dispose?.({ disposeSequence: true });
     await context.dispose();
   }
+}
+
+function resolveQwenVariation(
+  architecture: string | undefined,
+  config: NodeLlamaRuntimeConfig,
+): "3" | "3.5" {
+  const hints = [
+    architecture,
+    config.localLlmModelName,
+    config.localLlmHfRepo,
+    config.localLlmHfFile,
+    config.localLlmModelPath,
+  ].filter((value): value is string => typeof value === "string");
+
+  return hints.some((value) => /qwen\s*3\.5|qwen3\.5|qwen35/iu.test(value))
+    ? "3.5"
+    : "3";
 }
 
 async function loadRuntimeWithOptions(
@@ -391,8 +387,8 @@ export async function completeChatWithNodeLlamaCpp(
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
   const startedAt = Date.now();
   const baseMaxTokens = request.max_tokens ?? config.localLlmMaxTokens ?? 512;
-  const completionMode: "completePrompt" | "generateResponse" =
-    isQwenReasoningArchitecture ? "generateResponse" : "completePrompt";
+  const completionMode: "completePrompt" | "promptWithMeta" =
+    isQwenReasoningArchitecture ? "promptWithMeta" : "completePrompt";
   const completionOptions = {
     maxTokens: isQwenReasoningArchitecture
       ? Math.max(baseMaxTokens, 1024)
@@ -402,6 +398,9 @@ export async function completeChatWithNodeLlamaCpp(
     topP: config.localLlmTopP ?? 0.95,
     signal: controller.signal,
     mode: completionMode,
+    ...(isQwenReasoningArchitecture
+      ? { qwenVariation: resolveQwenVariation(architecture, config) }
+      : {}),
   };
 
   try {

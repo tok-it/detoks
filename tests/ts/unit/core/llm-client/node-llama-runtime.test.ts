@@ -3,26 +3,21 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-const nodeLlamaMocks = vi.hoisted(() => {
-	const sessionSetChatHistory = vi.fn();
-	const sessionPrompt = vi.fn(async () => "");
-	const sessionCompletePrompt = vi.fn(async () => "Translated output");
-	const sessionGenerateResponse = vi.fn(async () => ({
-		response: "Translated output",
-		fullResponse: ["Translated output"],
-		lastEvaluation: {
-			cleanHistory: [],
-			contextWindow: [],
-			contextShiftMetadata: null,
-		},
-		metadata: {
+	const nodeLlamaMocks = vi.hoisted(() => {
+		const sessionSetChatHistory = vi.fn();
+		const sessionPrompt = vi.fn(async () => "");
+		const sessionCompletePrompt = vi.fn(async () => "Translated output");
+		const sessionPromptWithMeta = vi.fn(async () => ({
+			responseText: "Translated output",
+			response: ["Translated output"],
 			stopReason: "maxTokens" as const,
-		},
-	}));
-	const sessionDispose = vi.fn();
-	const sessionResetChatHistory = vi.fn();
-	const contextDispose = vi.fn(async () => {});
-	const contextGetSequence = vi.fn(() => ({}));
+			remainingGenerationAfterStop: undefined,
+		}));
+		const sessionDispose = vi.fn();
+		const sessionResetChatHistory = vi.fn();
+		const QwenChatWrapper = vi.fn();
+		const contextDispose = vi.fn(async () => {});
+		const contextGetSequence = vi.fn(() => ({}));
 	const modelCreateContext = vi.fn(async () => ({
 		getSequence: contextGetSequence,
 		dispose: contextDispose,
@@ -44,46 +39,46 @@ const nodeLlamaMocks = vi.hoisted(() => {
 		loadModel,
 		dispose: llamaDispose,
 	}));
-	const LlamaChatSession = vi.fn(function (this: {
-		setChatHistory: typeof sessionSetChatHistory;
-		prompt: typeof sessionPrompt;
-		completePrompt: typeof sessionCompletePrompt;
-		_chat: { generateResponse: typeof sessionGenerateResponse };
-		resetChatHistory: typeof sessionResetChatHistory;
-		dispose: typeof sessionDispose;
-	}) {
-		this.setChatHistory = sessionSetChatHistory;
-		this.prompt = sessionPrompt;
-		this.completePrompt = sessionCompletePrompt;
-		this._chat = {
-			generateResponse: sessionGenerateResponse,
-		};
-		this.resetChatHistory = sessionResetChatHistory;
-		this.dispose = sessionDispose;
-	});
+		const LlamaChatSession = vi.fn(function (this: {
+			setChatHistory: typeof sessionSetChatHistory;
+			prompt: typeof sessionPrompt;
+			completePrompt: typeof sessionCompletePrompt;
+			promptWithMeta: typeof sessionPromptWithMeta;
+			resetChatHistory: typeof sessionResetChatHistory;
+			dispose: typeof sessionDispose;
+		}) {
+			this.setChatHistory = sessionSetChatHistory;
+			this.prompt = sessionPrompt;
+			this.completePrompt = sessionCompletePrompt;
+			this.promptWithMeta = sessionPromptWithMeta;
+			this.resetChatHistory = sessionResetChatHistory;
+			this.dispose = sessionDispose;
+		});
 
-	return {
-		LlamaChatSession,
-		contextDispose,
-		contextGetSequence,
-		getLlama,
+		return {
+			LlamaChatSession,
+			QwenChatWrapper,
+			contextDispose,
+			contextGetSequence,
+			getLlama,
 		llamaDispose,
-		loadModel,
-		modelCreateContext,
-		modelDispose,
-		sessionCompletePrompt,
-		sessionGenerateResponse,
-		sessionDispose,
-		sessionResetChatHistory,
-		sessionPrompt,
-		sessionSetChatHistory,
+			loadModel,
+			modelCreateContext,
+			modelDispose,
+			sessionCompletePrompt,
+			sessionDispose,
+			sessionPromptWithMeta,
+			sessionResetChatHistory,
+			sessionPrompt,
+			sessionSetChatHistory,
 	};
 });
 
-vi.mock("node-llama-cpp", () => ({
-	getLlama: nodeLlamaMocks.getLlama,
-	LlamaChatSession: nodeLlamaMocks.LlamaChatSession,
-}));
+	vi.mock("node-llama-cpp", () => ({
+		getLlama: nodeLlamaMocks.getLlama,
+		LlamaChatSession: nodeLlamaMocks.LlamaChatSession,
+		QwenChatWrapper: nodeLlamaMocks.QwenChatWrapper,
+	}));
 
 import {
 	completeChatWithNodeLlamaCpp,
@@ -98,15 +93,16 @@ afterEach(async () => {
 	nodeLlamaMocks.contextGetSequence.mockClear();
 	nodeLlamaMocks.getLlama.mockClear();
 	nodeLlamaMocks.llamaDispose.mockClear();
-	nodeLlamaMocks.loadModel.mockClear();
-	nodeLlamaMocks.modelCreateContext.mockClear();
-	nodeLlamaMocks.modelDispose.mockClear();
-	nodeLlamaMocks.sessionCompletePrompt.mockClear();
-	nodeLlamaMocks.sessionGenerateResponse.mockClear();
-	nodeLlamaMocks.sessionDispose.mockClear();
-	nodeLlamaMocks.sessionResetChatHistory.mockClear();
-	nodeLlamaMocks.sessionPrompt.mockClear();
-	nodeLlamaMocks.sessionSetChatHistory.mockClear();
+		nodeLlamaMocks.loadModel.mockClear();
+		nodeLlamaMocks.modelCreateContext.mockClear();
+		nodeLlamaMocks.modelDispose.mockClear();
+		nodeLlamaMocks.QwenChatWrapper.mockClear();
+		nodeLlamaMocks.sessionCompletePrompt.mockClear();
+		nodeLlamaMocks.sessionDispose.mockClear();
+		nodeLlamaMocks.sessionPromptWithMeta.mockClear();
+		nodeLlamaMocks.sessionResetChatHistory.mockClear();
+		nodeLlamaMocks.sessionPrompt.mockClear();
+		nodeLlamaMocks.sessionSetChatHistory.mockClear();
 });
 
 describe("completeChatWithNodeLlamaCpp", () => {
@@ -188,7 +184,7 @@ describe("completeChatWithNodeLlamaCpp", () => {
 		}
 	});
 
-	it("qwen3 계열은 generateResponse 경로로 응답을 유지한다", async () => {
+		it("qwen3 계열은 Qwen wrapper + promptWithMeta 경로로 응답을 유지한다", async () => {
 		const tempDir = mkdtempSync(join(tmpdir(), "detoks-node-llama-"));
 		const modelPath = join(tempDir, "test-model.gguf");
 		writeFileSync(modelPath, "GGUFtest", "utf8");
@@ -216,15 +212,29 @@ describe("completeChatWithNodeLlamaCpp", () => {
 					localLlmTopP: 0.95,
 					localLlmMaxTokens: 256,
 				},
-			);
+				);
 
-			expect(nodeLlamaMocks.modelCreateContext).toHaveBeenCalledOnce();
-			expect(nodeLlamaMocks.LlamaChatSession).toHaveBeenCalledOnce();
-			expect(nodeLlamaMocks.sessionSetChatHistory).toHaveBeenCalledOnce();
-			expect(nodeLlamaMocks.sessionGenerateResponse).toHaveBeenCalledOnce();
-			expect(nodeLlamaMocks.sessionPrompt).not.toHaveBeenCalled();
-			expect(nodeLlamaMocks.sessionCompletePrompt).not.toHaveBeenCalled();
-			expect(response.content).toBe("Translated output");
+				expect(nodeLlamaMocks.modelCreateContext).toHaveBeenCalledOnce();
+				expect(nodeLlamaMocks.LlamaChatSession).toHaveBeenCalledOnce();
+				expect(nodeLlamaMocks.QwenChatWrapper).toHaveBeenCalledWith({
+					variation: "3.5",
+					thoughts: "discourage",
+				});
+				expect(nodeLlamaMocks.sessionSetChatHistory).toHaveBeenCalledOnce();
+				expect(nodeLlamaMocks.sessionPromptWithMeta).toHaveBeenCalledOnce();
+				expect(nodeLlamaMocks.sessionPromptWithMeta).toHaveBeenCalledWith(
+					"새 파일을 생성해",
+					expect.objectContaining({
+						maxTokens: 1024,
+						temperature: 0,
+						topK: 40,
+						topP: 0.95,
+						trimWhitespaceSuffix: true,
+					}),
+				);
+				expect(nodeLlamaMocks.sessionPrompt).not.toHaveBeenCalled();
+				expect(nodeLlamaMocks.sessionCompletePrompt).not.toHaveBeenCalled();
+				expect(response.content).toBe("Translated output");
 		} finally {
 			rmSync(tempDir, { recursive: true, force: true });
 		}
