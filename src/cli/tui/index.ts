@@ -283,9 +283,7 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
         renderInputArea(ctx, input);
       }
 
-      if (embeddedPaneMode && embeddedTerminalFocus.focus !== "detoks-input") {
-        // Focus hint already rendered in the input area; keep the result region empty.
-      } else if (slashAutocompleteQuery !== null) {
+      if (slashAutocompleteQuery !== null) {
         renderSlashAutocompletePanel(
           ctx,
           resultRegion,
