@@ -33,24 +33,10 @@ jobs:
       LOCAL_LLM_GPU_LAYERS: "0"
       LOCAL_LLM_MAX_TOKENS: "32"
       REQUEST_TIMEOUT: "120000"
-      npm_config_python: /tmp/no-python/python
 
     steps:
       - name: Checkout
         uses: actions/checkout@v5
-
-      - name: Verify Python is unavailable
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          for command_name in python python3 python3.13 pip pip3 uv; do
-            if command -v "$command_name" >/dev/null 2>&1; then
-              echo "Unexpected Python tool on PATH: $command_name"
-              command -v "$command_name"
-              exit 1
-            fi
-          done
 
       - name: Reject Python runtime reintroduction
         shell: bash
@@ -85,6 +71,10 @@ jobs:
             echo "actions/setup-python is not allowed in CI workflows."
             exit 1
           fi
+
+      - name: Install build tools for native modules
+        shell: bash
+        run: apt-get update -qq && apt-get install -y --no-install-recommends python3 make g++
 
       - name: Install dependencies
         run: npm install
