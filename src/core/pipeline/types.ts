@@ -33,7 +33,7 @@ export interface PipelineExecutionRequest {
   adapter: Adapter;
   executionMode: ExecutionMode;
   verbose: boolean;
-  presentationMode?: "passthrough";
+  presentationMode?: "passthrough" | "embedded-pane";
   trace?: boolean;
   projectInfo?: ProjectInfo;
   compressionImplementation?: CompressTextImplementation;

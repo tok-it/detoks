@@ -566,6 +566,20 @@ describe("parseCliArgs", () => {
     });
   });
 
+  it("parses repl with --embedded-cli-ui to enable embedded native presentation", () => {
+    const parsed = parseCliArgs(["repl", "--embedded-cli-ui"]);
+    expect(parsed).toEqual({
+      mode: "repl",
+      adapter: "codex",
+      executionMode: "real",
+      verbose: false,
+      trace: false,
+      presentationMode: "embedded-pane",
+      showHelp: false,
+      helpTopic: "repl",
+    });
+  });
+
   it("parses repl with --tui and other flags", () => {
     const parsed = parseCliArgs(["repl", "--tui", "--adapter", "claude", "--verbose"]);
     expect(parsed).toEqual({
@@ -585,6 +599,7 @@ describe("parseCliArgs", () => {
     expect(usage).toContain("--tui");
     expect(usage).toContain("--no-tui");
     expect(usage).toContain("--passthrough-ui");
+    expect(usage).toContain("--embedded-cli-ui");
     expect(usage).toContain("interactive TTY");
   });
 });

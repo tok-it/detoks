@@ -9,6 +9,7 @@ import type {
 import { spawn } from "node:child_process";
 import { closeSync, existsSync, openSync, readSync, statSync } from "node:fs";
 import { extname, join } from "node:path";
+import { createInteractivePtySession } from "./pty-session.js";
 
 const formatCommand = (request: SubprocessRequest): string => {
   const args = request.args.length > 0 ? ` ${request.args.join(" ")}` : "";
@@ -486,131 +487,12 @@ export const createPtySubprocessRunner = (
         return await runStreamingJsonProcess(request, options);
       }
 
-      return await new Promise<PtyResult>((resolve) => {
-        const env = request.env ? { ...process.env, ...request.env } : process.env;
-        const ptyInvocation =
-          buildPythonInvocation(request) ?? buildExpectInvocation(request) ?? buildScriptInvocation(request);
-        const fallbackResolvedCommand = resolveCommandFromPath(request.command, env);
-        const runViaNode =
-          fallbackResolvedCommand !== undefined && isNodeShebangScript(fallbackResolvedCommand);
-        const fallbackCommand = runViaNode
-          ? process.execPath
-          : fallbackResolvedCommand ?? request.command;
-        const fallbackArgs = runViaNode
-          ? [fallbackResolvedCommand, ...request.args]
-          : request.args;
-        const passthroughInteractiveMode = options?.passthroughUi && request.input === undefined;
-        const command = passthroughInteractiveMode ? fallbackCommand : (ptyInvocation?.command ?? fallbackCommand);
-        const args = passthroughInteractiveMode ? fallbackArgs : (ptyInvocation?.args ?? fallbackArgs);
-        const ptyEnv = ptyInvocation?.env ? { ...env, ...ptyInvocation.env } : env;
-
-        const startTime = Date.now();
-        const events: PtyEvent[] = [];
-
-        const emitEvent = (event: Omit<PtyEvent, "timestamp">): void => {
-          const fullEvent: PtyEvent = { ...event, timestamp: Date.now() };
-          events.push(fullEvent);
-          options?.onEvent?.(fullEvent);
-        };
-
-        const child = spawn(command, args, {
-          cwd: request.cwd,
-          env: ptyEnv,
-          shell: false,
-          stdio: passthroughInteractiveMode
-            ? ["inherit", "inherit", "inherit"]
-            : [
-                "pipe",
-                options?.passthroughUi ? "inherit" : "pipe",
-                options?.passthroughUi ? "inherit" : "pipe",
-              ],
-        });
-
-        let settled = false;
-        let stdout = "";
-        let stderr = "";
-        let exitCode = 0;
-
-        const finish = (code: number, timedOut: boolean): void => {
-          if (settled) {
-            return;
-          }
-          settled = true;
-
-          const endTime = Date.now();
-          const transcript: PtyTranscript = {
-            events,
-            startTime,
-            endTime,
-            totalDuration: endTime - startTime,
-            exitCode: code,
-            timedOut,
-          };
-
-          emitEvent({
-            type: "exit",
-            data: String(code),
-          });
-
-          resolve({
-            stdout,
-            stderr,
-            exitCode: code,
-            timedOut,
-            transcript,
-          });
-        };
-
-        if (!options?.passthroughUi || !passthroughInteractiveMode) {
-          child.stdout?.setEncoding("utf8");
-          child.stderr?.setEncoding("utf8");
-
-          child.stdout?.on("data", (chunk: string) => {
-            const normalizedChunk = normalizeScriptOutput(chunk);
-            stdout += normalizedChunk;
-            emitEvent({
-              type: "chunk",
-              stream: "stdout",
-              data: normalizedChunk,
-            });
-          });
-
-          child.stderr?.on("data", (chunk: string) => {
-            const normalizedChunk = normalizeScriptOutput(chunk);
-            stderr += normalizedChunk;
-            emitEvent({
-              type: "chunk",
-              stream: "stderr",
-              data: normalizedChunk,
-            });
-          });
-        }
-
-        child.on("error", (error) => {
-          emitEvent({
-            type: "error",
-            data: String(error),
-          });
-          finish(127, false);
-        });
-
-        child.on("close", (code, signal) => {
-          exitCode = typeof code === "number" ? code : signal ? 128 : 1;
-          finish(exitCode, false);
-        });
-
-        if (request.input !== undefined) {
-          emitEvent({
-            type: "prompt",
-            data: request.input,
-          });
-          child.stdin?.write(request.input);
-        }
-
-        if (!passthroughInteractiveMode) {
-          child.stdin?.end();
-        }
-      });
+      const session = createInteractivePtySession(request, options);
+      if (request.input !== undefined) {
+        session.write(request.input);
+      }
+      session.close();
+      return await session.result;
     },
   };
 };

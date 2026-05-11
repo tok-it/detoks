@@ -82,4 +82,23 @@ describe("runReplCommand TUI startup flow", () => {
       }),
     );
   });
+
+  it("passes embedded presentation mode into the TUI startup flow", async () => {
+    await runReplCommand({
+      mode: "repl",
+      adapter: "codex",
+      executionMode: "real",
+      verbose: false,
+      trace: false,
+      tui: "force",
+      presentationMode: "embedded-pane",
+      showHelp: false,
+    });
+
+    expect(mocks.runTuiRepl).toHaveBeenCalledWith(
+      expect.objectContaining({
+        presentationMode: "embedded-pane",
+      }),
+    );
+  });
 });

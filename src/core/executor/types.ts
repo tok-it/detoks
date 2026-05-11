@@ -12,7 +12,7 @@ export interface AdapterExecutionRequest {
   taskType?: RequestCategory;
   cwd?: string;
   sessionId?: string;
-  presentationMode?: "passthrough";
+  presentationMode?: "passthrough" | "embedded-pane";
 }
 
 export interface AdapterExecutionResult {
@@ -27,7 +27,7 @@ export interface AdapterExecutionResult {
 export interface ExecutorRequest extends AdapterExecutionRequest {
   adapter: Adapter;
   executionMode: ExecutionMode;
-  presentationMode?: "passthrough";
+  presentationMode?: "passthrough" | "embedded-pane";
   onAdapterEvent?: (event: PtyEvent) => void;
   onActionTimelineEvent?: ActionTimelineSink;
 }
