@@ -710,6 +710,7 @@ export const orchestratePipeline = async (
         adapter: request.adapter,
         mode: request.mode,
         executionMode: request.executionMode,
+        ...(request.presentationMode ? { presentationMode: request.presentationMode } : {}),
         prompt,
         verbose: request.verbose,
         ...(adapterModel ? { model: adapterModel } : {}),

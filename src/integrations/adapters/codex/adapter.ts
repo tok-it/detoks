@@ -10,6 +10,20 @@ export class CodexStubAdapter implements CliAdapter {
   buildSubprocessRequest(request: AdapterExecutionRequest) {
     const reasoningEffort = getCodexReasoningEffortOverride();
 
+    if (request.presentationMode === "passthrough") {
+      return {
+        command: "codex",
+        args: [
+          ...(reasoningEffort ? ["-c", `model_reasoning_effort=${reasoningEffort}`] : []),
+          ...(request.model ? ["--model", request.model] : []),
+          "--sandbox",
+          "workspace-write",
+          ...(request.prompt ? [request.prompt] : []),
+        ],
+        ...(request.cwd !== undefined ? { cwd: request.cwd } : {}),
+      };
+    }
+
     return {
       command: "codex",
       args: [

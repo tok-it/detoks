@@ -12,6 +12,7 @@ export interface AdapterExecutionRequest {
   taskType?: RequestCategory;
   cwd?: string;
   sessionId?: string;
+  presentationMode?: "passthrough";
 }
 
 export interface AdapterExecutionResult {

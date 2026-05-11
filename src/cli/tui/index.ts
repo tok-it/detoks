@@ -144,6 +144,27 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
     let slashAutocompleteSelectedIndex = 0;
     const executionCwd = process.cwd();
     let currentTokenSavingsLabel: string | undefined;
+    let isInputSuspended = false;
+
+    const suspendInput = (): void => {
+      if (isInputSuspended) {
+        return;
+      }
+
+      stdin.removeListener("data", onData);
+      stdin.pause();
+      isInputSuspended = true;
+    };
+
+    const resumeInput = (): void => {
+      if (!isInputSuspended) {
+        return;
+      }
+
+      stdin.resume();
+      stdin.on("data", onData);
+      isInputSuspended = false;
+    };
 
     // Optimized: only update input area
     const renderInputOnly = (): void => {
@@ -488,6 +509,7 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
         pipelinePanel.reset();
         currentTokenSavingsLabel = undefined;
         if (nativePassthroughMode) {
+          suspendInput();
           leaveTuiDisplay();
         } else {
           render();
@@ -561,12 +583,14 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
           result.promptTokenSavings ?? result.tokenMetrics?.input ?? result.tokenMetrics?.output,
         );
         if (nativePassthroughMode) {
+          resumeInput();
           enterTuiDisplay();
         }
         render();
 
       } catch (error) {
         if (nativePassthroughMode) {
+          resumeInput();
           enterTuiDisplay();
         }
         // Display error
@@ -574,6 +598,7 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
         transcriptPanel.append(`\n[ERROR] ${errorMsg}`);
         render();
       } finally {
+        resumeInput();
         isExecuting = false;
       }
     };

@@ -36,6 +36,7 @@ export const executeWithAdapter = async (request: ExecutorRequest): Promise<Exec
     ...(request.taskType !== undefined ? { taskType: request.taskType } : {}),
     ...(request.cwd !== undefined ? { cwd: request.cwd } : {}),
     ...(request.sessionId !== undefined ? { sessionId: request.sessionId } : {}),
+    ...(request.presentationMode !== undefined ? { presentationMode: request.presentationMode } : {}),
   }, {
     executionMode: request.executionMode,
     subprocessRunner,

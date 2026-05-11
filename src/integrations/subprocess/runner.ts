@@ -499,8 +499,9 @@ export const createPtySubprocessRunner = (
         const fallbackArgs = runViaNode
           ? [fallbackResolvedCommand, ...request.args]
           : request.args;
-        const command = ptyInvocation?.command ?? fallbackCommand;
-        const args = ptyInvocation?.args ?? fallbackArgs;
+        const passthroughInteractiveMode = options?.passthroughUi && request.input === undefined;
+        const command = passthroughInteractiveMode ? fallbackCommand : (ptyInvocation?.command ?? fallbackCommand);
+        const args = passthroughInteractiveMode ? fallbackArgs : (ptyInvocation?.args ?? fallbackArgs);
         const ptyEnv = ptyInvocation?.env ? { ...env, ...ptyInvocation.env } : env;
 
         const startTime = Date.now();
@@ -516,11 +517,13 @@ export const createPtySubprocessRunner = (
           cwd: request.cwd,
           env: ptyEnv,
           shell: false,
-          stdio: [
-            "pipe",
-            options?.passthroughUi ? "inherit" : "pipe",
-            options?.passthroughUi ? "inherit" : "pipe",
-          ],
+          stdio: passthroughInteractiveMode
+            ? ["inherit", "inherit", "inherit"]
+            : [
+                "pipe",
+                options?.passthroughUi ? "inherit" : "pipe",
+                options?.passthroughUi ? "inherit" : "pipe",
+              ],
         });
 
         let settled = false;
@@ -558,7 +561,7 @@ export const createPtySubprocessRunner = (
           });
         };
 
-        if (!options?.passthroughUi) {
+        if (!options?.passthroughUi || !passthroughInteractiveMode) {
           child.stdout?.setEncoding("utf8");
           child.stderr?.setEncoding("utf8");
 
@@ -604,7 +607,9 @@ export const createPtySubprocessRunner = (
           child.stdin?.write(request.input);
         }
 
-        child.stdin?.end();
+        if (!passthroughInteractiveMode) {
+          child.stdin?.end();
+        }
       });
     },
   };
