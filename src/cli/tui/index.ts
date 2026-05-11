@@ -164,6 +164,8 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
     let embeddedNativeCliSession: EmbeddedNativeCliSession | null = null;
     let pendingNativeEscapeReturn = false;
     let pendingNativeEscapeTimer: NodeJS.Timeout | undefined;
+    let executionClockStartedAt: number | null = null;
+    let executionClockTimer: NodeJS.Timeout | undefined;
 
     const clearNativeEscapeTimer = (): void => {
       if (pendingNativeEscapeTimer !== undefined) {
@@ -177,6 +179,29 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
       clearNativeEscapeTimer();
       embeddedNativeCliSession?.close();
       embeddedNativeCliSession = null;
+    };
+
+    const clearExecutionClock = (): void => {
+      if (executionClockTimer !== undefined) {
+        clearInterval(executionClockTimer);
+        executionClockTimer = undefined;
+      }
+      executionClockStartedAt = null;
+      pipelinePanel.setExecutionClock(null);
+    };
+
+    const startExecutionClock = (): void => {
+      if (!embeddedPaneMode || executionClockStartedAt !== null) {
+        return;
+      }
+
+      executionClockStartedAt = Date.now();
+      pipelinePanel.setExecutionClock(executionClockStartedAt);
+      executionClockTimer = setInterval(() => {
+        if (isExecuting) {
+          render();
+        }
+      }, 1000);
     };
 
     const ensureEmbeddedNativeCliSession = (): void => {
@@ -719,6 +744,7 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
         } else {
           render();
         }
+        startExecutionClock();
 
         // Phase 3.1: Create normalized request
         const request = toNormalizedRequest(
@@ -800,11 +826,12 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
           ...(actionTimeline.length > 0 ? { actionTimeline } : {}),
         });
         if (embeddedPaneMode) {
-          embeddedTerminalFocus.focusSummary();
+          embeddedTerminalFocus.focusDetoks();
         }
         currentTokenSavingsLabel = formatTokenSavingsBadge(
           result.promptTokenSavings ?? result.tokenMetrics?.input ?? result.tokenMetrics?.output,
         );
+        clearExecutionClock();
         if (nativePassthroughMode) {
           resumeInput();
           enterTuiDisplay();
@@ -812,6 +839,7 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
         render();
 
       } catch (error) {
+        clearExecutionClock();
         if (nativePassthroughMode) {
           resumeInput();
           enterTuiDisplay();
@@ -821,6 +849,7 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
         transcriptPanel.append(`\n[ERROR] ${errorMsg}`);
         render();
       } finally {
+        clearExecutionClock();
         resumeInput();
         isExecuting = false;
       }

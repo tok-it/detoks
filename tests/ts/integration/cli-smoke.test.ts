@@ -572,6 +572,26 @@ describe("detoks CLI smoke", () => {
     }
   });
 
+  it("returns to detoks input after an embedded run so another prompt can be entered", () => {
+    const tempDir = mkdtempSync(join(tmpdir(), "detoks-cli-embedded-repl-"));
+
+    try {
+      const replRun = runCliWithInputFromCwdAndTimeout(
+        tempDir,
+        ["repl", "--tui", "--embedded-cli-ui", "--execution-mode", "stub"],
+        "hello detoks\nhello again\n/exit\n",
+        10_000,
+      );
+
+      expect(replRun.stderr).toBe("");
+      expect(replRun.stdout).toContain("작업 진행 중");
+      expect(replRun.stdout.match(/1개 작업을 모두 완료했습니다/g)?.length ?? 0).toBeGreaterThanOrEqual(2);
+      expect(replRun.status).toBe(0);
+    } finally {
+      rmSync(tempDir, { force: true, recursive: true });
+    }
+  });
+
   it("keeps default stderr concise and verbose stderr stacked on errors", () => {
     const defaultRun = runCli(["--unknown"]);
     const verboseRun = runCli(["--unknown", "--verbose"]);
