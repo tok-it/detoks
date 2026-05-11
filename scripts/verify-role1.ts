@@ -19,6 +19,7 @@ import {
 	runBatchPromptPipeline,
 } from "../src/core/pipeline/batch.js";
 import { shutdownManagedLocalLlmRuntime } from "../src/core/llm-client/local-runtime.js";
+import { shutdownKompressWorker } from "../src/core/prompt/kompress-client.js";
 import {
 	assertValidGgufModelFile,
 	resolveConfiguredRole1ModelPath,
@@ -718,6 +719,7 @@ async function main(): Promise<void> {
 			encoding.free();
 		}
 	} finally {
+		shutdownKompressWorker();
 		await shutdownManagedLocalLlmRuntime();
 	}
 }

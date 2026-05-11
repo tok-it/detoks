@@ -359,6 +359,15 @@ export async function compressTextWithKompress(
   });
 }
 
+export function shutdownKompressWorker(): boolean {
+  if (!activeWorker) {
+    return false;
+  }
+
+  killWorker(activeWorker);
+  return true;
+}
+
 export function resetKompressWorkerForTests(): void {
   if (!activeWorker) {
     return;

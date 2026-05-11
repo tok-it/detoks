@@ -105,10 +105,52 @@ afterEach(async () => {
 		nodeLlamaMocks.sessionSetChatHistory.mockClear();
 });
 
-describe("completeChatWithNodeLlamaCpp", () => {
-	it("reasoning 모델의 thought 구간이 있어도 completePrompt 경로로 응답을 유지한다", async () => {
-		const tempDir = mkdtempSync(join(tmpdir(), "detoks-node-llama-"));
-		const modelPath = join(tempDir, "test-model.gguf");
+	describe("completeChatWithNodeLlamaCpp", () => {
+		it("같은 런타임에서는 컨텍스트와 세션을 재사용한다", async () => {
+			const tempDir = mkdtempSync(join(tmpdir(), "detoks-node-llama-"));
+			const modelPath = join(tempDir, "test-model.gguf");
+			writeFileSync(modelPath, "GGUFtest", "utf8");
+
+			try {
+				const request = {
+					messages: [
+						{
+							role: "system" as const,
+							content: "Translate faithfully",
+						},
+						{
+							role: "user" as const,
+							content: "새 파일을 생성해",
+						},
+					],
+					max_tokens: 128,
+				};
+				const config = {
+					localLlmModelName: "Qwen3.5-4B-GGUF",
+					localLlmModelPath: modelPath,
+					localLlmContextSize: 4096,
+					localLlmTopK: 40,
+					localLlmTopP: 0.95,
+					localLlmMaxTokens: 256,
+				};
+
+				await completeChatWithNodeLlamaCpp(request, config);
+				await completeChatWithNodeLlamaCpp(request, config);
+
+				expect(nodeLlamaMocks.getLlama).toHaveBeenCalledOnce();
+				expect(nodeLlamaMocks.loadModel).toHaveBeenCalledOnce();
+				expect(nodeLlamaMocks.modelCreateContext).toHaveBeenCalledOnce();
+				expect(nodeLlamaMocks.LlamaChatSession).toHaveBeenCalledOnce();
+				expect(nodeLlamaMocks.sessionSetChatHistory).toHaveBeenCalledTimes(2);
+				expect(nodeLlamaMocks.sessionPromptWithMeta).toHaveBeenCalledTimes(2);
+			} finally {
+				rmSync(tempDir, { recursive: true, force: true });
+			}
+		});
+
+		it("reasoning 모델의 thought 구간이 있어도 completePrompt 경로로 응답을 유지한다", async () => {
+			const tempDir = mkdtempSync(join(tmpdir(), "detoks-node-llama-"));
+			const modelPath = join(tempDir, "test-model.gguf");
 		writeFileSync(modelPath, "GGUFtest", "utf8");
 		nodeLlamaMocks.loadModel.mockResolvedValueOnce({
 			createContext: nodeLlamaMocks.modelCreateContext,

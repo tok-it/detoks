@@ -1,5 +1,6 @@
 import {
   getLlama,
+  type LlamaContext,
   LlamaChatSession,
   QwenChatWrapper,
   type ChatHistoryItem,
@@ -37,6 +38,10 @@ interface LoadedNodeLlamaRuntime {
   signature: string;
   llama: Llama;
   model: LlamaModel;
+  context: LlamaContext;
+  session: LlamaChatSession;
+  completionMode: "completePrompt" | "promptWithMeta";
+  qwenVariation?: "3" | "3.5";
 }
 
 let loadedRuntime: LoadedNodeLlamaRuntime | null = null;
@@ -127,58 +132,29 @@ async function disposeLoadedRuntime(
     return false;
   }
 
+  runtime.session.dispose?.();
+  await runtime.context.dispose();
   await runtime.model.dispose();
   await runtime.llama.dispose();
   return true;
 }
 
 async function completePromptOnce(
-  model: LlamaModel,
+  runtime: LoadedNodeLlamaRuntime,
   chatHistory: ChatHistoryItem[],
   prompt: string,
-  config: NodeLlamaRuntimeConfig,
   options: {
     maxTokens: number;
     temperature: number;
     topK: number;
     topP: number;
     signal: AbortSignal;
-    mode: "completePrompt" | "promptWithMeta";
-    qwenVariation?: "3" | "3.5";
   },
 ): Promise<string> {
-  const context = await model.createContext({
-    contextSize: config.localLlmContextSize ?? 4096,
-  });
-  const session = new LlamaChatSession({
-    contextSequence: context.getSequence(),
-    ...(options.mode === "promptWithMeta"
-      ? {
-          chatWrapper: new QwenChatWrapper({
-            variation: options.qwenVariation ?? "3",
-            thoughts: "discourage",
-          }),
-        }
-      : {}),
-  });
+  runtime.session.setChatHistory(chatHistory);
 
-  try {
-    session.setChatHistory(chatHistory);
-
-    if (options.mode === "promptWithMeta") {
-      const result = await session.promptWithMeta(prompt, {
-        maxTokens: options.maxTokens,
-        temperature: options.temperature,
-        topK: options.topK,
-        topP: options.topP,
-        trimWhitespaceSuffix: true,
-        signal: options.signal,
-      });
-
-      return result.responseText;
-    }
-
-    return await session.completePrompt(prompt, {
+  if (runtime.completionMode === "promptWithMeta") {
+    const result = await runtime.session.promptWithMeta(prompt, {
       maxTokens: options.maxTokens,
       temperature: options.temperature,
       topK: options.topK,
@@ -186,10 +162,18 @@ async function completePromptOnce(
       trimWhitespaceSuffix: true,
       signal: options.signal,
     });
-  } finally {
-    session.dispose?.({ disposeSequence: true });
-    await context.dispose();
+
+    return result.responseText;
   }
+
+  return await runtime.session.completePrompt(prompt, {
+    maxTokens: options.maxTokens,
+    temperature: options.temperature,
+    topK: options.topK,
+    topP: options.topP,
+    trimWhitespaceSuffix: true,
+    signal: options.signal,
+  });
 }
 
 function resolveQwenVariation(
@@ -224,19 +208,57 @@ async function loadRuntimeWithOptions(
   const llama = await getLlama({
     gpu: gpuEnabled ? "auto" : false,
   });
+  let model: LlamaModel | null = null;
+  let context: LlamaContext | null = null;
+  let session: LlamaChatSession | null = null;
 
   try {
-    const model = await llama.loadModel({
+    model = await llama.loadModel({
       modelPath,
       gpuLayers,
+    });
+    const architecture = model.fileInfo?.metadata?.general?.architecture;
+    const isQwenReasoningArchitecture =
+      typeof architecture === "string" &&
+      architecture.toLowerCase().startsWith("qwen3");
+    const completionMode: "completePrompt" | "promptWithMeta" =
+      isQwenReasoningArchitecture ? "promptWithMeta" : "completePrompt";
+    const qwenVariation =
+      completionMode === "promptWithMeta"
+        ? resolveQwenVariation(architecture, config)
+        : undefined;
+    context = await model.createContext({
+      contextSize: config.localLlmContextSize ?? 4096,
+    });
+    session = new LlamaChatSession({
+      contextSequence: context.getSequence(),
+      ...(completionMode === "promptWithMeta"
+        ? {
+            chatWrapper: new QwenChatWrapper({
+              variation: qwenVariation ?? "3",
+              thoughts: "discourage",
+            }),
+          }
+        : {}),
     });
 
     return {
       signature,
       llama,
       model,
+      context,
+      session,
+      completionMode,
+      ...(qwenVariation ? { qwenVariation } : {}),
     };
   } catch (error) {
+    session?.dispose?.();
+    if (context) {
+      await context.dispose();
+    }
+    if (model) {
+      await model.dispose();
+    }
     await llama.dispose();
 
     if (
@@ -374,11 +396,8 @@ export async function completeChatWithNodeLlamaCpp(
   }
 
   const { chatHistory, prompt } = convertMessagesToChatHistory(request.messages);
-  const architecture =
-    loadedRuntime.model.fileInfo?.metadata?.general?.architecture;
   const isQwenReasoningArchitecture =
-    typeof architecture === "string" &&
-    architecture.toLowerCase().startsWith("qwen3");
+    loadedRuntime.completionMode === "promptWithMeta";
   const controller = new AbortController();
   const baseTimeoutMs = request.timeout_ms ?? 30_000;
   const timeoutMs = isQwenReasoningArchitecture
@@ -387,8 +406,6 @@ export async function completeChatWithNodeLlamaCpp(
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
   const startedAt = Date.now();
   const baseMaxTokens = request.max_tokens ?? config.localLlmMaxTokens ?? 512;
-  const completionMode: "completePrompt" | "promptWithMeta" =
-    isQwenReasoningArchitecture ? "promptWithMeta" : "completePrompt";
   const completionOptions = {
     maxTokens: isQwenReasoningArchitecture
       ? Math.max(baseMaxTokens, 1024)
@@ -397,18 +414,13 @@ export async function completeChatWithNodeLlamaCpp(
     topK: config.localLlmTopK ?? 40,
     topP: config.localLlmTopP ?? 0.95,
     signal: controller.signal,
-    mode: completionMode,
-    ...(isQwenReasoningArchitecture
-      ? { qwenVariation: resolveQwenVariation(architecture, config) }
-      : {}),
   };
 
   try {
     const content = await completePromptOnce(
-      loadedRuntime.model,
+      loadedRuntime,
       chatHistory,
       prompt,
-      config,
       completionOptions,
     );
 
