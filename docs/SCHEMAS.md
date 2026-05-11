@@ -248,27 +248,30 @@ type Checkpoint = {
 };
 
 type SessionState = {
-	session_id: string;
-	version: string;
-	goal: string;
-	current_task: string | null;
-	completed_tasks: string[];
-	key_decisions: string[];
-	active_files: string[];
-	tasks: Task[];
-	summaries: {
-		rolling: string;
-		latest_checkpoint: string | null;
+	version?: string;
+	shared_context: {
+		session_id: string;
+		raw_input?: string;
+		failed_task_ids?: string[];   // saveSession 호출마다 task_results 기준으로 자동 동기화
+		input_history?: string[];
+		project_id?: string;
+		project_path?: string;
+		project_name?: string;
+		repl_mode?: boolean;
+		created_at?: string;
+		last_modified_at?: string;
+		[key: string]: unknown;       // passthrough — 역할별 추가 컨텍스트 허용
 	};
-	artifacts: {
-		task_results: Record<string, unknown>;
-		errors: string[];
-	};
-	metadata: Record<string, unknown>;
+	task_results: Record<string, TaskResult>;  // Zod discriminated union으로 type/success 보존 강제
+	current_task_id?: string | null;
+	completed_task_ids: string[];
 	last_summary?: string;
 	next_action?: string;
-	updated_at: string;
+	updated_at?: string;             // ISO 8601
 };
+
+// NOTE: SharedContext (src/types/context.ts) 는 ContextBuilder가 사용하는 런타임 컨텍스트로,
+// SessionState.shared_context 와 다른 별개의 개념입니다.
 ```
 
 **책임:** Role 2.2 (State & Context Engineer)  
