@@ -97,13 +97,12 @@ export class SessionStateManager {
 
   static async saveSession(state: SessionState): Promise<void> {
     const sessionId = state.shared_context?.session_id as string || 'default';
+    await this.ensureDirectories();
+    await this.acquireLock(sessionId);
     try {
-      await this.ensureDirectories();
-
       // 1. 자동 정규화: task_results의 원시 데이터를 표준 스키마로 보정
       for (const [taskId, result] of Object.entries(state.task_results)) {
         const res = result as any;
-        // 이미 정규화된 데이터가 아니라면(예: summary가 없거나 raw_output만 있다면) 보정 시도
         if (!res.task_id || !res.summary) {
           state.task_results[taskId] = ExecutionResultNormalizer.normalize(taskId, res);
         }
@@ -113,9 +112,7 @@ export class SessionStateManager {
       const failedIds = new Set<string>();
       for (const [taskId, result] of Object.entries(state.task_results)) {
         const res = result as any;
-        if (res.success === false) {
-          failedIds.add(taskId);
-        }
+        if (res.success === false) failedIds.add(taskId);
       }
       state.shared_context.failed_task_ids = Array.from(failedIds);
 
@@ -125,14 +122,31 @@ export class SessionStateManager {
       // 4. 최종 무결성 검증
       const validated = StateValidator.validate(compressedState);
 
-      const filePath = join(SESSIONS_DIR, `${sessionId}.json`);
-      await fs.writeFile(filePath, JSON.stringify(validated, null, 2));
-    } catch (error: any) {
-      if (error instanceof StateValidationError) throw error;
+      // 5. tmp→rename atomic write: 덮어쓰기 도중 crash나도 기존 파일 보존
+      const tmpFile = this.tmpPath(sessionId);
+      const finalFile = join(SESSIONS_DIR, `${sessionId}.json`);
+      try {
+        await fs.writeFile(tmpFile, JSON.stringify(validated, null, 2));
+        await fs.rename(tmpFile, finalFile);
+      } catch (error: unknown) {
+        const nodeError = error as NodeJS.ErrnoException;
+        // tmp 파일이 남아있을 경우 정리
+        await fs.unlink(tmpFile).catch(() => undefined);
+        const recoverable = ['ENOSPC', 'EMFILE', 'ENFILE'].includes(nodeError.code ?? '');
+        throw new StateIOError(
+          `Failed to write session file [${sessionId}]${recoverable ? ' (recoverable)' : ''}`,
+          { sessionId, errorCode: nodeError.code, originalError: nodeError.message },
+        );
+      }
+    } catch (error: unknown) {
+      if (error instanceof StateValidationError || error instanceof StateIOError) throw error;
+      const e = error as Error;
       throw new StateIOError(`Failed to save session [${sessionId}]`, {
         sessionId,
-        originalError: error.message
+        originalError: e.message,
       });
+    } finally {
+      await this.releaseLock(sessionId);
     }
   }
 
