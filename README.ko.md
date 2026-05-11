@@ -23,7 +23,7 @@ detoks는 `codex`, `gemini` 같은 LLM CLI 앞단에서 동작하는 **interacti
 
 - Node.js `>=24.15.0 <26`
 - `codex` 또는 `gemini` CLI: 해당 adapter를 사용할 때
-- 선택 사항: Python `3.13.x` (`llama-server` 자체가 아니라 Kompress 압축 및 Python 기반 PTY fallback 경로에서만 현재 사용)
+- 로컬 모델 추론 사용 시: local `llama-server` binary
 
 자세한 버전 기준은 [STACK_VERSIONS.md](./docs/STACK_VERSIONS.md)와 [LLAMA_CPP_SERVER_SPEC.md](./docs/LLAMA_CPP_SERVER_SPEC.md)를 참고하세요.
 

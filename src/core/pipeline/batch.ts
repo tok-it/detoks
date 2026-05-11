@@ -1,15 +1,37 @@
 import {
   BatchPipelineResultSchema,
+  type BatchPipelineItemResult,
   type BatchPipelineResult,
 } from "../../schemas/pipeline.js";
 import { compilePrompt, createRole2PromptInput } from "../prompt/compiler.js";
 import { loadRole1RuntimeConfig } from "../prompt/config.js";
 import type { CompilePromptOptions } from "../prompt/compiler.js";
 
-export interface BatchPipelineOptions extends CompilePromptOptions {}
+export interface BatchProgressInfo {
+  phase: "start" | "complete";
+  index: number;
+  current: number;
+  total: number;
+  raw_input: string;
+  summary: string;
+  result?: BatchPipelineItemResult;
+}
+
+export interface BatchPipelineOptions extends CompilePromptOptions {
+  onProgress?: (info: BatchProgressInfo) => void;
+}
 
 function toErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+function summarizeInput(rawInput: string): string {
+  const singleLine = rawInput.replace(/\s+/g, " ").trim();
+  if (singleLine.length <= 80) {
+    return singleLine;
+  }
+
+  return `${singleLine.slice(0, 77)}...`;
 }
 
 export async function runBatchPromptPipeline(
@@ -23,6 +45,17 @@ export async function runBatchPromptPipeline(
   const results = [];
 
   for (const [index, raw_input] of inputs.entries()) {
+    const current = index + 1;
+    const summary = summarizeInput(raw_input);
+    options.onProgress?.({
+      phase: "start",
+      index,
+      current,
+      total: inputs.length,
+      raw_input,
+      summary,
+    });
+
     try {
       const compiled = await compilePrompt(
         { raw_input },
@@ -31,7 +64,7 @@ export async function runBatchPromptPipeline(
       const handoff = createRole2PromptInput(compiled);
       const validationErrors = compiled.validation_errors ?? [];
 
-      results.push({
+      const result: BatchPipelineItemResult = {
         index,
         raw_input,
         normalized_input: compiled.normalized_input,
@@ -43,15 +76,35 @@ export async function runBatchPromptPipeline(
         validation_errors: validationErrors,
         repair_actions: compiled.repair_actions ?? [],
         ...(compiled.debug ? { debug: compiled.debug } : {}),
+      };
+      results.push(result);
+      options.onProgress?.({
+        phase: "complete",
+        index,
+        current,
+        total: inputs.length,
+        raw_input,
+        summary,
+        result,
       });
     } catch (error) {
-      results.push({
+      const result: BatchPipelineItemResult = {
         index,
         raw_input,
         status: "failed",
         validation_errors: [],
         repair_actions: [],
         error: toErrorMessage(error),
+      };
+      results.push(result);
+      options.onProgress?.({
+        phase: "complete",
+        index,
+        current,
+        total: inputs.length,
+        raw_input,
+        summary,
+        result,
       });
     }
   }

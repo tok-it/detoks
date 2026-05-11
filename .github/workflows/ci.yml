@@ -21,6 +21,82 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  node-only-acceptance:
+    name: Node-only acceptance
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    container:
+      image: node:24.15.0-bookworm-slim
+    env:
+      LOCAL_LLM_RUNTIME_PROVIDER: node-llama-cpp
+      LOCAL_LLM_DEVICE: none
+      LOCAL_LLM_GPU_LAYERS: "0"
+      LOCAL_LLM_MAX_TOKENS: "32"
+      REQUEST_TIMEOUT: "120000"
+      npm_config_python: /tmp/no-python/python
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Verify Python is unavailable
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          for command_name in python python3 python3.13 pip pip3 uv; do
+            if command -v "$command_name" >/dev/null 2>&1; then
+              echo "Unexpected Python tool on PATH: $command_name"
+              command -v "$command_name"
+              exit 1
+            fi
+          done
+
+      - name: Reject Python runtime reintroduction
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          python_runtime_files="$(
+            find . \
+              -path ./.git -prune -o \
+              -path ./node_modules -prune -o \
+              \( \
+                -path './python/*' -o \
+                -name '*.py' -o \
+                -name 'pyproject.toml' -o \
+                -name 'requirements*.txt' -o \
+                -name 'Pipfile' -o \
+                -name 'Pipfile.lock' -o \
+                -name 'poetry.lock' -o \
+                -name '.python-version' \
+              \) \
+              -print || true
+          )"
+
+          if [[ -n "$python_runtime_files" ]]; then
+            echo "Python runtime files are not allowed in the Node-only acceptance gate:"
+            echo "$python_runtime_files"
+            exit 1
+          fi
+
+          if grep -R "actions/setup-python" .github/workflows >/dev/null 2>&1; then
+            echo "actions/setup-python is not allowed in CI workflows."
+            exit 1
+          fi
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build
+        run: npm run build
+
+      - name: Test
+        run: npm test
+
+      - name: Verify Role 1 with node-llama-cpp
+        run: npm run verify:role1 -- --runtime-provider node-llama-cpp
+
   test-typescript:
     name: TypeScript
     runs-on: ubuntu-latest

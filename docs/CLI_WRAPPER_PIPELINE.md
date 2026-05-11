@@ -278,8 +278,8 @@ The wrapper CLI may call all stages, but each stage still has its own owner.
   - Role 3
 - `src/integrations/subprocess/*`
   - Role 3
-- `python/llama_server/kompress_worker.py`
-  - Kompress compression worker only
+- `src/core/prompt/*`
+  - Role 1 prompt compression runtime
 
-<!-- 한국어 설명: 각 폴더의 책임을 유지해야 팀원 작업 영역이 겹치지 않고, CLI 계층이 다른 역할의 구현을 흡수하는 문제를 막을 수 있습니다. Python은 추론 서버에만 한정합니다. -->
-<!-- 한국어 설명: 각 폴더의 책임을 유지해야 팀원 작업 영역이 겹치지 않고, CLI 계층이 다른 역할의 구현을 흡수하는 문제를 막을 수 있습니다. Python은 추론 서버에만 한정합니다. -->
+<!-- 한국어 설명: 각 폴더의 책임을 유지해야 팀원 작업 영역이 겹치지 않고, CLI 계층이 다른 역할의 구현을 흡수하는 문제를 막을 수 있습니다. -->
+<!-- 한국어 설명: 각 폴더의 책임을 유지해야 팀원 작업 영역이 겹치지 않고, CLI 계층이 다른 역할의 구현을 흡수하는 문제를 막을 수 있습니다. -->
