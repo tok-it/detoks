@@ -2,9 +2,22 @@ import { chmodSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { afterEach, describe, expect, it, vi } from "vitest";
+
+const nodeRuntimeMocks = vi.hoisted(() => ({
+	buildNodeLlamaRuntimeSignature: vi.fn(() => "node-runtime-signature"),
+	ensureNodeLlamaCppRuntime: vi.fn(async () => {}),
+	shutdownNodeLlamaCppRuntime: vi.fn(async () => true),
+}));
+
+vi.mock(
+	"../../../../../src/core/llm-client/node-llama-runtime.js",
+	() => nodeRuntimeMocks,
+);
+
 import {
 	buildLlamaServerArgs,
 	getBinaryProbeCommand,
+	getActiveLocalLlmRuntimeProvider,
 	ensureLocalLlmRuntime,
 	shutdownManagedLocalLlmRuntime,
 } from "../../../../../src/core/llm-client/local-runtime.js";
@@ -13,6 +26,9 @@ afterEach(async () => {
 	await shutdownManagedLocalLlmRuntime();
 	vi.restoreAllMocks();
 	vi.unstubAllGlobals();
+	nodeRuntimeMocks.buildNodeLlamaRuntimeSignature.mockClear();
+	nodeRuntimeMocks.ensureNodeLlamaCppRuntime.mockClear();
+	nodeRuntimeMocks.shutdownNodeLlamaCppRuntime.mockClear();
 });
 
 describe("buildLlamaServerArgs", () => {
@@ -161,6 +177,7 @@ describe("buildLlamaServerArgs", () => {
 				localLlmApiBase: "http://127.0.0.1:12370/v1",
 				localLlmModelName:
 					"mradermacher/gemma-4-e2b-it-heretic-ara-GGUF:Q4_K_S",
+				localLlmRuntimeProvider: "llama-server",
 				localLlmAutoStart: true,
 				localLlmServerHost: "127.0.0.1",
 				localLlmServerPort: 12370,
@@ -198,6 +215,7 @@ describe("buildLlamaServerArgs", () => {
 					localLlmApiBase: "http://127.0.0.1:12370/v1",
 					localLlmModelName:
 						"mradermacher/gemma-4-e2b-it-heretic-ara-GGUF:Q4_K_S",
+					localLlmRuntimeProvider: "llama-server",
 					localLlmAutoStart: true,
 					localLlmServerBinary: "llama-server",
 					localLlmServerHost: "127.0.0.1",
@@ -248,6 +266,7 @@ describe("buildLlamaServerArgs", () => {
 					localLlmApiBase: "http://127.0.0.1:12370/v1",
 					localLlmModelName: "broken-model",
 					localLlmModelPath: modelPath,
+					localLlmRuntimeProvider: "llama-server",
 					localLlmAutoStart: true,
 					localLlmServerBinary: "llama-server",
 					localLlmServerHost: "127.0.0.1",
@@ -349,6 +368,7 @@ describe("buildLlamaServerArgs", () => {
 					localLlmApiBase: "http://127.0.0.1:12370/v1",
 					localLlmModelName:
 						"mradermacher/gemma-4-e2b-it-heretic-ara-GGUF:Q4_K_S",
+					localLlmRuntimeProvider: "llama-server",
 					localLlmAutoStart: true,
 					localLlmServerBinary: "llama-server",
 					localLlmServerHost: "127.0.0.1",
@@ -432,6 +452,7 @@ describe("buildLlamaServerArgs", () => {
 			await ensureLocalLlmRuntime({
 				localLlmApiBase: "http://127.0.0.1:12370/v1",
 				localLlmModelName: "detoks-local",
+				localLlmRuntimeProvider: "llama-server",
 				localLlmAutoStart: true,
 				localLlmServerBinary: "llama-server",
 				localLlmServerHost: "127.0.0.1",
@@ -457,5 +478,98 @@ describe("buildLlamaServerArgs", () => {
 			process.env.PATH = originalPath;
 			rmSync(scriptDir, { recursive: true, force: true });
 		}
+	});
+
+	it("node-llama-cpp provider는 in-process runtime 초기화를 호출한다", async () => {
+		await expect(
+			ensureLocalLlmRuntime({
+				localLlmApiBase: "http://127.0.0.1:12472/v1",
+				localLlmModelName: "detoks-local",
+				localLlmRuntimeProvider: "node-llama-cpp",
+				localLlmAutoStart: true,
+				localLlmServerHost: "127.0.0.1",
+				localLlmServerPort: 12472,
+				localLlmModelDir: "/Users/test/.detoks/models",
+				localLlmHfFile: "detoks.gguf",
+				localLlmGpuLayers: "0",
+				localLlmDevice: "none",
+				localLlmContextSize: 4096,
+				localLlmTopK: 40,
+				localLlmTopP: 0.95,
+				localLlmMaxTokens: 512,
+				pipelineMode: "safe",
+				requestTimeout: 30000,
+				translationMaxAttempts: 5,
+				temperature: 0,
+			}),
+		).resolves.toBeUndefined();
+
+		expect(
+			nodeRuntimeMocks.buildNodeLlamaRuntimeSignature,
+		).toHaveBeenCalledOnce();
+		expect(nodeRuntimeMocks.ensureNodeLlamaCppRuntime).toHaveBeenCalledOnce();
+	});
+
+	it("node-llama-cpp provider 종료는 in-process runtime 정리로 위임한다", async () => {
+		await ensureLocalLlmRuntime({
+			localLlmApiBase: "http://127.0.0.1:12472/v1",
+			localLlmModelName: "detoks-local",
+			localLlmRuntimeProvider: "node-llama-cpp",
+			localLlmAutoStart: true,
+			localLlmServerHost: "127.0.0.1",
+			localLlmServerPort: 12472,
+			localLlmModelDir: "/Users/test/.detoks/models",
+			localLlmHfFile: "detoks.gguf",
+			localLlmGpuLayers: "0",
+			localLlmDevice: "none",
+			localLlmContextSize: 4096,
+			localLlmTopK: 40,
+			localLlmTopP: 0.95,
+			localLlmMaxTokens: 512,
+			pipelineMode: "safe",
+			requestTimeout: 30000,
+			translationMaxAttempts: 5,
+			temperature: 0,
+		});
+
+		await expect(shutdownManagedLocalLlmRuntime()).resolves.toBe(true);
+		expect(nodeRuntimeMocks.shutdownNodeLlamaCppRuntime).toHaveBeenCalledOnce();
+	});
+
+	it("node-llama-cpp startup 실패는 그대로 전파되고 llama-server로 폴백하지 않는다", async () => {
+		const fetchMock = vi.fn(async () => {
+			throw new Error("fetch should not be called");
+		});
+		vi.stubGlobal("fetch", fetchMock);
+		nodeRuntimeMocks.ensureNodeLlamaCppRuntime.mockRejectedValueOnce(
+			new Error("unknown model architecture: 'gemma4'"),
+		);
+
+		await expect(
+			ensureLocalLlmRuntime({
+				localLlmApiBase: "http://127.0.0.1:12370/v1",
+				localLlmModelName: "detoks-local",
+				localLlmRuntimeProvider: "node-llama-cpp",
+				localLlmAutoStart: true,
+				localLlmServerHost: "127.0.0.1",
+				localLlmServerPort: 12370,
+				localLlmModelDir: "/Users/test/.detoks/models",
+				localLlmHfFile: "detoks.gguf",
+				localLlmGpuLayers: "0",
+				localLlmDevice: "none",
+				localLlmContextSize: 4096,
+				localLlmTopK: 40,
+				localLlmTopP: 0.95,
+				localLlmMaxTokens: 512,
+				pipelineMode: "safe",
+				requestTimeout: 30000,
+				translationMaxAttempts: 5,
+				temperature: 0,
+			}),
+		).rejects.toThrow("unknown model architecture: 'gemma4'");
+
+		expect(nodeRuntimeMocks.ensureNodeLlamaCppRuntime).toHaveBeenCalledOnce();
+		expect(fetchMock).not.toHaveBeenCalled();
+		expect(getActiveLocalLlmRuntimeProvider()).toBeNull();
 	});
 });
