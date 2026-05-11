@@ -80,7 +80,8 @@ jobs:
             exit 1
           fi
 
-          if grep -R "actions/setup-python" .github/workflows >/dev/null 2>&1; then
+          if grep -R "actions/setup-python" .github/workflows \
+               --exclude="ci.yml" >/dev/null 2>&1; then
             echo "actions/setup-python is not allowed in CI workflows."
             exit 1
           fi
