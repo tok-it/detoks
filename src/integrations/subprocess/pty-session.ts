@@ -86,9 +86,6 @@ const isNodeShebangScript = (filePath: string): boolean => {
   }
 };
 
-const normalizeScriptOutput = (chunk: string): string =>
-  chunk.replace(/^\u0004\b\b/, "");
-
 interface InteractivePtyBackend {
   command: string;
   args: string[];
@@ -199,25 +196,23 @@ export const createInteractivePtySession = (
       child.stderr?.setEncoding("utf8");
 
       child.stdout?.on("data", (chunk: string) => {
-        const normalizedChunk = normalizeScriptOutput(chunk);
-        stdout += normalizedChunk;
+        stdout += chunk;
         emitEvent({
           type: "chunk",
           stream: "stdout",
-          data: normalizedChunk,
+          data: chunk,
         });
-        stdoutPending = pushLines(normalizedChunk, "stdout", stdoutPending);
+        stdoutPending = pushLines(chunk, "stdout", stdoutPending);
       });
 
       child.stderr?.on("data", (chunk: string) => {
-        const normalizedChunk = normalizeScriptOutput(chunk);
-        stderr += normalizedChunk;
+        stderr += chunk;
         emitEvent({
           type: "chunk",
           stream: "stderr",
-          data: normalizedChunk,
+          data: chunk,
         });
-        stderrPending = pushLines(normalizedChunk, "stderr", stderrPending);
+        stderrPending = pushLines(chunk, "stderr", stderrPending);
       });
     }
 

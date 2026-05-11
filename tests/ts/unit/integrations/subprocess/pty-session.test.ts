@@ -132,4 +132,29 @@ describe("interactive PTY session", () => {
     expect(onEvent.mock.calls.some(([event]) => event.type === "resize" && event.columns === 100 && event.rows === 30)).toBe(true);
     expect(onEvent.mock.calls.some(([event]) => event.type === "chunk" && event.stream === "stdout")).toBe(true);
   });
+
+  it("preserves raw chunks without script-wrapper normalization", async () => {
+    const child = new FakeChildProcess();
+    childProcessMocks.spawn.mockReturnValueOnce(child as unknown as never);
+
+    const session = createInteractivePtySession(
+      {
+        command: process.execPath,
+        args: ["-e", "process.stdout.write('ok')"],
+      },
+      {
+        onEvent: vi.fn(),
+      },
+    );
+
+    child.stdout.emit("data", "\u0004\b\bhello");
+    session.close();
+
+    const resultPromise = session.result;
+    child.emit("close", 0, null);
+    const result = await resultPromise;
+
+    expect(result.stdout).toContain("\u0004\b\bhello");
+    expect(result.transcript.events.some((event) => event.type === "chunk" && event.data?.includes("\u0004\b\bhello") === true)).toBe(true);
+  });
 });
