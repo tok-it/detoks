@@ -114,3 +114,18 @@ detoks repl --adapter codex --execution-mode stub --tui
 
 Windows native 실행은 지원하지 않으며, WSL Ubuntu에서 실행합니다.
 자세한 설치/실행 절차는 [README.ko.md](./README.ko.md) 및 [LLAMA_CPP_SERVER_SPEC.md](./docs/LLAMA_CPP_SERVER_SPEC.md)를 참고하세요.
+
+## Authors
+
+This project was created and maintained by the DeToks Team.
+
+- sorlros
+- Evan-Yoon
+- SihoHan11
+- Ziro-kun
+
+## License
+
+This project is licensed under the Apache License 2.0.
+
+Copyright 2026 DeToks Team
