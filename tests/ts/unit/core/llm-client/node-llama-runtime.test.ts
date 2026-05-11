@@ -132,6 +132,7 @@ afterEach(async () => {
 					localLlmTopK: 40,
 					localLlmTopP: 0.95,
 					localLlmMaxTokens: 256,
+					localLlmReasoning: "off",
 				};
 
 				await completeChatWithNodeLlamaCpp(request, config);
@@ -186,6 +187,7 @@ afterEach(async () => {
 					localLlmTopK: 40,
 					localLlmTopP: 0.95,
 					localLlmMaxTokens: 256,
+					localLlmReasoning: "off",
 				},
 			);
 
@@ -253,6 +255,7 @@ afterEach(async () => {
 					localLlmTopK: 40,
 					localLlmTopP: 0.95,
 					localLlmMaxTokens: 256,
+					localLlmReasoning: "off",
 				},
 				);
 
@@ -267,6 +270,9 @@ afterEach(async () => {
 				expect(nodeLlamaMocks.sessionPromptWithMeta).toHaveBeenCalledWith(
 					"새 파일을 생성해",
 					expect.objectContaining({
+						budgets: {
+							thoughtTokens: 0,
+						},
 						maxTokens: 1024,
 						temperature: 0,
 						topK: 40,
@@ -277,8 +283,54 @@ afterEach(async () => {
 				expect(nodeLlamaMocks.sessionPrompt).not.toHaveBeenCalled();
 				expect(nodeLlamaMocks.sessionCompletePrompt).not.toHaveBeenCalled();
 				expect(response.content).toBe("Translated output");
-		} finally {
-			rmSync(tempDir, { recursive: true, force: true });
-		}
+			} finally {
+				rmSync(tempDir, { recursive: true, force: true });
+			}
+		});
+
+		it("reasoning이 off가 아니면 thought budget을 강제로 0으로 두지 않는다", async () => {
+			const tempDir = mkdtempSync(join(tmpdir(), "detoks-node-llama-"));
+			const modelPath = join(tempDir, "test-model.gguf");
+			writeFileSync(modelPath, "GGUFtest", "utf8");
+
+			try {
+				await completeChatWithNodeLlamaCpp(
+					{
+						messages: [
+							{
+								role: "system",
+								content: "Translate faithfully",
+							},
+							{
+								role: "user",
+								content: "새 파일을 생성해",
+							},
+						],
+						max_tokens: 128,
+					},
+					{
+						localLlmModelName: "Qwen3.5-4B-GGUF",
+						localLlmModelPath: modelPath,
+						localLlmContextSize: 4096,
+						localLlmTopK: 40,
+						localLlmTopP: 0.95,
+						localLlmMaxTokens: 256,
+						localLlmReasoning: "on",
+					},
+				);
+
+				expect(nodeLlamaMocks.QwenChatWrapper).toHaveBeenCalledWith({
+					variation: "3.5",
+					thoughts: "auto",
+				});
+				expect(nodeLlamaMocks.sessionPromptWithMeta).toHaveBeenCalledWith(
+					"새 파일을 생성해",
+					expect.not.objectContaining({
+						budgets: expect.anything(),
+					}),
+				);
+			} finally {
+				rmSync(tempDir, { recursive: true, force: true });
+			}
+		});
 	});
-});

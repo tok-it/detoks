@@ -65,6 +65,7 @@ function toNodeRuntimeConfig(
     localLlmTopK: config.localLlmTopK,
     localLlmTopP: config.localLlmTopP,
     localLlmMaxTokens: config.localLlmMaxTokens,
+    localLlmReasoning: config.localLlmReasoning,
   };
 }
 
