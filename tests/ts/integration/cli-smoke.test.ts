@@ -73,6 +73,19 @@ const runCliWithInputFromCwd = (
     input,
   });
 
+const runCliWithInputFromCwdAndTimeout = (
+  cwd: string,
+  args: string[],
+  input: string,
+  timeout: number,
+) =>
+  spawnSync(process.execPath, ["--import", tsxLoader, cliEntry, ...args], {
+    cwd,
+    encoding: "utf8",
+    input,
+    timeout,
+  });
+
 const parseCliJson = (output: string) => {
   const trimmed = output.trim();
   const jsonStart = trimmed.indexOf("{");
@@ -532,6 +545,28 @@ describe("detoks CLI smoke", () => {
       expect(replRun.stdout).not.toContain("최근 세션:");
       expect(replRun.stdout).not.toContain(sessionId);
       expect(replRun.stdout.trimEnd()).toMatch(/detoks repl 종료\.$/);
+    } finally {
+      rmSync(tempDir, { force: true, recursive: true });
+    }
+  });
+
+  it("keeps the embedded CLI pane and summary region visible in embedded mode", () => {
+    const tempDir = mkdtempSync(join(tmpdir(), "detoks-cli-embedded-repl-"));
+
+    try {
+      const replRun = runCliWithInputFromCwdAndTimeout(
+        tempDir,
+        ["repl", "--tui", "--embedded-cli-ui", "--execution-mode", "stub"],
+        "/exit\n",
+        10_000,
+      );
+
+      expect(replRun.error).toBeUndefined();
+      expect(replRun.status).toBe(0);
+      expect(replRun.stderr).toBe("");
+      expect(replRun.stdout).toContain("원본 CLI 출력이 이 영역에 표시됩니다.");
+      expect(replRun.stdout).toContain("실행 결과가 아직 없습니다.");
+      expect(replRun.stdout).toContain("첫 실행 이후 작업 타임라인");
     } finally {
       rmSync(tempDir, { force: true, recursive: true });
     }
