@@ -79,6 +79,14 @@ describe("TaskCandidateExtractor", () => {
     expect(result[0]!.text).toMatch(/^summarize/);
   });
 
+  it("does not discard valid tasks containing step-by-step as noun modifier", () => {
+    const result = TaskCandidateExtractor.extractSentences(
+      "Create a step-by-step guide for the onboarding flow.",
+    );
+
+    expect(result.sentences).toEqual(["Create a step-by-step guide for the onboarding flow."]);
+  });
+
   it("preserves cause context from translated problem statements", () => {
     const result = TaskCandidateExtractor.extractSentences(
       "And probably the problem is caused by duplicate validation logic, so fix that bug.",

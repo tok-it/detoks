@@ -112,6 +112,53 @@ describe("TaskGraphProcessor", () => {
       ["Make use of the existing module",  "execute",  "make use of → execute"],
       ["Make a note of the findings",      "document", "make a note → document"],
       ["Make a plan for the rollout",      "plan",     "make a plan → plan"],
+      ["Make a list of all the endpoints", "explore",  "make a list → explore"],
+      ["Make a decision about the architecture", "plan", "make a decision → plan"],
+      // idiom: look into → analyze (explore의 'look' 단일어에 가로채지지 않아야 함)
+      ["Look into the performance issue",  "analyze",  "look into → analyze"],
+      ["Look into why the tests are failing","analyze", "look into why → analyze"],
+      // idiom: analyze 계열 숙어
+      ["Figure out why the build is failing","analyze","figure out → analyze"],
+      ["Dig into the error handling flow", "analyze",  "dig into → analyze"],
+      ["Point out all the issues in the code","analyze","point out → analyze"],
+      // idiom: double check → validate
+      ["Double check the config",          "validate", "double check → validate"],
+      ["Double-check the implementation",  "validate", "double-check → validate"],
+      // idiom: modify 계열 숙어
+      ["Get rid of the unused imports",    "modify",   "get rid of → modify"],
+      ["Sort out the config issue",        "modify",   "sort out → modify"],
+      ["Tidy up the code",                 "modify",   "tidy up → modify"],
+      // idiom: document 계열 숙어
+      ["Take note of the changes",         "document", "take note of → document"],
+      ["Take notes on the findings",       "document", "take notes → document"],
+      ["Write up the findings",            "document", "write up → document"],
+      // idiom: write/add/create/implement tests → create (validate의 'test' 키워드에 가로채지지 않아야 함)
+      ["Add tests for the new feature",         "create",   "add tests → create"],
+      ["Write tests for the auth module",       "create",   "write tests → create"],
+      ["Create test cases for the controller",  "create",   "create test cases → create"],
+      ["Implement e2e tests for the API",       "create",   "implement e2e tests → create"],
+      // idiom: find out → analyze (explore의 'find' 단일어에 가로채지지 않아야 함)
+      ["Find out why the build is failing",     "analyze",  "find out → analyze"],
+      // idiom: compound find/search/locate + modify action → modify
+      ["Find and fix all the issues",           "modify",   "find and fix → modify"],
+      ["Locate and update all the references",  "modify",   "locate and update → modify"],
+      ["Search and replace the old function name", "modify","search and replace → modify"],
+      // TYPE_PATTERNS validate: standalone 'check' (check out 예외)
+      ["Check the config",                      "validate", "check standalone → validate"],
+      ["Run a quick sanity check",              "validate", "sanity check → validate"],
+      ["Run a check on the output",             "validate", "run a check → validate"],
+      // TYPE_PATTERNS modify: enable/disable/toggle/turn on|off
+      ["Enable the feature flag",               "modify",   "enable → modify"],
+      ["Disable the old middleware",            "modify",   "disable → modify"],
+      ["Toggle debug mode",                     "modify",   "toggle → modify"],
+      ["Turn off the authentication bypass",    "modify",   "turn off → modify"],
+      // idiom: make a [수식어] plan → plan
+      ["Make a test plan",                      "plan",     "make a test plan → plan"],
+      ["Make a migration plan",                 "plan",     "make a migration plan → plan"],
+      // regression: check out는 validate가 아닌 execute로 유지
+      ["Check out the branch",                  "execute",  "check out → execute (regression)"],
+      // regression: make tests pass는 여전히 validate
+      ["Make the tests pass",                   "validate", "make tests pass → validate (regression)"],
       // question-form: 키워드 없는 질문형 → analyze
       ["What should we address first?",   "analyze",  "question-form → analyze"],
       ["How far should we go with this?", "analyze",  "how far → analyze"],

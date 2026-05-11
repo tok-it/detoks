@@ -292,11 +292,11 @@ describe("TaskSentenceSplitter", () => {
       expect(graph.tasks.map((t) => t.type)).toEqual(["analyze", "plan"]);
     });
 
-    it("add tests → validate type, not create", () => {
+    it("add tests → create type (test code 작성 의도, 실행이 아님)", () => {
       const compiled = TaskSentenceSplitter.split("Create a new endpoint and add tests");
       const graph = TaskGraphProcessor.process(compiled);
 
-      expect(graph.tasks.map((t) => t.type)).toEqual(["create", "validate"]);
+      expect(graph.tasks.map((t) => t.type)).toEqual(["create", "create"]);
       expect(graph.tasks[1]!.depends_on).toEqual(["t1"]);
     });
 
@@ -309,6 +309,24 @@ describe("TaskSentenceSplitter", () => {
       expect(graph.tasks.map((t) => t.type)).toEqual(["explore", "analyze", "modify"]);
       expect(graph.tasks[1]!.depends_on).toEqual(["t1"]);
       expect(graph.tasks[2]!.depends_on).toEqual(["t2"]);
+    });
+
+    it("create → validate: check as follow-up splits correctly", () => {
+      const compiled = TaskSentenceSplitter.split("Create a new endpoint and check the response");
+
+      expect(compiled.sentences).toEqual(["Create a new endpoint", "check the response"]);
+      const graph = TaskGraphProcessor.process(compiled);
+      expect(graph.tasks.map((t) => t.type)).toEqual(["create", "validate"]);
+      expect(graph.tasks[1]!.depends_on).toEqual(["t1"]);
+    });
+
+    it("execute → modify: enable as follow-up splits correctly", () => {
+      const compiled = TaskSentenceSplitter.split("Deploy the service and enable the feature flag");
+
+      expect(compiled.sentences).toEqual(["Deploy the service", "enable the feature flag"]);
+      const graph = TaskGraphProcessor.process(compiled);
+      expect(graph.tasks.map((t) => t.type)).toEqual(["execute", "modify"]);
+      expect(graph.tasks[1]!.depends_on).toEqual(["t1"]);
     });
   });
 });
