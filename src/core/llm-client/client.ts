@@ -1,5 +1,6 @@
 import { logger } from "../utils/logger.js";
 import { translateVisibleText } from "../utils/visibleText.js";
+import { getActiveLocalLlmRuntimeProvider } from "./local-runtime.js";
 import { completeChatWithNodeLlamaCpp } from "./node-llama-runtime.js";
 
 export interface LlmMessage {
@@ -97,7 +98,11 @@ export async function complete_chat(
     throw new Error("LLM client requires LOCAL_LLM_MODEL_NAME");
   }
 
-  if (options.localLlmRuntimeProvider === "node-llama-cpp") {
+  const managedRuntimeProvider = getActiveLocalLlmRuntimeProvider();
+  const runtimeProvider =
+    managedRuntimeProvider ?? options.localLlmRuntimeProvider;
+
+  if (runtimeProvider === "node-llama-cpp") {
     return await completeChatWithNodeLlamaCpp(request, {
       ...(options.localLlmModelName
         ? { localLlmModelName: options.localLlmModelName }

@@ -17,6 +17,7 @@ vi.mock(
 import {
 	buildLlamaServerArgs,
 	getBinaryProbeCommand,
+	getActiveLocalLlmRuntimeProvider,
 	ensureLocalLlmRuntime,
 	shutdownManagedLocalLlmRuntime,
 } from "../../../../../src/core/llm-client/local-runtime.js";
@@ -533,5 +534,81 @@ describe("buildLlamaServerArgs", () => {
 
 		await expect(shutdownManagedLocalLlmRuntime()).resolves.toBe(true);
 		expect(nodeRuntimeMocks.shutdownNodeLlamaCppRuntime).toHaveBeenCalledOnce();
+	});
+
+	it("node-llama-cpp startup 실패 시 llama-server로 폴백한다", async () => {
+		const scriptDir = mkdtempSync(join(tmpdir(), "detoks-node-fallback-"));
+		const originalPath = process.env.PATH ?? "";
+		const modelPath = join(scriptDir, "fallback.gguf");
+		writeFileSync(
+			join(scriptDir, "llama-server"),
+			[
+				"#!/bin/sh",
+				"trap 'exit 0' TERM INT",
+				"sleep 30",
+			].join("\n"),
+			"utf8",
+		);
+		writeFileSync(modelPath, "GGUFseed", "utf8");
+		chmodSync(join(scriptDir, "llama-server"), 0o755);
+		process.env.PATH = `${scriptDir}:${originalPath}`;
+		nodeRuntimeMocks.ensureNodeLlamaCppRuntime.mockRejectedValueOnce(
+			new Error("unknown model architecture: 'gemma4'"),
+		);
+		const fetchMock = vi
+			.fn<typeof fetch>()
+			.mockResolvedValueOnce({
+				ok: false,
+			} as Response)
+			.mockResolvedValueOnce({
+				ok: true,
+			} as Response)
+			.mockResolvedValueOnce({
+				ok: true,
+				json: async () => ({
+					data: [
+						{
+							id: "detoks-local",
+							aliases: ["detoks-local"],
+						},
+					],
+				}),
+			} as Response);
+
+		vi.stubGlobal("fetch", fetchMock);
+
+		try {
+			await expect(
+				ensureLocalLlmRuntime({
+					localLlmApiBase: "http://127.0.0.1:12370/v1",
+					localLlmModelName: "detoks-local",
+					localLlmRuntimeProvider: "node-llama-cpp",
+					localLlmAutoStart: true,
+					localLlmServerBinary: "llama-server",
+					localLlmServerHost: "127.0.0.1",
+					localLlmServerPort: 12370,
+					localLlmModelPath: modelPath,
+					localLlmGpuLayers: "0",
+					localLlmDevice: "none",
+					localLlmContextSize: 4096,
+					localLlmTopK: 40,
+					localLlmTopP: 0.95,
+					localLlmMaxTokens: 512,
+					localLlmSleepIdleSeconds: 1200,
+					localLlmReasoning: "off",
+					pipelineMode: "safe",
+					requestTimeout: 30000,
+					translationMaxAttempts: 5,
+					temperature: 0,
+				}),
+			).resolves.toBeUndefined();
+
+			expect(nodeRuntimeMocks.ensureNodeLlamaCppRuntime).toHaveBeenCalledOnce();
+			expect(getActiveLocalLlmRuntimeProvider()).toBe("llama-server");
+			expect(await shutdownManagedLocalLlmRuntime()).toBe(true);
+		} finally {
+			process.env.PATH = originalPath;
+			rmSync(scriptDir, { recursive: true, force: true });
+		}
 	});
 });

@@ -305,6 +305,12 @@ function clearManagedRuntimeState(): void {
   activeServerPid = null;
 }
 
+export function getActiveLocalLlmRuntimeProvider():
+  | LocalLlmRuntimeProvider
+  | null {
+  return activeRuntimeProvider;
+}
+
 async function stopExistingServerProcess(port: number): Promise<void> {
   const processes = (await listLlamaServerProcesses()).filter(({ command }) =>
     commandMatchesPort(command, port),
@@ -620,14 +626,42 @@ async function startLlamaServerRuntime(config: Role1RuntimeConfig): Promise<void
   }
 }
 
-async function startLocalRuntime(config: Role1RuntimeConfig): Promise<void> {
+function shouldFallbackToLlamaServer(config: Role1RuntimeConfig): boolean {
+  if (!config.localLlmApiBase) {
+    return false;
+  }
+
+  try {
+    return isLocalHost(new URL(config.localLlmApiBase).hostname);
+  } catch {
+    return false;
+  }
+}
+
+async function startLocalRuntime(
+  config: Role1RuntimeConfig,
+): Promise<LocalLlmRuntimeProvider> {
   const provider = getRuntimeProvider(config);
   if (provider === "node-llama-cpp") {
-    await startNodeRuntime(config);
-    return;
+    try {
+      await startNodeRuntime(config);
+      return provider;
+    } catch (error) {
+      if (!shouldFallbackToLlamaServer(config)) {
+        throw error;
+      }
+
+      const message = error instanceof Error ? error.message : String(error);
+      logger.warn(
+        `node-llama-cpp startup failed, falling back to llama-server: ${message}`,
+      );
+      await startLlamaServerRuntime(config);
+      return "llama-server";
+    }
   }
 
   await startLlamaServerRuntime(config);
+  return "llama-server";
 }
 
 export async function ensureLocalLlmRuntime(
@@ -637,13 +671,16 @@ export async function ensureLocalLlmRuntime(
     return;
   }
 
-  const provider = getRuntimeProvider(config);
   const signature = buildStartupSignature(config);
   if (startupPromise && startupSignature === signature) {
     await startupPromise;
     if (startupPromise !== null && startupSignature === signature) {
       startupPromise = null;
     }
+    return;
+  }
+
+  if (!startupPromise && startupSignature === signature && activeRuntimeProvider !== null) {
     return;
   }
 
@@ -664,10 +701,10 @@ export async function ensureLocalLlmRuntime(
   startupPromise = nextStartupPromise;
 
   try {
-    await nextStartupPromise;
-    activeRuntimeProvider = provider;
+    const actualProvider = await nextStartupPromise;
+    activeRuntimeProvider = actualProvider;
     lastUsedPort =
-      provider === "llama-server"
+      actualProvider === "llama-server"
         ? (config.localLlmServerPort ?? 12370)
         : undefined;
     lastUsedModel = config.localLlmModelName;

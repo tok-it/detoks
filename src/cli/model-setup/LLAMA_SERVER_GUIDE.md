@@ -1,6 +1,7 @@
-# llama-server 실행 가이드
+# llama-server 폴백/비교 가이드
 
-detoks 모델 선택 후, 다음 가이드에 따라 llama-server를 실행하세요.
+detoks는 phase1에서 `node-llama-cpp`를 우선 시도하고, 지원되지 않는 모델이나 비교 검증이 필요할 때만 `llama-server`를 사용합니다.
+이 가이드는 수동 비교나 폴백 경로 확인이 필요할 때 참고하세요.
 
 ## 환경변수 확인
 

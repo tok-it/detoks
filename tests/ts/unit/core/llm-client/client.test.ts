@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 const nodeRuntimeMocks = vi.hoisted(() => ({
   completeChatWithNodeLlamaCpp: vi.fn(async () => ({
@@ -16,12 +16,29 @@ const nodeRuntimeMocks = vi.hoisted(() => ({
   })),
 }));
 
+const localRuntimeMocks = vi.hoisted(() => ({
+  getActiveLocalLlmRuntimeProvider: vi.fn(() => null as
+    | "llama-server"
+    | "node-llama-cpp"
+    | null),
+}));
+
 vi.mock(
   "../../../../../src/core/llm-client/node-llama-runtime.js",
   () => nodeRuntimeMocks,
 );
 
+vi.mock(
+  "../../../../../src/core/llm-client/local-runtime.js",
+  () => localRuntimeMocks,
+);
+
 import { complete_chat } from "../../../../../src/core/llm-client/client.js";
+
+afterEach(() => {
+  nodeRuntimeMocks.completeChatWithNodeLlamaCpp.mockClear();
+  localRuntimeMocks.getActiveLocalLlmRuntimeProvider.mockClear();
+});
 
 describe("complete_chat", () => {
   it("local LLM의 OpenAI-compatible chat completions 응답을 파싱한다", async () => {
@@ -163,6 +180,60 @@ describe("complete_chat", () => {
         localLlmHfFile: "local-model.gguf",
       }),
     );
+    expect(response.content).toBe("Create a new file");
+  });
+
+  it("실제 활성 런타임이 llama-server면 node provider 요청도 HTTP로 처리한다", async () => {
+    localRuntimeMocks.getActiveLocalLlmRuntimeProvider.mockReturnValueOnce(
+      "llama-server",
+    );
+
+    const fetchImplementation = vi.fn(async () => {
+      return new Response(
+        JSON.stringify({
+          choices: [
+            {
+              message: {
+                content: "Create a new file",
+              },
+            },
+          ],
+        }),
+        {
+          status: 200,
+          headers: {
+            "content-type": "application/json",
+          },
+        },
+      );
+    });
+
+    const response = await complete_chat(
+      {
+        messages: [
+          {
+            role: "user",
+            content: "파일 생성",
+          },
+        ],
+        max_tokens: 128,
+      },
+      {
+        localLlmRuntimeProvider: "node-llama-cpp",
+        apiBase: "http://127.0.0.1:1234/v1",
+        localLlmModelName: "local-model",
+        localLlmModelDir: "/models",
+        localLlmHfFile: "local-model.gguf",
+        localLlmContextSize: 4096,
+        localLlmTopK: 40,
+        localLlmTopP: 0.95,
+        localLlmMaxTokens: 512,
+        fetchImplementation,
+      },
+    );
+
+    expect(fetchImplementation).toHaveBeenCalledOnce();
+    expect(nodeRuntimeMocks.completeChatWithNodeLlamaCpp).not.toHaveBeenCalled();
     expect(response.content).toBe("Create a new file");
   });
 });

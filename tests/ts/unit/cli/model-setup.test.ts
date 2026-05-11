@@ -117,6 +117,7 @@ describe("runModelSetupIfNeeded", () => {
       expect(readFileSync(envPath, "utf8")).toContain(`LOCAL_LLM_MODEL_NAME=${selectedModel.modelName}`);
       expect(readFileSync(envPath, "utf8")).toContain(`LOCAL_LLM_MODEL_DIR=${modelDir}`);
       expect(readFileSync(envPath, "utf8")).toContain(`LOCAL_LLM_MODEL_PATH=${modelPath}`);
+      expect(readFileSync(envPath, "utf8")).toContain("LOCAL_LLM_RUNTIME_PROVIDER=node-llama-cpp");
 
       expect(JSON.parse(readFileSync(configPath, "utf8"))).toMatchObject({
         translation: {
@@ -152,6 +153,9 @@ describe("runModelSetupIfNeeded", () => {
       expect(readFileSync(modelPath, "utf8")).toBe("GGUFseed");
       expect(readFileSync(envPath, "utf8")).toContain(
         `LOCAL_LLM_MODEL_PATH=${modelPath}`,
+      );
+      expect(readFileSync(envPath, "utf8")).toContain(
+        "LOCAL_LLM_RUNTIME_PROVIDER=node-llama-cpp",
       );
       expect(JSON.parse(readFileSync(configPath, "utf8"))).toMatchObject({
         translation: {
