@@ -32,6 +32,7 @@ type NodeLlamaRuntimeConfig = Pick<
   | "localLlmTopK"
   | "localLlmTopP"
   | "localLlmMaxTokens"
+  | "localLlmReasoning"
 >;
 
 interface LoadedNodeLlamaRuntime {
@@ -41,6 +42,7 @@ interface LoadedNodeLlamaRuntime {
   context: LlamaContext;
   session: LlamaChatSession;
   completionMode: "completePrompt" | "promptWithMeta";
+  reasoningDisabled: boolean;
   qwenVariation?: "3" | "3.5";
 }
 
@@ -125,6 +127,10 @@ function resolveGpuLayers(config: NodeLlamaRuntimeConfig): "auto" | "max" | numb
   return parsed;
 }
 
+function isReasoningDisabled(config: NodeLlamaRuntimeConfig): boolean {
+  return (config.localLlmReasoning ?? "off").trim().toLowerCase() === "off";
+}
+
 async function disposeLoadedRuntime(
   runtime: LoadedNodeLlamaRuntime | null,
 ): Promise<boolean> {
@@ -160,6 +166,13 @@ async function completePromptOnce(
       topK: options.topK,
       topP: options.topP,
       trimWhitespaceSuffix: true,
+      ...(runtime.reasoningDisabled
+        ? {
+            budgets: {
+              thoughtTokens: 0,
+            },
+          }
+        : {}),
       signal: options.signal,
     });
 
@@ -227,6 +240,7 @@ async function loadRuntimeWithOptions(
       completionMode === "promptWithMeta"
         ? resolveQwenVariation(architecture, config)
         : undefined;
+    const reasoningDisabled = isReasoningDisabled(config);
     context = await model.createContext({
       contextSize: config.localLlmContextSize ?? 4096,
     });
@@ -236,7 +250,7 @@ async function loadRuntimeWithOptions(
         ? {
             chatWrapper: new QwenChatWrapper({
               variation: qwenVariation ?? "3",
-              thoughts: "discourage",
+              thoughts: reasoningDisabled ? "discourage" : "auto",
             }),
           }
         : {}),
@@ -249,6 +263,7 @@ async function loadRuntimeWithOptions(
       context,
       session,
       completionMode,
+      reasoningDisabled,
       ...(qwenVariation ? { qwenVariation } : {}),
     };
   } catch (error) {
