@@ -30,7 +30,7 @@ const SESSION_SHOW_VERBOSE_HELP =
 const CLI_USAGE_MAIN = [
   "사용법:",
   "  detoks                         인자 없이 실행하면 대화형 REPL로 진입합니다",
-  `  detoks repl [--adapter ${ADAPTER_HELP}] [--execution-mode stub|real] [--session <id>] [--verbose]`,
+  `  detoks repl [--adapter ${ADAPTER_HELP}] [--execution-mode stub|real] [--session <id>] [--verbose] [--passthrough-ui]`,
   "  detoks --file <path> [--verbose]",
   "  detoks session list [--human]",
   "  detoks session show <session-id> [--human]",
@@ -50,6 +50,7 @@ const CLI_USAGE_MAIN = [
   "예시:",
   "  detoks",
   "  detoks repl --adapter codex --execution-mode stub",
+  "  detoks repl --passthrough-ui --execution-mode real",
   "  detoks --file tests/data/row_data.json --verbose",
   "  detoks session list --human",
   "  detoks session show session_2026_04_27 --human",
@@ -250,6 +251,7 @@ const CLI_USAGE_REPL = [
   "  - 각 프롬프트는 별도의 작업 단위로 실행됩니다",
   "  - execution-mode는 프롬프트를 모의 실행으로 할지 실제 실행으로 할지 결정합니다",
   "  - interactive TTY에서는 기본적으로 TUI를 사용합니다. --no-tui로 legacy text REPL로 전환할 수 있습니다",
+  "  - --passthrough-ui를 사용하면 원본 CLI UI를 먼저 보여주고 종료 후 detoks 요약을 표시합니다",
   "",
   "옵션:",
   `  --adapter ${ADAPTER_HELP}        대상 어댑터(기본값: codex)`,
@@ -258,6 +260,7 @@ const CLI_USAGE_REPL = [
   EXECUTION_MODE_HELP,
   "  --tui                         TUI 모드를 강제(TTY 자동 감지 무시)",
   "  --no-tui                      legacy text REPL로 전환",
+  "  --passthrough-ui              실행 중 원본 CLI UI를 우선 보여주고 종료 후 detoks 요약을 표시합니다",
   VERBOSE_HELP,
   "  -h, --help                    이 도움말을 표시합니다",
 ].join("\n");
@@ -286,6 +289,7 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
   let verbose = false;
   let trace = false;
   let tui: CliArgs["tui"] = undefined;
+  let presentationMode: CliArgs["presentationMode"] = undefined;
 
   for (let i = 0; i < argv.length; i += 1) {
     const current = argv[i];
@@ -315,6 +319,11 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
 
     if (current === "--no-tui") {
       tui = "disabled";
+      continue;
+    }
+
+    if (current === "--passthrough-ui") {
+      presentationMode = "passthrough";
       continue;
     }
 
@@ -640,16 +649,17 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
         `REPL 모드는 프롬프트 인수를 받지 않습니다. ${topicHelpHint("detoks repl --help")}`,
       );
     }
-    return {
-      mode: "repl",
-      adapter,
-      executionMode,
-      verbose,
-      trace,
-      ...(tui ? { tui } : {}),
-      showHelp: false,
-      helpTopic: "repl",
-    };
+      return {
+        mode: "repl",
+        adapter,
+        executionMode,
+        verbose,
+        trace,
+        ...(tui ? { tui } : {}),
+        ...(presentationMode ? { presentationMode } : {}),
+        showHelp: false,
+        helpTopic: "repl",
+      };
   }
 
   if (inputFile) {

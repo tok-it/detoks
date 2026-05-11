@@ -552,6 +552,20 @@ describe("parseCliArgs", () => {
     });
   });
 
+  it("parses repl with --passthrough-ui to enable native passthrough presentation", () => {
+    const parsed = parseCliArgs(["repl", "--passthrough-ui"]);
+    expect(parsed).toEqual({
+      mode: "repl",
+      adapter: "codex",
+      executionMode: "real",
+      verbose: false,
+      trace: false,
+      presentationMode: "passthrough",
+      showHelp: false,
+      helpTopic: "repl",
+    });
+  });
+
   it("parses repl with --tui and other flags", () => {
     const parsed = parseCliArgs(["repl", "--tui", "--adapter", "claude", "--verbose"]);
     expect(parsed).toEqual({
@@ -570,6 +584,7 @@ describe("parseCliArgs", () => {
     const usage = getCliUsage("repl");
     expect(usage).toContain("--tui");
     expect(usage).toContain("--no-tui");
+    expect(usage).toContain("--passthrough-ui");
     expect(usage).toContain("interactive TTY");
   });
 });

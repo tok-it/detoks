@@ -1,4 +1,4 @@
-import { stdout, stdin } from "node:process";
+import { stdout, stderr, stdin } from "node:process";
 import { StringDecoder } from "node:string_decoder";
 import type { CliArgs } from "../types.js";
 import { createScreenManager } from "./screen-manager.js";
@@ -54,6 +54,7 @@ interface TuiRunOptions {
   translationModel?: string;
   adapterModel?: string;
   inferenceStrength?: string;
+  presentationMode?: CliArgs["presentationMode"];
 }
 
 const formatTokenSavingsBadge = (reduction?: TokenReductionSnapshot | null): string | undefined => {
@@ -76,6 +77,7 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
     currentAdapter === "codex"
       ? options.inferenceStrength ?? getCodexReasoningEffortOverride() ?? "medium"
       : undefined;
+  const nativePassthroughMode = options.presentationMode === "passthrough";
 
   const enterTuiDisplay = (): void => {
     screen.enterAltScreen();
@@ -267,7 +269,9 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
     // Phase 3.2: Create onProgress callback
     const onProgress = (event: PipelineProgressEvent): void => {
       pipelinePanel.update(event);
-      render();
+      if (!nativePassthroughMode || !isExecuting) {
+        render();
+      }
     };
 
     // Phase 3.1: Handle user input
@@ -483,7 +487,11 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
         resultPanel.clear();
         pipelinePanel.reset();
         currentTokenSavingsLabel = undefined;
-        render();
+        if (nativePassthroughMode) {
+          leaveTuiDisplay();
+        } else {
+          render();
+        }
 
         // Phase 3.1: Create normalized request
         const request = toNormalizedRequest(
@@ -509,12 +517,25 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
           onProgress,
           onAdapterEvent: (event) => {
             receivedLiveAdapterEvents = true;
+            if (nativePassthroughMode) {
+              if (event.type === "chunk" && typeof event.data === "string") {
+                if (event.stream === "stderr") {
+                  stderr.write(event.data);
+                } else {
+                  stdout.write(event.data);
+                }
+              }
+              return;
+            }
+
             transcriptPanel.addEvent(event);
             render();
           },
           onActionTimelineEvent: (event) => {
             pipelinePanel.updateActionTimelineEvent(event);
-            render();
+            if (!nativePassthroughMode || !isExecuting) {
+              render();
+            }
           },
         });
 
@@ -545,9 +566,15 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
         currentTokenSavingsLabel = formatTokenSavingsBadge(
           result.tokenMetrics?.input ?? result.tokenMetrics?.output,
         );
+        if (nativePassthroughMode) {
+          enterTuiDisplay();
+        }
         render();
 
       } catch (error) {
+        if (nativePassthroughMode) {
+          enterTuiDisplay();
+        }
         // Display error
         const errorMsg = formatError(error, currentVerbose);
         transcriptPanel.append(`\n[ERROR] ${errorMsg}`);
