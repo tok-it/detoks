@@ -6,6 +6,7 @@ import { TaskGraphProcessor } from "../task-graph/TaskGraphProcessor.js";
 import { TaskSentenceSplitter } from "../task-graph/TaskSentenceSplitter.js";
 import { compilePrompt, createRole2PromptInput } from "../prompt/compiler.js";
 import { ContextBuilder } from "../context/ContextBuilder.js";
+import { ContextCompressor } from "../context/ContextCompressor.js";
 import { SessionStateManager } from "../state/SessionStateManager.js";
 import { executeWithAdapter } from "../executor/execute.js";
 import { logger } from "../utils/logger.js";
@@ -640,24 +641,42 @@ export const orchestratePipeline = async (
       state = { ...state, current_task_id: task.id };
 
       // ExecutionContext 생성 (Role 2.2 — ContextCompressor → ContextSelector → ContextBuilder)
-      await emitProgressWithLogging( {
+      await emitProgressWithLogging({
         stage: "Context Optimizer",
         status: "start",
         taskId: task.id,
         message: `Context Optimizer(${task.id}) 시작`,
       });
       PipelineTracer.startStage(`ContextOptimizer:${task.id}`);
-      const context = ContextBuilder.build(state, task, resolveModelName(request.adapter, request.env));
+      const modelName = resolveModelName(request.adapter, request.env);
+      const tokensBeforeCompression = ContextCompressor.estimateTokens(state, modelName);
+      const context = ContextBuilder.build(state, task, modelName);
+      const compressedTaskIds = Object.entries(state.task_results)
+        .filter(([, r]) => (r as Record<string, unknown>)._compressed === true)
+        .map(([id]) => id);
+      const keptTaskIds = state.completed_task_ids.filter(
+        (id) => !compressedTaskIds.includes(id),
+      );
+      const contextTokens = ContextCompressor.estimateTokens(
+        { ...state, task_results: context.selected_context as typeof state.task_results },
+        modelName,
+      );
       await PipelineTracer.trace({
         sessionId, stage: "ContextOptimizer", role: "role2.2", phase: "output",
         dataType: "ExecutionContext", data: context,
         durationMs: PipelineTracer.endStage(`ContextOptimizer:${task.id}`),
       });
-      await emitProgressWithLogging( {
+      await emitProgressWithLogging({
         stage: "Context Optimizer",
         status: "end",
         taskId: task.id,
         message: `Context Optimizer(${task.id}) 완료`,
+        data: {
+          tokensBeforeCompression,
+          contextTokens,
+          compressedTaskIds,
+          keptTaskIds,
+        },
       });
 
       // Task 실행 (Role 3)
