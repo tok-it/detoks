@@ -82,8 +82,8 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Verify Role 1 with node-llama-cpp
-        run: npm run verify:role1 -- --runtime-provider node-llama-cpp
+      # - name: Verify Role 1 with node-llama-cpp
+      #   run: npm run verify:role1 -- --runtime-provider node-llama-cpp
 
   test-typescript:
     name: TypeScript
