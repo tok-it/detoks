@@ -413,33 +413,89 @@ tsx src/core/llm-client/node-llama-sidecar.ts
 
 ## 단계별 롤아웃
 
-### Phase 0. 설계 고정
+### Phase 0. Node-only 기준 고정
 
-- 이 문서 승인
-- env/provider 이름 확정
-- sidecar 경계 확정
+- 최종 목표를 "완전 Node only"로 명시
+- Role 1 추론, prompt compression, PTY transcript, 문서/CI까지 포함한 제거 범위 확정
+- `LOCAL_LLM_RUNTIME_PROVIDER`와 남겨둘 env 표면 확정
 
-### Phase 1. PoC
+예상 충돌:
 
-- `node-llama-cpp` sidecar 단독 구현
-- `/health`, `/v1/models`, `/v1/chat/completions` 최소 구현
-- fake request로 응답 shape 검증
+- 현재 문서 상단의 sidecar 검토 기록과 새 Node-only 목표가 함께 존재해 독자가 현재 권장안을 오해할 수 있다.
+- `LOCAL_LLM_API_BASE`, `LOCAL_LLM_RUNTIME_PROVIDER`, `LOCAL_LLM_SERVER_BINARY` 중 어떤 키를 최종적으로 남길지 합의가 늦어질 수 있다.
+- Role 1만 Node로 바꾸는 것과 저장소 전체 Python 제거를 같은 단계로 볼지에 따라 범위 해석이 달라질 수 있다.
 
-### Phase 2. 병행 모드
+### Phase 1. Role 1 in-process 런타임 안정화
 
-- `LOCAL_LLM_RUNTIME_PROVIDER` 플래그 추가
-- 기존 `llama-server`와 나란히 선택 가능하게 유지
-- `verify-role1`로 결과 비교
+- `node-llama-cpp` in-process 경로를 Role 1 기본 후보로 고정
+- `verify-role1` 기준으로 실제 번역 성공까지 확보
+- `llama-server`는 fallback/provider 비교 용도로만 한시 유지
 
-### Phase 3. 기본값 전환
+예상 충돌:
 
-- parity 기준 통과 시 `node-llama-cpp`를 기본값으로 전환
-- 문서/CLI 가이드 전환
+- 현재 설치된 `node-llama-cpp` backend가 Gemma4/SuperGemma4 GGUF를 직접 못 읽으면 이 단계가 시작점에서 막힐 수 있다.
+- `llama-server`와 `node-llama-cpp`의 chat wrapper, stop token, sampling 차이로 결과 parity가 기대보다 크게 흔들릴 수 있다.
+- in-process 특성상 모델 로드 실패나 메모리 문제의 영향 범위가 메인 Node 프로세스로 직접 번질 수 있다.
 
-### Phase 4. 최종 정리
+### Phase 2. Kompress를 Node 구현으로 치환
 
-- `llama-server` 전용 코드 제거
-- 문서의 현재 계약을 node-llama-cpp 기준으로 재작성
+- Python Kompress worker를 제거하고 Node 기반 compression 구현으로 교체
+- 기존 `compression_provider: "kompress"` 계약은 유지
+- placeholder 보존과 unsafe fallback 규칙은 그대로 유지
+
+예상 충돌:
+
+- Python `kompress-base`와 동일한 압축 품질을 Node에서 즉시 재현하지 못할 수 있다.
+- 압축 품질보다 placeholder 보존이 우선이므로, 지나친 품질 추구가 guardrail 회귀로 이어질 수 있다.
+- `kompress-client.ts`, `compression.ts`, config/test fixture가 동시에 움직이면서 범위가 생각보다 커질 수 있다.
+
+### Phase 3. PTY transcript를 Node 구현으로 치환
+
+- `runner.ts`의 Python `pty.spawn` fallback 제거
+- `node-pty` 또는 동등한 Node-native 경로로 transcript 실행 통일
+- real adapter transcript 테스트 유지
+
+예상 충돌:
+
+- `node-pty`는 네이티브 의존성이 있어 macOS 로컬과 CI 환경 모두에서 빌드/설치 이슈가 날 수 있다.
+- 현재 Python fallback이 흡수하던 입력/출력 edge case가 Node PTY 구현에서 다르게 드러날 수 있다.
+- transcript 이벤트 타이밍이 바뀌면 TUI, real adapter, CLI smoke 테스트가 연쇄적으로 흔들릴 수 있다.
+
+### Phase 4. Python 전용 설정 표면 제거
+
+- `KOMPRESS_PYTHON_BIN`, `KOMPRESS_STARTUP_TIMEOUT` 등 Python 전용 env와 config 필드 제거
+- `package.json`의 Python 관련 helper script 제거
+- 테스트 fixture와 CLI 도움말을 Node-only 기준으로 정리
+
+예상 충돌:
+
+- 설정 키를 먼저 지우면 아직 남아 있는 Python 경로가 조용히 깨질 수 있다.
+- `.env` 예시, 테스트 fixture, 문서의 env 표기가 서로 다른 시점으로 어긋날 수 있다.
+- 사용자가 이미 쓰는 로컬 `.env`가 오래된 키를 계속 갖고 있어 혼선이 생길 수 있다.
+
+### Phase 5. Python 런타임 자산 삭제
+
+- `python/llama_server`, `pyproject.toml`, `.python-version` 제거
+- Python 전제 보조 스크립트를 Node/tsx로 이관
+- 저장소 루트에서 Python 설치가 없어도 빌드/테스트 가능하게 정리
+
+예상 충돌:
+
+- `scripts/todo-compare/*` 같은 보조 스크립트가 메인 런타임보다 늦게 정리되면 "아직 Python 필요" 상태가 남을 수 있다.
+- 문서나 CI보다 파일 삭제가 먼저 들어가면 repo가 일시적으로 자기 설명과 맞지 않게 된다.
+- 삭제 범위가 커서 한 PR에 몰리면 코드 리뷰와 롤백이 어려워질 수 있다.
+
+### Phase 6. 문서와 CI를 Node-only 기준으로 마감
+
+- 프로젝트 구조, 버전 매트릭스, 의존성 워크플로, CLI/스펙 문서 재작성
+- CI에 "Python 없이도 전체 동작" 검증 게이트 추가
+- stale wording과 오래된 운영 가이드 제거
+
+예상 충돌:
+
+- 문서 일부가 여전히 sidecar 또는 Python worker를 전제로 설명하면 실제 구현보다 오래된 경계가 더 강하게 보일 수 있다.
+- CI에서 Pythonless job을 너무 이르게 강제하면 중간 단계 브랜치가 계속 깨질 수 있다.
+- 런타임은 Node-only가 되었어도 실험성 문서나 예시 명령에 Python이 남아 있으면 최종 인상에 혼선을 줄 수 있다.
 
 ---
 
@@ -447,23 +503,35 @@ tsx src/core/llm-client/node-llama-sidecar.ts
 
 ### 신규 파일
 
-- `src/core/llm-client/node-llama-sidecar.ts`
 - `src/core/llm-client/node-llama-runtime.ts`
-- 필요 시 `tests/ts/unit/core/llm-client/node-llama-sidecar.test.ts`
+- 필요 시 Node 기반 compression/runtime 보조 모듈
+- 필요 시 Node PTY 보조 모듈
 
 ### 수정 파일
 
+- `src/core/llm-client/client.ts`
 - `src/core/prompt/config.ts`
 - `src/core/llm-client/local-runtime.ts`
+- `src/core/translate/translate.ts`
+- `src/core/prompt/compression.ts`
+- `src/core/prompt/kompress-client.ts`
+- `src/integrations/subprocess/runner.ts`
 - `docs/LLAMA_CPP_SERVER_SPEC.md`
 - `src/cli/model-setup/LLAMA_SERVER_GUIDE.md`
 - 관련 unit/integration 테스트
 
-### 건드리지 않는 파일
+### 삭제 후보
 
-- `src/core/llm-client/client.ts`
+- `python/llama_server/*`
+- `pyproject.toml`
+- `.python-version`
+- `package.json`의 Python helper script
+
+### 최대한 유지할 파일
+
 - `src/core/translate/*` 번역 핵심 로직
 - `src/core/pipeline/*` 상위 파이프라인 구조
+- 상위 CLI 명령 계약과 verifier 출력 포맷
 
 ---
 
@@ -471,13 +539,13 @@ tsx src/core/llm-client/node-llama-sidecar.ts
 
 다음 항목을 모두 통과해야 전환을 진행한다.
 
-1. `client.ts` 변경 없이 `chat/completions` 호출 성공
-2. `/v1/models`로 모델 alias 검증 성공
-3. `verify-role1 --prompt` 단건 성공
-4. `verify-role1 --file ... --limit N`에서 기존 `llama-server` 대비 결과 품질 비교 가능
-5. 모델 변경 후 재기동 성공
-6. 종료 후 sidecar 프로세스 잔존 없음
-7. 설치 실패 시 친절한 에러 메시지 제공
+1. `npm run verify:role1 -- --prompt ... --runtime-provider node-llama-cpp` 단건 성공
+2. `verify-role1 --file ... --limit N`에서 기존 `llama-server` 대비 결과 품질 비교 가능
+3. compression 경로에서 Python worker spawn이 0회
+4. PTY transcript 경로에서 Python fallback이 0회
+5. `npm run build`와 `npm test`가 Python 없는 환경에서도 통과
+6. `rg -n "python3|python|pyproject|kompress_worker|llama_server" src scripts tests docs package.json README*` 결과가 허용 목록으로 수렴
+7. 실패 시 현재 backend/모델 호환성 문제를 친절한 오류 메시지로 표면화
 
 ---
 
@@ -485,13 +553,13 @@ tsx src/core/llm-client/node-llama-sidecar.ts
 
 `node-llama-cpp` 전환은 가능하다.
 
-하지만 "완전 Node only"를 바로 목표로 두더라도, **1차 구현은 sidecar + HTTP 유지**로 가야 한다.
+최종 목표가 "완전 Node only"라면, 이제 권장 경로도 그 목표에 맞춰 바뀌어야 한다.
 
-이 경로가 detoks 현재 구조에서 가장 적은 수정으로 시작할 수 있고, `verify-role1`, CLI smoke, 런타임 테스트 자산을 최대한 재사용할 수 있다.
+단, 한 번에 Python을 다 제거하지 말고 아래 순서로 끊어 가는 것이 안전하다.
 
 즉, 권장 결정은 다음과 같다.
 
 - 최종 목표: Node only
-- 1차 구현 형태: Node sidecar + OpenAI-compatible subset 유지
-- 1차 구현 범위: `/health`, `/v1/models`, `/v1/chat/completions`
-- 롤아웃 방식: provider flag 병행 -> parity 검증 -> 기본값 전환
+- 1차 구현 형태: Role 1 in-process `node-llama-cpp` 안정화
+- 2차 구현 형태: Kompress/PTY Python 경계 제거
+- 최종 마감: Python 자산 삭제 -> 문서/CI Node-only 고정
