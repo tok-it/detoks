@@ -75,6 +75,10 @@ export class ContextCompressor {
     return compressed;
   }
 
+  static estimateTokens(state: SessionState, modelName: string): number {
+    return this.estimateTokenUsage(state, modelName);
+  }
+
   private static estimateTokenUsage(state: SessionState, modelName: string): number {
     try {
       const content = JSON.stringify(state);
