@@ -59,6 +59,28 @@ describe("adapter subprocess path", () => {
     });
   });
 
+  it("builds codex passthrough subprocess requests as interactive sessions", () => {
+    const adapter = new CodexStubAdapter();
+    expect(
+      adapter.buildSubprocessRequest({
+        mode: "run",
+        prompt: "hello codex",
+        verbose: false,
+        model: "gpt-5",
+        presentationMode: "passthrough",
+      }),
+    ).toEqual({
+      command: "codex",
+      args: [
+        "--model",
+        "gpt-5",
+        "--sandbox",
+        "workspace-write",
+        "hello codex",
+      ],
+    });
+  });
+
   it("builds gemini subprocess requests explicitly", () => {
     const adapter = new GeminiStubAdapter();
     expect(
@@ -74,6 +96,24 @@ describe("adapter subprocess path", () => {
       args: ["--model", "gemini-2.5-pro"],
       cwd: "/tmp",
       input: "hello gemini",
+    });
+  });
+
+  it("builds gemini passthrough subprocess requests as interactive sessions", () => {
+    const adapter = new GeminiStubAdapter();
+    expect(
+      adapter.buildSubprocessRequest({
+        mode: "run",
+        prompt: "hello gemini",
+        verbose: true,
+        model: "gemini-2.5-pro",
+        cwd: "/tmp",
+        presentationMode: "passthrough",
+      }),
+    ).toEqual({
+      command: "gemini",
+      args: ["--model", "gemini-2.5-pro", "hello gemini"],
+      cwd: "/tmp",
     });
   });
 
@@ -100,6 +140,30 @@ describe("adapter subprocess path", () => {
       ],
       cwd: "/tmp",
       input: "hello claude",
+    });
+  });
+
+  it("builds claude passthrough subprocess requests as interactive sessions", () => {
+    const adapter = new ClaudeStubAdapter();
+    expect(
+      adapter.buildSubprocessRequest({
+        mode: "run",
+        prompt: "hello claude",
+        verbose: true,
+        model: "claude-sonnet-4-6",
+        cwd: "/tmp",
+        presentationMode: "passthrough",
+      }),
+    ).toEqual({
+      command: "claude",
+      args: [
+        "--model",
+        "claude-sonnet-4-6",
+        "--permission-mode",
+        "default",
+        "hello claude",
+      ],
+      cwd: "/tmp",
     });
   });
 

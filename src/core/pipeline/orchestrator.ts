@@ -12,7 +12,12 @@ import { executeWithAdapter } from "../executor/execute.js";
 import { logger } from "../utils/logger.js";
 import { PipelineTracer } from "../utils/PipelineTracer.js";
 import { translateVisibleText } from "../utils/visibleText.js";
-import { buildTokenMetrics, type TokenMetricsSnapshot } from "../utils/tokenMetrics.js";
+import {
+  buildTokenMetrics,
+  buildTokenReductionSnapshot,
+  type TokenMetricsSnapshot,
+  type TokenReductionSnapshot,
+} from "../utils/tokenMetrics.js";
 import { getLLMModelConfig } from "../llm-client/llm-models.js";
 import type { PtyTranscript } from "../../integrations/subprocess/types.js";
 import type { SessionState } from "../../schemas/pipeline.js";
@@ -318,6 +323,7 @@ export const orchestratePipeline = async (
   const progressLog: PipelineProgressLog[] = [];
   const actionTimeline: ActionTimelineEvent[] = [];
   let adapterTranscript: PtyTranscript | undefined;
+  let promptTokenSavings: TokenReductionSnapshot | null = null;
   PipelineTracer.clear();
 
   const emitActionTimelineWithLogging = async (event: ActionTimelineEvent): Promise<void> => {
@@ -382,6 +388,10 @@ export const orchestratePipeline = async (
           ? { compressionImplementation: request.compressionImplementation }
           : {}),
       },
+    );
+    promptTokenSavings = buildTokenReductionSnapshot(
+      request.userRequest.raw_input,
+      compiledPrompt.compressed_prompt,
     );
     role2PromptInput = createRole2PromptInput(compiledPrompt);
     await PipelineTracer.trace({
@@ -487,6 +497,7 @@ export const orchestratePipeline = async (
       promptInferenceTimeSec: compiledPrompt.inference_time_sec ?? 0,
       promptValidationErrors: compiledPrompt.validation_errors ?? [],
       promptRepairActions: compiledPrompt.repair_actions ?? [],
+      ...(promptTokenSavings ? { promptTokenSavings } : {}),
       ...(actionTimeline.length ? { actionTimeline } : {}),
       ...(request.trace ? { traceLog: PipelineTracer.getTrace(sessionId) } : {}),
       ...(traceFilePath ? { traceFilePath } : {}),
@@ -699,6 +710,7 @@ export const orchestratePipeline = async (
         adapter: request.adapter,
         mode: request.mode,
         executionMode: request.executionMode,
+        ...(request.presentationMode ? { presentationMode: request.presentationMode } : {}),
         prompt,
         verbose: request.verbose,
         ...(adapterModel ? { model: adapterModel } : {}),
@@ -832,6 +844,7 @@ export const orchestratePipeline = async (
     promptInferenceTimeSec: compiledPrompt.inference_time_sec ?? 0,
     promptValidationErrors: compiledPrompt.validation_errors ?? [],
     promptRepairActions: compiledPrompt.repair_actions ?? [],
+    ...(promptTokenSavings ? { promptTokenSavings } : {}),
     ...(actionTimeline.length ? { actionTimeline } : {}),
     ...(request.trace ? { traceLog: PipelineTracer.getTrace(sessionId) } : {}),
     ...(traceFilePath ? { traceFilePath } : {}),

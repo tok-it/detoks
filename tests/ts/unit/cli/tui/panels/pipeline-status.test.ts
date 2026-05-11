@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { PipelineStatusPanel } from "../../../../../../src/cli/tui/panels/pipeline-status.js";
 import type { PipelineProgressEvent } from "../../../../../../src/core/pipeline/types.js";
 import type { ActionTimelineEvent } from "../../../../../../src/core/timeline/types.js";
@@ -21,6 +21,10 @@ describe("PipelineStatusPanel", () => {
       endRow: 11,
       columns: 80,
     };
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   describe("update", () => {
@@ -192,6 +196,24 @@ describe("PipelineStatusPanel", () => {
       expect(output).toContain("✓");
       expect(output).toContain("● Prompt Compiler");
       expect(output).toContain("● Task Graph Builder");
+    });
+  });
+
+  describe("execution clock", () => {
+    it("renders a running timer and ascii spinner while execution is active", () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2026-05-11T12:34:56.000Z"));
+
+      panel.setExecutionClock(Date.now() - 65_000);
+      panel.render(mockContext, mockRegion);
+
+      const output = mockScreen.write.mock.calls
+        .map((c: any) => c[0])
+        .join("\n");
+
+      expect(output).toContain("작업 진행 중");
+      expect(output).toContain("01:05");
+      expect(output).toMatch(/[|/\\-]/);
     });
   });
 

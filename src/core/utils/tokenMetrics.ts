@@ -68,6 +68,13 @@ function buildReduction(
   };
 }
 
+export function buildTokenReductionSnapshot(
+  originalText: string,
+  optimizedText: string,
+): TokenReductionSnapshot {
+  return buildReduction(originalText, optimizedText);
+}
+
 export function buildTokenMetrics(options: {
   inputOriginalText: string;
   inputOptimizedText: string;
@@ -118,4 +125,3 @@ export function formatTokenReductionSnapshot(
     `(절감 ${formatCount(reduction.savedTokens)}토큰, ${reduction.savedPercent.toFixed(1)}%)`,
   ].join(" ");
 }
-

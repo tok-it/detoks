@@ -40,6 +40,7 @@ export class PipelineStatusPanel {
   private stages: Map<string, StageStatus> = new Map();
   private latestWorkState: string | null = null;
   private latestWorkStateDetail: string | null = null;
+  private executionStartedAt: number | null = null;
 
   constructor() {
     // Initialize all known stages
@@ -70,6 +71,10 @@ export class PipelineStatusPanel {
     this.latestWorkStateDetail = event.summary;
   }
 
+  setExecutionClock(startedAt: number | null): void {
+    this.executionStartedAt = startedAt;
+  }
+
   reset(): void {
     for (const stageName of STAGE_ORDER) {
       this.stages.set(stageName, {
@@ -80,6 +85,7 @@ export class PipelineStatusPanel {
     }
     this.latestWorkState = null;
     this.latestWorkStateDetail = null;
+    this.executionStartedAt = null;
   }
 
   render(ctx: RenderContext, region: PanelRegion): void {
@@ -92,7 +98,17 @@ export class PipelineStatusPanel {
     // Stage lines
     let currentRow = region.startRow;
     if (currentRow < region.endRow) {
-      if (allStagesSuccessful) {
+      if (this.executionStartedAt !== null) {
+        const elapsedMs = Math.max(0, Date.now() - this.executionStartedAt);
+        const totalSeconds = Math.floor(elapsedMs / 1000);
+        const minutes = String(Math.floor(totalSeconds / 60)).padStart(2, "0");
+        const seconds = String(totalSeconds % 60).padStart(2, "0");
+        const spinnerFrames = ["|", "/", "-", "\\"];
+        const spinner = spinnerFrames[Math.floor(elapsedMs / 250) % spinnerFrames.length] ?? "|";
+        screen.cursorMoveTo(currentRow, 0);
+        screen.write(colors.statusOrange(`● 작업 진행 중 ${spinner} ${minutes}:${seconds}`).padEnd(usableWidth));
+        currentRow += 1;
+      } else if (allStagesSuccessful) {
         screen.cursorMoveTo(currentRow, 0);
         screen.write(colors.statusBlue("● ALL BLUE ✓").padEnd(usableWidth));
         currentRow += 1;

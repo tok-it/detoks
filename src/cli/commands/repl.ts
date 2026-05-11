@@ -463,6 +463,7 @@ export const runReplCommand = async (baseArgs: CliArgs): Promise<void> => {
         executionMode: baseArgs.executionMode,
         verbose: baseArgs.verbose,
         translationModel: getTranslationModel(),
+        ...(baseArgs.presentationMode ? { presentationMode: baseArgs.presentationMode } : {}),
       };
 
       if (currentModel) {

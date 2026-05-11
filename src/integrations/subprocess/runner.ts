@@ -9,7 +9,7 @@ import type {
 import { spawn } from "node:child_process";
 import { closeSync, existsSync, openSync, readSync, statSync } from "node:fs";
 import { extname, join } from "node:path";
-import * as pty from "node-pty";
+import { createInteractivePtySession } from "./pty-session.js";
 
 const formatCommand = (request: SubprocessRequest): string => {
   const args = request.args.length > 0 ? ` ${request.args.join(" ")}` : "";
@@ -166,16 +166,17 @@ export const createRealSubprocessRunner = (): SubprocessRunner => ({
       });
 
       if (request.input !== undefined) {
-        child.stdin.write(request.input);
+        child.stdin?.write(request.input);
       }
 
-      child.stdin.end();
+      child.stdin?.end();
     });
   },
 });
 
 interface PtyRunnerOptions {
   onEvent?: (event: PtyEvent) => void;
+  passthroughUi?: boolean;
 }
 
 const isCodexJsonStreamRequest = (request: SubprocessRequest): boolean =>
@@ -314,10 +315,10 @@ const runStreamingJsonProcess = (
         type: "prompt",
         data: request.input,
       });
-      child.stdin.write(request.input);
+      child.stdin?.write(request.input);
     }
 
-    child.stdin.end();
+    child.stdin?.end();
   });
 };
 
