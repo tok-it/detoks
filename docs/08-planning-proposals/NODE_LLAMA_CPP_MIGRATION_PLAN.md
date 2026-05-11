@@ -16,7 +16,7 @@
 현재 저장소는 아직 완전 Node only가 아니다.
 
 - Role 1 추론은 `node-llama-cpp` in-process 경로를 이미 일부 사용한다.
-- `src/core/llm-client/local-runtime.ts`는 전환기 안전장치로 `llama-server` fallback도 유지한다.
+- `src/core/llm-client/local-runtime.ts`는 provider별 런타임을 분리하고, `node-llama-cpp` 경로는 자동 fallback 없이 in-process만 사용한다.
 - prompt compression은 아직 Python Kompress worker 경계를 사용한다.
 - PTY transcript 경로는 아직 Python fallback을 먼저 시도한다.
 - 설정의 source of truth는 여전히 `.env` / `.env.local`의 `LOCAL_LLM_*`, `KOMPRESS_*` 키다.

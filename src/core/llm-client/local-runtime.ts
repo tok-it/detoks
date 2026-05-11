@@ -22,7 +22,7 @@ type LocalLlmRuntimeProvider = NonNullable<
   Role1RuntimeConfig["localLlmRuntimeProvider"]
 >;
 
-let startupPromise: Promise<void> | null = null;
+let startupPromise: Promise<LocalLlmRuntimeProvider> | null = null;
 let startupSignature: string | null = null;
 let activeRuntimeProvider: LocalLlmRuntimeProvider | null = null;
 let activeServerPid: number | null = null;
@@ -626,38 +626,13 @@ async function startLlamaServerRuntime(config: Role1RuntimeConfig): Promise<void
   }
 }
 
-function shouldFallbackToLlamaServer(config: Role1RuntimeConfig): boolean {
-  if (!config.localLlmApiBase) {
-    return false;
-  }
-
-  try {
-    return isLocalHost(new URL(config.localLlmApiBase).hostname);
-  } catch {
-    return false;
-  }
-}
-
 async function startLocalRuntime(
   config: Role1RuntimeConfig,
 ): Promise<LocalLlmRuntimeProvider> {
   const provider = getRuntimeProvider(config);
   if (provider === "node-llama-cpp") {
-    try {
-      await startNodeRuntime(config);
-      return provider;
-    } catch (error) {
-      if (!shouldFallbackToLlamaServer(config)) {
-        throw error;
-      }
-
-      const message = error instanceof Error ? error.message : String(error);
-      logger.warn(
-        `node-llama-cpp startup failed, falling back to llama-server: ${message}`,
-      );
-      await startLlamaServerRuntime(config);
-      return "llama-server";
-    }
+    await startNodeRuntime(config);
+    return provider;
   }
 
   await startLlamaServerRuntime(config);
@@ -689,7 +664,8 @@ export async function ensureLocalLlmRuntime(
   }
 
   startupSignature = signature;
-  const nextStartupPromise = startLocalRuntime(config).catch((error) => {
+  const nextStartupPromise: Promise<LocalLlmRuntimeProvider> =
+    startLocalRuntime(config).catch((error) => {
     if (startupSignature === signature) {
       startupPromise = null;
       startupSignature = null;

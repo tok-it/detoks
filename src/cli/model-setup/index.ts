@@ -84,7 +84,7 @@ export const runModelSetupIfNeeded = async (cwd: string = process.cwd()): Promis
   );
   process.stdout.write(
     colors.info(
-      "detoks는 node-llama-cpp를 우선 시도하고, 지원되지 않는 모델이면 llama-server로 자동 폴백합니다.\n",
+      "detoks는 node-llama-cpp를 우선 사용합니다. 선택한 모델이 in-process backend와 맞지 않으면 호환되는 GGUF로 바꾸거나 llama-server 경로를 따로 사용하세요.\n",
     ),
   );
   process.stdout.write(
