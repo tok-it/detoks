@@ -132,6 +132,33 @@ describe("TaskGraphProcessor", () => {
       ["Take note of the changes",         "document", "take note of → document"],
       ["Take notes on the findings",       "document", "take notes → document"],
       ["Write up the findings",            "document", "write up → document"],
+      // idiom: write/add/create/implement tests → create (validate의 'test' 키워드에 가로채지지 않아야 함)
+      ["Add tests for the new feature",         "create",   "add tests → create"],
+      ["Write tests for the auth module",       "create",   "write tests → create"],
+      ["Create test cases for the controller",  "create",   "create test cases → create"],
+      ["Implement e2e tests for the API",       "create",   "implement e2e tests → create"],
+      // idiom: find out → analyze (explore의 'find' 단일어에 가로채지지 않아야 함)
+      ["Find out why the build is failing",     "analyze",  "find out → analyze"],
+      // idiom: compound find/search/locate + modify action → modify
+      ["Find and fix all the issues",           "modify",   "find and fix → modify"],
+      ["Locate and update all the references",  "modify",   "locate and update → modify"],
+      ["Search and replace the old function name", "modify","search and replace → modify"],
+      // TYPE_PATTERNS validate: standalone 'check' (check out 예외)
+      ["Check the config",                      "validate", "check standalone → validate"],
+      ["Run a quick sanity check",              "validate", "sanity check → validate"],
+      ["Run a check on the output",             "validate", "run a check → validate"],
+      // TYPE_PATTERNS modify: enable/disable/toggle/turn on|off
+      ["Enable the feature flag",               "modify",   "enable → modify"],
+      ["Disable the old middleware",            "modify",   "disable → modify"],
+      ["Toggle debug mode",                     "modify",   "toggle → modify"],
+      ["Turn off the authentication bypass",    "modify",   "turn off → modify"],
+      // idiom: make a [수식어] plan → plan
+      ["Make a test plan",                      "plan",     "make a test plan → plan"],
+      ["Make a migration plan",                 "plan",     "make a migration plan → plan"],
+      // regression: check out는 validate가 아닌 execute로 유지
+      ["Check out the branch",                  "execute",  "check out → execute (regression)"],
+      // regression: make tests pass는 여전히 validate
+      ["Make the tests pass",                   "validate", "make tests pass → validate (regression)"],
       // question-form: 키워드 없는 질문형 → analyze
       ["What should we address first?",   "analyze",  "question-form → analyze"],
       ["How far should we go with this?", "analyze",  "how far → analyze"],

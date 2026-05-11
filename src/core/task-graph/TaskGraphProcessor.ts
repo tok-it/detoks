@@ -49,8 +49,8 @@ export class TaskGraphProcessor {
     { type: "analyze",  pattern: /\btrace\b.*\bexplain\b.*\b(order|how|flow|passes?|through)\b/i },
     // check if/whether/that + 코드 품질/중복 → analyze (validate의 check-if 패턴보다 우선)
     { type: "analyze",  pattern: /\bcheck\s+(?:if|whether|that)\b.*\b(duplicated?|redundan[ct]?|repeated|scatter(?:ed)?|overlap(?:ping)?|similar)\b/i },
-    // make a plan/roadmap → plan
-    { type: "plan",     pattern: /\bmake\s+(?:a\s+)?(?:plan|roadmap)\b/i },
+    // make a plan/roadmap → plan  (중간 수식어 포함: "make a test plan" 등)
+    { type: "plan",     pattern: /\bmake\s+(?:a\s+)?(?:\w+\s+)?(?:plan|roadmap)\b/i },
     // make a list → explore  (create의 'make' 단일어보다 먼저 차단)
     { type: "explore",  pattern: /\bmake\s+(?:a\s+)?list\b/i },
     // make a decision → plan  (create의 'make' 단일어보다 먼저 차단)
@@ -71,6 +71,15 @@ export class TaskGraphProcessor {
     { type: "document", pattern: /\btake\s+(?:a\s+)?notes?\b/i },
     // write up → document  (create의 'write' 단일어보다 먼저 차단)
     { type: "document", pattern: /\bwrite\s+up\b/i },
+    // write/add/create/implement tests → create
+    // (validate의 'test' 단일어 & create의 negative lookahead 양쪽을 우회)
+    { type: "create",   pattern: /\b(create|write|add|implement|generate)\s+(?:(?:unit|integration|e2e|end-to-end|smoke)\s+)?(tests?|specs?|test\s+(?:cases?|suite[s]?))\b/i },
+    // find out → analyze  (explore의 'find' 단일어보다 먼저 차단)
+    { type: "analyze",  pattern: /\bfind\s+out\b/i },
+    // find/locate and fix/update/replace → modify  (explore보다 먼저 처리)
+    { type: "modify",   pattern: /\b(?:find|locate)\s+and\s+(?:fix|patch|update|replace)\b/i },
+    // search and replace → modify
+    { type: "modify",   pattern: /\bsearch\s+and\s+replace\b/i },
   ];
 
   // Dependency transitions should stay aligned with docs/TYPE_DEFINITION.md.
@@ -128,6 +137,7 @@ export class TaskGraphProcessor {
         /\boptimi[sz]e\b/,
         /\btune\b/,
         /\bcorrect\b/,
+        /\b(enable|disable|toggle|turn\s+(?:on|off))\b/,
       ],
     },
     {
@@ -150,7 +160,7 @@ export class TaskGraphProcessor {
         /\b(run|execute)\s+(the\s+)?(tests?|checks?|validation|verifications?)\b/,
         /\b(run|execute)\s+(the\s+)?(lint|linter|typecheck|type-check|qa|smoke\s+tests?)\b/,
         /\b(make\s+sure|ensure|verify|confirm)\b/,
-        /\b(test|tests|validate|verify|assert|confirm|ensure|check\s+(?:if|whether|that))\b/,
+        /\b(test|tests|validate|verify|assert|confirm|ensure|check(?!\s+out)(?:\s+(?:if|whether|that))?)\b/,
         /\b(lint|typecheck|smoke\s+test|qa)\b/,
         /\b(pass|passes|passing|fail|fails|failing)\b/,
       ],
