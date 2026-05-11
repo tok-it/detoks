@@ -525,10 +525,22 @@ export const orchestratePipeline = async (
       })),
     },
   });
-  await emitProgressWithLogging( {
+  await emitProgressWithLogging({
     stage: "Task Graph Builder",
     status: "end",
-    message: "Task Graph Builder 완료",
+    message: `태스크 ${graph.tasks.length}개 생성 완료`,
+    data: {
+      tasks: graph.tasks.map((t) => ({
+        id: t.id,
+        type: t.type,
+        title: t.title,
+        depends_on: t.depends_on,
+      })),
+      stages: stages.map(({ stage, tasks: stageTasks }) => ({
+        stage,
+        taskIds: stageTasks.map((t) => t.id),
+      })),
+    },
   });
 
   // ── Step 5: 세션 상태 초기화 / 로드 (Role 2.2) ───────────────────────────
