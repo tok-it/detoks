@@ -20,6 +20,7 @@ export interface PipelineProgressEvent {
   status: PipelineProgressStatus;
   message: string;
   taskId?: string;
+  data?: Record<string, unknown>;
 }
 
 export type PipelineProgressHandler = (
