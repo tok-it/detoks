@@ -179,16 +179,23 @@ type ExecutionContext = {
 
 ```ts
 type SessionState = {
-  shared_context: Record<string, unknown>;
-  task_results: Record<string, unknown>;
-  current_task_id?: string;
+  version?: string;
+  shared_context: {
+    session_id: string;
+    failed_task_ids?: string[];   // saveSession마다 task_results 기준 자동 동기화
+    [key: string]: unknown;
+  };
+  task_results: Record<string, TaskResult>;  // discriminated union — type/success 손실 없음
+  current_task_id?: string | null;
   completed_task_ids: string[];
   last_summary?: string;
   next_action?: string;
+  updated_at?: string;
 };
 ```
 
-**의미:** 전체 세션을 들고 다니지 않고 필요한 것만 압축
+**의미:** 전체 세션을 들고 다니지 않고 필요한 것만 압축  
+**canonical schema:** `src/schemas/pipeline.ts` `SessionStateSchema`
 
 ---
 

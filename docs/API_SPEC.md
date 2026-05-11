@@ -82,10 +82,22 @@ type TaskGraph = {
 
 ```ts
 type SessionState = {
-  shared_context: Record<string, unknown>;
-  task_results: Record<string, unknown>;
+  version?: string;
+  shared_context: {
+    session_id: string;
+    failed_task_ids?: string[];
+    [key: string]: unknown;
+  };
+  task_results: Record<string, TaskResult>;
+  current_task_id?: string | null;
+  completed_task_ids: string[];
+  last_summary?: string;
+  next_action?: string;
+  updated_at?: string;
 };
 ```
+
+> canonical schema: `src/schemas/pipeline.ts` `SessionStateSchema`
 
 <!-- 한국어 설명: RequestCategory, Task, TaskGraph, SessionState는 docs/SCHEMAS.md에 정의된 핵심 구조이며, 이후 API 계약의 기본 타입으로 사용됩니다. RequestCategory의 의미 기준은 docs/TYPE_DEFINITION.md를 따릅니다. -->
 
