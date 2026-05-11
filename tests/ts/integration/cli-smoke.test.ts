@@ -1424,9 +1424,9 @@ describe("detoks CLI smoke", () => {
     const failedJson = parseCliJson(failedRun.stderr);
     expect(failedJson).toEqual({
       ok: false,
-      error: "프롬프트 컴파일 실패: LLM client requires LOCAL_LLM_API_BASE",
+      error: "프롬프트 컴파일 실패: LLM client requires LOCAL_LLM_MODEL_NAME",
       stages: failedPipelineStages,
-      rawOutput: "LLM client requires LOCAL_LLM_API_BASE",
+      rawOutput: "LLM client requires LOCAL_LLM_MODEL_NAME",
     });
   });
 
