@@ -117,6 +117,7 @@ describe("orchestratePipeline", () => {
       mode: "run",
       adapter: "codex",
       executionMode: "real",
+      presentationMode: "passthrough",
       verbose: false,
       userRequest: {
         raw_input: "hello detoks",
@@ -136,6 +137,7 @@ describe("orchestratePipeline", () => {
         adapter: "codex",
         executionMode: "real",
         model: "claude-sonnet-4-6",
+        presentationMode: "passthrough",
       }),
     );
   });

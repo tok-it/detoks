@@ -117,6 +117,23 @@ describe("executeWithAdapter", () => {
     expect(subprocessMocks.createRealRunner).toHaveBeenCalledTimes(1);
   });
 
+  it("enables passthrough UI mode on the real subprocess runner", async () => {
+    await executeWithAdapter({
+      adapter: "codex",
+      mode: "run",
+      executionMode: "real",
+      presentationMode: "passthrough",
+      prompt: "hello passthrough",
+      verbose: false,
+    });
+
+    expect(subprocessMocks.createPtyRunner).toHaveBeenCalledWith(
+      expect.objectContaining({
+        passthroughUi: true,
+      }),
+    );
+  });
+
   it("preserves transcript data when the real path exposes it", async () => {
     const result = await executeWithAdapter({
       adapter: "codex",

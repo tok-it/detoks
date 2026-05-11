@@ -209,9 +209,11 @@ const getAdapterCliReferenceSections = (): AdapterCliReferenceSection[] => [
       "codex login",
       "codex login status",
       "codex debug models",
+      "codex /goal <objective>",
+      "codex /goal pause | resume | clear",
       "codex logout",
     ],
-    note: "로그인 / 상태 / 모델 조회 / 로그아웃은 Codex 원본 CLI에서 처리합니다.",
+    note: "로그인 / 상태 / 모델 조회 / 목표 관리(/goal)는 Codex 원본 CLI에서 처리합니다.",
   },
   {
     title: "Gemini CLI",

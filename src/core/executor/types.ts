@@ -2,6 +2,7 @@ import type { Adapter, ExecutionMode, InteractionMode } from "../pipeline/types.
 import type { RequestCategory } from "../../schemas/pipeline.js";
 import type { PtyEvent, PtyTranscript } from "../../integrations/subprocess/types.js";
 import type { ActionTimelineEvent, ActionTimelineSink } from "../timeline/types.js";
+import type { TokenReductionSnapshot } from "../utils/tokenMetrics.js";
 
 export interface AdapterExecutionRequest {
   mode: InteractionMode;
@@ -11,6 +12,7 @@ export interface AdapterExecutionRequest {
   taskType?: RequestCategory;
   cwd?: string;
   sessionId?: string;
+  presentationMode?: "passthrough" | "embedded-pane";
 }
 
 export interface AdapterExecutionResult {
@@ -25,6 +27,7 @@ export interface AdapterExecutionResult {
 export interface ExecutorRequest extends AdapterExecutionRequest {
   adapter: Adapter;
   executionMode: ExecutionMode;
+  presentationMode?: "passthrough" | "embedded-pane";
   onAdapterEvent?: (event: PtyEvent) => void;
   onActionTimelineEvent?: ActionTimelineSink;
 }
@@ -37,4 +40,5 @@ export interface ExecutorResult {
   stderr?: string;
   transcript?: PtyTranscript; // PTY 실행 기록 (optional)
   actionTimeline?: ActionTimelineEvent[];
+  promptTokenSavings?: TokenReductionSnapshot | null;
 }

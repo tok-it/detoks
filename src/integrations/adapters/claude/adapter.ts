@@ -9,6 +9,19 @@ export class ClaudeStubAdapter implements CliAdapter {
   readonly target = "claude" as const;
 
   buildSubprocessRequest(request: AdapterExecutionRequest) {
+    if (request.presentationMode === "passthrough") {
+      return {
+        command: "claude",
+        args: [
+          ...(request.model ? ["--model", request.model] : []),
+          "--permission-mode",
+          CLAUDE_PERMISSION_MODE,
+          ...(request.prompt ? [request.prompt] : []),
+        ],
+        ...(request.cwd !== undefined ? { cwd: request.cwd } : {}),
+      };
+    }
+
     return {
       command: "claude",
       args: [

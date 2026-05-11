@@ -193,6 +193,7 @@ describe("repl builtin command routing", () => {
     expect(reference).toContain("Codex CLI");
     expect(reference).toContain("codex login");
     expect(reference).toContain("codex debug models");
+    expect(reference).toContain("codex /goal <objective>");
     expect(reference).toContain("Gemini CLI");
     expect(reference).toContain("gemini");
     expect(reference).toContain("Claude Code");
