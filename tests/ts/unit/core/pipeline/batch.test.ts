@@ -2,9 +2,68 @@ import { describe, expect, it, vi } from "vitest";
 import { runBatchPromptPipeline } from "../../../../../src/core/pipeline/batch.js";
 
 describe("runBatchPromptPipeline", () => {
+  it("item 시작과 완료 progress를 순서대로 보고한다", async () => {
+    const progressEvents: Array<{
+      phase: "start" | "complete";
+      current: number;
+      total: number;
+      summary: string;
+      status?: string;
+    }> = [];
+
+    await runBatchPromptPipeline(
+      ["Please create a new file", "Please create a new folder"],
+      {
+        env: {
+          LOCAL_LLM_RUNTIME_PROVIDER: "llama-server",
+          PIPELINE_MODE: "safe",
+        },
+        onProgress: (info) => {
+          progressEvents.push({
+            phase: info.phase,
+            current: info.current,
+            total: info.total,
+            summary: info.summary,
+            ...(info.result ? { status: info.result.status } : {}),
+          });
+        },
+      },
+    );
+
+    expect(progressEvents).toEqual([
+      {
+        phase: "start",
+        current: 1,
+        total: 2,
+        summary: "Please create a new file",
+      },
+      {
+        phase: "complete",
+        current: 1,
+        total: 2,
+        summary: "Please create a new file",
+        status: "completed",
+      },
+      {
+        phase: "start",
+        current: 2,
+        total: 2,
+        summary: "Please create a new folder",
+      },
+      {
+        phase: "complete",
+        current: 2,
+        total: 2,
+        summary: "Please create a new folder",
+        status: "completed",
+      },
+    ]);
+  });
+
   it("batch 결과에 Role 1 / Role 2 handoff를 기록한다", async () => {
     const result = await runBatchPromptPipeline(["Please create a new file"], {
       env: {
+        LOCAL_LLM_RUNTIME_PROVIDER: "llama-server",
         PIPELINE_MODE: "safe",
       },
     });
@@ -40,6 +99,7 @@ describe("runBatchPromptPipeline", () => {
 
     const result = await runBatchPromptPipeline(["새 `config.ts` 파일을 생성해"], {
       env: {
+        LOCAL_LLM_RUNTIME_PROVIDER: "llama-server",
         LOCAL_LLM_API_BASE: "http://127.0.0.1:1234/v1",
         LOCAL_LLM_API_KEY: "test-key",
         LOCAL_LLM_MODEL_NAME: "local-model",
@@ -74,6 +134,7 @@ describe("runBatchPromptPipeline", () => {
       ["Please create a new file", "새 파일을 생성해"],
       {
         env: {
+          LOCAL_LLM_RUNTIME_PROVIDER: "llama-server",
           LOCAL_LLM_API_BASE: "http://127.0.0.1:1234/v1",
           LOCAL_LLM_API_KEY: "test-key",
           LOCAL_LLM_MODEL_NAME: "local-model",

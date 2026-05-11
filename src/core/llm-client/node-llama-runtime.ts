@@ -131,6 +131,88 @@ async function disposeLoadedRuntime(
   return true;
 }
 
+async function completePromptOnce(
+  model: LlamaModel,
+  chatHistory: ChatHistoryItem[],
+  prompt: string,
+  config: NodeLlamaRuntimeConfig,
+  options: {
+    maxTokens: number;
+    temperature: number;
+    topK: number;
+    topP: number;
+    signal: AbortSignal;
+    mode: "completePrompt" | "generateResponse";
+  },
+): Promise<string> {
+  const context = await model.createContext({
+    contextSize: config.localLlmContextSize ?? 4096,
+  });
+  const session = new LlamaChatSession({
+    contextSequence: context.getSequence(),
+  });
+
+  try {
+    session.setChatHistory(chatHistory);
+
+    if (options.mode === "generateResponse") {
+      const generateResponseSession = session as LlamaChatSession & {
+        _chat: {
+          generateResponse: (
+            history: ChatHistoryItem[],
+            responseOptions: {
+              abortOnNonText: boolean;
+              maxTokens: number;
+              temperature: number;
+              topK: number;
+              topP: number;
+              trimWhitespaceSuffix: boolean;
+              signal: AbortSignal;
+            },
+          ) => Promise<{ response: string }>;
+        };
+      };
+      const responseHistory: ChatHistoryItem[] = [
+        ...chatHistory,
+        {
+          type: "user",
+          text: prompt,
+        },
+        {
+          type: "model",
+          response: [],
+        },
+      ];
+      const result = await generateResponseSession._chat.generateResponse(
+        responseHistory,
+        {
+          abortOnNonText: false,
+          maxTokens: options.maxTokens,
+          temperature: options.temperature,
+          topK: options.topK,
+          topP: options.topP,
+          trimWhitespaceSuffix: true,
+          signal: options.signal,
+        },
+      );
+
+      return result.response;
+    }
+
+    return await session.completePrompt(prompt, {
+      maxTokens: options.maxTokens,
+      temperature: options.temperature,
+      topK: options.topK,
+      topP: options.topP,
+      trimWhitespaceSuffix: true,
+      signal: options.signal,
+    });
+  } finally {
+    session.dispose?.({ disposeSequence: true });
+    await context.dispose();
+  }
+}
+
 async function loadRuntimeWithOptions(
   config: NodeLlamaRuntimeConfig,
   {
@@ -296,27 +378,40 @@ export async function completeChatWithNodeLlamaCpp(
   }
 
   const { chatHistory, prompt } = convertMessagesToChatHistory(request.messages);
-  const context = await loadedRuntime.model.createContext({
-    contextSize: config.localLlmContextSize ?? 4096,
-  });
-  const session = new LlamaChatSession({
-    contextSequence: context.getSequence(),
-  });
+  const architecture =
+    loadedRuntime.model.fileInfo?.metadata?.general?.architecture;
+  const isQwenReasoningArchitecture =
+    typeof architecture === "string" &&
+    architecture.toLowerCase().startsWith("qwen3");
   const controller = new AbortController();
-  const timeoutMs = request.timeout_ms ?? 30_000;
+  const baseTimeoutMs = request.timeout_ms ?? 30_000;
+  const timeoutMs = isQwenReasoningArchitecture
+    ? Math.max(baseTimeoutMs, 60_000)
+    : baseTimeoutMs;
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
   const startedAt = Date.now();
+  const baseMaxTokens = request.max_tokens ?? config.localLlmMaxTokens ?? 512;
+  const completionMode: "completePrompt" | "generateResponse" =
+    isQwenReasoningArchitecture ? "generateResponse" : "completePrompt";
+  const completionOptions = {
+    maxTokens: isQwenReasoningArchitecture
+      ? Math.max(baseMaxTokens, 1024)
+      : baseMaxTokens,
+    temperature: request.temperature ?? 0,
+    topK: config.localLlmTopK ?? 40,
+    topP: config.localLlmTopP ?? 0.95,
+    signal: controller.signal,
+    mode: completionMode,
+  };
 
   try {
-    session.setChatHistory(chatHistory);
-    const content = await session.prompt(prompt, {
-      maxTokens: request.max_tokens ?? config.localLlmMaxTokens ?? 512,
-      temperature: request.temperature ?? 0,
-      topK: config.localLlmTopK ?? 40,
-      topP: config.localLlmTopP ?? 0.95,
-      trimWhitespaceSuffix: true,
-      signal: controller.signal,
-    });
+    const content = await completePromptOnce(
+      loadedRuntime.model,
+      chatHistory,
+      prompt,
+      config,
+      completionOptions,
+    );
 
     const rawResponse = {
       choices: [
@@ -341,8 +436,6 @@ export async function completeChatWithNodeLlamaCpp(
     throw error;
   } finally {
     clearTimeout(timeoutId);
-    session.dispose({ disposeSequence: true });
-    await context.dispose();
   }
 }
 
