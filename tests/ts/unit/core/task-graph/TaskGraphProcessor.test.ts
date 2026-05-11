@@ -112,6 +112,26 @@ describe("TaskGraphProcessor", () => {
       ["Make use of the existing module",  "execute",  "make use of → execute"],
       ["Make a note of the findings",      "document", "make a note → document"],
       ["Make a plan for the rollout",      "plan",     "make a plan → plan"],
+      ["Make a list of all the endpoints", "explore",  "make a list → explore"],
+      ["Make a decision about the architecture", "plan", "make a decision → plan"],
+      // idiom: look into → analyze (explore의 'look' 단일어에 가로채지지 않아야 함)
+      ["Look into the performance issue",  "analyze",  "look into → analyze"],
+      ["Look into why the tests are failing","analyze", "look into why → analyze"],
+      // idiom: analyze 계열 숙어
+      ["Figure out why the build is failing","analyze","figure out → analyze"],
+      ["Dig into the error handling flow", "analyze",  "dig into → analyze"],
+      ["Point out all the issues in the code","analyze","point out → analyze"],
+      // idiom: double check → validate
+      ["Double check the config",          "validate", "double check → validate"],
+      ["Double-check the implementation",  "validate", "double-check → validate"],
+      // idiom: modify 계열 숙어
+      ["Get rid of the unused imports",    "modify",   "get rid of → modify"],
+      ["Sort out the config issue",        "modify",   "sort out → modify"],
+      ["Tidy up the code",                 "modify",   "tidy up → modify"],
+      // idiom: document 계열 숙어
+      ["Take note of the changes",         "document", "take note of → document"],
+      ["Take notes on the findings",       "document", "take notes → document"],
+      ["Write up the findings",            "document", "write up → document"],
       // question-form: 키워드 없는 질문형 → analyze
       ["What should we address first?",   "analyze",  "question-form → analyze"],
       ["How far should we go with this?", "analyze",  "how far → analyze"],

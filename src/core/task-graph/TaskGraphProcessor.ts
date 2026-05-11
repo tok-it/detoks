@@ -51,6 +51,26 @@ export class TaskGraphProcessor {
     { type: "analyze",  pattern: /\bcheck\s+(?:if|whether|that)\b.*\b(duplicated?|redundan[ct]?|repeated|scatter(?:ed)?|overlap(?:ping)?|similar)\b/i },
     // make a plan/roadmap → plan
     { type: "plan",     pattern: /\bmake\s+(?:a\s+)?(?:plan|roadmap)\b/i },
+    // make a list → explore  (create의 'make' 단일어보다 먼저 차단)
+    { type: "explore",  pattern: /\bmake\s+(?:a\s+)?list\b/i },
+    // make a decision → plan  (create의 'make' 단일어보다 먼저 차단)
+    { type: "plan",     pattern: /\bmake\s+(?:a\s+)?decision\b/i },
+    // look into → analyze  (explore의 'look' 단일어보다 먼저 차단)
+    { type: "analyze",  pattern: /\blook\s+into\b/i },
+    // figure out / dig into / point out → analyze
+    { type: "analyze",  pattern: /\bfigure\s+out\b/i },
+    { type: "analyze",  pattern: /\bdig\s+into\b/i },
+    { type: "analyze",  pattern: /\bpoint\s+out\b/i },
+    // double check → validate
+    { type: "validate", pattern: /\bdouble[\s-]?check\b/i },
+    // get rid of / sort out / tidy up → modify
+    { type: "modify",   pattern: /\bget\s+rid\s+of\b/i },
+    { type: "modify",   pattern: /\bsort\s+out\b/i },
+    { type: "modify",   pattern: /\btidy\s+up\b/i },
+    // take note(s) → document  (make a note 계열; execute 기본값보다 먼저 차단)
+    { type: "document", pattern: /\btake\s+(?:a\s+)?notes?\b/i },
+    // write up → document  (create의 'write' 단일어보다 먼저 차단)
+    { type: "document", pattern: /\bwrite\s+up\b/i },
   ];
 
   // Dependency transitions should stay aligned with docs/TYPE_DEFINITION.md.
