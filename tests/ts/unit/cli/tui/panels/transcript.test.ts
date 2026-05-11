@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { TranscriptPanel } from "../../../../../../src/cli/tui/panels/transcript.js";
 import type { PtyEvent } from "../../../../../../src/integrations/subprocess/types.js";
+import type { ActionTimelineEvent } from "../../../../../../src/core/timeline/types.js";
 
 describe("TranscriptPanel", () => {
   let panel: TranscriptPanel;
@@ -31,7 +32,7 @@ describe("TranscriptPanel", () => {
         .join("\n");
 
       expect(output).toContain("실행 기록이 아직 없습니다.");
-      expect(output).toContain("도구 호출");
+      expect(output).toContain("원본 CLI 출력");
     });
 
     it("adds a single line to transcript", () => {
@@ -122,17 +123,56 @@ describe("TranscriptPanel", () => {
       const output = mockScreen.write.mock.calls
         .map((c: any) => c[0])
         .join("\n");
-      expect(output).toContain("[tool]");
-      expect(output).toContain("exec:");
-      expect(output).toContain("exit 0");
-      expect(output).toContain("[edit]");
+      expect(output).toContain("/bin/zsh -lc 'pwd' · /tmp/workdir");
       expect(output).toContain("transcript.ts");
-      expect(output).toContain("[final]");
       expect(output).toContain("Done");
       expect(output).not.toContain("thread.started");
       expect(output).not.toContain("turn.started");
       expect(output).not.toContain("turn.completed");
+      expect(output).not.toContain("changes:");
       expect(output).not.toContain("\u001b");
+    });
+
+    it("renders validation and git commands as dedicated blocks", () => {
+      panel.addEvent({
+        type: "chunk",
+        stream: "stdout",
+        data:
+          "{\"type\":\"item.started\",\"item\":{\"id\":\"item_4\",\"type\":\"command_execution\",\"command\":\"npm run typecheck\",\"status\":\"in_progress\"}}\n{\"type\":\"item.completed\",\"item\":{\"id\":\"item_4\",\"type\":\"command_execution\",\"command\":\"npm run typecheck\",\"aggregated_output\":\"ok\\n\",\"exit_code\":0,\"status\":\"completed\"}}\n{\"type\":\"item.started\",\"item\":{\"id\":\"item_5\",\"type\":\"command_execution\",\"command\":\"git push origin dev\",\"status\":\"in_progress\"}}\n{\"type\":\"item.completed\",\"item\":{\"id\":\"item_5\",\"type\":\"command_execution\",\"command\":\"git push origin dev\",\"aggregated_output\":\"pushed\\n\",\"exit_code\":0,\"status\":\"completed\"}}\n",
+        timestamp: Date.now(),
+      });
+
+      mockScreen.write.mockClear();
+      panel.render(mockContext, mockRegion);
+
+      const output = mockScreen.write.mock.calls
+        .map((c: any) => c[0])
+        .join("\n");
+
+      expect(output).toContain("npm run typecheck · ok");
+      expect(output).toContain("git push origin dev · pushed");
+      expect(output).not.toContain("[validation]");
+      expect(output).not.toContain("[git]");
+    });
+
+    it("hides generic tool started events and keeps completion summaries", () => {
+      panel.addEvent({
+        type: "chunk",
+        stream: "stdout",
+        data:
+          "{\"type\":\"item.started\",\"item\":{\"id\":\"item_6\",\"type\":\"mcp_tool_call\",\"title\":\"Search repo\",\"status\":\"in_progress\"}}\n{\"type\":\"item.completed\",\"item\":{\"id\":\"item_6\",\"type\":\"mcp_tool_call\",\"title\":\"Search repo\",\"output\":\"done\\n\",\"status\":\"completed\"}}\n",
+        timestamp: Date.now(),
+      });
+
+      mockScreen.write.mockClear();
+      panel.render(mockContext, mockRegion);
+
+      const output = mockScreen.write.mock.calls
+        .map((c: any) => c[0])
+        .join("\n");
+
+      expect(output).toContain("mcp tool call: done");
+      expect(output).not.toContain("started");
     });
 
     it("ignores Codex stderr banner noise while keeping real errors", () => {
@@ -152,7 +192,6 @@ describe("TranscriptPanel", () => {
         .join("\n");
       expect(output).not.toContain("OpenAI Codex");
       expect(output).not.toContain("workdir:");
-      expect(output).toContain("[ERR]");
       expect(output).toContain("Error: boom");
     });
 
@@ -171,7 +210,6 @@ describe("TranscriptPanel", () => {
       const output = mockScreen.write.mock.calls
         .map((c: any) => c[0])
         .join("\n");
-      expect(output).toContain("[ERR]");
       expect(output).toContain("Error message");
     });
 
@@ -396,9 +434,36 @@ describe("TranscriptPanel", () => {
       const output = mockScreen.write.mock.calls
         .map((c: any) => c[0])
         .join("\n");
-      expect(output).toContain("[edit]");
       expect(output).toContain("src/cli/tui/panels/transcript.ts");
       expect(output).toContain("notes.txt");
+      expect(output).not.toContain("[edit]");
+    });
+  });
+
+  describe("appendTurnRecap", () => {
+    it("renders recap blocks from action timeline events", () => {
+      const recapEvent: ActionTimelineEvent = {
+        kind: "turn_recap",
+        source: "detoks",
+        summary: "턴 종료 recap",
+        timestamp: Date.now(),
+        details: [
+          "요약: 1개 작업을 모두 완료했습니다",
+          "다음 작업: 파이프라인이 완료되었습니다.",
+        ],
+      };
+
+      panel.appendTurnRecap(recapEvent);
+
+      mockScreen.write.mockClear();
+      panel.render(mockContext, mockRegion);
+
+      const output = mockScreen.write.mock.calls
+        .map((c: any) => c[0])
+        .join("\n");
+      expect(output).toContain("[recap]");
+      expect(output).toContain("턴 종료 recap");
+      expect(output).toContain("파이프라인이 완료되었습니다.");
     });
   });
 });

@@ -1,12 +1,14 @@
 import type { Adapter, ExecutionMode } from "../../core/pipeline/types.js";
 import type { AdapterExecutionRequest, AdapterExecutionResult } from "../../core/executor/types.js";
 import type { SubprocessRequest, SubprocessRunner } from "../subprocess/types.js";
+import type { ActionTimelineSink } from "../../core/timeline/types.js";
 
 export type AdapterExecutionMode = ExecutionMode;
 
 export interface AdapterExecutionContext {
   executionMode: AdapterExecutionMode;
   subprocessRunner: SubprocessRunner;
+  onActionTimelineEvent?: ActionTimelineSink;
 }
 
 export interface CliAdapter {

@@ -62,6 +62,8 @@ describe("orchestratePipeline", () => {
     expect(result.promptInferenceTimeSec).toBe(0);
     expect(result.promptValidationErrors).toEqual([]);
     expect(result.promptRepairActions).toEqual([]);
+    expect(result.actionTimeline?.some((event) => event.kind === "validation")).toBe(true);
+    expect(result.actionTimeline?.some((event) => event.kind === "stage_update")).toBe(true);
     expect(result.tokenMetrics).not.toBeNull();
     expect(result.tokenMetrics?.model).toBe("o200k_base");
 
@@ -80,26 +82,35 @@ describe("orchestratePipeline", () => {
   });
 
   it("passes execution mode through to the executor boundary", async () => {
-    executeWithAdapterMock.mockResolvedValueOnce({
-      ok: true,
-      adapter: "codex",
-      rawOutput: "[mock-real] codex",
-      exitCode: 0,
-      transcript: {
-        events: [
-          {
-            type: "chunk",
-            timestamp: 1,
-            stream: "stdout",
-            data: "[mock-real] codex",
-          },
-        ],
-        startTime: 1,
-        endTime: 2,
-        totalDuration: 1,
+    executeWithAdapterMock.mockImplementationOnce(async (request) => {
+      await request.onActionTimelineEvent?.({
+        kind: "tool_call",
+        source: "adapter",
+        summary: "codex 실행",
+        timestamp: 1,
+      });
+
+      return {
+        ok: true,
+        adapter: "codex",
+        rawOutput: "[mock-real] codex",
         exitCode: 0,
-        timedOut: false,
-      },
+        transcript: {
+          events: [
+            {
+              type: "chunk",
+              timestamp: 1,
+              stream: "stdout",
+              data: "[mock-real] codex",
+            },
+          ],
+          startTime: 1,
+          endTime: 2,
+          totalDuration: 1,
+          exitCode: 0,
+          timedOut: false,
+        },
+      };
     });
 
     const result = await orchestratePipeline({
@@ -118,6 +129,8 @@ describe("orchestratePipeline", () => {
     expect(result.ok).toBe(true);
     expect(result.rawOutput).toBe("[mock-real] codex");
     expect(result.adapterTranscript?.events).toHaveLength(1);
+    expect(result.actionTimeline?.some((event) => event.kind === "tool_call")).toBe(true);
+    expect(result.actionTimeline?.some((event) => event.kind === "validation")).toBe(true);
     expect(executeWithAdapterMock).toHaveBeenCalledWith(
       expect.objectContaining({
         adapter: "codex",

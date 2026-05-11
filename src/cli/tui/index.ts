@@ -31,7 +31,9 @@ import {
 } from "./workspace-diff.js";
 import { toNormalizedRequest } from "../parse.js";
 import { orchestratePipeline } from "../../core/pipeline/orchestrator.js";
+import { buildActionTimeline } from "../../core/timeline/action-timeline.js";
 import { readRole1ModelName } from "../../core/prompt/config.js";
+import type { TokenReductionSnapshot } from "../../core/utils/tokenMetrics.js";
 import { colors } from "../colors.js";
 import { formatError } from "../format.js";
 import {
@@ -53,6 +55,15 @@ interface TuiRunOptions {
   adapterModel?: string;
   inferenceStrength?: string;
 }
+
+const formatTokenSavingsBadge = (reduction?: TokenReductionSnapshot | null): string | undefined => {
+  if (!reduction) {
+    return undefined;
+  }
+
+  const percent = Math.max(0, Math.round(reduction.savedPercent));
+  return `tok -${percent}%`;
+};
 
 export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
   const screen = createScreenManager(stdout, stdin);
@@ -130,6 +141,7 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
     let lastInputSeparatorRow = -1;
     let slashAutocompleteSelectedIndex = 0;
     const executionCwd = process.cwd();
+    let currentTokenSavingsLabel: string | undefined;
 
     // Optimized: only update input area
     const renderInputOnly = (): void => {
@@ -206,6 +218,7 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
           adapter: currentAdapter,
           adapterModel: currentAdapterModel,
           inferenceStrength: currentInferenceStrength,
+          tokenSavings: currentTokenSavingsLabel,
           cwd: executionCwd,
         }),
       );
@@ -469,6 +482,7 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
         transcriptPanel.clear();
         resultPanel.clear();
         pipelinePanel.reset();
+        currentTokenSavingsLabel = undefined;
         render();
 
         // Phase 3.1: Create normalized request
@@ -498,6 +512,10 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
             transcriptPanel.addEvent(event);
             render();
           },
+          onActionTimelineEvent: (event) => {
+            pipelinePanel.updateActionTimelineEvent(event);
+            render();
+          },
         });
 
         // Phase 3.3: Feed PTY events to transcript panel
@@ -516,12 +534,17 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
 
         const workspaceAfter = captureWorkspaceSnapshot(executionCwd);
         const workspaceDiff = diffWorkspaceSnapshots(workspaceBefore, workspaceAfter);
-        if (workspaceDiff.length > 0) {
-          transcriptPanel.appendWorkspaceDiff(workspaceDiff);
-        }
+
+        const actionTimeline = buildActionTimeline(result, workspaceDiff);
 
         // Phase 3.4: Display result
-        resultPanel.setResult(result);
+        resultPanel.setResult({
+          ...result,
+          ...(actionTimeline.length > 0 ? { actionTimeline } : {}),
+        });
+        currentTokenSavingsLabel = formatTokenSavingsBadge(
+          result.tokenMetrics?.input ?? result.tokenMetrics?.output,
+        );
         render();
 
       } catch (error) {

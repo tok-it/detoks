@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { CodexStubAdapter } from "../../../../../src/integrations/adapters/codex/adapter.js";
 import { ClaudeStubAdapter } from "../../../../../src/integrations/adapters/claude/adapter.js";
 import { GeminiStubAdapter } from "../../../../../src/integrations/adapters/gemini/adapter.js";
+import type { ActionTimelineEvent } from "../../../../../src/core/timeline/types.js";
 import type { SubprocessRequest, TranscriptAwareSubprocessRunner } from "../../../../../src/integrations/subprocess/types.js";
 
 const capturedRequests: SubprocessRequest[] = [];
@@ -71,6 +72,7 @@ describe("adapter execution modes", () => {
   it("records codex real execution requests with the codex command", async () => {
     capturedRequests.length = 0;
     const adapter = new CodexStubAdapter();
+    const timelineEvents: ActionTimelineEvent[] = [];
 
     const realResult = await adapter.execute(
       {
@@ -83,6 +85,9 @@ describe("adapter execution modes", () => {
       {
         executionMode: "real",
         subprocessRunner: fakeRunner,
+        onActionTimelineEvent: (event) => {
+          timelineEvents.push(event);
+        },
       },
     );
 
@@ -99,9 +104,6 @@ describe("adapter execution modes", () => {
           "--skip-git-repo-check",
           "--color",
           "never",
-          "--json",
-          "--output-last-message",
-          expect.any(String),
         ],
         cwd: "/workspace",
         input: "real prompt",
@@ -110,6 +112,10 @@ describe("adapter execution modes", () => {
     expect(realResult.rawOutput).toBe("[fake:codex] real prompt");
     expect(realResult.exitCode).toBe(0);
     expect(realResult.transcript?.events).toHaveLength(2);
+    expect(timelineEvents.map((event) => event.kind)).toEqual([
+      "tool_call",
+      "tool_result",
+    ]);
   });
 
   it("records gemini real execution requests with the gemini command", async () => {

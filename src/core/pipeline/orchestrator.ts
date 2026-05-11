@@ -6,14 +6,15 @@ import { TaskGraphProcessor } from "../task-graph/TaskGraphProcessor.js";
 import { TaskSentenceSplitter } from "../task-graph/TaskSentenceSplitter.js";
 import { compilePrompt, createRole2PromptInput } from "../prompt/compiler.js";
 import { ContextBuilder } from "../context/ContextBuilder.js";
+import { ContextCompressor } from "../context/ContextCompressor.js";
 import { SessionStateManager } from "../state/SessionStateManager.js";
 import { executeWithAdapter } from "../executor/execute.js";
 import { logger } from "../utils/logger.js";
 import { PipelineTracer } from "../utils/PipelineTracer.js";
 import { translateVisibleText } from "../utils/visibleText.js";
 import { buildTokenMetrics, type TokenMetricsSnapshot } from "../utils/tokenMetrics.js";
+import { getLLMModelConfig } from "../llm-client/llm-models.js";
 import type { PtyTranscript } from "../../integrations/subprocess/types.js";
-import { getLastUsedLocalLlmInfo } from "../llm-client/local-runtime.js";
 import type { SessionState } from "../../schemas/pipeline.js";
 import type {
   PipelineProgressEvent,
@@ -23,6 +24,26 @@ import type {
   PipelineStageStatus,
   TaskExecutionRecord,
 } from "./types.js";
+import { createActionTimelineEvent } from "../timeline/types.js";
+import type { ActionTimelineEvent } from "../timeline/types.js";
+
+const ADAPTER_MODEL_MAP: Record<string, string> = {
+  claude: 'claude-3.5-sonnet',
+  gemini: 'gemini-2.0-flash',
+  codex: 'gpt-4-turbo',
+};
+
+/**
+ * adapter 타입과 환경변수(ADAPTER_MODEL)를 조합해 llm-models 키를 반환합니다.
+ * 미지원 모델명이 넘어오면 fallback으로 adapter 기본값을 씁니다.
+ */
+function resolveModelName(adapter: string, env?: NodeJS.ProcessEnv): string {
+  const envModel = env?.ADAPTER_MODEL ?? process.env.ADAPTER_MODEL;
+  if (envModel && getLLMModelConfig(envModel)) {
+    return envModel;
+  }
+  return ADAPTER_MODEL_MAP[adapter] ?? 'claude-3.5-sonnet';
+}
 
 function generateSessionId(): string {
   return createHash("sha256").update(String(Date.now())).digest("hex").slice(0, 12);
@@ -295,8 +316,22 @@ export const orchestratePipeline = async (
 ): Promise<PipelineExecutionResult> => {
   const sessionId = request.userRequest.session_id ?? generateSessionId();
   const progressLog: PipelineProgressLog[] = [];
+  const actionTimeline: ActionTimelineEvent[] = [];
   let adapterTranscript: PtyTranscript | undefined;
   PipelineTracer.clear();
+
+  const emitActionTimelineWithLogging = async (event: ActionTimelineEvent): Promise<void> => {
+    actionTimeline.push(event);
+    if (!request.onActionTimelineEvent) {
+      return;
+    }
+
+    try {
+      await request.onActionTimelineEvent(event);
+    } catch {
+      // Timeline callbacks must not break the pipeline.
+    }
+  };
 
   // Progress 이벤트 수집 및 콜백 호출
   const emitProgressWithLogging = async (event: PipelineProgressEvent): Promise<void> => {
@@ -306,6 +341,14 @@ export const orchestratePipeline = async (
       message: event.message,
       timestamp: Date.now(),
     });
+    const timelineEvent = createActionTimelineEvent({
+      kind: "stage_update",
+      source: "pipeline",
+      stage: event.stage,
+      summary: `${event.stage}: ${event.status} · ${event.message}`,
+      rawPayload: event,
+    });
+    await emitActionTimelineWithLogging(timelineEvent);
     if (request.onProgress) {
       request.onProgress(event);
     }
@@ -382,6 +425,7 @@ export const orchestratePipeline = async (
       rawOutput: errorMessage,
       sessionId,
       taskRecords: [],
+      ...(actionTimeline.length ? { actionTimeline } : {}),
       ...(request.trace ? { traceLog: PipelineTracer.getTrace(sessionId) } : {}),
       ...(traceFilePath ? { traceFilePath } : {}),
     };
@@ -412,6 +456,15 @@ export const orchestratePipeline = async (
     sessionId, stage: "DAGValidator", role: "role2.1", phase: "output",
     dataType: "DAGValidationResult", data: validation,
   });
+  const validationEvent = createActionTimelineEvent({
+    kind: "validation",
+    source: "validation",
+    summary: validation.valid
+      ? `작업 그래프 검증 통과 (${graph.tasks.length}개 작업)`
+      : `작업 그래프 검증 실패: ${validation.reason}`,
+    rawPayload: validation,
+  });
+    await emitActionTimelineWithLogging(validationEvent);
   if (!validation.valid) {
     logger.error(`DAG 검증 실패: ${translateVisibleText(validation.reason)} — ${translateVisibleText(validation.detail)}`);
     const traceFilePath = request.trace
@@ -434,6 +487,7 @@ export const orchestratePipeline = async (
       promptInferenceTimeSec: compiledPrompt.inference_time_sec ?? 0,
       promptValidationErrors: compiledPrompt.validation_errors ?? [],
       promptRepairActions: compiledPrompt.repair_actions ?? [],
+      ...(actionTimeline.length ? { actionTimeline } : {}),
       ...(request.trace ? { traceLog: PipelineTracer.getTrace(sessionId) } : {}),
       ...(traceFilePath ? { traceFilePath } : {}),
     };
@@ -472,10 +526,22 @@ export const orchestratePipeline = async (
       })),
     },
   });
-  await emitProgressWithLogging( {
+  await emitProgressWithLogging({
     stage: "Task Graph Builder",
     status: "end",
-    message: "Task Graph Builder 완료",
+    message: `태스크 ${graph.tasks.length}개 생성 완료`,
+    data: {
+      tasks: graph.tasks.map((t) => ({
+        id: t.id,
+        type: t.type,
+        title: t.title,
+        depends_on: t.depends_on,
+      })),
+      stages: stages.map(({ stage, tasks: stageTasks }) => ({
+        stage,
+        taskIds: stageTasks.map((t) => t.id),
+      })),
+    },
   });
 
   // ── Step 5: 세션 상태 초기화 / 로드 (Role 2.2) ───────────────────────────
@@ -575,24 +641,42 @@ export const orchestratePipeline = async (
       state = { ...state, current_task_id: task.id };
 
       // ExecutionContext 생성 (Role 2.2 — ContextCompressor → ContextSelector → ContextBuilder)
-      await emitProgressWithLogging( {
+      await emitProgressWithLogging({
         stage: "Context Optimizer",
         status: "start",
         taskId: task.id,
         message: `Context Optimizer(${task.id}) 시작`,
       });
       PipelineTracer.startStage(`ContextOptimizer:${task.id}`);
-      const context = ContextBuilder.build(state, task);
+      const modelName = resolveModelName(request.adapter, request.env);
+      const tokensBeforeCompression = ContextCompressor.estimateTokens(state, modelName);
+      const context = ContextBuilder.build(state, task, modelName);
+      const compressedTaskIds = Object.entries(state.task_results)
+        .filter(([, r]) => (r as Record<string, unknown>)._compressed === true)
+        .map(([id]) => id);
+      const keptTaskIds = state.completed_task_ids.filter(
+        (id) => !compressedTaskIds.includes(id),
+      );
+      const contextTokens = ContextCompressor.estimateTokens(
+        { ...state, task_results: context.selected_context as typeof state.task_results },
+        modelName,
+      );
       await PipelineTracer.trace({
         sessionId, stage: "ContextOptimizer", role: "role2.2", phase: "output",
         dataType: "ExecutionContext", data: context,
         durationMs: PipelineTracer.endStage(`ContextOptimizer:${task.id}`),
       });
-      await emitProgressWithLogging( {
+      await emitProgressWithLogging({
         stage: "Context Optimizer",
         status: "end",
         taskId: task.id,
         message: `Context Optimizer(${task.id}) 완료`,
+        data: {
+          tokensBeforeCompression,
+          contextTokens,
+          compressedTaskIds,
+          keptTaskIds,
+        },
       });
 
       // Task 실행 (Role 3)
@@ -621,6 +705,7 @@ export const orchestratePipeline = async (
         ...(request.userRequest.cwd ? { cwd: request.userRequest.cwd } : {}),
         sessionId,
         ...(request.onAdapterEvent ? { onAdapterEvent: request.onAdapterEvent } : {}),
+        onActionTimelineEvent: emitActionTimelineWithLogging,
       });
       adapterTranscript = mergePtyTranscripts(adapterTranscript, execResult.transcript);
 
@@ -716,16 +801,6 @@ export const orchestratePipeline = async (
     compiledPrompt.compressed_prompt,
   );
   state = sessionTokenMetrics.state;
-  const llmInfo = getLastUsedLocalLlmInfo();
-  if (llmInfo.port !== undefined || llmInfo.model !== undefined) {
-    state = {
-      ...state,
-      runtime: {
-        localLlmPort: llmInfo.port,
-        localLlmModel: llmInfo.model,
-      },
-    };
-  }
   await emitProgressWithLogging( {
     stage: "State Manager",
     status: "start",
@@ -757,6 +832,7 @@ export const orchestratePipeline = async (
     promptInferenceTimeSec: compiledPrompt.inference_time_sec ?? 0,
     promptValidationErrors: compiledPrompt.validation_errors ?? [],
     promptRepairActions: compiledPrompt.repair_actions ?? [],
+    ...(actionTimeline.length ? { actionTimeline } : {}),
     ...(request.trace ? { traceLog: PipelineTracer.getTrace(sessionId) } : {}),
     ...(traceFilePath ? { traceFilePath } : {}),
     progressLog, // detoks 내부 진행 로그

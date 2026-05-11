@@ -39,3 +39,13 @@ export class ContextProcessingError extends StateError {
     super(message, context);
   }
 }
+
+/**
+ * StateLockError
+ * 세션 파일 잠금 획득 실패 시 발생합니다 (다른 프로세스가 점유 중이거나 재시도 한도 초과).
+ */
+export class StateLockError extends StateError {
+  constructor(message: string, context?: Record<string, unknown>) {
+    super(message, context);
+  }
+}

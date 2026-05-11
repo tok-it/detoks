@@ -13,6 +13,10 @@ import {
   captureWorkspaceSnapshot,
   diffWorkspaceSnapshots,
 } from "../../../../../src/cli/tui/workspace-diff.js";
+import {
+  formatWorkspaceStatusEntry,
+  parseWorkspaceStatusLine,
+} from "../../../../../src/core/timeline/workspace-status.js";
 
 describe("workspace diff helper", () => {
   it("captures git status lines as a workspace snapshot", () => {
@@ -54,8 +58,34 @@ describe("workspace diff helper", () => {
       ),
     ).toEqual([
       "[WORKSPACE] 새로 바뀐 파일",
-      "   M src/core/pipeline/orchestrator.ts",
-      "  ?? tests/ts/unit/cli/tui/workspace-diff.test.ts",
+      "  수정 src/core/pipeline/orchestrator.ts",
+      "  미추적 tests/ts/unit/cli/tui/workspace-diff.test.ts",
     ]);
+  });
+
+  it("parses workspace status lines into human-readable entries", () => {
+    const parsed = parseWorkspaceStatusLine("R  src/old.ts -> src/new.ts");
+
+    expect(parsed).toEqual({
+      statusCode: "R ",
+      kind: "renamed",
+      path: "src/old.ts",
+      path2: "src/new.ts",
+      summary: "이름변경 src/old.ts -> src/new.ts",
+    });
+    expect(parsed && formatWorkspaceStatusEntry(parsed)).toBe(
+      "이름변경 src/old.ts -> src/new.ts",
+    );
+  });
+
+  it("parses already formatted summary lines", () => {
+    expect(parseWorkspaceStatusLine("수정 src/core/pipeline/orchestrator.ts")).toEqual(
+      {
+        statusCode: "??",
+        kind: "modified",
+        path: "src/core/pipeline/orchestrator.ts",
+        summary: "수정 src/core/pipeline/orchestrator.ts",
+      },
+    );
   });
 });

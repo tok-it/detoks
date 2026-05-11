@@ -5,6 +5,7 @@ import type { TraceLog } from "../utils/PipelineTracer.js";
 import type { TokenMetricsSnapshot } from "../utils/tokenMetrics.js";
 import type { PtyTranscript } from "../../integrations/subprocess/types.js";
 import type { PtyEvent } from "../../integrations/subprocess/types.js";
+import type { ActionTimelineEvent, ActionTimelineSink } from "../timeline/types.js";
 
 export const AdapterValues = ["codex", "gemini", "claude"] as const;
 export type Adapter = (typeof AdapterValues)[number];
@@ -19,6 +20,7 @@ export interface PipelineProgressEvent {
   status: PipelineProgressStatus;
   message: string;
   taskId?: string;
+  data?: Record<string, unknown>;
 }
 
 export type PipelineProgressHandler = (
@@ -38,6 +40,7 @@ export interface PipelineExecutionRequest {
   fetchImplementation?: typeof fetch;
   onProgress?: PipelineProgressHandler;
   onAdapterEvent?: (event: PtyEvent) => void;
+  onActionTimelineEvent?: ActionTimelineSink;
 }
 
 export interface PipelineStageStatus {
@@ -84,4 +87,5 @@ export interface PipelineExecutionResult {
   progressLog?: PipelineProgressLog[]; // detoks 내부 진행 로그
   adapterTranscript?: PtyTranscript; // adapter 실행 이벤트/메타데이터
   adapterStderr?: string; // adapter stderr 출력
+  actionTimeline?: ActionTimelineEvent[];
 }
