@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  cluster_placeholder_sequences,
   collect_preservable_literals,
+  expand_placeholder_clusters,
   mask_protected_segments,
   restore_placeholders,
 } from "../../../../../src/core/translate/masking.js";
@@ -48,6 +50,22 @@ describe("mask_protected_segments", () => {
     expect(restore_placeholders(masked.masked_text, masked.placeholders)).toBe(
       sourceText,
     );
+  });
+
+  it("연속된 placeholder는 cluster token 하나로 묶고 다시 펼칠 수 있다", () => {
+    const clustered = cluster_placeholder_sequences(
+      "Compare __PH_0001__ __PH_0002__ before deploy.",
+    );
+
+    expect(clustered.clusters).toHaveLength(1);
+    expect(clustered.masked_text).toBe("Compare __PHC_0001__ before deploy.");
+    expect(clustered.clusters[0]!.placeholders).toEqual([
+      "__PH_0001__",
+      "__PH_0002__",
+    ]);
+    expect(
+      expand_placeholder_clusters(clustered.masked_text, clustered.clusters),
+    ).toBe("Compare __PH_0001__ __PH_0002__ before deploy.");
   });
 
   it("qualified identifier, 함수 호출식, slash token, quoted literal을 보호한다", () => {

@@ -34,6 +34,17 @@ export interface MaskProtectedSegmentsResult {
   placeholders: PlaceholderEntry[];
 }
 
+export interface PlaceholderClusterEntry {
+  placeholder: string;
+  original: string;
+  placeholders: string[];
+}
+
+export interface ClusterPlaceholderSequencesResult {
+  masked_text: string;
+  clusters: PlaceholderClusterEntry[];
+}
+
 interface MatchCandidate {
   start: number;
   end: number;
@@ -137,6 +148,10 @@ function escapeRegExp(value: string): string {
 
 function createPlaceholder(index: number): string {
   return `__PH_${String(index).padStart(4, "0")}__`;
+}
+
+function createClusterPlaceholder(index: number): string {
+  return `__PHC_${String(index).padStart(4, "0")}__`;
 }
 
 function addRegexCandidates(
@@ -294,7 +309,7 @@ export function collect_preservable_literals(
   const selected = selectCandidates(collectCandidates(source_text, options));
   const literals = selected
     .map((candidate) => candidate.original)
-    .filter((literal) => literal && !/^__PH_\d{4}__$/.test(literal));
+    .filter((literal) => literal && !/^__PH(?:C)?_\d{4}__$/.test(literal));
 
   return [...new Set(literals)];
 }
@@ -334,5 +349,97 @@ export function restore_placeholders(
 ): string {
   return placeholders.reduce((restored, entry) => {
     return restored.replaceAll(entry.placeholder, entry.original);
+  }, masked_text);
+}
+
+function isClusterSeparator(text: string): boolean {
+  return /^[\s()[\]{}<>,.:;|/\\+-]*$/.test(text);
+}
+
+export function cluster_placeholder_sequences(
+  masked_text: string,
+): ClusterPlaceholderSequencesResult {
+  const placeholderMatches = [...masked_text.matchAll(/__PH_\d{4}__/g)];
+
+  if (placeholderMatches.length < 2) {
+    return {
+      masked_text,
+      clusters: [],
+    };
+  }
+
+  const clusters: PlaceholderClusterEntry[] = [];
+  let clusteredText = "";
+  let cursor = 0;
+  let index = 0;
+
+  while (index < placeholderMatches.length) {
+    const groupStart = placeholderMatches[index]!.index;
+
+    if (groupStart === undefined) {
+      index += 1;
+      continue;
+    }
+
+    let nextIndex = index + 1;
+    let groupEnd = groupStart + placeholderMatches[index]![0].length;
+
+    while (nextIndex < placeholderMatches.length) {
+      const nextMatch = placeholderMatches[nextIndex]!;
+      const nextStart = nextMatch.index;
+
+      if (nextStart === undefined) {
+        break;
+      }
+
+      const separator = masked_text.slice(groupEnd, nextStart);
+      if (!isClusterSeparator(separator)) {
+        break;
+      }
+
+      groupEnd = nextStart + nextMatch[0].length;
+      nextIndex += 1;
+    }
+
+    if (nextIndex - index < 2) {
+      index += 1;
+      continue;
+    }
+
+    const placeholder = createClusterPlaceholder(clusters.length + 1);
+    clusteredText += masked_text.slice(cursor, groupStart);
+    clusteredText += placeholder;
+    clusters.push({
+      placeholder,
+      original: masked_text.slice(groupStart, groupEnd),
+      placeholders: placeholderMatches
+        .slice(index, nextIndex)
+        .map((match) => match[0]),
+    });
+    cursor = groupEnd;
+    index = nextIndex;
+  }
+
+  if (clusters.length === 0) {
+    return {
+      masked_text,
+      clusters,
+    };
+  }
+
+  clusteredText += masked_text.slice(cursor);
+
+  return {
+    masked_text: clusteredText,
+    clusters,
+  };
+}
+
+export function expand_placeholder_clusters(
+  masked_text: string,
+  clusters: readonly PlaceholderClusterEntry[],
+): string {
+  return clusters.reduce((restored, cluster) => {
+    return restored.replaceAll(cluster.placeholder, cluster.original);
   }, masked_text);
 }

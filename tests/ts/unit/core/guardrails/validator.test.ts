@@ -12,6 +12,28 @@ describe("validate_translation", () => {
     expect(result.validation_errors).toContain("placeholder_count_mismatch");
   });
 
+  it("기본 정책에서는 placeholder 순서 차이만으로 실패시키지 않는다", () => {
+    const result = validate_translation({
+      source_text: "__PH_0001__ 파일을 __PH_0002__에 생성해",
+      compressed_prompt: "Create __PH_0002__ file in __PH_0001__",
+      placeholders: ["__PH_0001__", "__PH_0002__"],
+    });
+
+    expect(result.validation_errors).not.toContain("placeholder_order_mismatch");
+    expect(result.validation_errors).not.toContain("placeholder_token_mismatch");
+  });
+
+  it("strict order일 때만 placeholder 순서 차이를 검출한다", () => {
+    const result = validate_translation({
+      source_text: "__PH_0001__ 파일을 __PH_0002__에 생성해",
+      compressed_prompt: "Create __PH_0002__ file in __PH_0001__",
+      placeholders: ["__PH_0001__", "__PH_0002__"],
+      strict_placeholder_order: true,
+    });
+
+    expect(result.validation_errors).toContain("placeholder_order_mismatch");
+  });
+
   it("한글 잔존과 forbidden pattern을 검출한다", () => {
     const result = validate_translation({
       source_text: "파일을 생성해",

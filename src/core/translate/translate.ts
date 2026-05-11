@@ -5,6 +5,8 @@ import {
 import { ensureLocalLlmRuntime } from "../llm-client/local-runtime.js";
 import type { Role1Policies, Role1RuntimeConfig } from "../prompt/config.js";
 import {
+	cluster_placeholder_sequences,
+	expand_placeholder_clusters,
 	mask_protected_segments,
 	restore_placeholders,
 	type PlaceholderEntry,
@@ -90,6 +92,19 @@ const TRANSLATION_USER_PROMPT_PREFIX =
 
 type TranslationPassPromptType = "primary" | "fallback" | "final_retry";
 
+interface SegmentedRetrySegment {
+	id: string;
+	kind: "TEXT" | "PLACEHOLDER";
+	source: string;
+}
+
+interface SegmentedRetryResult {
+	text: string;
+	repair_actions: string[];
+	raw_response?: Record<string, unknown>;
+	inference_time_sec: number;
+}
+
 function containsKorean(text: string): boolean {
 	return /[가-힣]/.test(text);
 }
@@ -103,23 +118,45 @@ function formatPlaceholderGuidance(placeholders: readonly string[]): string {
 }
 
 function extractPlaceholdersInOrder(text: string): string[] {
-	return text.match(/__PH_\d{4}__/g) ?? [];
+	return text.match(/__PH(?:C)?_\d{4}__/g) ?? [];
 }
 
-function hasExactPlaceholderIntegrity(
+function hasSamePlaceholderMultiset(
+	expected: readonly string[],
+	actual: readonly string[],
+): boolean {
+	if (expected.length !== actual.length) {
+		return false;
+	}
+
+	const expectedCounts = new Map<string, number>();
+	const actualCounts = new Map<string, number>();
+
+	for (const placeholder of expected) {
+		expectedCounts.set(placeholder, (expectedCounts.get(placeholder) ?? 0) + 1);
+	}
+
+	for (const placeholder of actual) {
+		actualCounts.set(placeholder, (actualCounts.get(placeholder) ?? 0) + 1);
+	}
+
+	if (expectedCounts.size !== actualCounts.size) {
+		return false;
+	}
+
+	return [...expectedCounts.entries()].every(([placeholder, count]) => {
+		return actualCounts.get(placeholder) === count;
+	});
+}
+
+function hasAcceptablePlaceholderIntegrity(
 	sourceText: string,
 	outputText: string,
 ): boolean {
 	const sourcePlaceholders = extractPlaceholdersInOrder(sourceText);
 	const outputPlaceholders = extractPlaceholdersInOrder(outputText);
 
-	if (sourcePlaceholders.length !== outputPlaceholders.length) {
-		return false;
-	}
-
-	return sourcePlaceholders.every(
-		(placeholder, index) => placeholder === outputPlaceholders[index],
-	);
+	return hasSamePlaceholderMultiset(sourcePlaceholders, outputPlaceholders);
 }
 
 function hasPlaceholderValidationError(errors: readonly string[]): boolean {
@@ -154,6 +191,7 @@ function shouldRetryWholeItem(
 			error.startsWith("required_literal_missing:") ||
 			error.startsWith("required_term_missing:") ||
 			error === "placeholder_count_mismatch" ||
+			error === "placeholder_token_mismatch" ||
 			error === "placeholder_order_mismatch" ||
 			error === "korean_text_remaining" ||
 			error === "source_korean_copied",
@@ -190,6 +228,246 @@ function estimateTranslationMaxTokens(
 ): number {
 	const configuredMax = config.localLlmMaxTokens ?? 512;
 	return Math.min(configuredMax, Math.max(128, Math.ceil(text.length * 1.5)));
+}
+
+function createSegmentedRetrySegments(text: string): SegmentedRetrySegment[] {
+	const segments: SegmentedRetrySegment[] = [];
+	let cursor = 0;
+	let index = 1;
+
+	for (const match of text.matchAll(/__PH(?:C)?_\d{4}__/g)) {
+		const start = match.index;
+		if (start === undefined) {
+			continue;
+		}
+
+		if (cursor < start) {
+			segments.push({
+				id: `SEG_${String(index).padStart(4, "0")}`,
+				kind: "TEXT",
+				source: text.slice(cursor, start),
+			});
+			index += 1;
+		}
+
+		segments.push({
+			id: `SEG_${String(index).padStart(4, "0")}`,
+			kind: "PLACEHOLDER",
+			source: match[0],
+		});
+		index += 1;
+		cursor = start + match[0].length;
+	}
+
+	if (cursor < text.length) {
+		segments.push({
+			id: `SEG_${String(index).padStart(4, "0")}`,
+			kind: "TEXT",
+			source: text.slice(cursor),
+		});
+	}
+
+	return segments.length > 0
+		? segments
+		: [
+			{
+				id: "SEG_0001",
+				kind: "TEXT",
+				source: text,
+			},
+		];
+}
+
+function normalizePlaceholderSpacing(text: string): string {
+	return text
+		.replace(/([A-Za-z0-9`])(__PH(?:C)?_\d{4}__)/g, "$1 $2")
+		.replace(/(__PH(?:C)?_\d{4}__)([A-Za-z0-9`])/g, "$1 $2");
+}
+
+function reconstructSegmentedRetryOutput(
+	content: string,
+	segments: readonly SegmentedRetrySegment[],
+): { text: string; repair_actions: string[] } | null {
+	const parsedById = new Map<
+		string,
+		{ kind: SegmentedRetrySegment["kind"]; content: string }
+	>();
+
+	for (const rawLine of content.split(/\r?\n/u)) {
+		const line = rawLine.trimEnd();
+		const match = line.match(/^(SEG_\d{4})\|\|\|(TEXT|PLACEHOLDER)\|\|\|(.*)$/u);
+		if (!match) {
+			continue;
+		}
+
+		parsedById.set(match[1]!, {
+			kind: match[2]! as SegmentedRetrySegment["kind"],
+			content: match[3]!,
+		});
+	}
+
+	if (parsedById.size === 0) {
+		return null;
+	}
+
+	const repairedParts: string[] = [];
+	const repairActions: string[] = [];
+
+	for (const segment of segments) {
+		const parsed = parsedById.get(segment.id);
+
+		if (segment.kind === "PLACEHOLDER") {
+			if (!parsed || parsed.content.trim() !== segment.source) {
+				repairActions.push(`placeholder_inserted:${segment.source}`);
+			}
+			repairedParts.push(segment.source);
+			continue;
+		}
+
+		if (!parsed) {
+			return null;
+		}
+
+		repairedParts.push(parsed.content);
+	}
+
+	return {
+		text: normalizePlaceholderSpacing(repairedParts.join("")),
+		repair_actions: repairActions,
+	};
+}
+
+async function translate_segmented_placeholder_retry(
+	span: TranslatableSpan,
+	options: TranslateToEnglishOptions,
+	fallbackContext: {
+		previous_output: string;
+		validation_errors: string[];
+	},
+	placeholderTokens: readonly string[] = [],
+): Promise<SegmentedRetryResult | null> {
+	if (!containsKorean(span.text) || placeholderTokens.length === 0) {
+		return null;
+	}
+
+	const segments = createSegmentedRetrySegments(span.text);
+	if (!segments.some((segment) => segment.kind === "PLACEHOLDER")) {
+		return null;
+	}
+
+	const placeholderGuidance = formatPlaceholderGuidance(placeholderTokens);
+	const systemPrompt = [
+		TRANSLATION_SYSTEM_PROMPT,
+		placeholderGuidance,
+		"## Placeholder Segment Recovery Mode",
+		"Use the full source span as context, but return the ordered segments exactly as requested.",
+		"Translate only TEXT segments into English.",
+		"Copy PLACEHOLDER segments exactly as written.",
+		"Do not merge, split, omit, or reorder segments.",
+		"Do not add commentary or code fences.",
+	].filter(Boolean).join("\n\n");
+
+	const userPrompt = [
+		"Recover a placeholder-safe translation for the following span.",
+		"",
+		`Validation errors: ${fallbackContext.validation_errors.join(", ") || "unknown_error"}`,
+		"Previous invalid output:",
+		fallbackContext.previous_output,
+		"",
+		"Full source span:",
+		span.text,
+		"",
+		"Return exactly one line for each segment in this format:",
+		"SEG_0001|||TEXT|||<translated text>",
+		"SEG_0002|||PLACEHOLDER|||<exact placeholder>",
+		"",
+		"Ordered segments:",
+		segments
+			.map((segment) => `${segment.id}|||${segment.kind}|||${segment.source}`)
+			.join("\n"),
+	].join("\n");
+
+	const response = await complete_chat(
+		{
+			messages: [
+				{
+					role: "system",
+					content: systemPrompt,
+				},
+				{
+					role: "user",
+					content: userPrompt,
+				},
+			],
+			temperature: options.config.temperature,
+			max_tokens: estimateTranslationMaxTokens(span.text, options.config),
+			timeout_ms: options.config.requestTimeout,
+		},
+		{
+			...(options.config.localLlmRuntimeProvider
+				? { localLlmRuntimeProvider: options.config.localLlmRuntimeProvider }
+				: {}),
+			...(options.config.localLlmApiBase
+				? { apiBase: options.config.localLlmApiBase }
+				: {}),
+			...(options.config.localLlmApiKey
+				? { apiKey: options.config.localLlmApiKey }
+				: {}),
+			...(options.config.localLlmModelName
+				? { localLlmModelName: options.config.localLlmModelName }
+				: {}),
+			...(options.config.localLlmModelDir
+				? { localLlmModelDir: options.config.localLlmModelDir }
+				: {}),
+			...(options.config.localLlmModelPath
+				? { localLlmModelPath: options.config.localLlmModelPath }
+				: {}),
+			...(options.config.localLlmHfRepo
+				? { localLlmHfRepo: options.config.localLlmHfRepo }
+				: {}),
+			...(options.config.localLlmHfFile
+				? { localLlmHfFile: options.config.localLlmHfFile }
+				: {}),
+			...(options.config.localLlmDevice
+				? { localLlmDevice: options.config.localLlmDevice }
+				: {}),
+			...(options.config.localLlmGpuLayers
+				? { localLlmGpuLayers: options.config.localLlmGpuLayers }
+				: {}),
+			...(options.config.localLlmContextSize
+				? { localLlmContextSize: options.config.localLlmContextSize }
+				: {}),
+			...(options.config.localLlmTopK !== undefined
+				? { localLlmTopK: options.config.localLlmTopK }
+				: {}),
+			...(options.config.localLlmTopP !== undefined
+				? { localLlmTopP: options.config.localLlmTopP }
+				: {}),
+			...(options.config.localLlmMaxTokens !== undefined
+				? { localLlmMaxTokens: options.config.localLlmMaxTokens }
+				: {}),
+			...(options.fetchImplementation
+				? { fetchImplementation: options.fetchImplementation }
+				: {}),
+		},
+	);
+
+	const reconstructed = reconstructSegmentedRetryOutput(
+		response.content,
+		segments,
+	);
+	if (!reconstructed) {
+		return null;
+	}
+
+	return {
+		text: reconstructed.text,
+		repair_actions: reconstructed.repair_actions,
+		...(response.raw_response
+			? { raw_response: response.raw_response }
+			: {}),
+		inference_time_sec: response.inference_time_sec ?? 0,
+	};
 }
 
 async function translate_span(
@@ -311,8 +589,9 @@ async function runTranslationPass(
 			? [options.config.localLlmModelName]
 			: [],
 	});
+	const clustered = cluster_placeholder_sequences(masked.masked_text);
 	const spans = extract_translatable_spans(
-		masked.masked_text,
+		clustered.masked_text,
 		masked.placeholders,
 	);
 	const translatedSpans: TranslatableSpan[] = [];
@@ -322,9 +601,7 @@ async function runTranslationPass(
 	const spanResults: TranslationSpanResult[] = [];
 
 	for (const span of spans) {
-		const placeholderTokens = masked.placeholders
-			.filter((entry) => span.text.includes(entry.placeholder))
-			.map((entry) => entry.placeholder);
+		const placeholderTokens = extractPlaceholdersInOrder(span.text);
 		const llmResponse = await translate_span(
 			span,
 			options,
@@ -440,7 +717,7 @@ async function runTranslationPass(
 				});
 				repairActions.push(...fallbackRepaired.repair_actions);
 
-				const fallbackPlaceholderOk = hasExactPlaceholderIntegrity(
+				const fallbackPlaceholderOk = hasAcceptablePlaceholderIntegrity(
 					span.text,
 					fallbackRepaired.output,
 				);
@@ -464,6 +741,66 @@ async function runTranslationPass(
 			status = "failed";
 		}
 
+		if (
+			initialPromptType === "final_retry" &&
+			status === "failed" &&
+			placeholderTokens.length > 0 &&
+			validationErrors.some((error) =>
+				error === "placeholder_count_mismatch" ||
+				error === "placeholder_token_mismatch"
+			)
+		) {
+			const segmentedRetry = await translate_segmented_placeholder_retry(
+				span,
+				options,
+				{
+					previous_output: finalText,
+					validation_errors: validationErrors,
+				},
+				placeholderTokens,
+			);
+
+			if (segmentedRetry) {
+				attempts += 1;
+				fallbackSpanCount += 1;
+				if (segmentedRetry.raw_response) {
+					rawResponses.push(segmentedRetry.raw_response);
+				}
+				inferenceTimeSec += segmentedRetry.inference_time_sec;
+
+				const segmentedRepaired = repair_translation({
+					source_text: span.text,
+					compressed_prompt: segmentedRetry.text,
+					placeholders: placeholderTokens,
+					protected_terms: options.policies.protectedTerms,
+					required_terms: requiredTerms,
+					forbidden_patterns: options.policies.forbiddenPatterns,
+				});
+				const segmentedValidation = validate_translation({
+					source_text: span.text,
+					compressed_prompt: segmentedRepaired.output,
+					placeholders: placeholderTokens,
+					protected_terms: options.policies.protectedTerms,
+					required_terms: requiredTerms,
+					model_names: options.config.localLlmModelName
+						? [options.config.localLlmModelName]
+						: [],
+					forbidden_patterns: options.policies.forbiddenPatterns,
+				});
+				repairActions.push(...segmentedRetry.repair_actions);
+				repairActions.push(...segmentedRepaired.repair_actions);
+
+				if (segmentedValidation.validation_errors.length === 0) {
+					finalText = segmentedRepaired.output;
+					validationErrors = [];
+					status = "fallback_succeeded";
+				} else {
+					finalText = segmentedRepaired.output;
+					validationErrors = segmentedValidation.validation_errors;
+				}
+			}
+		}
+
 		translatedSpans.push({
 			...span,
 			text: finalText,
@@ -478,8 +815,12 @@ async function runTranslationPass(
 		});
 	}
 
-	const restoredText = restore_placeholders(
+	const expandedClusterText = expand_placeholder_clusters(
 		reassemble_spans(translatedSpans),
+		clustered.clusters,
+	);
+	const restoredText = restore_placeholders(
+		expandedClusterText,
 		masked.placeholders,
 	);
 	const finalValidation = validate_translation({
@@ -505,7 +846,7 @@ async function runTranslationPass(
 
 	return {
 		text: restoredText,
-		masked_text: masked.masked_text,
+		masked_text: clustered.masked_text,
 		placeholders: masked.placeholders,
 		spans: translatedSpans,
 		raw_responses: rawResponses,
@@ -516,11 +857,11 @@ async function runTranslationPass(
 		repair_actions: finalRepairActions,
 		...(options.config.pipelineMode === "debug"
 			? {
-				debug: {
-					masked_text: masked.masked_text,
-					placeholders: masked.placeholders,
-					spans: translatedSpans,
-					fallback_span_count: fallbackSpanCount,
+					debug: {
+						masked_text: clustered.masked_text,
+						placeholders: masked.placeholders,
+						spans: translatedSpans,
+						fallback_span_count: fallbackSpanCount,
 				},
 			}
 			: {}),
