@@ -53,7 +53,9 @@ function createWorkspace(): { root: string; cwd: string; home: string } {
 beforeEach(() => {
   vi.clearAllMocks();
   delete process.env.LOCAL_LLM_MODEL_NAME;
+  delete process.env.LOCAL_LLM_RUNTIME_PROVIDER;
   delete process.env.MODEL_NAME;
+  delete process.env.LOCAL_LLM_MODEL_DIR;
   delete process.env.LOCAL_LLM_MODEL_PATH;
   delete process.env.LOCAL_LLM_HF_REPO;
   delete process.env.LOCAL_LLM_HF_FILE;
@@ -64,7 +66,9 @@ afterEach(() => {
   vi.unstubAllEnvs();
   vi.restoreAllMocks();
   delete process.env.LOCAL_LLM_MODEL_NAME;
+  delete process.env.LOCAL_LLM_RUNTIME_PROVIDER;
   delete process.env.MODEL_NAME;
+  delete process.env.LOCAL_LLM_MODEL_DIR;
   delete process.env.LOCAL_LLM_MODEL_PATH;
   delete process.env.LOCAL_LLM_HF_REPO;
   delete process.env.LOCAL_LLM_HF_FILE;
@@ -113,6 +117,7 @@ describe("runModelSetupIfNeeded", () => {
       expect(readFileSync(envPath, "utf8")).toContain(`LOCAL_LLM_MODEL_NAME=${selectedModel.modelName}`);
       expect(readFileSync(envPath, "utf8")).toContain(`LOCAL_LLM_MODEL_DIR=${modelDir}`);
       expect(readFileSync(envPath, "utf8")).toContain(`LOCAL_LLM_MODEL_PATH=${modelPath}`);
+      expect(readFileSync(envPath, "utf8")).toContain("LOCAL_LLM_RUNTIME_PROVIDER=node-llama-cpp");
 
       expect(JSON.parse(readFileSync(configPath, "utf8"))).toMatchObject({
         translation: {
@@ -148,6 +153,9 @@ describe("runModelSetupIfNeeded", () => {
       expect(readFileSync(modelPath, "utf8")).toBe("GGUFseed");
       expect(readFileSync(envPath, "utf8")).toContain(
         `LOCAL_LLM_MODEL_PATH=${modelPath}`,
+      );
+      expect(readFileSync(envPath, "utf8")).toContain(
+        "LOCAL_LLM_RUNTIME_PROVIDER=node-llama-cpp",
       );
       expect(JSON.parse(readFileSync(configPath, "utf8"))).toMatchObject({
         translation: {

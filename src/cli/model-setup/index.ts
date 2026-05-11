@@ -79,13 +79,12 @@ export const runModelSetupIfNeeded = async (cwd: string = process.cwd()): Promis
     colors.success(`✓ 설정 완료!\n\n`),
   );
 
-  // llama-server 실행 안내
   process.stdout.write(
-    colors.title("다음 단계: llama-server 실행\n\n"),
+    colors.title("다음 단계: detoks 실행\n\n"),
   );
   process.stdout.write(
     colors.info(
-      "설치된 모델을 사용하려면 llama-server를 별도로 실행해야 합니다.\n",
+      "detoks는 node-llama-cpp를 우선 사용합니다. 선택한 모델이 in-process backend와 맞지 않으면 호환되는 GGUF로 바꾸거나 llama-server 경로를 따로 사용하세요.\n",
     ),
   );
   process.stdout.write(
@@ -98,12 +97,12 @@ export const runModelSetupIfNeeded = async (cwd: string = process.cwd()): Promis
   );
   process.stdout.write(
     colors.muted(
-      'llama-server -m "$LOCAL_LLM_MODEL_PATH" -ngl 32 -c 4096\n\n',
+      'npm run verify:role1 -- --prompt "새 파일을 생성해"\n\n',
     ),
   );
   process.stdout.write(
     colors.info(
-      "자세한 가이드: src/cli/model-setup/LLAMA_SERVER_GUIDE.md\n\n",
+      "자세한 비교/수동 실행 가이드: src/cli/model-setup/LLAMA_SERVER_GUIDE.md\n\n",
     ),
   );
 };

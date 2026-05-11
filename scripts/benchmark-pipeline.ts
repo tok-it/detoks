@@ -1,17 +1,22 @@
 #!/usr/bin/env tsx
 
 import { get_encoding } from 'tiktoken';
+import { fileURLToPath } from 'url';
 import { orchestratePipeline } from '../src/core/pipeline/orchestrator.js';
+import { loadRole1RuntimeConfig } from '../src/core/prompt/config.js';
 import { SessionStateManager } from '../src/core/state/SessionStateManager.js';
 import { OutputAnalyzer } from '../src/core/utils/OutputAnalyzer.js';
 import { promises as fs } from 'fs';
-import { dirname } from 'path';
+import { dirname, resolve } from 'path';
+
+type RuntimeProvider = 'llama-server' | 'node-llama-cpp';
 
 interface BenchmarkArgs {
   input: string;
   adapter: 'codex' | 'gemini';
   executionMode: 'stub' | 'real';
   output?: string;
+  runtimeProvider?: RuntimeProvider;
   verbose: boolean;
 }
 
@@ -19,6 +24,11 @@ interface BenchmarkResult {
   input: string;
   adapter: 'codex' | 'gemini';
   executionMode: 'stub' | 'real';
+  runtime?: {
+    provider: RuntimeProvider;
+    model: string;
+    api_base: string;
+  };
 
   compression: {
     input_tokens_before: number;
@@ -54,8 +64,14 @@ interface BenchmarkResult {
   };
 }
 
-function parseArgs(): BenchmarkArgs {
-  const args = process.argv.slice(2);
+function getUsage(): string {
+  return [
+    'Usage: npm run benchmark -- --input "your prompt" [--adapter codex|gemini] [--execution-mode stub|real] [--runtime-provider llama-server|node-llama-cpp] [--output file.json] [--verbose]',
+  ].join('\n');
+}
+
+export function parseArgs(argv: string[] = process.argv.slice(2)): BenchmarkArgs {
+  const args = argv;
   const result: Partial<BenchmarkArgs> = {
     verbose: false,
     adapter: 'codex',
@@ -69,11 +85,17 @@ function parseArgs(): BenchmarkArgs {
     if (current === '--input' && next !== undefined) {
       result.input = next;
       i += 1;
+    } else if (current === '--help' || current === '-h') {
+      console.log(getUsage());
+      process.exit(0);
     } else if (current === '--adapter' && next !== undefined) {
       result.adapter = next as 'codex' | 'gemini';
       i += 1;
     } else if (current === '--execution-mode' && next !== undefined) {
       result.executionMode = next as 'stub' | 'real';
+      i += 1;
+    } else if (current === '--runtime-provider' && next !== undefined) {
+      result.runtimeProvider = next as RuntimeProvider;
       i += 1;
     } else if (current === '--output' && next !== undefined) {
       result.output = next;
@@ -84,11 +106,43 @@ function parseArgs(): BenchmarkArgs {
   }
 
   if (!result.input) {
-    console.error('Usage: npm run benchmark -- --input "your prompt" [--adapter codex|gemini] [--execution-mode stub|real] [--output file.json] [--verbose]');
+    console.error(getUsage());
     process.exit(1);
   }
 
+  if (
+    result.runtimeProvider !== undefined &&
+    result.runtimeProvider !== 'llama-server' &&
+    result.runtimeProvider !== 'node-llama-cpp'
+  ) {
+    throw new Error(
+      '--runtime-provider must be one of: llama-server, node-llama-cpp',
+    );
+  }
+
   return result as BenchmarkArgs;
+}
+
+export function buildScriptEnv(
+  args: Pick<BenchmarkArgs, 'runtimeProvider'>,
+): NodeJS.ProcessEnv {
+  return {
+    ...process.env,
+    ...(args.runtimeProvider
+      ? { LOCAL_LLM_RUNTIME_PROVIDER: args.runtimeProvider }
+      : {}),
+  };
+}
+
+function resolveRuntimeApiBaseLabel(
+  runtimeProvider: RuntimeProvider | undefined,
+  apiBase: string | undefined,
+): string {
+  if (runtimeProvider === 'node-llama-cpp') {
+    return '(unused: in-process runtime)';
+  }
+
+  return apiBase ?? '(not set)';
 }
 
 let _enc: ReturnType<typeof get_encoding> | null = null;
@@ -103,9 +157,14 @@ function countTokens(text: string): number {
 
 async function runBenchmark(args: BenchmarkArgs): Promise<BenchmarkResult> {
   const startTime = Date.now();
+  const scriptEnv = buildScriptEnv(args);
+  const runtimeConfig = loadRole1RuntimeConfig({ env: scriptEnv });
 
   if (args.verbose) {
     console.log(`[Benchmark] Input: ${args.input.substring(0, 50)}...`);
+    console.log(
+      `[Benchmark] Runtime provider: ${runtimeConfig.localLlmRuntimeProvider}`,
+    );
   }
 
   // 1. 입력 토큰 계산 (압축 전)
@@ -123,6 +182,7 @@ async function runBenchmark(args: BenchmarkArgs): Promise<BenchmarkResult> {
     verbose: args.verbose,
     trace: true,
     userRequest: { raw_input: args.input },
+    env: scriptEnv,
   });
   const pipelineDuration = Date.now() - pipelineStartTime;
 
@@ -182,6 +242,14 @@ async function runBenchmark(args: BenchmarkArgs): Promise<BenchmarkResult> {
     input: args.input,
     adapter: args.adapter,
     executionMode: args.executionMode,
+    runtime: {
+      provider: runtimeConfig.localLlmRuntimeProvider ?? 'llama-server',
+      model: runtimeConfig.localLlmModelName ?? '(not set)',
+      api_base: resolveRuntimeApiBaseLabel(
+        runtimeConfig.localLlmRuntimeProvider,
+        runtimeConfig.localLlmApiBase,
+      ),
+    },
     compression: {
       input_tokens_before: inputTokensBefore,
       input_tokens_after: inputTokensAfter,
@@ -226,4 +294,11 @@ async function main() {
   }
 }
 
-main();
+function isMainModule(): boolean {
+  const entryPath = process.argv[1];
+  return entryPath !== undefined && resolve(entryPath) === fileURLToPath(import.meta.url);
+}
+
+if (isMainModule()) {
+  void main();
+}

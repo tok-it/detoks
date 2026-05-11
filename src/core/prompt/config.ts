@@ -1,4 +1,5 @@
 import { existsSync, readFileSync } from "node:fs";
+import { homedir } from "node:os";
 import { join } from "node:path";
 import { z } from "zod";
 
@@ -11,6 +12,7 @@ const DEFAULT_LOCAL_LLM_MODEL_NAME =
 const DEFAULT_LOCAL_LLM_HF_REPO =
 	"mradermacher/gemma-4-e2b-it-heretic-ara-GGUF:Q4_K_S";
 const DEFAULT_LOCAL_LLM_HF_FILE = "gemma-4-e2b-it-heretic-ara.Q4_K_S.gguf";
+const DEFAULT_LOCAL_LLM_RUNTIME_PROVIDER = "llama-server";
 const DEFAULT_LOCAL_LLM_SERVER_BINARY = "llama-server";
 const DEFAULT_LOCAL_LLM_SERVER_HOST = "127.0.0.1";
 const DEFAULT_LOCAL_LLM_SERVER_PORT = 12370;
@@ -27,11 +29,16 @@ const DEFAULT_KOMPRESS_MODEL_ID = "chopratejas/kompress-base";
 const DEFAULT_KOMPRESS_STARTUP_TIMEOUT = 120_000;
 
 const PipelineModeSchema = z.enum(["safe", "debug"]);
+const LocalLlmRuntimeProviderSchema = z.enum([
+	"llama-server",
+	"node-llama-cpp",
+]);
 
 const Role1RuntimeConfigSchema = z.object({
 	localLlmApiBase: z.string().optional(),
 	localLlmApiKey: z.string().optional(),
 	localLlmModelName: z.string().optional(),
+	localLlmRuntimeProvider: LocalLlmRuntimeProviderSchema.optional(),
 	localLlmAutoStart: z.boolean().optional(),
 	localLlmServerBinary: z.string().optional(),
 	localLlmServerHost: z.string().optional(),
@@ -45,6 +52,7 @@ const Role1RuntimeConfigSchema = z.object({
 	localLlmSleepIdleSeconds: z.number().int().min(0).optional(),
 	localLlmMaxTokens: z.number().int().positive().optional(),
 	localLlmReasoning: z.string().optional(),
+	localLlmModelDir: z.string().optional(),
 	localLlmModelPath: z.string().optional(),
 	localLlmModelUrl: z.string().optional(),
 	localLlmHfRepo: z.string().optional(),
@@ -271,6 +279,15 @@ export function loadRole1RuntimeConfig(
 		DEFAULT_LOCAL_LLM_SERVER_PORT,
 		"LOCAL_LLM_SERVER_PORT",
 	);
+	const localLlmModelPath = pickEnv("LOCAL_LLM_MODEL_PATH");
+	const localLlmServerBinary = (() => {
+		const value = pickEnv("LOCAL_LLM_SERVER_BINARY");
+		if (!value || value === "node-llama-cpp") {
+			return DEFAULT_LOCAL_LLM_SERVER_BINARY;
+		}
+
+		return value;
+	})();
 	const apiBaseEnv = findEnv(
 		"LOCAL_LLM_API_BASE",
 		"OPENAI_API_BASE",
@@ -300,9 +317,12 @@ export function loadRole1RuntimeConfig(
 			["LOCAL_LLM_MODEL_NAME", "MODEL_NAME"],
 			DEFAULT_LOCAL_LLM_MODEL_NAME,
 		),
+		localLlmRuntimeProvider:
+			pickEnv("LOCAL_LLM_RUNTIME_PROVIDER") ??
+			(localLlmModelPath ? "node-llama-cpp" : undefined) ??
+			DEFAULT_LOCAL_LLM_RUNTIME_PROVIDER,
 		localLlmAutoStart: parseBoolean(env.LOCAL_LLM_AUTO_START, true),
-		localLlmServerBinary:
-			pickEnv("LOCAL_LLM_SERVER_BINARY") ?? DEFAULT_LOCAL_LLM_SERVER_BINARY,
+		localLlmServerBinary,
 		localLlmServerHost,
 		localLlmServerPort,
 		localLlmStartupTimeout: parseNumber(
@@ -340,7 +360,9 @@ export function loadRole1RuntimeConfig(
 		),
 		localLlmReasoning:
 			pickEnv("LOCAL_LLM_REASONING") ?? DEFAULT_LOCAL_LLM_REASONING,
-		localLlmModelPath: pickEnv("LOCAL_LLM_MODEL_PATH"),
+		localLlmModelDir:
+			pickEnv("LOCAL_LLM_MODEL_DIR") ?? join(homedir(), ".detoks", "models"),
+		localLlmModelPath,
 		localLlmModelUrl: pickEnv("LOCAL_LLM_MODEL_URL"),
 		localLlmHfRepo: pickEnv("LOCAL_LLM_HF_REPO") ?? DEFAULT_LOCAL_LLM_HF_REPO,
 		localLlmHfFile: pickEnv("LOCAL_LLM_HF_FILE") ?? DEFAULT_LOCAL_LLM_HF_FILE,

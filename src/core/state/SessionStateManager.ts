@@ -6,13 +6,16 @@ import { SessionStateSchema, CheckpointSchema } from '../../schemas/pipeline.js'
 import { StateValidator } from './StateValidator.js';
 import { ExecutionResultNormalizer } from './ExecutionResultNormalizer.js';
 import { ContextCompressor } from '../context/ContextCompressor.js';
-import { StateIOError, StateValidationError } from '../errors/StateErrors.js';
+import { StateIOError, StateValidationError, StateLockError } from '../errors/StateErrors.js';
 import { logger } from '../utils/logger.js';
 import { translateVisibleText } from '../utils/visibleText.js';
 
 const STATE_DIR = '.state';
 const SESSIONS_DIR = join(STATE_DIR, 'sessions');
 const CHECKPOINTS_DIR = join(STATE_DIR, 'checkpoints');
+
+const LOCK_STALE_TIMEOUT_MS = 5_000;
+const MAX_LOCK_RETRIES = 3;
 
 export interface ProjectInfo {
   projectId: string;
@@ -21,6 +24,65 @@ export interface ProjectInfo {
 }
 
 export class SessionStateManager {
+  private static lockPath(sessionId: string): string {
+    return join(SESSIONS_DIR, `${sessionId}.lock`);
+  }
+
+  private static tmpPath(sessionId: string): string {
+    return join(SESSIONS_DIR, `${sessionId}.tmp.json`);
+  }
+
+  private static async acquireLock(sessionId: string, retryDepth = 0): Promise<void> {
+    if (retryDepth > MAX_LOCK_RETRIES) {
+      throw new StateLockError(
+        `Lock acquisition failed for session [${sessionId}] after ${MAX_LOCK_RETRIES} retries`,
+        { sessionId, retryDepth },
+      );
+    }
+
+    const lockFile = this.lockPath(sessionId);
+    let fd: fs.FileHandle | undefined;
+    try {
+      // O_EXCL: 파일이 이미 존재하면 즉시 실패 — atomic check-and-create
+      fd = await fs.open(lockFile, 'wx');
+      await fd.writeFile(String(Date.now()));
+    } catch (error: unknown) {
+      const nodeError = error as NodeJS.ErrnoException;
+      if (nodeError.code === 'EEXIST') {
+        // 잠금 파일 존재 — stale 여부 확인
+        try {
+          const stat = await fs.stat(lockFile);
+          if (Date.now() - stat.mtimeMs > LOCK_STALE_TIMEOUT_MS) {
+            await fs.unlink(lockFile);
+            return this.acquireLock(sessionId, retryDepth + 1);
+          }
+        } catch {
+          // stat 사이에 잠금 파일이 사라진 경우 — 재시도
+          return this.acquireLock(sessionId, retryDepth + 1);
+        }
+        throw new StateLockError(
+          `Session [${sessionId}] is locked by another process`,
+          { sessionId },
+        );
+      }
+      throw new StateIOError(`Failed to create lock file for session [${sessionId}]`, {
+        sessionId,
+        originalError: nodeError.message,
+        errorCode: nodeError.code,
+      });
+    } finally {
+      await fd?.close();
+    }
+  }
+
+  private static async releaseLock(sessionId: string): Promise<void> {
+    try {
+      await fs.unlink(this.lockPath(sessionId));
+    } catch {
+      // 이미 해제된 잠금 — 무시
+    }
+  }
+
   private static ensureDirectories = async () => {
     try {
       await fs.mkdir(SESSIONS_DIR, { recursive: true });
@@ -35,13 +97,12 @@ export class SessionStateManager {
 
   static async saveSession(state: SessionState): Promise<void> {
     const sessionId = state.shared_context?.session_id as string || 'default';
+    await this.ensureDirectories();
+    await this.acquireLock(sessionId);
     try {
-      await this.ensureDirectories();
-
       // 1. 자동 정규화: task_results의 원시 데이터를 표준 스키마로 보정
       for (const [taskId, result] of Object.entries(state.task_results)) {
         const res = result as any;
-        // 이미 정규화된 데이터가 아니라면(예: summary가 없거나 raw_output만 있다면) 보정 시도
         if (!res.task_id || !res.summary) {
           state.task_results[taskId] = ExecutionResultNormalizer.normalize(taskId, res);
         }
@@ -51,9 +112,7 @@ export class SessionStateManager {
       const failedIds = new Set<string>();
       for (const [taskId, result] of Object.entries(state.task_results)) {
         const res = result as any;
-        if (res.success === false) {
-          failedIds.add(taskId);
-        }
+        if (res.success === false) failedIds.add(taskId);
       }
       state.shared_context.failed_task_ids = Array.from(failedIds);
 
@@ -63,14 +122,31 @@ export class SessionStateManager {
       // 4. 최종 무결성 검증
       const validated = StateValidator.validate(compressedState);
 
-      const filePath = join(SESSIONS_DIR, `${sessionId}.json`);
-      await fs.writeFile(filePath, JSON.stringify(validated, null, 2));
-    } catch (error: any) {
-      if (error instanceof StateValidationError) throw error;
+      // 5. tmp→rename atomic write: 덮어쓰기 도중 crash나도 기존 파일 보존
+      const tmpFile = this.tmpPath(sessionId);
+      const finalFile = join(SESSIONS_DIR, `${sessionId}.json`);
+      try {
+        await fs.writeFile(tmpFile, JSON.stringify(validated, null, 2));
+        await fs.rename(tmpFile, finalFile);
+      } catch (error: unknown) {
+        const nodeError = error as NodeJS.ErrnoException;
+        // tmp 파일이 남아있을 경우 정리
+        await fs.unlink(tmpFile).catch(() => undefined);
+        const recoverable = ['ENOSPC', 'EMFILE', 'ENFILE'].includes(nodeError.code ?? '');
+        throw new StateIOError(
+          `Failed to write session file [${sessionId}]${recoverable ? ' (recoverable)' : ''}`,
+          { sessionId, errorCode: nodeError.code, originalError: nodeError.message },
+        );
+      }
+    } catch (error: unknown) {
+      if (error instanceof StateValidationError || error instanceof StateIOError) throw error;
+      const e = error as Error;
       throw new StateIOError(`Failed to save session [${sessionId}]`, {
         sessionId,
-        originalError: error.message
+        originalError: e.message,
       });
+    } finally {
+      await this.releaseLock(sessionId);
     }
   }
 

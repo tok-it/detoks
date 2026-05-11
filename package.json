@@ -38,10 +38,12 @@
     "test:slide20:all": "npm run test:slide20 && npm run test:slide20:report",
     "verify:role1": "tsx scripts/verify-role1.ts",
     "verify:role1:rows": "tsx scripts/verify-role1.ts --file tests/data/row_data.json",
-    "benchmark": "tsx scripts/benchmark-pipeline.ts"
+    "benchmark": "tsx scripts/benchmark-pipeline.ts",
+    "benchmark:llm": "tsx scripts/benchmark-llm-runtime.ts"
   },
   "dependencies": {
     "chalk": "^5.6.2",
+    "node-llama-cpp": "^3.18.1",
     "tiktoken": "^1.0.22",
     "zod": "4.3.6"
   },
