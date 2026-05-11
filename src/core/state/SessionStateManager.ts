@@ -6,13 +6,16 @@ import { SessionStateSchema, CheckpointSchema } from '../../schemas/pipeline.js'
 import { StateValidator } from './StateValidator.js';
 import { ExecutionResultNormalizer } from './ExecutionResultNormalizer.js';
 import { ContextCompressor } from '../context/ContextCompressor.js';
-import { StateIOError, StateValidationError } from '../errors/StateErrors.js';
+import { StateIOError, StateValidationError, StateLockError } from '../errors/StateErrors.js';
 import { logger } from '../utils/logger.js';
 import { translateVisibleText } from '../utils/visibleText.js';
 
 const STATE_DIR = '.state';
 const SESSIONS_DIR = join(STATE_DIR, 'sessions');
 const CHECKPOINTS_DIR = join(STATE_DIR, 'checkpoints');
+
+const LOCK_STALE_TIMEOUT_MS = 5_000;
+const MAX_LOCK_RETRIES = 3;
 
 export interface ProjectInfo {
   projectId: string;
@@ -21,6 +24,65 @@ export interface ProjectInfo {
 }
 
 export class SessionStateManager {
+  private static lockPath(sessionId: string): string {
+    return join(SESSIONS_DIR, `${sessionId}.lock`);
+  }
+
+  private static tmpPath(sessionId: string): string {
+    return join(SESSIONS_DIR, `${sessionId}.tmp.json`);
+  }
+
+  private static async acquireLock(sessionId: string, retryDepth = 0): Promise<void> {
+    if (retryDepth > MAX_LOCK_RETRIES) {
+      throw new StateLockError(
+        `Lock acquisition failed for session [${sessionId}] after ${MAX_LOCK_RETRIES} retries`,
+        { sessionId, retryDepth },
+      );
+    }
+
+    const lockFile = this.lockPath(sessionId);
+    let fd: fs.FileHandle | undefined;
+    try {
+      // O_EXCL: 파일이 이미 존재하면 즉시 실패 — atomic check-and-create
+      fd = await fs.open(lockFile, 'wx');
+      await fd.writeFile(String(Date.now()));
+    } catch (error: unknown) {
+      const nodeError = error as NodeJS.ErrnoException;
+      if (nodeError.code === 'EEXIST') {
+        // 잠금 파일 존재 — stale 여부 확인
+        try {
+          const stat = await fs.stat(lockFile);
+          if (Date.now() - stat.mtimeMs > LOCK_STALE_TIMEOUT_MS) {
+            await fs.unlink(lockFile);
+            return this.acquireLock(sessionId, retryDepth + 1);
+          }
+        } catch {
+          // stat 사이에 잠금 파일이 사라진 경우 — 재시도
+          return this.acquireLock(sessionId, retryDepth + 1);
+        }
+        throw new StateLockError(
+          `Session [${sessionId}] is locked by another process`,
+          { sessionId },
+        );
+      }
+      throw new StateIOError(`Failed to create lock file for session [${sessionId}]`, {
+        sessionId,
+        originalError: nodeError.message,
+        errorCode: nodeError.code,
+      });
+    } finally {
+      await fd?.close();
+    }
+  }
+
+  private static async releaseLock(sessionId: string): Promise<void> {
+    try {
+      await fs.unlink(this.lockPath(sessionId));
+    } catch {
+      // 이미 해제된 잠금 — 무시
+    }
+  }
+
   private static ensureDirectories = async () => {
     try {
       await fs.mkdir(SESSIONS_DIR, { recursive: true });
