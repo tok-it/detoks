@@ -1,4 +1,4 @@
-import { stdout, stderr, stdin } from "node:process";
+import { stdout, stdin } from "node:process";
 import { StringDecoder } from "node:string_decoder";
 import type { CliArgs } from "../types.js";
 import { createScreenManager } from "./screen-manager.js";
@@ -514,17 +514,11 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
         // Phase 3.2: Execute via orchestrator with progress callback
         const result = await orchestratePipeline({
           ...request,
+          ...(options.presentationMode ? { presentationMode: options.presentationMode } : {}),
           onProgress,
           onAdapterEvent: (event) => {
             receivedLiveAdapterEvents = true;
             if (nativePassthroughMode) {
-              if (event.type === "chunk" && typeof event.data === "string") {
-                if (event.stream === "stderr") {
-                  stderr.write(event.data);
-                } else {
-                  stdout.write(event.data);
-                }
-              }
               return;
             }
 
@@ -564,7 +558,7 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
           ...(actionTimeline.length > 0 ? { actionTimeline } : {}),
         });
         currentTokenSavingsLabel = formatTokenSavingsBadge(
-          result.tokenMetrics?.input ?? result.tokenMetrics?.output,
+          result.promptTokenSavings ?? result.tokenMetrics?.input ?? result.tokenMetrics?.output,
         );
         if (nativePassthroughMode) {
           enterTuiDisplay();

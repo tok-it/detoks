@@ -22,7 +22,10 @@ export const executeWithAdapter = async (request: ExecutorRequest): Promise<Exec
   const subprocessRunner =
     request.executionMode === "real"
       ? createPtySubprocessRunner(
-          request.onAdapterEvent ? { onEvent: request.onAdapterEvent } : undefined,
+          {
+            ...(request.onAdapterEvent ? { onEvent: request.onAdapterEvent } : {}),
+            ...(request.presentationMode === "passthrough" ? { passthroughUi: true } : {}),
+          },
         )
       : createStubSubprocessRunner();
   const result = await adapter.execute({

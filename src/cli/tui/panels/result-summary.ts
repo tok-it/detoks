@@ -75,11 +75,15 @@ export class ResultSummaryPanel {
     }
 
     // Token metrics
-    if (this.result.tokenMetrics) {
+    if (this.result.tokenMetrics || this.result.promptTokenSavings) {
       lines.push("");
       lines.push("토큰 절감");
-      lines.push(`  입력: ${this.formatTokenReduction(this.result.tokenMetrics.input)}`);
-      lines.push(`  작업 결과 요약: ${this.formatTokenReduction(this.result.tokenMetrics.output)}`);
+      if (this.result.tokenMetrics) {
+        lines.push(`  입력: ${this.formatTokenReduction(this.result.tokenMetrics.input)}`);
+        lines.push(`  작업 결과 요약: ${this.formatTokenReduction(this.result.tokenMetrics.output)}`);
+      } else if (this.result.promptTokenSavings) {
+        lines.push(`  입력: ${this.formatTokenReduction(this.result.promptTokenSavings)}`);
+      }
     }
 
     return lines;

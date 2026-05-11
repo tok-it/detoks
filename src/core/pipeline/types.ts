@@ -6,6 +6,7 @@ import type { TokenMetricsSnapshot } from "../utils/tokenMetrics.js";
 import type { PtyTranscript } from "../../integrations/subprocess/types.js";
 import type { PtyEvent } from "../../integrations/subprocess/types.js";
 import type { ActionTimelineEvent, ActionTimelineSink } from "../timeline/types.js";
+import type { TokenReductionSnapshot } from "../utils/tokenMetrics.js";
 
 export const AdapterValues = ["codex", "gemini", "claude"] as const;
 export type Adapter = (typeof AdapterValues)[number];
@@ -32,6 +33,7 @@ export interface PipelineExecutionRequest {
   adapter: Adapter;
   executionMode: ExecutionMode;
   verbose: boolean;
+  presentationMode?: "passthrough";
   trace?: boolean;
   projectInfo?: ProjectInfo;
   compressionImplementation?: CompressTextImplementation;
@@ -88,4 +90,5 @@ export interface PipelineExecutionResult {
   adapterTranscript?: PtyTranscript; // adapter 실행 이벤트/메타데이터
   adapterStderr?: string; // adapter stderr 출력
   actionTimeline?: ActionTimelineEvent[];
+  promptTokenSavings?: TokenReductionSnapshot | null;
 }

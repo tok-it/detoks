@@ -317,16 +317,17 @@ export const createRealSubprocessRunner = (): SubprocessRunner => ({
       });
 
       if (request.input !== undefined) {
-        child.stdin.write(request.input);
+        child.stdin?.write(request.input);
       }
 
-      child.stdin.end();
+      child.stdin?.end();
     });
   },
 });
 
 interface PtyRunnerOptions {
   onEvent?: (event: PtyEvent) => void;
+  passthroughUi?: boolean;
 }
 
 const isCodexJsonStreamRequest = (request: SubprocessRequest): boolean =>
@@ -465,10 +466,10 @@ const runStreamingJsonProcess = (
         type: "prompt",
         data: request.input,
       });
-      child.stdin.write(request.input);
+      child.stdin?.write(request.input);
     }
 
-    child.stdin.end();
+    child.stdin?.end();
   });
 };
 
@@ -515,7 +516,11 @@ export const createPtySubprocessRunner = (
           cwd: request.cwd,
           env: ptyEnv,
           shell: false,
-          stdio: ["pipe", "pipe", "pipe"],
+          stdio: [
+            "pipe",
+            options?.passthroughUi ? "inherit" : "pipe",
+            options?.passthroughUi ? "inherit" : "pipe",
+          ],
         });
 
         let settled = false;
@@ -553,28 +558,30 @@ export const createPtySubprocessRunner = (
           });
         };
 
-        child.stdout?.setEncoding("utf8");
-        child.stderr?.setEncoding("utf8");
+        if (!options?.passthroughUi) {
+          child.stdout?.setEncoding("utf8");
+          child.stderr?.setEncoding("utf8");
 
-        child.stdout?.on("data", (chunk: string) => {
-          const normalizedChunk = normalizeScriptOutput(chunk);
-          stdout += normalizedChunk;
-          emitEvent({
-            type: "chunk",
-            stream: "stdout",
-            data: normalizedChunk,
+          child.stdout?.on("data", (chunk: string) => {
+            const normalizedChunk = normalizeScriptOutput(chunk);
+            stdout += normalizedChunk;
+            emitEvent({
+              type: "chunk",
+              stream: "stdout",
+              data: normalizedChunk,
+            });
           });
-        });
 
-        child.stderr?.on("data", (chunk: string) => {
-          const normalizedChunk = normalizeScriptOutput(chunk);
-          stderr += normalizedChunk;
-          emitEvent({
-            type: "chunk",
-            stream: "stderr",
-            data: normalizedChunk,
+          child.stderr?.on("data", (chunk: string) => {
+            const normalizedChunk = normalizeScriptOutput(chunk);
+            stderr += normalizedChunk;
+            emitEvent({
+              type: "chunk",
+              stream: "stderr",
+              data: normalizedChunk,
+            });
           });
-        });
+        }
 
         child.on("error", (error) => {
           emitEvent({
@@ -594,10 +601,10 @@ export const createPtySubprocessRunner = (
             type: "prompt",
             data: request.input,
           });
-          child.stdin.write(request.input);
+          child.stdin?.write(request.input);
         }
 
-        child.stdin.end();
+        child.stdin?.end();
       });
     },
   };
