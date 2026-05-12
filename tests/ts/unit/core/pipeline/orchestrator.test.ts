@@ -311,8 +311,9 @@ describe("orchestratePipeline", () => {
       promptRepairActions: [],
       compiledPrompt: "Create a new file",
       role2Handoff: "Create a new file",
-      rawOutput:
-        "[stub:codex] [CREATE] Create a new file\n\nContext: No previous task context available.",
+      rawOutput: expect.stringContaining(
+        "[stub:codex] Respond entirely in Korean.\n\n[CREATE] Create a new file",
+      ),
     });
     expect(result.promptInferenceTimeSec).toBeGreaterThanOrEqual(0);
   });
