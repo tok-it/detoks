@@ -872,6 +872,9 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
           ...(actionTimeline.length > 0 ? { actionTimeline } : {}),
         });
         if (embeddedPaneMode) {
+          closeEmbeddedNativeCliSession();
+        }
+        if (embeddedPaneMode) {
           embeddedTerminalFocus.focusDetoks();
         }
         currentTokenSavingsLabel = formatTokenSavingsBadge(
@@ -902,6 +905,11 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
     };
 
     stdin.on("data", onData);
+    stdin.on("end", () => {
+      clearNativeEscapeTimer();
+      closeEmbeddedNativeCliSession();
+      running = false;
+    });
 
     // Initial render
     render();
