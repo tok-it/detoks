@@ -23,7 +23,7 @@ export const buildEmbeddedNativeCliRequest = (
     ...(options.model !== undefined ? { model: options.model } : {}),
     cwd: options.cwd,
     ...(options.sessionId !== undefined ? { sessionId: options.sessionId } : {}),
-    presentationMode: "passthrough",
+    presentationMode: "embedded-pane",
   });
 };
 

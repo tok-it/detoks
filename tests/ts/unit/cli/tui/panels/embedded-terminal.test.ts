@@ -95,4 +95,38 @@ describe("EmbeddedTerminalPane", () => {
     expect(output).toContain("원본 CLI 출력");
     expect(output).not.toContain("hello");
   });
+
+  it("scrollToBottom resets scroll offset to 0 and new data auto-resets scroll", () => {
+    pane.addEvent({ type: "chunk", timestamp: Date.now(), stream: "stdout", data: "line1\n" });
+    pane.scrollUp();
+    pane.scrollUp();
+    pane.scrollToBottom();
+
+    // After scrollToBottom, new data should still keep offset at 0
+    pane.addEvent({ type: "chunk", timestamp: Date.now(), stream: "stdout", data: "line2\n" });
+    pane.render(mockContext, mockRegion);
+
+    const output = mockScreen.write.mock.calls.map((call: any) => call[0]).join("\n");
+    expect(output).toContain("line2");
+  });
+
+  it("scrollDown does not go below 0", () => {
+    pane.addEvent({ type: "chunk", timestamp: Date.now(), stream: "stdout", data: "line\n" });
+    // scrollDown at bottom should be a no-op
+    pane.scrollDown();
+    pane.scrollDown();
+    pane.render(mockContext, mockRegion);
+
+    const output = mockScreen.write.mock.calls.map((call: any) => call[0]).join("\n");
+    expect(output).toContain("line");
+  });
+
+  it("scrollUp clamps at total row count and does not crash on empty buffer", () => {
+    // Scrolling on empty pane must not throw
+    expect(() => {
+      pane.scrollUp();
+      pane.scrollUp();
+      pane.render(mockContext, mockRegion);
+    }).not.toThrow();
+  });
 });

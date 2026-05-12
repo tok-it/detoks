@@ -10,7 +10,7 @@ export class CodexStubAdapter implements CliAdapter {
   buildSubprocessRequest(request: AdapterExecutionRequest) {
     const reasoningEffort = getCodexReasoningEffortOverride();
 
-    if (request.presentationMode === "passthrough") {
+    if (request.presentationMode === "embedded-pane" || request.presentationMode === "passthrough") {
       return {
         command: "codex",
         args: [

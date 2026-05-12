@@ -167,6 +167,60 @@ describe("adapter subprocess path", () => {
     });
   });
 
+  it("builds codex embedded-pane subprocess requests as interactive sessions without stdin pipe", () => {
+    const adapter = new CodexStubAdapter();
+    expect(
+      adapter.buildSubprocessRequest({
+        mode: "repl",
+        prompt: "",
+        verbose: false,
+        model: "gpt-5",
+        cwd: "/tmp",
+        presentationMode: "embedded-pane",
+      }),
+    ).toEqual({
+      command: "codex",
+      args: ["--model", "gpt-5", "--sandbox", "workspace-write"],
+      cwd: "/tmp",
+    });
+  });
+
+  it("builds claude embedded-pane subprocess requests as interactive sessions without stdin pipe", () => {
+    const adapter = new ClaudeStubAdapter();
+    expect(
+      adapter.buildSubprocessRequest({
+        mode: "repl",
+        prompt: "",
+        verbose: false,
+        model: "claude-sonnet-4-6",
+        cwd: "/tmp",
+        presentationMode: "embedded-pane",
+      }),
+    ).toEqual({
+      command: "claude",
+      args: ["--model", "claude-sonnet-4-6", "--permission-mode", "default"],
+      cwd: "/tmp",
+    });
+  });
+
+  it("builds gemini embedded-pane subprocess requests as interactive sessions without stdin pipe", () => {
+    const adapter = new GeminiStubAdapter();
+    expect(
+      adapter.buildSubprocessRequest({
+        mode: "repl",
+        prompt: "",
+        verbose: false,
+        model: "gemini-2.5-pro",
+        cwd: "/tmp",
+        presentationMode: "embedded-pane",
+      }),
+    ).toEqual({
+      command: "gemini",
+      args: ["--model", "gemini-2.5-pro"],
+      cwd: "/tmp",
+    });
+  });
+
   it("routes a codex request through the subprocess boundary", async () => {
     const adapter = new CodexStubAdapter();
     const result = await executeAdapterViaSubprocess(

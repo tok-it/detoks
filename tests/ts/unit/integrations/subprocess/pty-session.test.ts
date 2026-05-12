@@ -214,4 +214,61 @@ describe("interactive PTY session", () => {
     expect(result.stdout).toContain("\u0004\b\bhello");
     expect(result.transcript.events.some((event) => event.type === "chunk" && event.data?.includes("\u0004\b\bhello") === true)).toBe(true);
   });
+
+  it("child error event resolves result with exitCode 127 and emits error event", async () => {
+    const child = new FakeChildProcess();
+    childProcessMocks.spawn.mockReturnValueOnce(child as unknown as never);
+    const onEvent = vi.fn();
+
+    const session = createInteractivePtySession(
+      { command: process.execPath, args: [] },
+      { onEvent },
+    );
+
+    child.emit("error", new Error("ENOENT: no such file or directory"));
+    const result = await session.result;
+
+    expect(result.exitCode).toBe(127);
+    expect(result.timedOut).toBe(false);
+    expect(onEvent.mock.calls.some((args: any[]) => args[0].type === "error")).toBe(true);
+  });
+
+  it("close with signal resolves result with exitCode 128", async () => {
+    const child = new FakeChildProcess();
+    childProcessMocks.spawn.mockReturnValueOnce(child as unknown as never);
+
+    const session = createInteractivePtySession(
+      { command: process.execPath, args: [] },
+      { onEvent: vi.fn() },
+    );
+
+    child.emit("close", null, "SIGKILL");
+    const result = await session.result;
+
+    expect(result.exitCode).toBe(128);
+    expect(result.timedOut).toBe(false);
+  });
+
+  it("resize emits resize event and sends SIGWINCH to child", async () => {
+    const child = new FakeChildProcess();
+    childProcessMocks.spawn.mockReturnValueOnce(child as unknown as never);
+    const onEvent = vi.fn();
+
+    const session = createInteractivePtySession(
+      { command: process.execPath, args: [] },
+      { onEvent },
+    );
+
+    session.resize(132, 50);
+
+    expect(child.kill).toHaveBeenCalledWith("SIGWINCH");
+    expect(
+      onEvent.mock.calls.some(
+        (args: any[]) => args[0].type === "resize" && args[0].columns === 132 && args[0].rows === 50,
+      ),
+    ).toBe(true);
+
+    child.emit("close", 0, null);
+    await session.result;
+  });
 });
