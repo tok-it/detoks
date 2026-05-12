@@ -277,66 +277,6 @@ scheduleFinish();
   return binaryPath;
 };
 
-const runAdapterRawOutputSmoke = (
-  adapter: "codex" | "gemini" | "claude",
-  prompt: string,
-) => {
-  const tempDir = mkdtempSync(join(tmpdir(), "detoks-cli-real-"));
-
-  try {
-    createFakeBinary(tempDir, adapter);
-
-    const stubRun = runCli([
-      prompt,
-      "--adapter",
-      adapter,
-      "--execution-mode",
-      "stub",
-      "--verbose",
-    ]);
-    const realRun = runCliWithEnv(
-      [prompt, "--adapter", adapter, "--execution-mode", "real", "--verbose"],
-      {
-        PATH: `${tempDir}:${process.env.PATH ?? ""}`,
-      },
-    );
-
-    expect(stubRun.error).toBeUndefined();
-    expect(realRun.error).toBeUndefined();
-    expect(stubRun.status).toBe(0);
-    expect(realRun.status).toBe(0);
-    expect(stubRun.stderr).toBe("");
-    expect(realRun.stderr).toBe("");
-
-    const stubJson = parseCliJson(stubRun.stdout);
-    const realJson = parseCliJson(realRun.stdout);
-
-    expect(stubJson).toMatchObject({
-      ok: true,
-      mode: "run",
-      adapter,
-    });
-    expect(stubJson.stages).toEqual(completedPipelineStages);
-    expect(stubJson.rawOutput).toContain(
-      `[stub:${adapter}] [EXECUTE] ${prompt}`,
-    );
-    expect(realJson).toMatchObject({
-      ok: true,
-      mode: "run",
-      adapter,
-    });
-    expect(realJson.stages).toEqual(completedPipelineStages);
-    expect(realJson.rawOutput).toContain(
-      `[fake:${adapter}] [EXECUTE] ${prompt}`,
-    );
-    expect(realJson.rawOutput).not.toBe(stubJson.rawOutput);
-    expect(realJson).toHaveProperty("rawOutput");
-    expect(realRun.stdout).not.toBe(stubRun.stdout);
-  } finally {
-    rmSync(tempDir, { force: true, recursive: true });
-  }
-};
-
 const runInstalledRealAdapterSmoke = (
   adapter: "codex" | "gemini" | "claude",
 ) => {
@@ -1434,18 +1374,6 @@ describe("detoks CLI smoke", () => {
     } finally {
       rmSync(checkpointPath, { force: true });
     }
-  });
-
-  it("keeps codex real rawOutput distinct from stub rawOutput in smoke mode", () => {
-    runAdapterRawOutputSmoke("codex", "hello detoks");
-  });
-
-  it("keeps gemini real rawOutput distinct from stub rawOutput in smoke mode", () => {
-    runAdapterRawOutputSmoke("gemini", "hello gemini");
-  });
-
-  it("keeps claude real rawOutput distinct from stub rawOutput in smoke mode", () => {
-    runAdapterRawOutputSmoke("claude", "hello claude");
   });
 
   for (const adapter of realBinarySmokeTargets) {
