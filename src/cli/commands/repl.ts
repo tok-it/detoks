@@ -491,6 +491,7 @@ export const runReplCommand = async (baseArgs: CliArgs): Promise<void> => {
   const rl = createInterface({ input, output });
   const sessionId = `repl-${Date.now()}`;
   let verbose = baseArgs.verbose;
+  let cacheDisabled = false;
   let currentAdapter = baseArgs.adapter;
   let useAnimatedFirstPrompt = Boolean(output.isTTY);
   const runtimeConfig = loadRole1RuntimeConfig();
@@ -560,8 +561,12 @@ export const runReplCommand = async (baseArgs: CliArgs): Promise<void> => {
             executionMode: baseArgs.executionMode,
             modelName: process.env.LOCAL_LLM_MODEL_NAME,
             verbose,
+            cacheDisabled,
             onVerboseToggle: (enabled) => {
               verbose = enabled;
+            },
+            onCacheDisableToggle: (disabled) => {
+              cacheDisabled = disabled;
             },
             onAdapterChange: async (newAdapter) => {
               currentAdapter = newAdapter;
@@ -602,7 +607,7 @@ export const runReplCommand = async (baseArgs: CliArgs): Promise<void> => {
 
       try {
         const request = toNormalizedRequest(
-          { ...baseArgs, mode: "run", prompt: line },
+          { ...baseArgs, mode: "run", prompt: line, noCache: cacheDisabled || (baseArgs.noCache ?? false) },
           { mode: "repl", sessionId },
         );
         const spinner = startSpinner(Boolean(output.isTTY), output);

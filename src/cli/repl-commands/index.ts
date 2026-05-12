@@ -16,6 +16,8 @@ import {
 import { selectWithArrows } from "../interactive/select-with-arrows.js";
 import type { SelectOption, SelectWithArrowsStreams } from "../interactive/select-with-arrows.js";
 import { invalidateCache } from "../cache/cache-manager.js";
+import { getCacheStats, clearExpiredSessions, formatCacheStats } from "./cache-command.js";
+import { CACHE_TTL_DAYS } from "../../core/cache/cache-config.js";
 import {
   getCodexReasoningEffortOverride,
   updateAdapterModel,
@@ -74,6 +76,12 @@ const BASE_COMMANDS: SlashCommand[] = [
     aliases: ["v"],
     description: "상세 출력 모드 토글",
     usage: "/verbose",
+  },
+  {
+    name: "cache",
+    aliases: ["ca"],
+    description: "캐시 상태 확인 및 관리 (stats/clear/disable/enable)",
+    usage: "/cache [stats|clear|disable|enable]",
   },
   {
     name: "exit",
@@ -426,7 +434,9 @@ export const handleSlashCommand = async (
     executionMode: string;
     modelName: string | undefined;
     verbose: boolean;
+    cacheDisabled?: boolean;
     onVerboseToggle: (enabled: boolean) => void;
+    onCacheDisableToggle?: (disabled: boolean) => void;
     onAdapterChange: (newAdapter: Adapter) => Promise<void>;
     onExit: () => Promise<void>;
     onMainScreenRestore?: () => void;
@@ -507,6 +517,36 @@ export const handleSlashCommand = async (
       const handled = await handleClaudeModels(selectStreams);
       state.onMainScreenRestore?.();
       return handled;
+    }
+
+    case "cache": {
+      const sessionsDir = join(process.cwd(), ".state", "sessions");
+      const sub = input.trim().split(/\s+/)[1]?.toLowerCase();
+
+      if (sub === "clear") {
+        const removed = await clearExpiredSessions(sessionsDir, CACHE_TTL_DAYS);
+        output.write(
+          colors.info(`\n만료된 세션 ${removed}개 삭제됨 (TTL ${CACHE_TTL_DAYS}일 기준)\n\n`),
+        );
+        return true;
+      }
+
+      if (sub === "disable") {
+        state.onCacheDisableToggle?.(true);
+        output.write(colors.warning("\n캐시 우회 활성화: 이 세션에서 캐시를 사용하지 않습니다.\n\n"));
+        return true;
+      }
+
+      if (sub === "enable") {
+        state.onCacheDisableToggle?.(false);
+        output.write(colors.success("\n캐시 활성화: 이 세션에서 캐시를 사용합니다.\n\n"));
+        return true;
+      }
+
+      // stats (default)
+      const stats = await getCacheStats(sessionsDir, CACHE_TTL_DAYS);
+      output.write("\n" + formatCacheStats(stats, state.cacheDisabled ?? false) + "\n");
+      return true;
     }
 
     case "logout": {
