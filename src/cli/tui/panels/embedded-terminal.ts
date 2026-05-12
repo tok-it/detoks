@@ -3,6 +3,7 @@ import type { PanelRegion } from "../layout-manager.js";
 import type { PtyEvent } from "../../../integrations/subprocess/types.js";
 import { getContentArea } from "../layout-manager.js";
 import { colors } from "../../colors.js";
+import type { TerminalCell, TerminalCellStyle, TerminalColor } from "../terminal-emulator.js";
 import { TerminalEmulatorBuffer } from "../terminal-emulator.js";
 
 // Larger than the terminal-emulator default (200) to retain full LLM session output.
@@ -29,17 +30,105 @@ const truncateToWidth = (line: string, maxWidth: number): string => {
   return `${line.slice(0, maxWidth - 3)}...`;
 };
 
+const colorToAnsi = (color: TerminalColor | undefined, isForeground: boolean): string | null => {
+  if (color === undefined) {
+    return null;
+  }
+
+  if (color.kind === "ansi") {
+    const base = color.value >= 8 ? (isForeground ? 90 : 100) : (isForeground ? 30 : 40);
+    return String(base + (color.value % 8));
+  }
+
+  if (color.kind === "indexed") {
+    return `${isForeground ? 38 : 48};5;${color.value}`;
+  }
+
+  return `${isForeground ? 38 : 48};2;${color.red};${color.green};${color.blue}`;
+};
+
+const styleSignature = (style: TerminalCellStyle): string => {
+  return JSON.stringify({
+    fg: style.fg ?? null,
+    bg: style.bg ?? null,
+    bold: style.bold ?? false,
+    dim: style.dim ?? false,
+    italic: style.italic ?? false,
+    underline: style.underline ?? false,
+    inverse: style.inverse ?? false,
+  });
+};
+
+const styleToAnsi = (style: TerminalCellStyle): string => {
+  const codes: string[] = [];
+  if (style.bold) codes.push("1");
+  if (style.dim) codes.push("2");
+  if (style.italic) codes.push("3");
+  if (style.underline) codes.push("4");
+  if (style.inverse) codes.push("7");
+  const fg = colorToAnsi(style.fg, true);
+  const bg = colorToAnsi(style.bg, false);
+  if (fg !== null) codes.push(fg);
+  if (bg !== null) codes.push(bg);
+  return codes.length > 0 ? `\x1b[${codes.join(";")}m` : "";
+};
+
+const renderCellsToAnsi = (
+  cells: TerminalCell[],
+  maxWidth: number,
+  cursorColumn?: number,
+  cursorVisible?: boolean,
+): string => {
+  const visibleCells = cells.slice(0, Math.max(0, maxWidth));
+  let output = "";
+  let currentSignature = "";
+
+  for (const [index, cell] of visibleCells.entries()) {
+    const isCursorCell = cursorVisible === true && cursorColumn === index;
+    const displayStyle = isCursorCell
+      ? { ...cell.style, inverse: true }
+      : cell.style;
+    const signature = styleSignature(displayStyle);
+    if (signature !== currentSignature) {
+      output += "\x1b[0m";
+      output += styleToAnsi(displayStyle);
+      currentSignature = signature;
+    }
+    output += cell.char || " ";
+  }
+
+  return `${output}\x1b[0m`;
+};
+
 export class EmbeddedTerminalPane {
   private readonly buffer = new TerminalEmulatorBuffer(80, 24, EMBEDDED_PANE_SCROLLBACK_LIMIT);
   private scrollOffset = 0;
   // Cached total row count (scrollback + visible) — updated on every write to avoid
   // rebuilding the combined array on every scrollUp() keypress.
   private cachedTotalRows = 0;
+  private currentColumns = 80;
+  private currentRows = 24;
 
   clear(): void {
     this.buffer.reset();
     this.scrollOffset = 0;
     this.cachedTotalRows = 0;
+    this.currentColumns = 80;
+    this.currentRows = 24;
+  }
+
+  resize(columns: number, rows: number): void {
+    const nextColumns = Math.max(0, columns);
+    const nextRows = Math.max(0, rows);
+
+    if (this.currentColumns === nextColumns && this.currentRows === nextRows) {
+      return;
+    }
+
+    this.currentColumns = nextColumns;
+    this.currentRows = nextRows;
+    this.buffer.resize(nextColumns, nextRows);
+    this.updateCachedTotalRows();
   }
 
   scrollUp(): void {
@@ -61,8 +150,7 @@ export class EmbeddedTerminalPane {
   addEvent(event: PtyEvent): void {
     if (event.type === "resize") {
       if (typeof event.columns === "number" && typeof event.rows === "number") {
-        this.buffer.resize(event.columns, event.rows);
-        this.updateCachedTotalRows();
+        this.resize(event.columns, event.rows);
       }
       return;
     }
@@ -99,35 +187,47 @@ export class EmbeddedTerminalPane {
     }
 
     const hasContent = this.buffer.hasContent();
-    const rows = [...this.buffer.getScrollbackRows(), ...this.buffer.getVisibleRows()];
-    const renderedRows = hasContent
-      ? (() => {
-          let lastContentIndex = -1;
-          for (let i = rows.length - 1; i >= 0; i -= 1) {
-            if ((rows[i] ?? "").trim().length > 0) {
-              lastContentIndex = i;
-              break;
-            }
-          }
-          const endIndex = lastContentIndex + 1 - this.scrollOffset;
-          const startIndex = Math.max(0, endIndex - usableHeight);
-          return rows.slice(startIndex, Math.max(0, endIndex));
-        })()
-      : EMPTY_PANE_LINES.slice();
-
     let currentRow = region.startRow;
-    for (const line of renderedRows) {
-      if (currentRow >= region.endRow) {
-        break;
+    if (hasContent) {
+      const scrollbackRows = this.buffer.getScrollbackCells();
+      const visibleRows = this.buffer.getVisibleCells();
+      const rows = [...scrollbackRows, ...visibleRows];
+      const cursorState = this.buffer.getCursorState();
+      const cursorGlobalRow = scrollbackRows.length + cursorState.row;
+      let lastContentIndex = -1;
+      for (let i = rows.length - 1; i >= 0; i -= 1) {
+        const row = rows[i];
+        if (row !== undefined && row.some((cell) => (cell.char ?? "").trim().length > 0)) {
+          lastContentIndex = i;
+          break;
+        }
       }
+      const endIndex = lastContentIndex + 1 - this.scrollOffset;
+      const startIndex = Math.max(0, endIndex - usableHeight);
+      const renderedRows = rows.slice(startIndex, Math.max(0, endIndex));
 
-      const displayLine = hasContent
-        ? truncateToWidth(line, usableWidth)
-        : colors.muted(truncateToWidth(line, usableWidth));
+      for (const [offset, row] of renderedRows.entries()) {
+        if (currentRow >= region.endRow) {
+          break;
+        }
 
-      screen.cursorMoveTo(currentRow, 0);
-      screen.write(displayLine);
-      currentRow += 1;
+        screen.cursorMoveTo(currentRow, 0);
+        const globalRow = startIndex + offset;
+        const cursorColumn =
+          cursorState.visible && globalRow === cursorGlobalRow ? cursorState.column : undefined;
+        screen.write(renderCellsToAnsi(row, usableWidth, cursorColumn, cursorState.visible));
+        currentRow += 1;
+      }
+    } else {
+      for (const line of EMPTY_PANE_LINES) {
+        if (currentRow >= region.endRow) {
+          break;
+        }
+
+        screen.cursorMoveTo(currentRow, 0);
+        screen.write(colors.muted(truncateToWidth(line, usableWidth)));
+        currentRow += 1;
+      }
     }
 
     while (currentRow < region.endRow) {

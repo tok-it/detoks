@@ -394,12 +394,11 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
         columns: dims.columns,
       };
       if (embeddedPaneMode) {
+        const transcriptRows = Math.max(1, transcriptRegion.endRow - transcriptRegion.startRow);
+        embeddedTerminalPane.resize(transcriptRegion.columns, transcriptRows);
         embeddedTerminalPane.render(ctx, transcriptRegion);
         if (embeddedNativeCliSession !== null) {
-          embeddedNativeCliSession?.resize(
-            transcriptRegion.columns,
-            Math.max(1, transcriptRegion.endRow - transcriptRegion.startRow),
-          );
+          embeddedNativeCliSession?.resize(transcriptRegion.columns, transcriptRows);
         }
       } else {
         transcriptPanel.render(ctx, transcriptRegion);
@@ -899,6 +898,9 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
           ...(actionTimeline.length > 0 ? { actionTimeline } : {}),
         });
         if (embeddedPaneMode) {
+          closeEmbeddedNativeCliSession();
+        }
+        if (embeddedPaneMode) {
           embeddedTerminalFocus.focusDetoks();
         }
         currentTokenSavingsLabel = formatTokenSavingsBadge(
@@ -929,6 +931,11 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
     };
 
     stdin.on("data", onData);
+    stdin.on("end", () => {
+      clearNativeEscapeTimer();
+      closeEmbeddedNativeCliSession();
+      running = false;
+    });
 
     // Initial render
     render();

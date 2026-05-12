@@ -1,71 +1,102 @@
 import { EventEmitter } from "node:events";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi, beforeEach } from "vitest";
 import { createInteractivePtySession } from "../../../../../src/integrations/subprocess/pty-session.js";
 
-class FakeStream extends EventEmitter {
-  setEncoding = vi.fn();
+class FakePtyProcess extends EventEmitter {
   write = vi.fn();
-  end = vi.fn();
-}
-
-class FakeChildProcess extends EventEmitter {
-  stdout = new FakeStream();
-  stderr = new FakeStream();
-  stdin = new FakeStream();
+  resize = vi.fn();
   kill = vi.fn();
+  clear = vi.fn();
+  pause = vi.fn();
+  resume = vi.fn();
+
+  onData(listener: (data: string) => void) {
+    this.on("data", listener);
+    return { dispose: () => this.off("data", listener) };
+  }
+
+  onExit(listener: (event: { exitCode: number; signal?: number }) => void) {
+    this.on("exit", listener);
+    return { dispose: () => this.off("exit", listener) };
+  }
+
+  emitData(data: string): void {
+    this.emit("data", data);
+  }
+
+  emitExit(exitCode: number, signal?: number): void {
+    this.emit("exit", { exitCode, signal });
+  }
 }
 
-const childProcessMocks = vi.hoisted(() => {
+const ptyMocks = vi.hoisted(() => {
   const spawn = vi.fn();
   return { spawn };
 });
 
-vi.mock("node:child_process", () => ({
-  spawn: childProcessMocks.spawn,
+vi.mock("node-pty", () => ({
+  spawn: ptyMocks.spawn,
 }));
 
 describe("interactive PTY session", () => {
-  it("keeps stdin inherited and open for foreground passthrough sessions without canned input", async () => {
-    const child = new FakeChildProcess();
-    childProcessMocks.spawn.mockReturnValueOnce(child as unknown as never);
+  beforeEach(() => {
+    ptyMocks.spawn.mockReset();
+  });
+
+  it("spawns a real PTY and forwards writes, resize, and close controls", async () => {
+    const ptyProcess = new FakePtyProcess();
+    ptyMocks.spawn.mockReturnValueOnce(ptyProcess as unknown as never);
+    const onEvent = vi.fn();
 
     const session = createInteractivePtySession(
       {
         command: process.execPath,
         args: ["-e", "process.stdout.write('ok')"],
+        cwd: "/tmp/detoks-pty-test",
       },
-      {
-        passthroughUi: true,
-        onEvent: vi.fn(),
-      },
+      { onEvent },
     );
 
-    expect(childProcessMocks.spawn).toHaveBeenCalledWith(
+    expect(ptyMocks.spawn).toHaveBeenCalledWith(
       process.execPath,
       ["-e", "process.stdout.write('ok')"],
       expect.objectContaining({
-        shell: false,
-        stdio: ["inherit", "inherit", "inherit"],
+        name: expect.any(String),
+        cols: 80,
+        rows: 24,
+        cwd: "/tmp/detoks-pty-test",
+        encoding: "utf8",
       }),
     );
 
+    session.write("hello detoks");
+    expect(ptyProcess.write).toHaveBeenCalledWith("hello detoks");
+
     session.resize(100, 30);
-    expect(child.kill).toHaveBeenCalledWith("SIGWINCH");
+    expect(ptyProcess.resize).toHaveBeenCalledWith(100, 30);
+    expect(
+      onEvent.mock.calls.some(
+        ([event]) => event.type === "resize" && event.columns === 100 && event.rows === 30,
+      ),
+    ).toBe(true);
 
+    ptyProcess.emitData("ok");
     session.close();
-    expect(child.stdin.end).not.toHaveBeenCalled();
+    expect(ptyProcess.kill).toHaveBeenCalledWith("SIGTERM");
 
-    const resultPromise = session.result;
-    child.emit("close", 0, null);
-    await expect(resultPromise).resolves.toMatchObject({
+    ptyProcess.emitExit(0);
+    await expect(session.result).resolves.toMatchObject({
+      stdout: "ok",
+      stderr: "",
       exitCode: 0,
       timedOut: false,
     });
   });
 
-  it("keeps stdin writable for interactive passthrough sessions with canned input", async () => {
-    const child = new FakeChildProcess();
-    childProcessMocks.spawn.mockReturnValueOnce(child as unknown as never);
+  it("keeps request input writable and emits a prompt event for canned input", async () => {
+    const ptyProcess = new FakePtyProcess();
+    ptyMocks.spawn.mockReturnValueOnce(ptyProcess as unknown as never);
+    const onEvent = vi.fn();
 
     const session = createInteractivePtySession(
       {
@@ -73,38 +104,26 @@ describe("interactive PTY session", () => {
         args: ["-e", "process.stdout.write('ok')"],
         input: "hello detoks\n",
       },
-      {
-        passthroughUi: true,
-        onEvent: vi.fn(),
-      },
-    );
-
-    expect(childProcessMocks.spawn).toHaveBeenCalledWith(
-      process.execPath,
-      ["-e", "process.stdout.write('ok')"],
-      expect.objectContaining({
-        shell: false,
-        stdio: ["pipe", "inherit", "inherit"],
-      }),
+      { onEvent },
     );
 
     session.write("hello detoks\n");
-    expect(child.stdin.write).toHaveBeenCalledWith("hello detoks\n");
+    expect(ptyProcess.write).toHaveBeenCalledWith("hello detoks\n");
+    expect(onEvent.mock.calls.some(([event]) => event.type === "prompt")).toBe(true);
 
     session.close();
-    expect(child.stdin.end).toHaveBeenCalled();
+    expect(ptyProcess.kill).toHaveBeenCalledWith("SIGTERM");
 
-    const resultPromise = session.result;
-    child.emit("close", 0, null);
-    await expect(resultPromise).resolves.toMatchObject({
+    ptyProcess.emitExit(0);
+    await expect(session.result).resolves.toMatchObject({
       exitCode: 0,
       timedOut: false,
     });
   });
 
-  it("captures child output and emits resize events outside passthrough mode", async () => {
-    const child = new FakeChildProcess();
-    childProcessMocks.spawn.mockReturnValueOnce(child as unknown as never);
+  it("captures child output and emits resize events", async () => {
+    const ptyProcess = new FakePtyProcess();
+    ptyMocks.spawn.mockReturnValueOnce(ptyProcess as unknown as never);
     const onEvent = vi.fn();
 
     const session = createInteractivePtySession(
@@ -117,25 +136,29 @@ describe("interactive PTY session", () => {
       },
     );
 
-    child.stdout.emit("data", "ok");
-    child.stderr.emit("data", "err");
+    ptyProcess.emitData("ok");
+    ptyProcess.emitData("err");
     session.resize(100, 30);
     session.close();
 
-    const resultPromise = session.result;
-    child.emit("close", 0, null);
-    const result = await resultPromise;
+    ptyProcess.emitExit(0);
+    const result = await session.result;
 
     expect(result.stdout).toContain("ok");
-    expect(result.stderr).toContain("err");
+    expect(result.stdout).toContain("err");
+    expect(result.stderr).toBe("");
     expect(result.exitCode).toBe(0);
-    expect(onEvent.mock.calls.some(([event]) => event.type === "resize" && event.columns === 100 && event.rows === 30)).toBe(true);
+    expect(
+      onEvent.mock.calls.some(
+        ([event]) => event.type === "resize" && event.columns === 100 && event.rows === 30,
+      ),
+    ).toBe(true);
     expect(onEvent.mock.calls.some(([event]) => event.type === "chunk" && event.stream === "stdout")).toBe(true);
   });
 
-  it("rawOutput: true emits only raw chunks and no additional line-split events", async () => {
-    const child = new FakeChildProcess();
-    childProcessMocks.spawn.mockReturnValueOnce(child as unknown as never);
+  it("rawOutput: true emits only raw PTY chunks and no additional line-split events", async () => {
+    const ptyProcess = new FakePtyProcess();
+    ptyMocks.spawn.mockReturnValueOnce(ptyProcess as unknown as never);
     const onEvent = vi.fn();
 
     const session = createInteractivePtySession(
@@ -143,23 +166,22 @@ describe("interactive PTY session", () => {
       { rawOutput: true, onEvent },
     );
 
-    child.stdout.emit("data", "line1\nline2\n");
+    ptyProcess.emitData("line1\nline2\n");
     session.close();
-    child.emit("close", 0, null);
+    ptyProcess.emitExit(0);
     await session.result;
 
     const chunkEvents = onEvent.mock.calls
       .map((args: any[]) => args[0])
-      .filter((e: any) => e.type === "chunk");
+      .filter((event: any) => event.type === "chunk");
 
-    // rawOutput mode: exactly one chunk event per emit, no line-split duplicates
     expect(chunkEvents.length).toBe(1);
     expect(chunkEvents[0].data).toBe("line1\nline2\n");
   });
 
-  it("kill forwards the given signal to the child process", async () => {
-    const child = new FakeChildProcess();
-    childProcessMocks.spawn.mockReturnValueOnce(child as unknown as never);
+  it("kill forwards the given signal to the PTY", async () => {
+    const ptyProcess = new FakePtyProcess();
+    ptyMocks.spawn.mockReturnValueOnce(ptyProcess as unknown as never);
 
     const session = createInteractivePtySession(
       { command: process.execPath, args: [] },
@@ -167,19 +189,19 @@ describe("interactive PTY session", () => {
     );
 
     session.kill("SIGINT");
-    expect(child.kill).toHaveBeenCalledWith("SIGINT");
+    expect(ptyProcess.kill).toHaveBeenCalledWith("SIGINT");
 
     session.kill("SIGTERM");
-    expect(child.kill).toHaveBeenCalledWith("SIGTERM");
+    expect(ptyProcess.kill).toHaveBeenCalledWith("SIGTERM");
 
-    child.emit("close", 130, null);
+    ptyProcess.emitExit(130);
     const result = await session.result;
     expect(result.exitCode).toBe(130);
   });
 
   it("kill defaults to SIGTERM when no signal is provided", () => {
-    const child = new FakeChildProcess();
-    childProcessMocks.spawn.mockReturnValueOnce(child as unknown as never);
+    const ptyProcess = new FakePtyProcess();
+    ptyMocks.spawn.mockReturnValueOnce(ptyProcess as unknown as never);
 
     const session = createInteractivePtySession(
       { command: process.execPath, args: [] },
@@ -187,12 +209,12 @@ describe("interactive PTY session", () => {
     );
 
     session.kill();
-    expect(child.kill).toHaveBeenCalledWith("SIGTERM");
+    expect(ptyProcess.kill).toHaveBeenCalledWith("SIGTERM");
   });
 
   it("preserves raw chunks without script-wrapper normalization", async () => {
-    const child = new FakeChildProcess();
-    childProcessMocks.spawn.mockReturnValueOnce(child as unknown as never);
+    const ptyProcess = new FakePtyProcess();
+    ptyMocks.spawn.mockReturnValueOnce(ptyProcess as unknown as never);
 
     const session = createInteractivePtySession(
       {
@@ -204,20 +226,20 @@ describe("interactive PTY session", () => {
       },
     );
 
-    child.stdout.emit("data", "\u0004\b\bhello");
+    ptyProcess.emitData("\u0004\b\bhello");
     session.close();
 
-    const resultPromise = session.result;
-    child.emit("close", 0, null);
-    const result = await resultPromise;
+    ptyProcess.emitExit(0);
+    const result = await session.result;
 
     expect(result.stdout).toContain("\u0004\b\bhello");
     expect(result.transcript.events.some((event) => event.type === "chunk" && event.data?.includes("\u0004\b\bhello") === true)).toBe(true);
   });
 
-  it("child error event resolves result with exitCode 127 and emits error event", async () => {
-    const child = new FakeChildProcess();
-    childProcessMocks.spawn.mockReturnValueOnce(child as unknown as never);
+  it("spawn failure resolves result with exitCode 127 and emits error event", async () => {
+    ptyMocks.spawn.mockImplementationOnce(() => {
+      throw new Error("ENOENT: no such file or directory");
+    });
     const onEvent = vi.fn();
 
     const session = createInteractivePtySession(
@@ -225,50 +247,26 @@ describe("interactive PTY session", () => {
       { onEvent },
     );
 
-    child.emit("error", new Error("ENOENT: no such file or directory"));
     const result = await session.result;
 
     expect(result.exitCode).toBe(127);
     expect(result.timedOut).toBe(false);
-    expect(onEvent.mock.calls.some((args: any[]) => args[0].type === "error")).toBe(true);
+    expect(onEvent.mock.calls.some(([event]) => event.type === "error")).toBe(true);
   });
 
   it("close with signal resolves result with exitCode 128", async () => {
-    const child = new FakeChildProcess();
-    childProcessMocks.spawn.mockReturnValueOnce(child as unknown as never);
+    const ptyProcess = new FakePtyProcess();
+    ptyMocks.spawn.mockReturnValueOnce(ptyProcess as unknown as never);
 
     const session = createInteractivePtySession(
       { command: process.execPath, args: [] },
       { onEvent: vi.fn() },
     );
 
-    child.emit("close", null, "SIGKILL");
+    ptyProcess.emitExit(0, 9);
     const result = await session.result;
 
     expect(result.exitCode).toBe(128);
     expect(result.timedOut).toBe(false);
-  });
-
-  it("resize emits resize event and sends SIGWINCH to child", async () => {
-    const child = new FakeChildProcess();
-    childProcessMocks.spawn.mockReturnValueOnce(child as unknown as never);
-    const onEvent = vi.fn();
-
-    const session = createInteractivePtySession(
-      { command: process.execPath, args: [] },
-      { onEvent },
-    );
-
-    session.resize(132, 50);
-
-    expect(child.kill).toHaveBeenCalledWith("SIGWINCH");
-    expect(
-      onEvent.mock.calls.some(
-        (args: any[]) => args[0].type === "resize" && args[0].columns === 132 && args[0].rows === 50,
-      ),
-    ).toBe(true);
-
-    child.emit("close", 0, null);
-    await session.result;
   });
 });

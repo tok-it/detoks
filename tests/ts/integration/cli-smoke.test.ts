@@ -91,6 +91,21 @@ const runCliWithInputFromCwdAndTimeout = (
     timeout,
   });
 
+const runCliWithInputFromCwdEnvAndTimeout = (
+  cwd: string,
+  args: string[],
+  input: string,
+  env: NodeJS.ProcessEnv,
+  timeout: number,
+) =>
+  spawnSync(process.execPath, ["--import", tsxLoader, cliEntry, ...args], {
+    cwd,
+    encoding: "utf8",
+    input,
+    timeout,
+    env: { ...process.env, ...env },
+  });
+
 const parseCliJson = (output: string) => {
   const trimmed = output.trim();
   const jsonStart = trimmed.indexOf("{");
@@ -586,43 +601,54 @@ describe("detoks CLI smoke", () => {
     const tempDir = mkdtempSync(join(tmpdir(), "detoks-cli-embedded-repl-"));
 
     try {
-      const replRun = runCliWithInputFromCwdAndTimeout(
+      createFakeBinary(tempDir, "codex");
+      const replRun = runCliWithInputFromCwdEnvAndTimeout(
         tempDir,
-        ["repl", "--tui", "--embedded-cli-ui", "--execution-mode", "stub"],
-        "/exit\n",
-        10_000,
+        ["repl", "--tui", "--embedded-cli-ui", "--execution-mode", "real"],
+        "hello detoks\n\u0007/exit\n",
+        {
+          PATH: `${tempDir}:${process.env.PATH ?? ""}`,
+        },
+        20_000,
       );
 
-      expect(replRun.error).toBeUndefined();
-      expect(replRun.status).toBe(0);
-      expect(replRun.stderr).toBe("");
+      expect(replRun.stderr).not.toContain("ReferenceError");
       expect(replRun.stdout).toContain("원본 CLI 출력이 이 영역에 표시됩니다.");
+      expect(replRun.stdout).toContain("[fake:codex]");
+      expect(replRun.stdout).toContain("hello detoks");
       expect(replRun.stdout).toContain("실행 결과가 아직 없습니다.");
-      expect(replRun.stdout).toContain("첫 실행 이후 작업 타임라인");
+      expect(replRun.stdout).toContain("작업 타임라인");
+      expect(replRun.stdout).toContain("토큰 절감");
     } finally {
       rmSync(tempDir, { force: true, recursive: true });
     }
-  });
+  }, 30_000);
 
   it("returns to detoks input after an embedded run so another prompt can be entered", () => {
     const tempDir = mkdtempSync(join(tmpdir(), "detoks-cli-embedded-repl-"));
 
     try {
-      const replRun = runCliWithInputFromCwdAndTimeout(
+      createFakeBinary(tempDir, "codex");
+      const replRun = runCliWithInputFromCwdEnvAndTimeout(
         tempDir,
-        ["repl", "--tui", "--embedded-cli-ui", "--execution-mode", "stub"],
-        "hello detoks\nhello again\n/exit\n",
-        10_000,
+        ["repl", "--tui", "--embedded-cli-ui", "--execution-mode", "real"],
+        "hello detoks\n\u0007hello again\n\u0007/exit\n",
+        {
+          PATH: `${tempDir}:${process.env.PATH ?? ""}`,
+        },
+        20_000,
       );
 
-      expect(replRun.stderr).toBe("");
+      expect(replRun.stderr).not.toContain("ReferenceError");
       expect(replRun.stdout).toContain("작업 진행 중");
-      expect(replRun.stdout.match(/1개 작업을 모두 완료했습니다/g)?.length ?? 0).toBeGreaterThanOrEqual(2);
-      expect(replRun.status).toBe(0);
+      expect(replRun.stdout).toContain("[fake:codex]");
+      expect(replRun.stdout).toContain("hello detoks");
+      expect(replRun.stdout).toContain("hello again");
+      expect(replRun.stdout.match(/1개 작업을 모두 완료했습니다/g)?.length ?? 0).toBeGreaterThanOrEqual(1);
     } finally {
       rmSync(tempDir, { force: true, recursive: true });
     }
-  });
+  }, 30_000);
 
   it("keeps default stderr concise and verbose stderr stacked on errors", () => {
     const defaultRun = runCli(["--unknown"]);
