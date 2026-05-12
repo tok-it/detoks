@@ -44,6 +44,7 @@
     "node-llama-cpp": "^3.18.1",
     "node-pty": "^1.1.0",
     "tiktoken": "^1.0.22",
+    "typescript": "5.8.3",
     "zod": "4.3.6"
   },
   "devDependencies": {
