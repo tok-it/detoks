@@ -28,7 +28,10 @@ import {
 	loadRole1Policies,
 	loadRole1RuntimeConfig,
 } from "../src/core/prompt/config.js";
-import { mask_protected_segments } from "../src/core/translate/masking.js";
+import {
+	cluster_placeholder_sequences,
+	mask_protected_segments,
+} from "../src/core/translate/masking.js";
 
 type RuntimeProvider = "llama-server" | "node-llama-cpp";
 
@@ -517,13 +520,16 @@ async function main(): Promise<void> {
 			const results: VerificationItem[] = batchResult.results.map(
 				(item, index) => {
 					const inputPromptTokens = encodeTokenCount(encoding, item.raw_input);
-					const phMaskedInput = mask_protected_segments(item.raw_input, {
+					const maskedInput = mask_protected_segments(item.raw_input, {
 						protected_terms: policies.protectedTerms,
 						preferred_translations: policies.preferredTranslations,
 						model_names: runtimeConfig.localLlmModelName
 							? [runtimeConfig.localLlmModelName]
 							: [],
-					}).masked_text;
+					});
+					const phMaskedInput = cluster_placeholder_sequences(
+						maskedInput.masked_text,
+					).masked_text;
 					const normalizedInput = item.normalized_input ?? "";
 					const normalizedInputTokens = encodeTokenCount(
 						encoding,

@@ -52,7 +52,7 @@ function isPlaceholderOnlyText(text: string): boolean {
   }
 
   const residue = normalized
-    .replace(/__PH_\d{4}__/g, "")
+    .replace(/__PH(?:C)?_\d{4}__/g, "")
     .replace(/[ \t`*_~:#>|()[\]{}\-.,!?/\\]+/g, "")
     .trim();
 
@@ -65,7 +65,7 @@ function findPlaceholderKinds(
 ): Set<PlaceholderEntry["kind"]> {
   const kinds = new Set<PlaceholderEntry["kind"]>();
 
-  for (const match of text.matchAll(/__PH_\d{4}__/g)) {
+  for (const match of text.matchAll(/__PH(?:C)?_\d{4}__/g)) {
     const placeholder = match[0];
     const entry = placeholdersByToken.get(placeholder);
     if (entry) {
