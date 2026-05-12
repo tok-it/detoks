@@ -109,6 +109,9 @@ export const createInteractivePtySession = (
   request: SubprocessRequest,
   options?: {
     passthroughUi?: boolean;
+    // Emit raw stdout/stderr chunks without line-splitting. Use for embedded pane
+    // where TerminalEmulatorBuffer needs unmodified ANSI byte sequences.
+    rawOutput?: boolean;
     onEvent?: (event: PtyEvent) => void;
   },
 ): PtySessionController => {
@@ -197,22 +200,18 @@ export const createInteractivePtySession = (
 
       child.stdout?.on("data", (chunk: string) => {
         stdout += chunk;
-        emitEvent({
-          type: "chunk",
-          stream: "stdout",
-          data: chunk,
-        });
-        stdoutPending = pushLines(chunk, "stdout", stdoutPending);
+        emitEvent({ type: "chunk", stream: "stdout", data: chunk });
+        if (!options?.rawOutput) {
+          stdoutPending = pushLines(chunk, "stdout", stdoutPending);
+        }
       });
 
       child.stderr?.on("data", (chunk: string) => {
         stderr += chunk;
-        emitEvent({
-          type: "chunk",
-          stream: "stderr",
-          data: chunk,
-        });
-        stderrPending = pushLines(chunk, "stderr", stderrPending);
+        emitEvent({ type: "chunk", stream: "stderr", data: chunk });
+        if (!options?.rawOutput) {
+          stderrPending = pushLines(chunk, "stderr", stderrPending);
+        }
       });
     }
 
@@ -255,6 +254,9 @@ export const createInteractivePtySession = (
       if (!passthroughInteractiveMode) {
         child.stdin?.end();
       }
+    },
+    kill: (signal: NodeJS.Signals = "SIGTERM"): void => {
+      child.kill(signal);
     },
     result,
   };

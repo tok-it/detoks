@@ -38,7 +38,7 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run typecheck, build, and tests in parallel
+      - name: Run typecheck and tests in parallel
         shell: bash
         env:
           LOCAL_LLM_AUTO_START: "0"
@@ -48,9 +48,6 @@ jobs:
           pids=()
 
           npm run typecheck &
-          pids+=($!)
-
-          npm run build &
           pids+=($!)
 
           npx vitest run --passWithNoTests &

@@ -31,7 +31,10 @@ export const createEmbeddedNativeCliSession = (
   options: EmbeddedNativeCliSessionOptions,
 ): PtySessionController => {
   const request = buildEmbeddedNativeCliRequest(options);
-  return createInteractivePtySession(request, options.onEvent ? { onEvent: options.onEvent } : undefined);
+  return createInteractivePtySession(request, {
+    rawOutput: true,
+    ...(options.onEvent ? { onEvent: options.onEvent } : {}),
+  });
 };
 
 export type EmbeddedNativeCliSession = PtySessionController;
