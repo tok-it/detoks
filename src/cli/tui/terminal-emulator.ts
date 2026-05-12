@@ -514,6 +514,46 @@ export class TerminalEmulatorBuffer {
     this.wrapPending = false;
   }
 
+  private reflowScreen(screen: TerminalCell[][], nextColumns: number): TerminalCell[][] {
+    if (nextColumns <= 0) {
+      return [];
+    }
+
+    const nextScreen: TerminalCell[][] = [];
+    for (const row of screen) {
+      const sourceRow = row.slice();
+      if (sourceRow.length === 0) {
+        nextScreen.push(createBlankRow(nextColumns));
+        continue;
+      }
+
+      for (let offset = 0; offset < sourceRow.length; offset += nextColumns) {
+        nextScreen.push(cloneRow(sourceRow.slice(offset, offset + nextColumns), nextColumns));
+      }
+    }
+
+    return nextScreen;
+  }
+
+  private remapCursorForResize(
+    cursorRow: number,
+    cursorColumn: number,
+    oldColumns: number,
+    nextColumns: number,
+  ): { row: number; column: number } {
+    if (nextColumns <= 0 || oldColumns <= 0) {
+      return { row: 0, column: 0 };
+    }
+
+    const clampedCursorColumn = Math.max(0, Math.min(oldColumns - 1, cursorColumn));
+    const chunksPerRow = Math.max(1, Math.ceil(oldColumns / nextColumns));
+    const rowChunk = Math.floor(clampedCursorColumn / nextColumns);
+    return {
+      row: Math.max(0, cursorRow) * chunksPerRow + rowChunk,
+      column: clampedCursorColumn % nextColumns,
+    };
+  }
+
   private pushScrollback(row: TerminalCell[]): void {
     this.scrollbackRows.push(cloneRow(row, this.columns));
     while (this.scrollbackRows.length > this.scrollbackLimit) {
@@ -897,39 +937,50 @@ export class TerminalEmulatorBuffer {
   }
 
   resize(columns: number, rows: number): void {
+    const oldColumns = this.columns;
     const nextColumns = Math.max(0, columns);
     const nextRows = Math.max(0, rows);
 
-    const resizeScreen = (screen: TerminalCell[][]): TerminalCell[][] => {
-      const preservedRows = screen.slice(Math.max(0, screen.length - nextRows)).map((row) => {
-        const nextRow = row.slice(0, nextColumns).map((cell) => ({
-          char: cell.char,
-          style: cloneStyle(cell.style),
-        }));
-        while (nextRow.length < nextColumns) {
-          nextRow.push(createBlankCell());
-        }
-        return nextRow;
-      });
-
-      while (preservedRows.length < nextRows) {
-        preservedRows.push(createBlankRow(nextColumns));
-      }
-      return preservedRows;
-    };
+    const reflowedMain = this.reflowScreen(this.mainScreen, nextColumns);
+    const reflowedAlternate = this.reflowScreen(this.alternateScreenBuffer, nextColumns);
 
     this.columns = nextColumns;
     this.rows = nextRows;
-    this.mainScreen = resizeScreen(this.mainScreen);
-    this.alternateScreenBuffer = resizeScreen(this.alternateScreenBuffer);
+    this.mainScreen = reflowedMain.slice(Math.max(0, reflowedMain.length - nextRows));
+    this.alternateScreenBuffer = reflowedAlternate.slice(Math.max(0, reflowedAlternate.length - nextRows));
     this.setActiveScreen(this.alternateScreen ? this.alternateScreenBuffer : this.mainScreen);
     this.wrapPending = false;
+    const cursor = this.remapCursorForResize(this.cursorRow, this.cursorColumn, oldColumns, nextColumns);
+    this.cursorRow = cursor.row;
+    this.cursorColumn = cursor.column;
     if (this.savedMainState) {
+      const reflowedSavedMain = this.reflowScreen(this.savedMainState.screen, nextColumns);
+      const savedCursor = this.remapCursorForResize(
+        this.savedMainState.cursorRow,
+        this.savedMainState.cursorColumn,
+        oldColumns,
+        nextColumns,
+      );
       this.savedMainState = {
-        screen: resizeScreen(this.savedMainState.screen),
-        cursorRow: Math.min(Math.max(0, nextRows - 1), this.savedMainState.cursorRow),
-        cursorColumn: Math.min(Math.max(0, nextColumns - 1), this.savedMainState.cursorColumn),
+        screen: reflowedSavedMain.slice(Math.max(0, reflowedSavedMain.length - nextRows)),
+        cursorRow: savedCursor.row,
+        cursorColumn: savedCursor.column,
         style: cloneStyle(this.savedMainState.style),
+      };
+    }
+    if (this.savedCursorState) {
+      const savedCursor = this.remapCursorForResize(
+        this.savedCursorState.cursorRow,
+        this.savedCursorState.cursorColumn,
+        oldColumns,
+        nextColumns,
+      );
+      this.savedCursorState = {
+        cursorRow: savedCursor.row,
+        cursorColumn: savedCursor.column,
+        cursorVisible: this.savedCursorState.cursorVisible,
+        wrapPending: false,
+        style: cloneStyle(this.savedCursorState.style),
       };
     }
     this.ensureCursorInBounds();

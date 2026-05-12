@@ -154,4 +154,16 @@ describe("TerminalEmulatorBuffer", () => {
     expect(snapshot.visibleRows[0]?.trim()).toBe("á🚀");
     expect(snapshot.visibleRows[1]?.trim()).toBe("c");
   });
+
+  it("reflows existing rows when the terminal narrows", () => {
+    const buffer = new TerminalEmulatorBuffer(4, 2);
+    buffer.write("abcd\nefgh");
+    buffer.resize(2, 4);
+
+    const snapshot = buffer.snapshot();
+    expect(snapshot.visibleRows[0]?.trim()).toBe("ab");
+    expect(snapshot.visibleRows[1]?.trim()).toBe("cd");
+    expect(snapshot.visibleRows[2]?.trim()).toBe("ef");
+    expect(snapshot.visibleRows[3]?.trim()).toBe("gh");
+  });
 });
