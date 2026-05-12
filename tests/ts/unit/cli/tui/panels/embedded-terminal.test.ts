@@ -43,15 +43,15 @@ describe("EmbeddedTerminalPane", () => {
     expect(output).toContain("world");
   });
 
-  it("preserves ANSI escape sequences in raw chunks passed to the buffer", () => {
-    // Ensure raw bytes including ESC sequences are written to the buffer unchanged
+  it("preserves ANSI style information in raw chunks passed to the buffer", () => {
     const ansiChunk = "\x1b[32mhello\x1b[0m world";
     pane.addEvent({ type: "chunk", timestamp: Date.now(), stream: "stdout", data: ansiChunk });
 
     pane.render(mockContext, mockRegion);
 
     const output = mockScreen.write.mock.calls.map((call: any) => call[0]).join("\n");
-    // TerminalEmulatorBuffer strips ANSI for display but the text content survives
+    expect(output).toContain("\x1b[32m");
+    expect(output).toContain("\x1b[0m");
     expect(output).toContain("hello");
     expect(output).toContain("world");
   });

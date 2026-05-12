@@ -1,6 +1,6 @@
-import { spawn } from "node:child_process";
 import { closeSync, existsSync, openSync, readSync, statSync } from "node:fs";
 import { extname, join } from "node:path";
+import * as pty from "node-pty";
 import type {
   PtyEvent,
   PtyResult,
@@ -92,6 +92,42 @@ interface InteractivePtyBackend {
   env: NodeJS.ProcessEnv;
 }
 
+const buildFailedInteractivePtySession = (
+  error: unknown,
+  onEvent?: (event: PtyEvent) => void,
+): PtySessionController => {
+  const startTime = Date.now();
+  const errorMessage = error instanceof Error ? error.message : String(error);
+  const events: PtyEvent[] = [
+    { type: "error", timestamp: startTime, data: errorMessage },
+    { type: "exit", timestamp: startTime, data: "127" },
+  ];
+  for (const event of events) {
+    onEvent?.(event);
+  }
+
+  return {
+    write: () => {},
+    resize: () => {},
+    close: () => {},
+    kill: () => {},
+    result: Promise.resolve({
+      stdout: "",
+      stderr: errorMessage,
+      exitCode: 127,
+      timedOut: false,
+      transcript: {
+        events,
+        startTime,
+        endTime: startTime,
+        totalDuration: 0,
+        exitCode: 127,
+        timedOut: false,
+      },
+    }),
+  };
+};
+
 const resolveInteractiveBackend = (
   request: SubprocessRequest,
 ): InteractivePtyBackend => {
@@ -109,34 +145,32 @@ export const createInteractivePtySession = (
   request: SubprocessRequest,
   options?: {
     passthroughUi?: boolean;
-    // Emit raw stdout/stderr chunks without line-splitting. Use for embedded pane
+    // Emit raw PTY chunks without line-splitting. Use for embedded pane
     // where TerminalEmulatorBuffer needs unmodified ANSI byte sequences.
     rawOutput?: boolean;
     onEvent?: (event: PtyEvent) => void;
   },
 ): PtySessionController => {
   const backend = resolveInteractiveBackend(request);
-  const passthroughInteractiveMode = options?.passthroughUi && request.input === undefined;
-  const child = spawn(backend.command, backend.args, {
-    cwd: request.cwd,
-    env: backend.env,
-    shell: false,
-    stdio: passthroughInteractiveMode
-      ? ["inherit", "inherit", "inherit"]
-      : [
-          "pipe",
-          options?.passthroughUi ? "inherit" : "pipe",
-          options?.passthroughUi ? "inherit" : "pipe",
-        ],
-  });
+  let ptyProcess: pty.IPty;
+  try {
+    ptyProcess = pty.spawn(backend.command, backend.args, {
+      name: backend.env.TERM ?? process.env.TERM ?? "xterm-256color",
+      cols: 80,
+      rows: 24,
+      cwd: request.cwd ?? process.cwd(),
+      env: backend.env as Record<string, string | undefined>,
+      encoding: "utf8",
+    });
+  } catch (error) {
+    return buildFailedInteractivePtySession(error, options?.onEvent);
+  }
 
   const startTime = Date.now();
   const events: PtyEvent[] = [];
   let settled = false;
   let stdout = "";
-  let stderr = "";
   let stdoutPending = "";
-  let stderrPending = "";
 
   const emitEvent = (event: Omit<PtyEvent, "timestamp">): void => {
     const fullEvent: PtyEvent = { ...event, timestamp: Date.now() };
@@ -148,7 +182,7 @@ export const createInteractivePtySession = (
     const endTime = Date.now();
     return {
       stdout,
-      stderr,
+      stderr: "",
       exitCode: code,
       timedOut,
       transcript: {
@@ -194,48 +228,38 @@ export const createInteractivePtySession = (
       return nextPending;
     };
 
-    if (!options?.passthroughUi || !passthroughInteractiveMode) {
-      child.stdout?.setEncoding("utf8");
-      child.stderr?.setEncoding("utf8");
+    let dataDisposable: pty.IDisposable | undefined;
+    let exitDisposable: pty.IDisposable | undefined;
 
-      child.stdout?.on("data", (chunk: string) => {
-        stdout += chunk;
-        emitEvent({ type: "chunk", stream: "stdout", data: chunk });
-        if (!options?.rawOutput) {
-          stdoutPending = pushLines(chunk, "stdout", stdoutPending);
-        }
-      });
-
-      child.stderr?.on("data", (chunk: string) => {
-        stderr += chunk;
-        emitEvent({ type: "chunk", stream: "stderr", data: chunk });
-        if (!options?.rawOutput) {
-          stderrPending = pushLines(chunk, "stderr", stderrPending);
-        }
-      });
-    }
-
-    child.on("error", (error) => {
-      emitEvent({ type: "error", data: String(error) });
-      settle(127, false);
+    dataDisposable = ptyProcess.onData((data) => {
+      stdout += data;
+      emitEvent({ type: "chunk", stream: "stdout", data });
+      if (!options?.rawOutput) {
+        stdoutPending = pushLines(data, "stdout", stdoutPending);
+      }
     });
 
-    child.on("close", (code, signal) => {
+    exitDisposable = ptyProcess.onExit(({ exitCode, signal }) => {
       if (stdoutPending.length > 0) {
         emitEvent({
           type: "chunk",
           stream: "stdout",
           data: stdoutPending,
         });
+        stdoutPending = "";
       }
-      if (stderrPending.length > 0) {
-        emitEvent({
-          type: "chunk",
-          stream: "stderr",
-          data: stderrPending,
-        });
-      }
-      settle(typeof code === "number" ? code : signal ? 128 : 1, false);
+
+      dataDisposable?.dispose();
+      exitDisposable?.dispose();
+
+      settle(
+        signal !== undefined
+          ? 128
+          : typeof exitCode === "number"
+            ? exitCode
+            : 1,
+        false,
+      );
     });
   });
 
@@ -244,19 +268,17 @@ export const createInteractivePtySession = (
       if (request.input !== undefined) {
         emitEvent({ type: "prompt", data });
       }
-      child.stdin?.write(data);
+      ptyProcess.write(data);
     },
     resize: (columns: number, rows: number): void => {
       emitEvent({ type: "resize", columns, rows });
-      child.kill("SIGWINCH");
+      ptyProcess.resize(columns, rows);
     },
     close: (): void => {
-      if (!passthroughInteractiveMode) {
-        child.stdin?.end();
-      }
+      ptyProcess.kill("SIGTERM");
     },
     kill: (signal: NodeJS.Signals = "SIGTERM"): void => {
-      child.kill(signal);
+      ptyProcess.kill(signal);
     },
     result,
   };
