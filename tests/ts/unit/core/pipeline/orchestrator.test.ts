@@ -81,8 +81,8 @@ describe("orchestratePipeline", () => {
       /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/,
     );
 
-    // RAG 스키마 확장: shared_context에 raw_input_hash + project_id 채워짐
-    expect(savedState?.shared_context?.raw_input_hash).toMatch(/^[0-9a-f]{16}$/);
+    // stub 모드는 캐시 오염 방지를 위해 raw_input_hash 미설정
+    expect(savedState?.shared_context?.raw_input_hash).toBeUndefined();
     expect(savedState?.shared_context?.project_id).toBeTypeOf("string");
 
     // RAG 스키마 확장: 전체 task_graph 보존
@@ -98,6 +98,24 @@ describe("orchestratePipeline", () => {
       success: true,
       type: expect.any(String),
     });
+  });
+
+  it("does not set raw_input_hash for stub mode to prevent cache contamination", async () => {
+    vi.spyOn(SessionStateManager, "sessionExists").mockResolvedValue(false);
+    const saveSessionSpy = vi
+      .spyOn(SessionStateManager, "saveSession")
+      .mockResolvedValue(undefined);
+
+    await orchestratePipeline({
+      mode: "run",
+      adapter: "codex",
+      executionMode: "stub",
+      verbose: false,
+      userRequest: { raw_input: "stub cache contamination test" },
+    });
+
+    const savedState = saveSessionSpy.mock.calls.at(-1)?.[0] as any;
+    expect(savedState?.shared_context?.raw_input_hash).toBeUndefined();
   });
 
   it("passes execution mode through to the executor boundary", async () => {
