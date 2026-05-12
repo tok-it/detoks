@@ -54,7 +54,7 @@ detoks/
 - `src/core/state`: session state management
 - `src/core/executor`: execution flow coordination
 - `src/core/translate`: Korean-to-English translation pipeline
-- `src/core/prompt`: prompt compression
+- `src/core/prompt`: prompt normalization and reusable Kompress helpers
 - `src/core/guardrails`: translated output validation and repair
 - `src/core/llm-client`: communication with the local llama.cpp server
 - `src/integrations/adapters/*`: target CLI integrations such as Codex and Gemini

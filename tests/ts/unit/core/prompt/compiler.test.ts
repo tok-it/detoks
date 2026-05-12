@@ -32,23 +32,25 @@ describe("compilePrompt", () => {
     expect(compiled.language).toBe("en");
   });
 
-  it("영문 입력은 보수적으로 압축하되 핵심 토큰을 보존한다", async () => {
+  it("영문 입력은 Role 1에서 압축하지 않고 normalized input을 보존한다", async () => {
+    const compressionImplementation = vi.fn(async (text: string) => ({
+      compressed: text.replace(/^Can you please /i, ""),
+      compression_ratio: 0.56,
+      tokens_saved: 4,
+    }));
     const compiled = await compilePrompt({
       raw_input:
         "Can you please update src/api/user.ts and run npm test -- --runInBand 2 times?",
     }, {
-      compressionImplementation: vi.fn(async (text: string) => ({
-        compressed: text.replace(/^Can you please /i, ""),
-        compression_ratio: 0.56,
-        tokens_saved: 4,
-      })),
+      compressionImplementation,
     });
 
     expect(compiled.language).toBe("en");
     expect(compiled.compressed_prompt).toBe(
-      "Update src/api/user.ts and run npm test -- --runInBand 2 times?",
+      "Can you please update src/api/user.ts and run npm test -- --runInBand 2 times?",
     );
-    expect(compiled.repair_actions ?? []).toContain("compressed_with_kompress");
+    expect(compiled.repair_actions ?? []).not.toContain("compressed_with_kompress");
+    expect(compressionImplementation).not.toHaveBeenCalled();
   });
 
   it("Role 2.1 handoff uses normalized input before compression", async () => {
@@ -64,7 +66,7 @@ describe("compilePrompt", () => {
     const handoff = createRole2PromptInput(compiled);
 
     expect(compiled.normalized_input).toBe("Please create a new file and test it");
-    expect(compiled.compressed_prompt).toBe("Create a new file and test it");
+    expect(compiled.compressed_prompt).toBe("Please create a new file and test it");
     expect(handoff.compiled_prompt).toBe("Please create a new file and test it");
   });
 

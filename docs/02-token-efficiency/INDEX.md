@@ -34,7 +34,7 @@
 | 개념 | 설명 | 파일 |
 |------|------|------|
 | **토큰 메트릭** | 입력/출력 원본 vs 최적화 비교 | TOKEN_EFFICIENCY_ARCHITECTURE.md |
-| **입력 최적화** | 정규화 + 번역 + 압축 | TOKEN_EFFICIENCY_ARCHITECTURE.md |
+| **입력 최적화** | 정규화 + 번역 | TOKEN_EFFICIENCY_ARCHITECTURE.md |
 | **컨텍스트 압축** | 토큰 임계값 기반 자동 축소 | TOKEN_EFFICIENCY_ARCHITECTURE.md |
 | **동적 임계값** | LLM별 실제 윈도우 기반 계산 | LLM_CONTEXT_WINDOW_COMPRESSION.md |
 | **인코더 통합** | o200k_base, cl100k_base, gpt2 등 | LLM_CONTEXT_WINDOW_COMPRESSION.md |

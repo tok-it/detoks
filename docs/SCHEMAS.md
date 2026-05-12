@@ -49,7 +49,7 @@ type CompiledPrompt = {
 ```
 
 **책임:** Role 1 (AI Prompt Engineer)  
-**설명:** 자연어를 정규화하고 Kompress 기반으로 압축한 결과. 공식 Role 2.1 handoff는 `compressed_prompt`만 사용하고, 나머지 필드는 Role 1 내부 검증/디버그 metadata다.
+**설명:** 자연어를 번역/정규화한 결과. `compressed_prompt`는 v1 호환 필드이며 Role 1 단계에서는 `normalized_input`과 같은 값을 가진다. Kompress 압축은 Role 2.2가 task 실행에 필요한 context를 만들 때 선택된 context summary에만 적용한다.
 
 ---
 
@@ -62,7 +62,7 @@ type Role2PromptInput = {
 ```
 
 **책임:** Role 1 (AI Prompt Engineer)  
-**설명:** Role 1이 Role 2.1로 넘기는 handoff schema. 값은 `CompiledPrompt.compressed_prompt`와 동일한 압축 영문 프롬프트 전문이다. task 분해 / id / depends_on 생성은 Role 2.1 담당.
+**설명:** Role 1이 Role 2.1로 넘기는 handoff schema. 값은 `CompiledPrompt.normalized_input`과 동일한 번역/정규화 텍스트다. task type 분류는 action signal이 살아 있는 압축 전 텍스트를 기준으로 하며, task 분해 / id / depends_on 생성은 Role 2.1 담당.
 
 ---
 

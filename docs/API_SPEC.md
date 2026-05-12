@@ -175,8 +175,7 @@ type CliOutput = {
 
 ## 2. Prompt Compiler API
 
-The Prompt Compiler compresses Korean user input into concise English prompts while preserving intent. It is implemented as TypeScript core logic under `src/core/prompt` and `src/core/translate`.
-The Prompt Compiler compresses Korean user input into concise English prompts while preserving intent. It is implemented as TypeScript core logic under `src/core/prompt` and `src/core/translate`.
+The Prompt Compiler translates and normalizes Korean user input into English while preserving intent. It is implemented as TypeScript core logic under `src/core/prompt` and `src/core/translate`.
 
 ### Request
 
@@ -232,37 +231,39 @@ type PromptCompileResponse = {
 
 - input text may be Korean, English, or mixed
 - output must remain semantically aligned with the original request
-- output must be shorter and cleaner than the source input when possible
+- output should be normalized and cleaned, but Role 1 must not weaken action signals through compression
 - `max_translation_attempts` defaults to `5` and counts the primary request plus fallback requests
 - `validation_errors`, `repair_actions`, `inference_time_sec`, `debug` are Role 1 metadata fields and are not part of the Role 2.1 handoff contract
 - Role 2.1 handoff uses `Role2PromptInput { compiled_prompt: string }`
 - task decomposition, `id`, and `depends_on` generation are not part of this API
 
-<!-- 한국어 설명: Prompt Compiler는 한국어 중심 입력을 더 짧고 명확한 영어 프롬프트로 바꾸되, 원래 의도와 제약 조건을 유지해야 합니다. -->
+<!-- 한국어 설명: Prompt Compiler는 한국어 중심 입력을 action signal이 보존된 번역/정규화 영어 프롬프트로 바꾸되, Role 1 단계에서 압축으로 의도와 제약 조건을 약화시키지 않습니다. -->
 
-### Prompt Compression Strategy
+### Context Compression Strategy
 
-v1 prompt compression uses `Kompress` (`chopratejas/kompress-base`) on translated English natural-language spans while preserving protected code-like units through masking. It does not use LLM-based prompt engineering or the old rule-based path as the primary compressor.
+v1 compression uses `Kompress` (`chopratejas/kompress-base`) only after Role 2.1 has built the TaskGraph. Role 2.2 applies compression to the selected execution context summary for the active task, while preserving protected code-like units through masking. It does not use LLM-based prompt engineering or the old rule-based path as the primary compressor.
 
 Flow:
 
 1. mask protected segments
 2. translate Korean input to English
 3. validate and repair translated output
-4. preserve code, paths, commands, JSON keys, API names, model names, and Markdown units through masking
-5. run Kompress on the remaining natural-language body only
-6. validate placeholder order and action-signal preservation
-7. if compression is unsafe, use `normalized_input` as `compressed_prompt`
+4. pass `CompiledPrompt.normalized_input` as `Role2PromptInput.compiled_prompt`
+5. build TaskGraph from the normalized input
+6. select only the context required by the active task
+7. run Kompress on the selected context summary only
+8. validate placeholder order and action-signal preservation
+9. if compression is unsafe, use the uncompressed context summary
 
 Compression rules:
 
 - code blocks, inline code, shell commands, paths, URLs, JSON keys, API names, and model names must not be compressed
 - Markdown headings, bullets, and numbered lists should be preserved as much as possible
 - filenames, paths, commands, options, numeric constraints, error messages, forbidden conditions, completion criteria, and test requirements must be preserved
-- if compression loses placeholders, action signals, or becomes too aggressive, the pipeline must use `normalized_input` directly without retrying Kompress
+- if compression loses placeholders, action signals, or becomes too aggressive, the pipeline must use the uncompressed selected context directly without retrying Kompress
 - `llm` and `small_model` providers are extension points only and must not be used by v1 compression
 
-<!-- 한국어 설명: v1 압축은 번역 검증/보정이 끝난 영어 텍스트를 대상으로 하며, 자연어 body에만 Kompress를 적용합니다. Kompress 결과가 안전하지 않으면 재생성하지 않고 `normalized_input`을 그대로 사용합니다. -->
+<!-- 한국어 설명: v1 압축은 TaskGraph 생성 이후 Role 2.2가 선택한 실행 context summary에만 Kompress를 적용합니다. Kompress 결과가 안전하지 않으면 재생성하지 않고 선택된 원본 context summary를 그대로 사용합니다. -->
 
 ### Role 1 Batch Result Artifact
 

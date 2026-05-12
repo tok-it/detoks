@@ -150,7 +150,7 @@ type TaskGraph = {
 
 **입력:** `Role2PromptInput`
 
-**의미:** 압축된 영문 프롬프트 전문을 바탕으로 실행 가능한 그래프로 변환
+**의미:** 번역/정규화된 `Role2PromptInput.compiled_prompt`를 바탕으로 실행 가능한 그래프로 변환
 
 ---
 

@@ -60,7 +60,7 @@ Raw user input entering the system.
 ### 2. CompiledPrompt
 
 
-Translated and normalized prompt output from the Prompt Compiler. Contains both `normalized_input` (pre-compression) and `compressed_prompt` (post-compression).
+Translated and normalized prompt output from the Prompt Compiler. `compressed_prompt` is retained as a v1 compatibility field and is equal to `normalized_input`; compression is applied later to selected execution context.
 
 ### 3. Role2PromptInput
 

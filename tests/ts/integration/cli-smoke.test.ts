@@ -747,8 +747,8 @@ describe("detoks CLI smoke", () => {
       });
       expect(verboseJson.run_metadata.input_count).toBe(2);
       expect(verboseJson.results).toHaveLength(2);
-      expect(verboseJson.results[0].compiled_prompt).toBe("Create a new file");
-      expect(verboseJson.results[1].compiled_prompt).toBe("Run npm test");
+      expect(verboseJson.results[0].compiled_prompt).toBe("Please create a new file");
+      expect(verboseJson.results[1].compiled_prompt).toBe("Please run npm test");
     } finally {
       rmSync(tempDir, { force: true, recursive: true });
     }
