@@ -4,6 +4,7 @@ export interface TranslationGuardrailsRequest {
   source_text: string;
   compressed_prompt: string;
   placeholders?: string[];
+  strict_placeholder_order?: boolean;
   protected_terms?: string[];
   required_terms?: string[];
   required_literals?: string[];
@@ -18,7 +19,35 @@ export interface TranslationGuardrailsResponse {
 }
 
 function collectPlaceholders(text: string): string[] {
-  return [...text.matchAll(/__PH_\d{4}__/g)].map((match) => match[0]);
+  return [...text.matchAll(/__PH(?:C)?_\d{4}__/g)].map((match) => match[0]);
+}
+
+function hasSamePlaceholderMultiset(
+  expected: readonly string[],
+  actual: readonly string[],
+): boolean {
+  if (expected.length !== actual.length) {
+    return false;
+  }
+
+  const expectedCounts = new Map<string, number>();
+  const actualCounts = new Map<string, number>();
+
+  for (const placeholder of expected) {
+    expectedCounts.set(placeholder, (expectedCounts.get(placeholder) ?? 0) + 1);
+  }
+
+  for (const placeholder of actual) {
+    actualCounts.set(placeholder, (actualCounts.get(placeholder) ?? 0) + 1);
+  }
+
+  if (expectedCounts.size !== actualCounts.size) {
+    return false;
+  }
+
+  return [...expectedCounts.entries()].every(([placeholder, count]) => {
+    return actualCounts.get(placeholder) === count;
+  });
 }
 
 function hasKorean(text: string): boolean {
@@ -38,6 +67,7 @@ function validatePlaceholderSequence(
   sourceText: string,
   outputText: string,
   explicitPlaceholders: readonly string[] = [],
+  strictOrder = false,
 ): string[] {
   const expected = explicitPlaceholders.length > 0
     ? [...explicitPlaceholders]
@@ -49,8 +79,14 @@ function validatePlaceholderSequence(
     errors.push("placeholder_count_mismatch");
   }
 
+  if (expected.length === actual.length && !hasSamePlaceholderMultiset(expected, actual)) {
+    errors.push("placeholder_token_mismatch");
+  }
+
   if (
+    strictOrder &&
     expected.length === actual.length &&
+    hasSamePlaceholderMultiset(expected, actual) &&
     expected.some((placeholder, index) => placeholder !== actual[index])
   ) {
     errors.push("placeholder_order_mismatch");
@@ -177,6 +213,7 @@ export function validate_translation(
       request.source_text,
       request.compressed_prompt,
       request.placeholders,
+      request.strict_placeholder_order,
     ),
     ...validateForbiddenPatterns(
       request.compressed_prompt,

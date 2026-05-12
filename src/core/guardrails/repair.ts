@@ -7,7 +7,7 @@ export interface RepairTranslationResult {
 }
 
 function collectPlaceholders(text: string): string[] {
-  return [...text.matchAll(/__PH_\d{4}__/g)].map((match) => match[0]);
+  return [...text.matchAll(/__PH(?:C)?_\d{4}__/g)].map((match) => match[0]);
 }
 
 function restorePlaceholderForms(
@@ -25,14 +25,15 @@ function restorePlaceholderForms(
   const repairActions: string[] = [];
 
   for (const placeholder of explicitPlaceholders) {
-    const match = placeholder.match(/^__PH_(\d{4})__$/);
+    const match = placeholder.match(/^__PH(C?)_(\d{4})__$/);
     if (!match) {
       continue;
     }
 
-    const id = match[1];
+    const variant = match[1];
+    const id = match[2];
     const variantPattern = new RegExp(
-      String.raw`(?<![A-Za-z0-9])_*(?:PH[_]?${id})_*(?![A-Za-z0-9])`,
+      String.raw`(?<![A-Za-z0-9])_*(?:PH${variant}[_]?${id})_*(?![A-Za-z0-9])`,
       "g",
     );
 
@@ -53,7 +54,15 @@ function normalizePlaceholderOrder(
   sourceText: string,
   outputText: string,
   explicitPlaceholders: readonly string[] = [],
+  strictOrder = false,
 ): RepairTranslationResult {
+  if (!strictOrder) {
+    return {
+      output: outputText,
+      repair_actions: [],
+    };
+  }
+
   const expected = explicitPlaceholders.length > 0
     ? [...explicitPlaceholders]
     : collectPlaceholders(sourceText);
@@ -133,6 +142,7 @@ export function repair_translation(
     request.source_text,
     output,
     request.placeholders,
+    request.strict_placeholder_order,
   );
   output = ordered.output;
   repairActions.push(...ordered.repair_actions);

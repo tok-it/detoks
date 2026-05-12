@@ -7,6 +7,7 @@ describe("repair_translation", () => {
       source_text: "__PH_0001__ 파일을 __PH_0002__에 생성해",
       compressed_prompt: "Create __PH_0002__ file in __PH_0001__",
       placeholders: ["__PH_0001__", "__PH_0002__"],
+      strict_placeholder_order: true,
     });
 
     expect(result.output).toBe("Create __PH_0001__ file in __PH_0002__");

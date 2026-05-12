@@ -127,6 +127,35 @@ describe("loadRole1RuntimeConfig", () => {
 		expect(config.localLlmServerBinary).toBe("llama-server");
 	});
 
+	it("LOCAL_LLM_MODEL_PATH가 있으면 node-llama-cpp를 기본 provider로 쓴다", () => {
+		const cwd = createTempDir();
+		writeFileSync(
+			join(cwd, ".env"),
+			[
+				"LOCAL_LLM_MODEL_PATH=/tmp/detoks-models/model.gguf",
+			].join("\n"),
+			"utf8",
+		);
+
+		const config = loadRole1RuntimeConfig({ cwd, env: {} });
+
+		expect(config.localLlmModelPath).toBe("/tmp/detoks-models/model.gguf");
+		expect(config.localLlmRuntimeProvider).toBe("node-llama-cpp");
+	});
+
+	it("LOCAL_LLM_SERVER_BINARY=node-llama-cpp는 llama-server 기본값으로 정규화한다", () => {
+		const cwd = createTempDir();
+		writeFileSync(
+			join(cwd, ".env"),
+			"LOCAL_LLM_SERVER_BINARY=node-llama-cpp",
+			"utf8",
+		);
+
+		const config = loadRole1RuntimeConfig({ cwd, env: {} });
+
+		expect(config.localLlmServerBinary).toBe("llama-server");
+	});
+
 	it("local API base가 기본값일 때 server port를 따라 동적으로 갱신한다", () => {
 		const cwd = createTempDir();
 		writeFileSync(
