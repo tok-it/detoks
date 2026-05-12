@@ -5,8 +5,8 @@
 
 - Prompt compiler
 - Korean-to-English translation
-- Compressed English prompt handoff
-<!-- 한국어 설명: AI Prompt Engineer는 프롬프트를 정제하고 한국어 입력을 영어로 변환한 뒤 압축된 영문 프롬프트 전문을 Role 2.1에 전달합니다. Task 분해, task type 지정, id 생성, depends_on 생성은 Role 2.1이 담당합니다. -->
+- Normalized English prompt handoff
+<!-- 한국어 설명: AI Prompt Engineer는 프롬프트를 정제하고 한국어 입력을 영어로 변환한 뒤 정규화된 영문 프롬프트 전문을 Role 2.1에 전달합니다. Task 분해, task type 지정, id 생성, depends_on 생성은 Role 2.1이 담당합니다. -->
 
 ---
 
