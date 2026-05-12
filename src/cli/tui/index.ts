@@ -387,11 +387,21 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
     };
 
     // Phase 3.2: Create onProgress callback
+    let lastProgressRenderAt = 0;
+    const PROGRESS_RENDER_INTERVAL_MS = 200;
     const onProgress = (event: PipelineProgressEvent): void => {
       pipelinePanel.update(event);
-      if (!nativePassthroughMode || !isExecuting) {
-        render();
+      if (nativePassthroughMode && isExecuting) {
+        return;
       }
+      if (embeddedPaneMode && isExecuting) {
+        const now = Date.now();
+        if (now - lastProgressRenderAt < PROGRESS_RENDER_INTERVAL_MS) {
+          return;
+        }
+        lastProgressRenderAt = now;
+      }
+      render();
     };
 
     // Phase 3.1: Handle user input
@@ -448,8 +458,10 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
                 getSlashAutocompleteCommands(currentAdapter, slashAutocompleteQuery).length,
               );
               renderInteractiveInput();
+            } else if (embeddedPaneMode) {
+              embeddedTerminalPane.scrollUp();
+              needsFullRender = true;
             } else {
-              // Arrow Up
               transcriptPanel.scrollUp();
               needsFullRender = true;
             }
@@ -464,8 +476,10 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
                 getSlashAutocompleteCommands(currentAdapter, slashAutocompleteQuery).length,
               );
               renderInteractiveInput();
+            } else if (embeddedPaneMode) {
+              embeddedTerminalPane.scrollDown();
+              needsFullRender = true;
             } else {
-              // Arrow Down
               transcriptPanel.scrollDown();
               needsFullRender = true;
             }

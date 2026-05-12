@@ -28,9 +28,24 @@ const truncateToWidth = (line: string, maxWidth: number): string => {
 
 export class EmbeddedTerminalPane {
   private readonly buffer = new TerminalEmulatorBuffer(80, 24);
+  private scrollOffset = 0;
 
   clear(): void {
     this.buffer.reset();
+    this.scrollOffset = 0;
+  }
+
+  scrollUp(): void {
+    const rows = [...this.buffer.getScrollbackRows(), ...this.buffer.getVisibleRows()];
+    this.scrollOffset = Math.min(this.scrollOffset + 1, Math.max(0, rows.length - 1));
+  }
+
+  scrollDown(): void {
+    this.scrollOffset = Math.max(this.scrollOffset - 1, 0);
+  }
+
+  scrollToBottom(): void {
+    this.scrollOffset = 0;
   }
 
   addEvent(event: PtyEvent): void {
@@ -46,6 +61,7 @@ export class EmbeddedTerminalPane {
     }
 
     this.buffer.write(event.data);
+    this.scrollOffset = 0;
   }
 
   appendFinalAnswer(text: string): void {
@@ -54,6 +70,7 @@ export class EmbeddedTerminalPane {
     }
 
     this.buffer.write(text.endsWith("\n") ? text : `${text}\n`);
+    this.scrollOffset = 0;
   }
 
   hasVisibleContent(): boolean {
@@ -79,8 +96,9 @@ export class EmbeddedTerminalPane {
               break;
             }
           }
-          const startIndex = Math.max(0, lastContentIndex - usableHeight + 1);
-          return rows.slice(startIndex, startIndex + usableHeight);
+          const endIndex = lastContentIndex + 1 - this.scrollOffset;
+          const startIndex = Math.max(0, endIndex - usableHeight);
+          return rows.slice(startIndex, Math.max(0, endIndex));
         })()
       : EMPTY_PANE_LINES.slice();
 
