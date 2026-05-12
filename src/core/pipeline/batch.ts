@@ -68,7 +68,7 @@ export async function runBatchPromptPipeline(
         index,
         raw_input,
         normalized_input: compiled.normalized_input,
-        compiled_prompt: compiled.compressed_prompt,
+        compiled_prompt: compiled.normalized_input,
         role2_handoff: handoff.compiled_prompt,
         language: compiled.language,
         inference_time_sec: compiled.inference_time_sec ?? 0,

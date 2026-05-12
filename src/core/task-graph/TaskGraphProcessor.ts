@@ -9,7 +9,7 @@ import type { Task, TaskGraph, RequestCategory } from "../../schemas/pipeline.js
  * Role 2.1 내부 sentence split 결과를 받아 실행 가능한 TaskGraph로 변환합니다.
  *
  * ─── 역할 분담 ──────────────────────────────────────────────────
- * Role 1 담당 : 한국어 → 영어 변환, compressed_prompt 생성
+ * Role 1 담당 : 한국어 → 영어 변환, normalized_input 생성
  * Role 2.1 내부 보조 : compiled_prompt 문자열을 sentence 단위로 분리
  * Role 2.1 담당 (이 클래스):
  *   1. single(문장 1개) / multi(문장 여러 개) 요청 구분
