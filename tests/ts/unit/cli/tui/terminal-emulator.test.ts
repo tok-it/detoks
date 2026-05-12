@@ -142,8 +142,16 @@ describe("TerminalEmulatorBuffer", () => {
     buffer.write("a\u0301🚀b");
 
     const snapshot = buffer.snapshot();
-    expect(snapshot.visibleRows[0]?.trim()).toBe("á🚀 b");
+    expect(snapshot.visibleRows[0]?.trim()).toBe("á🚀b");
     expect(snapshot.cursorColumn).toBe(4);
+  });
+
+  it("keeps wide characters contiguous in row text", () => {
+    const buffer = new TerminalEmulatorBuffer(8, 3);
+    buffer.write("한글");
+
+    const snapshot = buffer.snapshot();
+    expect(snapshot.visibleRows[0]?.slice(0, 2)).toBe("한글");
   });
 
   it("keeps mixed-width wrapping stable across line boundaries", () => {

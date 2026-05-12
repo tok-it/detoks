@@ -16,6 +16,7 @@ export interface TerminalCellStyle {
 export interface TerminalCell {
   char: string;
   style: TerminalCellStyle;
+  wideContinuation?: boolean;
 }
 
 export interface TerminalEmulatorSnapshot {
@@ -56,23 +57,52 @@ const createBlankCell = (): TerminalCell => {
   return { char: "", style: cloneStyle(DEFAULT_STYLE) };
 };
 
+const cloneCell = (cell: TerminalCell): TerminalCell => {
+  return {
+    char: cell.char,
+    style: cloneStyle(cell.style),
+    ...(cell.wideContinuation ? { wideContinuation: true } : {}),
+  };
+};
+
 const createBlankRow = (columns: number): TerminalCell[] => {
   return Array.from({ length: Math.max(0, columns) }, createBlankCell);
 };
 
 const cloneRow = (row: TerminalCell[], columns: number): TerminalCell[] => {
-  const nextRow = row.slice(0, columns).map((cell) => ({
-    char: cell.char,
-    style: cloneStyle(cell.style),
-  }));
+  const nextRow = row.slice(0, columns).map((cell) => cloneCell(cell));
   while (nextRow.length < columns) {
     nextRow.push(createBlankCell());
   }
   return nextRow;
 };
 
+export const getCharacterDisplayWidth = (char: string): number => {
+  const code = char.codePointAt(0) ?? 0;
+  if (code === 0) {
+    return 0;
+  }
+
+  if (code < 32 || (code >= 0x7f && code < 0xa0)) {
+    return 0;
+  }
+
+  if (isCombiningCharacter(char)) {
+    return 0;
+  }
+
+  return isWideCharacter(char) ? 2 : 1;
+};
+
 const rowToText = (row: TerminalCell[]): string => {
-  return row.map((cell) => cell.char || " ").join("");
+  let output = "";
+  for (const cell of row) {
+    if (cell.wideContinuation) {
+      continue;
+    }
+    output += cell.char || " ";
+  }
+  return output;
 };
 
 const splitCsi = (sequence: string): { params: string; command: string } | null => {
@@ -98,23 +128,6 @@ const colorFromRgb = (red: number, green: number, blue: number): TerminalColor =
 
 const isCombiningCharacter = (char: string): boolean => {
   return /\p{Mark}/u.test(char) || char === "\u200d" || char === "\u200c" || char === "\ufe0e" || char === "\ufe0f";
-};
-
-const getCharacterDisplayWidth = (char: string): number => {
-  const code = char.codePointAt(0) ?? 0;
-  if (code === 0) {
-    return 0;
-  }
-
-  if (code < 32 || (code >= 0x7f && code < 0xa0)) {
-    return 0;
-  }
-
-  if (isCombiningCharacter(char)) {
-    return 0;
-  }
-
-  return isWideCharacter(char) ? 2 : 1;
 };
 
 const applySgrParameters = (style: TerminalCellStyle, params: number[]): TerminalCellStyle => {
@@ -381,13 +394,11 @@ export class TerminalEmulatorBuffer {
 
     const count = Math.min(amount, this.columns - this.cursorColumn);
     const prefix = row.slice(0, this.cursorColumn).map((cell) => ({
-      char: cell.char,
-      style: cloneStyle(cell.style),
+      ...cloneCell(cell),
     }));
     const blanks = Array.from({ length: count }, () => createBlankCell());
     const suffix = row.slice(this.cursorColumn, Math.max(this.cursorColumn, this.columns - count)).map((cell) => ({
-      char: cell.char,
-      style: cloneStyle(cell.style),
+      ...cloneCell(cell),
     }));
     const nextRow = [...prefix, ...blanks, ...suffix].slice(0, this.columns);
 
@@ -413,12 +424,10 @@ export class TerminalEmulatorBuffer {
 
     const count = Math.min(amount, this.columns - this.cursorColumn);
     const prefix = row.slice(0, this.cursorColumn).map((cell) => ({
-      char: cell.char,
-      style: cloneStyle(cell.style),
+      ...cloneCell(cell),
     }));
     const suffix = row.slice(this.cursorColumn + count).map((cell) => ({
-      char: cell.char,
-      style: cloneStyle(cell.style),
+      ...cloneCell(cell),
     }));
     const nextRow = [...prefix, ...suffix];
 
@@ -653,7 +662,11 @@ export class TerminalEmulatorBuffer {
       style: cloneStyle(this.currentStyle),
     };
     if (width === 2 && this.cursorColumn + 1 < this.columns) {
-      row[this.cursorColumn + 1] = createBlankCell();
+      row[this.cursorColumn + 1] = {
+        char: "",
+        style: cloneStyle(DEFAULT_STYLE),
+        wideContinuation: true,
+      };
     }
 
     this.cursorColumn += width;
@@ -1032,19 +1045,13 @@ export class TerminalEmulatorBuffer {
 
   getVisibleCells(): TerminalCell[][] {
     return this.getActiveScreen().map((row) =>
-      row.map((cell) => ({
-        char: cell.char,
-        style: cloneStyle(cell.style),
-      })),
+      row.map((cell) => cloneCell(cell)),
     );
   }
 
   getScrollbackCells(): TerminalCell[][] {
     return this.scrollbackRows.map((row) =>
-      row.map((cell) => ({
-        char: cell.char,
-        style: cloneStyle(cell.style),
-      })),
+      row.map((cell) => cloneCell(cell)),
     );
   }
 

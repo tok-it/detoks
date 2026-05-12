@@ -43,6 +43,21 @@ describe("EmbeddedTerminalPane", () => {
     expect(output).toContain("world");
   });
 
+  it("renders Korean wide characters without placeholder spacing", () => {
+    pane.addEvent({
+      type: "chunk",
+      timestamp: Date.now(),
+      stream: "stdout",
+      data: "한글",
+    });
+
+    pane.render(mockContext, mockRegion);
+
+    const output = mockScreen.write.mock.calls.map((call: any) => call[0]).join("\n");
+    expect(output).toContain("한글");
+    expect(output).not.toContain("한 글");
+  });
+
   it("preserves ANSI style information in raw chunks passed to the buffer", () => {
     const ansiChunk = "\x1b[32mhello\x1b[0m world";
     pane.addEvent({ type: "chunk", timestamp: Date.now(), stream: "stdout", data: ansiChunk });

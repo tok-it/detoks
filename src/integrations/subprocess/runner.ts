@@ -411,6 +411,12 @@ const runWithNodePty = (
     if (request.input !== undefined) {
       emitEvent({ type: "prompt", data: request.input });
       ptyProcess.write(request.input);
+      // One-shot PTY prompts need an explicit submit/EOF signal so terminal
+      // applications that read stdin can finish instead of waiting forever.
+      if (!request.input.endsWith("\r") && !request.input.endsWith("\n")) {
+        ptyProcess.write("\r");
+      }
+      ptyProcess.write("\x04");
     }
   });
 };

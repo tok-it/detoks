@@ -73,6 +73,46 @@ describe("createRealSubprocessRunner", () => {
     expect(result.transcript.events.filter((event) => event.type === "chunk").length).toBeGreaterThanOrEqual(2);
   });
 
+  it(
+    "submits one-shot PTY input so stdin-only commands can finish",
+    async () => {
+      const dir = tempDirs.at(-1)!;
+      const codexScript = join(dir, "codex");
+      writeFileSync(
+        codexScript,
+        [
+          "#!/usr/bin/env node",
+          'let input = "";',
+          'process.stdin.setEncoding("utf8");',
+          'process.stdin.on("data", (chunk) => { input += chunk; });',
+          'process.stdin.on("end", () => {',
+          "  process.stdout.write(input);",
+          "  process.exit(0);",
+          "});",
+          "process.stdin.resume();",
+        ].join("\n"),
+        "utf8",
+      );
+      chmodSync(codexScript, 0o755);
+
+      const runner = createPtySubprocessRunner();
+      const result = await runner.runWithTranscript({
+        command: "codex",
+        args: ["exec", "-", "--sandbox", "workspace-write"],
+        input: "hello\nworld",
+        env: {
+          ...process.env,
+          PATH: `${dir}:${process.env.PATH ?? ""}`,
+        },
+      });
+
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain("hello");
+      expect(result.stdout).toContain("world");
+    },
+    10_000,
+  );
+
   it("streams Codex JSON output without waiting for a PTY wrapper", async () => {
     const dir = tempDirs.at(-1)!;
     const codexScript = join(dir, "codex");
