@@ -356,6 +356,81 @@ export class SessionStateManager {
     }
   }
 
+  static async findSuccessfulSessionByInputHash(
+    hash: string,
+    opts: { project_id?: string; recencyDays?: number } = {},
+  ): Promise<SessionState | null> {
+    const { project_id, recencyDays = 7 } = opts;
+    const cutoff = Date.now() - recencyDays * 24 * 60 * 60 * 1000;
+
+    let files: string[];
+    try {
+      files = await fs.readdir(SESSIONS_DIR);
+    } catch {
+      return null;
+    }
+
+    for (const file of files) {
+      if (!file.endsWith(".json")) continue;
+      try {
+        const data = await fs.readFile(join(SESSIONS_DIR, file), "utf-8");
+        const state = SessionStateSchema.parse(JSON.parse(data));
+
+        if (state.shared_context.raw_input_hash !== hash) continue;
+        if (project_id && state.shared_context.project_id !== project_id) continue;
+        if (state.updated_at && new Date(state.updated_at).getTime() < cutoff) continue;
+        if (state.completed_task_ids.length === 0) continue;
+
+        const failedIds = (state.shared_context.failed_task_ids as string[] | undefined) ?? [];
+        if (failedIds.length > 0) continue;
+
+        return state;
+      } catch {
+        continue;
+      }
+    }
+    return null;
+  }
+
+  static async findSuccessfulTaskByHash(
+    taskHash: string,
+    opts: { project_id?: string; recencyDays?: number } = {},
+  ): Promise<{ taskResult: Record<string, unknown>; sessionId: string } | null> {
+    const { project_id, recencyDays = 7 } = opts;
+    const cutoff = Date.now() - recencyDays * 24 * 60 * 60 * 1000;
+
+    let files: string[];
+    try {
+      files = await fs.readdir(SESSIONS_DIR);
+    } catch {
+      return null;
+    }
+
+    for (const file of files) {
+      if (!file.endsWith(".json")) continue;
+      try {
+        const data = await fs.readFile(join(SESSIONS_DIR, file), "utf-8");
+        const state = SessionStateSchema.parse(JSON.parse(data));
+
+        if (project_id && state.shared_context.project_id !== project_id) continue;
+        if (state.updated_at && new Date(state.updated_at).getTime() < cutoff) continue;
+
+        for (const taskResult of Object.values(state.task_results)) {
+          const res = taskResult as Record<string, unknown>;
+          if (res.input_hash !== taskHash) continue;
+          if (res.success !== true) continue;
+          if (typeof res.completed_at === "string") {
+            if (new Date(res.completed_at).getTime() < cutoff) continue;
+          }
+          return { taskResult: res, sessionId: file.slice(0, -".json".length) };
+        }
+      } catch {
+        continue;
+      }
+    }
+    return null;
+  }
+
   static async deleteSession(sessionId: string): Promise<void> {
     try {
       const filePath = join(SESSIONS_DIR, `${sessionId}.json`);
