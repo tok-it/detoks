@@ -24,9 +24,8 @@
     "node": ">=24.15.0 <26"
   },
   "scripts": {
-    "add:py": "node scripts/add-py-dep.mjs",
-    "add:py:dev": "node scripts/add-py-dev-dep.mjs",
-    "build": "tsc -p tsconfig.json",
+    "build": "npx --no-install tsc -p tsconfig.json",
+    "postinstall": "node scripts/fix-node-pty-perms.cjs",
     "prepare": "npm run build",
     "prepack": "npm run build",
     "cli": "tsx src/cli/index.ts",
@@ -38,16 +37,19 @@
     "test:slide20:all": "npm run test:slide20 && npm run test:slide20:report",
     "verify:role1": "tsx scripts/verify-role1.ts",
     "verify:role1:rows": "tsx scripts/verify-role1.ts --file tests/data/row_data.json",
-    "benchmark": "tsx scripts/benchmark-pipeline.ts"
+    "benchmark": "tsx scripts/benchmark-pipeline.ts",
+    "benchmark:llm": "tsx scripts/benchmark-llm-runtime.ts"
   },
   "dependencies": {
     "chalk": "^5.6.2",
     "node-llama-cpp": "^3.18.1",
+    "node-pty": "^1.1.0",
     "tiktoken": "^1.0.22",
     "zod": "4.3.6"
   },
   "devDependencies": {
     "@types/node": "24.3.1",
+    "node-llama-cpp": "^3.18.1",
     "tsx": "4.20.5",
     "typescript": "5.8.3",
     "vitest": "3.2.4"

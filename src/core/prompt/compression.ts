@@ -36,7 +36,7 @@ export interface CompressPromptOptions {
   policies: Role1Policies;
   config: Pick<
     Role1RuntimeConfig,
-    "kompressPythonBin" | "kompressModelId" | "kompressStartupTimeout" | "requestTimeout"
+    "kompressModelId" | "requestTimeout"
   >;
   localLlmModelName?: string;
   cwd?: string;
@@ -144,17 +144,11 @@ async function compressNaturalLanguageSegment(
   const result = await compressText(source, {
     ...(options.cwd ? { cwd: options.cwd } : {}),
     ...(options.env ? { env: options.env } : {}),
-    ...(options.config.kompressPythonBin
-      ? { pythonBin: options.config.kompressPythonBin }
-      : {}),
     ...(options.config.kompressModelId
       ? { modelId: options.config.kompressModelId }
       : {}),
     ...(options.config.requestTimeout
       ? { requestTimeoutMs: options.config.requestTimeout }
-      : {}),
-    ...(options.config.kompressStartupTimeout
-      ? { startupTimeoutMs: options.config.kompressStartupTimeout }
       : {}),
   });
 

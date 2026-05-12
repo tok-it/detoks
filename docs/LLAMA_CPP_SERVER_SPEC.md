@@ -2,7 +2,7 @@
 
 This document defines the current detoks runtime contract for the prebuilt `llama-server` binary.
 
-<!-- 한국어 설명: 이 문서는 detoks가 사용하는 prebuilt `llama-server` 바이너리의 현재 런타임 계약을 정의합니다. Python wrapper가 아니라 실제 TypeScript 런처와 llama.cpp 서버 경계를 기준으로 설명합니다. -->
+<!-- 한국어 설명: 이 문서는 detoks가 사용하는 prebuilt `llama-server` 바이너리의 현재 런타임 계약을 정의합니다. 실제 TypeScript 런처와 llama.cpp 서버 경계를 기준으로 설명합니다. -->
 
 ---
 
@@ -25,9 +25,9 @@ This document defines the current detoks runtime contract for the prebuilt `llam
 - Multi-model routing
 - Batch inference
 - Detoks-owned inbound auth for the local auto-started server
-- Python proxy or mock runtime modes
+- proxy or mock runtime modes
 
-<!-- 한국어 설명: detoks는 현재 스트리밍, 멀티 모델 라우팅, 배치 추론, 로컬 auto-start 서버용 인증 계층, 예전 Python proxy/mock 모드를 계약 범위에 포함하지 않습니다. -->
+<!-- 한국어 설명: detoks는 현재 스트리밍, 멀티 모델 라우팅, 배치 추론, 로컬 auto-start 서버용 인증 계층, 예전 proxy/mock 모드를 계약 범위에 포함하지 않습니다. -->
 
 ---
 
@@ -67,7 +67,7 @@ This document defines the current detoks runtime contract for the prebuilt `llam
 | `LOCAL_LLM_MODEL_URL`          | unset                                                 | Optional download URL when model path is missing                |
 | `REQUEST_TIMEOUT`              | `30000`                                               | Client-side request timeout in milliseconds                     |
 
-<!-- 한국어 설명: 현재 Role 1 로컬 추론 계약은 `LOCAL_LLM_*` 계열 환경변수와 `REQUEST_TIMEOUT`을 기준으로 동작합니다. 예전 Python wrapper 전용 `LLAMA_SERVER_*`, `LLAMA_CPP_API_BASE`, `LLAMA_SERVER_RESPONSE_TEXT` 계약은 포함하지 않습니다. -->
+<!-- 한국어 설명: 현재 Role 1 로컬 추론 계약은 `LOCAL_LLM_*` 계열 환경변수와 `REQUEST_TIMEOUT`을 기준으로 동작합니다. 예전 wrapper 전용 `LLAMA_SERVER_*`, `LLAMA_CPP_API_BASE`, `LLAMA_SERVER_RESPONSE_TEXT` 계약은 포함하지 않습니다. -->
 
 ---
 
@@ -264,7 +264,7 @@ The following are intentionally not specified yet:
 - context window policy beyond `LOCAL_LLM_CONTEXT_SIZE`
 - concurrency limits
 - remote server auth negotiation beyond a forwarded bearer token
-- proxy or mock modes from the removed Python wrapper
+- proxy or mock modes from the removed wrapper
 - automatic GGUF file discovery rules beyond explicit path, URL, or Hugging Face repo
 
 <!-- 한국어 설명: 위 항목들은 아직 팀 차원의 고정 계약이 아니므로, 필요해지면 별도 명세로 추가해야 합니다. -->

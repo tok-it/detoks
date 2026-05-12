@@ -14,13 +14,15 @@ export interface SubprocessResult {
 }
 
 // PTY/Session controller 기반 이벤트 타입
-export type PtyEventType = "chunk" | "prompt" | "reply" | "exit" | "timeout" | "error";
+export type PtyEventType = "chunk" | "prompt" | "reply" | "resize" | "exit" | "timeout" | "error";
 
 export interface PtyEvent {
   type: PtyEventType;
   timestamp: number;
   data?: string; // chunk payload, prompt text, user reply
   stream?: "stdout" | "stderr"; // for chunk events
+  columns?: number;
+  rows?: number;
 }
 
 export interface PtyTranscript {
@@ -35,6 +37,14 @@ export interface PtyTranscript {
 export interface PtyResult extends SubprocessResult {
   transcript: PtyTranscript;
   interactionTurns?: Array<{ prompt: string; reply: string }>;
+}
+
+export interface PtySessionController {
+  write: (data: string) => void;
+  resize: (columns: number, rows: number) => void;
+  close: () => void;
+  kill: (signal?: NodeJS.Signals) => void;
+  result: Promise<PtyResult>;
 }
 
 export interface SubprocessRunner {

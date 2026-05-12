@@ -330,6 +330,34 @@ export const renderInputArea = (ctx: RenderContext, input: string): InputLayout 
   return layout;
 };
 
+export const renderFocusArea = (
+  ctx: RenderContext,
+  message: string,
+): InputLayout => {
+  const { screen, dims } = ctx;
+  const layout = measureInputLayout(dims, "");
+  const displayMessage = message.length > dims.columns
+    ? `${message.slice(0, Math.max(0, dims.columns - 3))}...`
+    : message;
+
+  for (let row = layout.separatorRow; row <= layout.bottomSeparatorRow; row += 1) {
+    screen.cursorMoveTo(row, 0);
+    screen.write(" ".repeat(dims.columns));
+  }
+
+  screen.cursorMoveTo(layout.separatorRow, 0);
+  screen.write(colors.prompt("━".repeat(dims.columns)));
+
+  screen.cursorMoveTo(layout.inputStartRow, 0);
+  screen.write(colors.muted(displayMessage.padEnd(dims.columns)));
+
+  screen.cursorMoveTo(layout.bottomSeparatorRow, 0);
+  screen.write(colors.prompt("━".repeat(dims.columns)));
+
+  screen.cursorMoveTo(layout.inputStartRow, 0);
+  return layout;
+};
+
 export const renderFooter = (ctx: RenderContext, footerText: string): void => {
   const { screen, dims } = ctx;
 

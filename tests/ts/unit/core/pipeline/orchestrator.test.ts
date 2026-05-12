@@ -117,6 +117,7 @@ describe("orchestratePipeline", () => {
       mode: "run",
       adapter: "codex",
       executionMode: "real",
+      presentationMode: "passthrough",
       verbose: false,
       userRequest: {
         raw_input: "hello detoks",
@@ -136,6 +137,7 @@ describe("orchestratePipeline", () => {
         adapter: "codex",
         executionMode: "real",
         model: "claude-sonnet-4-6",
+        presentationMode: "passthrough",
       }),
     );
   });
@@ -201,7 +203,12 @@ describe("orchestratePipeline", () => {
     }
   });
 
-  it("surfaces Role 1 metadata from prompt compilation on success", async () => {
+  it("surfaces Role 1 metadata from prompt normalization on success", async () => {
+    const compressionImplementation = vi.fn(async (text: string) => ({
+      compressed: text.replace(/^Can you please /i, ""),
+      compression_ratio: 0.56,
+      tokens_saved: 4,
+    }));
     const result = await orchestratePipeline({
       mode: "run",
       adapter: "codex",
@@ -211,21 +218,58 @@ describe("orchestratePipeline", () => {
         raw_input:
           "Can you please update src/api/user.ts and run npm test -- --runInBand 2 times?",
       },
-      compressionImplementation: vi.fn(async (text: string) => ({
-        compressed: text.replace(/^Can you please /i, ""),
-        compression_ratio: 0.56,
-        tokens_saved: 4,
-      })),
+      compressionImplementation,
     });
 
     expect(result.ok).toBe(true);
     expect(result.compiledPrompt).toBe(
-      "Update src/api/user.ts and run npm test -- --runInBand 2 times?",
+      "Can you please update src/api/user.ts and run npm test -- --runInBand 2 times?",
     );
     expect(result.promptLanguage).toBe("en");
     expect(result.promptInferenceTimeSec).toBe(0);
     expect(result.promptValidationErrors).toEqual([]);
-    expect(result.promptRepairActions).toContain("compressed_with_kompress");
+    expect(result.promptRepairActions).toEqual([]);
+    expect(compressionImplementation).not.toHaveBeenCalled();
+  });
+
+  it("compresses only the selected execution context before adapter execution", async () => {
+    executeWithAdapterMock
+      .mockResolvedValueOnce({
+        ok: true,
+        adapter: "codex",
+        rawOutput: "[mock] Find auth module in src/auth.ts with detailed notes about imports exports middleware routing and tests",
+        exitCode: 0,
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        adapter: "codex",
+        rawOutput: "[mock] validated",
+        exitCode: 0,
+      });
+    const compressionImplementation = vi.fn(async (text: string) => ({
+      compressed: `${text} compressed Find context src/auth.ts`,
+      compression_ratio: 0.7,
+      tokens_saved: 2,
+    }));
+
+    const result = await orchestratePipeline({
+      mode: "run",
+      adapter: "codex",
+      executionMode: "stub",
+      verbose: false,
+      userRequest: {
+        raw_input: "Find the auth module. Test the auth module.",
+      },
+      compressionImplementation,
+    });
+
+    expect(result.ok).toBe(true);
+    expect(compressionImplementation).toHaveBeenCalled();
+    expect(executeWithAdapterMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        prompt: expect.stringContaining("compressed Find context"),
+      }),
+    );
   });
 
   it("bridges Korean input through the local LLM request contract when runtime overrides are provided", async () => {
@@ -261,6 +305,7 @@ describe("orchestratePipeline", () => {
         LOCAL_LLM_API_BASE: "http://127.0.0.1:1234/v1",
         LOCAL_LLM_API_KEY: "test-key",
         LOCAL_LLM_MODEL_NAME: "local-model",
+        LOCAL_LLM_RUNTIME_PROVIDER: "llama-server",
         TRANSLATION_MAX_ATTEMPTS: "1",
         TEMPERATURE: "0",
       },
@@ -308,8 +353,9 @@ describe("orchestratePipeline", () => {
       promptRepairActions: [],
       compiledPrompt: "Create a new file",
       role2Handoff: "Create a new file",
-      rawOutput:
-        "[stub:codex] [CREATE] Create a new file\n\nContext: No previous task context available.",
+      rawOutput: expect.stringContaining(
+        "[stub:codex] Respond entirely in Korean.\n\n[CREATE] Create a new file",
+      ),
     });
     expect(result.promptInferenceTimeSec).toBeGreaterThanOrEqual(0);
   });

@@ -174,25 +174,18 @@ export async function compilePrompt(
     ? null 
     : await translate_to_english(normalizedInput, { config, policies, ... });
 
-  // 4. 프롬프트 압축
+  // 4. Role 2.1 handoff용 normalized_input 확정
   const translatedOutput = translationResult?.text ?? normalizedInput;
-  const compressionResult = await compress_prompt(translatedOutput, {
-    config,
-    policies,
-    ...
-  });
-
   // 5. 결과 반환
   return {
     raw_input: request.raw_input,
     normalized_input: translatedOutput,
-    compressed_prompt: compressionResult.compressed_prompt, // ← 최적화된 프롬프트
+    compressed_prompt: translatedOutput, // v1 compatibility; context compression happens later
     language,
     compression_provider: SUPPORTED_COMPRESSION_PROVIDER,
     inference_time_sec: translationResult?.inference_time_sec ?? 0,
     validation_errors: translationResult?.validation_errors ?? [],
-    repair_actions: [...(translationResult?.repair_actions ?? []), 
-                      ...compressionResult.repair_actions],
+    repair_actions: translationResult?.repair_actions ?? [],
   };
 }
 ```
@@ -202,11 +195,11 @@ export async function compilePrompt(
 1. **정규화**: 입력 텍스트 정제 (공백, 특수문자 등)
 2. **언어 감지**: 입력 언어 자동 감지
 3. **번역**: 비영어 → 영어 (사전학습 모델 효율성 극대화)
-4. **압축**: 의미를 유지하며 토큰 수 최소화
+4. **context 압축**: TaskGraph 이후 선택된 실행 context summary만 압축
 
 ### 효과
 
-**입력 토큰 50-70% 절감**
+**TaskGraph 분류 안정성 확보 및 실행 context 단계 토큰 절감**
 
 ---
 
@@ -345,7 +338,7 @@ function buildPipelineStages(ok: boolean): PipelineStageStatus[] {
 
 | 단계 | 역할 | 토큰 최적화 | 소유자 |
 |------|------|-----------|--------|
-| **Prompt Compiler** | 입력 정규화 + 번역 + 압축 | 입력 50-70% 절감 | Role 1 |
+| **Prompt Compiler** | 입력 정규화 + 번역 | action signal 보존 | Role 1 |
 | **Task Graph Builder** | 작업 의존성 분석 | 병렬화 기반 불필요한 작업 제외 | Role 2.1 |
 | **Context Optimizer** | 컨텍스트 압축 + 선택 | 컨텍스트 30-50% 절감 | Role 2.2 |
 | **Executor** | LLM 실행 | (최적화된 입력/컨텍스트 사용) | Role 3 |
@@ -356,7 +349,7 @@ function buildPipelineStages(ok: boolean): PipelineStageStatus[] {
 ```
 원본 입력 (1000 토큰)
   ↓ [Prompt Compiler]
-압축 입력 (300 토큰) + 메타데이터
+정규화 입력 + 메타데이터
   ↓ [Task Graph Builder]
 작업 그래프 + 의존성
   ↓ [Context Optimizer]
@@ -401,7 +394,7 @@ export async function runBatchPromptPipeline(
         index,
         raw_input,
         normalized_input: compiled.normalized_input,
-        compiled_prompt: compiled.compressed_prompt,
+        compiled_prompt: compiled.normalized_input,
         role2_handoff: handoff.compiled_prompt,
         language: compiled.language,
         inference_time_sec: compiled.inference_time_sec ?? 0,
@@ -499,12 +492,12 @@ for (const { stage, tasks } of stages) {
 │  [Prompt Compiler]                   │
 │  • 정규화                             │
 │  • 언어 감지 → 번역 (비영어)         │
-│  • 프롬프트 압축                     │
-│  → 원본 대비 50-70% 절감              │
+│  • normalized_input 확정             │
+│  → TaskGraph 분류 신호 보존           │
 └──────────┬──────────────────────────┘
            │
       ┌────▼────┐
-      │ 압축 입력 │ (300토큰)
+      │ 정규화 입력 │
       └────┬────┘
            │
            ▼
@@ -562,7 +555,7 @@ for (const { stage, tasks } of stages) {
 | 개념 | 파일 | 메커니즘 | 효과 |
 |------|------|---------|------|
 | **토큰 메트릭** | tokenMetrics.ts | 입력/출력 원본 vs 최적화 비교 | 절감 정량화 |
-| **입력 최적화** | compiler.ts | 정규화 + 번역 + 압축 | 50-70% 절감 |
+| **입력 최적화** | compiler.ts | 정규화 + 번역 | 분류 신호 보존 |
 | **컨텍스트 압축** | ContextCompressor.ts | 토큰 임계값 기반 자동 축소 | 장기 세션 지원 |
 | **컨텍스트 선택** | ContextBuilder.ts | 의존성 그래프 기반 선택 | 30-50% 절감 |
 | **세션 상태 관리** | SessionStateManager.ts | 자동 정규화 + 압축 + 검증 | 중복 실행 방지 |

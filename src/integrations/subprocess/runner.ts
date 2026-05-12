@@ -9,6 +9,8 @@ import type {
 import { spawn } from "node:child_process";
 import { closeSync, existsSync, openSync, readSync, statSync } from "node:fs";
 import { extname, join } from "node:path";
+import { createInteractivePtySession } from "./pty-session.js";
+import * as pty from "node-pty";
 
 const formatCommand = (request: SubprocessRequest): string => {
   const args = request.args.length > 0 ? ` ${request.args.join(" ")}` : "";
@@ -104,158 +106,6 @@ const isNodeShebangScript = (filePath: string): boolean => {
   }
 };
 
-const quoteShellArg = (value: string): string => {
-  if (/^[A-Za-z0-9_./:-]+$/.test(value)) {
-    return value;
-  }
-
-  return `'${value.replaceAll("'", `'\"'\"'`)}'`;
-};
-
-const quoteTclArg = (value: string): string =>
-  `"${value
-    .replaceAll("\\", "\\\\")
-    .replaceAll('"', '\\"')
-    .replaceAll("$", "\\$")
-    .replaceAll("[", "\\[")
-    .replaceAll("]", "\\]")}"`;
-
-const normalizeScriptOutput = (chunk: string): string =>
-  chunk.replace(/^\u0004\b\b/, "");
-
-interface PtyInvocation {
-  command: string;
-  args: string[];
-  env?: NodeJS.ProcessEnv;
-}
-
-const buildPythonInvocation = (
-  request: SubprocessRequest,
-): PtyInvocation | null => {
-  const env = request.env ? { ...process.env, ...request.env } : process.env;
-  const pythonCommand = resolveCommandFromPath("python3", env) ?? resolveCommandFromPath("python", env);
-  if (!pythonCommand) {
-    return null;
-  }
-
-  const resolvedCommand = resolveCommandFromPath(request.command, env);
-  const runViaNode = resolvedCommand !== undefined && isNodeShebangScript(resolvedCommand);
-  const command = runViaNode
-    ? process.execPath
-    : resolvedCommand ?? request.command;
-  const args = runViaNode
-    ? [resolvedCommand, ...request.args]
-    : request.args;
-
-  const argvPayload = JSON.stringify([command, ...args]);
-  const scriptLines = [
-    "import json",
-    "import os",
-    "import pty",
-    "import sys",
-    "argv = json.loads(os.environ['DETOKS_PTY_ARGV'])",
-    "input_text = sys.stdin.read()",
-    "sent = False",
-    "def stdin_read(fd):",
-    "    global sent",
-    "    if sent:",
-    "        return b''",
-    "    sent = True",
-    "    return input_text.encode('utf-8')",
-    "status = pty.spawn(argv, stdin_read=stdin_read)",
-    "if hasattr(os, 'waitstatus_to_exitcode'):",
-    "    sys.exit(os.waitstatus_to_exitcode(status))",
-    "if os.WIFEXITED(status):",
-    "    sys.exit(os.WEXITSTATUS(status))",
-    "if os.WIFSIGNALED(status):",
-    "    sys.exit(128 + os.WTERMSIG(status))",
-    "sys.exit(1)",
-  ];
-
-  return {
-    command: pythonCommand,
-    args: ["-c", scriptLines.join("\n")],
-    env: {
-      ...env,
-      DETOKS_PTY_ARGV: argvPayload,
-    },
-  };
-};
-
-const buildExpectInvocation = (
-  request: SubprocessRequest,
-): PtyInvocation | null => {
-  const env = request.env ? { ...process.env, ...request.env } : process.env;
-  const resolvedCommand = resolveCommandFromPath(request.command, env);
-  const runViaNode = resolvedCommand !== undefined && isNodeShebangScript(resolvedCommand);
-  const command = runViaNode
-    ? process.execPath
-    : resolvedCommand ?? request.command;
-  const args = runViaNode
-    ? [resolvedCommand, ...request.args]
-    : request.args;
-
-  const expectCommand = resolveCommandFromPath("expect", env);
-  if (!expectCommand) {
-    return null;
-  }
-
-  const spawnLine = `spawn -noecho -- ${[command, ...args].map(quoteTclArg).join(" ")}`;
-  const scriptLines = [
-    "log_user 1",
-    "set timeout -1",
-    spawnLine,
-    request.input !== undefined ? `send -- ${quoteTclArg(request.input)}` : undefined,
-    "close",
-    "expect eof",
-  ].filter((line): line is string => Boolean(line));
-
-  return {
-    command: expectCommand,
-    args: ["-c", scriptLines.join("\n")],
-  };
-};
-
-const buildScriptInvocation = (
-  request: SubprocessRequest,
-): PtyInvocation | null => {
-  const env = request.env ? { ...process.env, ...request.env } : process.env;
-  const resolvedCommand = resolveCommandFromPath(request.command, env);
-  const runViaNode = resolvedCommand !== undefined && isNodeShebangScript(resolvedCommand);
-  const command = runViaNode
-    ? process.execPath
-    : resolvedCommand ?? request.command;
-  const args = runViaNode
-    ? [resolvedCommand, ...request.args]
-    : request.args;
-
-  const scriptCommand = resolveCommandFromPath("script", env);
-  if (!scriptCommand) {
-    return null;
-  }
-
-  if (process.platform === "linux") {
-    return {
-      command: scriptCommand,
-      args: ["-q", "-f", "-c", [command, ...args].map(quoteShellArg).join(" "), "/dev/null"],
-    };
-  }
-
-  if (
-    process.platform === "darwin" ||
-    process.platform === "freebsd" ||
-    process.platform === "openbsd" ||
-    process.platform === "netbsd"
-  ) {
-    return {
-      command: scriptCommand,
-      args: ["-q", "-F", "/dev/null", command, ...args],
-    };
-  }
-
-  return null;
-};
-
 export const createRealSubprocessRunner = (): SubprocessRunner => ({
   async run(request: SubprocessRequest): Promise<SubprocessResult> {
     return await new Promise<SubprocessResult>((resolve) => {
@@ -317,16 +167,17 @@ export const createRealSubprocessRunner = (): SubprocessRunner => ({
       });
 
       if (request.input !== undefined) {
-        child.stdin.write(request.input);
+        child.stdin?.write(request.input);
       }
 
-      child.stdin.end();
+      child.stdin?.end();
     });
   },
 });
 
 interface PtyRunnerOptions {
   onEvent?: (event: PtyEvent) => void;
+  passthroughUi?: boolean;
 }
 
 const isCodexJsonStreamRequest = (request: SubprocessRequest): boolean =>
@@ -465,10 +316,102 @@ const runStreamingJsonProcess = (
         type: "prompt",
         data: request.input,
       });
-      child.stdin.write(request.input);
+      child.stdin?.write(request.input);
     }
 
-    child.stdin.end();
+    child.stdin?.end();
+  });
+};
+
+const runWithNodePty = (
+  request: SubprocessRequest,
+  options?: PtyRunnerOptions,
+): Promise<PtyResult> => {
+  const env = request.env ? { ...process.env, ...request.env } : process.env;
+  const resolvedCommand = resolveCommandFromPath(request.command, env);
+  const runViaNode = resolvedCommand !== undefined && isNodeShebangScript(resolvedCommand);
+  const command = runViaNode ? process.execPath : resolvedCommand ?? request.command;
+  const args = runViaNode ? [resolvedCommand, ...request.args] : request.args;
+
+  const startTime = Date.now();
+  const events: PtyEvent[] = [];
+
+  const emitEvent = (event: Omit<PtyEvent, "timestamp">): void => {
+    const fullEvent: PtyEvent = { ...event, timestamp: Date.now() };
+    events.push(fullEvent);
+    options?.onEvent?.(fullEvent);
+  };
+
+  let ptyProcess: pty.IPty;
+  try {
+    ptyProcess = pty.spawn(command, args, {
+      name: "xterm-256color",
+      cols: 80,
+      rows: 24,
+      cwd: request.cwd ?? process.cwd(),
+      env: env as Record<string, string | undefined>,
+    });
+  } catch (err) {
+    const errMsg = err instanceof Error ? err.message : String(err);
+    const endTime = Date.now();
+    return Promise.resolve({
+      stdout: "",
+      stderr: errMsg,
+      exitCode: 127,
+      timedOut: false,
+      transcript: {
+        events: [{ type: "error", timestamp: endTime, data: errMsg }],
+        startTime,
+        endTime,
+        totalDuration: endTime - startTime,
+        exitCode: 127,
+        timedOut: false,
+      },
+    });
+  }
+
+  return new Promise<PtyResult>((resolve) => {
+    let stdout = "";
+    let settled = false;
+
+    const finish = (code: number, timedOut: boolean): void => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+
+      const endTime = Date.now();
+      emitEvent({ type: "exit", data: String(code) });
+
+      resolve({
+        stdout,
+        stderr: "",
+        exitCode: code,
+        timedOut,
+        transcript: {
+          events,
+          startTime,
+          endTime,
+          totalDuration: endTime - startTime,
+          exitCode: code,
+          timedOut,
+        },
+      });
+    };
+
+    ptyProcess.onData((data) => {
+      stdout += data;
+      emitEvent({ type: "chunk", stream: "stdout", data });
+    });
+
+    ptyProcess.onExit(({ exitCode }) => {
+      finish(exitCode ?? 0, false);
+    });
+
+    if (request.input !== undefined) {
+      emitEvent({ type: "prompt", data: request.input });
+      ptyProcess.write(request.input);
+    }
   });
 };
 
@@ -485,120 +428,7 @@ export const createPtySubprocessRunner = (
         return await runStreamingJsonProcess(request, options);
       }
 
-      return await new Promise<PtyResult>((resolve) => {
-        const env = request.env ? { ...process.env, ...request.env } : process.env;
-        const ptyInvocation =
-          buildPythonInvocation(request) ?? buildExpectInvocation(request) ?? buildScriptInvocation(request);
-        const fallbackResolvedCommand = resolveCommandFromPath(request.command, env);
-        const runViaNode =
-          fallbackResolvedCommand !== undefined && isNodeShebangScript(fallbackResolvedCommand);
-        const fallbackCommand = runViaNode
-          ? process.execPath
-          : fallbackResolvedCommand ?? request.command;
-        const fallbackArgs = runViaNode
-          ? [fallbackResolvedCommand, ...request.args]
-          : request.args;
-        const command = ptyInvocation?.command ?? fallbackCommand;
-        const args = ptyInvocation?.args ?? fallbackArgs;
-        const ptyEnv = ptyInvocation?.env ? { ...env, ...ptyInvocation.env } : env;
-
-        const startTime = Date.now();
-        const events: PtyEvent[] = [];
-
-        const emitEvent = (event: Omit<PtyEvent, "timestamp">): void => {
-          const fullEvent: PtyEvent = { ...event, timestamp: Date.now() };
-          events.push(fullEvent);
-          options?.onEvent?.(fullEvent);
-        };
-
-        const child = spawn(command, args, {
-          cwd: request.cwd,
-          env: ptyEnv,
-          shell: false,
-          stdio: ["pipe", "pipe", "pipe"],
-        });
-
-        let settled = false;
-        let stdout = "";
-        let stderr = "";
-        let exitCode = 0;
-
-        const finish = (code: number, timedOut: boolean): void => {
-          if (settled) {
-            return;
-          }
-          settled = true;
-
-          const endTime = Date.now();
-          const transcript: PtyTranscript = {
-            events,
-            startTime,
-            endTime,
-            totalDuration: endTime - startTime,
-            exitCode: code,
-            timedOut,
-          };
-
-          emitEvent({
-            type: "exit",
-            data: String(code),
-          });
-
-          resolve({
-            stdout,
-            stderr,
-            exitCode: code,
-            timedOut,
-            transcript,
-          });
-        };
-
-        child.stdout?.setEncoding("utf8");
-        child.stderr?.setEncoding("utf8");
-
-        child.stdout?.on("data", (chunk: string) => {
-          const normalizedChunk = normalizeScriptOutput(chunk);
-          stdout += normalizedChunk;
-          emitEvent({
-            type: "chunk",
-            stream: "stdout",
-            data: normalizedChunk,
-          });
-        });
-
-        child.stderr?.on("data", (chunk: string) => {
-          const normalizedChunk = normalizeScriptOutput(chunk);
-          stderr += normalizedChunk;
-          emitEvent({
-            type: "chunk",
-            stream: "stderr",
-            data: normalizedChunk,
-          });
-        });
-
-        child.on("error", (error) => {
-          emitEvent({
-            type: "error",
-            data: String(error),
-          });
-          finish(127, false);
-        });
-
-        child.on("close", (code, signal) => {
-          exitCode = typeof code === "number" ? code : signal ? 128 : 1;
-          finish(exitCode, false);
-        });
-
-        if (request.input !== undefined) {
-          emitEvent({
-            type: "prompt",
-            data: request.input,
-          });
-          child.stdin.write(request.input);
-        }
-
-        child.stdin.end();
-      });
+      return await runWithNodePty(request, options);
     },
   };
 };

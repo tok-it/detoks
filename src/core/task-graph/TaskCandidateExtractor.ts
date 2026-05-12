@@ -58,6 +58,9 @@ const ACTION_STARTERS = [
   "optimise",
   "tune",
   "correct",
+  "enable",
+  "disable",
+  "toggle",
   "test",
   "validate",
   "verify",
@@ -175,7 +178,9 @@ export class TaskCandidateExtractor {
       /\breduce unnecessary words\b/.test(normalized) ||
       /\bmaintain only the important sequence\b/.test(normalized) ||
       /\bsame thing twice\b/.test(normalized) ||
-      /\bstep-by-step\b/.test(normalized)
+      // "do this step-by-step" 같은 실행 방식 지시는 버리되,
+      // "Create a step-by-step guide" 같은 유효 task는 보존
+      /^(?:do|complete|handle|please\s+do)\s+(?:this|it|everything)\s+step-by-step\b/.test(normalized)
     );
   }
 }

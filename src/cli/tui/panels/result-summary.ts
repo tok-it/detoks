@@ -29,13 +29,20 @@ const truncateLine = (line: string, maxWidth: number): string => {
 
 export class ResultSummaryPanel {
   private result: PipelineExecutionResult | null = null;
+  private executing = false;
 
   setResult(result: PipelineExecutionResult): void {
     this.result = result;
+    this.executing = false;
+  }
+
+  setExecuting(active: boolean): void {
+    this.executing = active;
   }
 
   clear(): void {
     this.result = null;
+    this.executing = false;
   }
 
   private formatTokenReduction(tokens: TokenReductionSnapshot): string {
@@ -47,6 +54,10 @@ export class ResultSummaryPanel {
   }
 
   private buildLines(): string[] {
+    if (this.executing) {
+      return ["", "  Waiting for adapter CLI to finish…"];
+    }
+
     if (!this.result) {
       return [];
     }
@@ -75,11 +86,15 @@ export class ResultSummaryPanel {
     }
 
     // Token metrics
-    if (this.result.tokenMetrics) {
+    if (this.result.tokenMetrics || this.result.promptTokenSavings) {
       lines.push("");
       lines.push("토큰 절감");
-      lines.push(`  입력: ${this.formatTokenReduction(this.result.tokenMetrics.input)}`);
-      lines.push(`  작업 결과 요약: ${this.formatTokenReduction(this.result.tokenMetrics.output)}`);
+      if (this.result.tokenMetrics) {
+        lines.push(`  입력: ${this.formatTokenReduction(this.result.tokenMetrics.input)}`);
+        lines.push(`  작업 결과 요약: ${this.formatTokenReduction(this.result.tokenMetrics.output)}`);
+      } else if (this.result.promptTokenSavings) {
+        lines.push(`  입력: ${this.formatTokenReduction(this.result.promptTokenSavings)}`);
+      }
     }
 
     return lines;
@@ -89,7 +104,7 @@ export class ResultSummaryPanel {
     const { screen } = ctx;
     const { usableWidth } = getContentArea(region);
 
-    const isEmptyState = this.result === null;
+    const isEmptyState = this.result === null && !this.executing;
     const lines = isEmptyState ? [...EMPTY_RESULT_LINES] : this.buildLines();
     let currentRow = region.startRow;
 

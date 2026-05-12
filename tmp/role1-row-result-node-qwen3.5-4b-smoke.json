@@ -1,0 +1,60 @@
+{
+  "summary": {
+    "completed_count": 0,
+    "failed_count": 2,
+    "average_inference_time_sec": 0,
+    "average_token_reduction_rate": 0,
+    "average_translation_token_reduction_rate": 0,
+    "average_compression_token_reduction_rate": 0,
+    "compression_fallback_count": 0,
+    "repair_action_item_count": 0,
+    "validation_failed_count": 0
+  },
+  "run_metadata": {
+    "generated_at": "2026-05-11T05:27:38.109Z",
+    "pipeline_mode": "safe",
+    "input_count": 2
+  },
+  "results": [
+    {
+      "index": 0,
+      "raw_input": "이 REST API 엔드포인트가 실제로 동작하는지 확인하려고 하는데, 가장 먼저 체크해야 할 부분은 뭐야?",
+      "ph_masked_input": "이 __PH_0001__ __PH_0002__ 엔드포인트가 실제로 동작하는지 확인하려고 하는데, 가장 먼저 체크해야 할 부분은 뭐야?",
+      "normalized_input": "",
+      "compiled_prompt": "",
+      "role2_handoff": "",
+      "language": "en",
+      "status": "failed",
+      "inference_time_sec": 0,
+      "input_prompt_tokens": 30,
+      "normalized_input_tokens": 0,
+      "compiled_prompt_tokens": 0,
+      "token_reduction_rate": null,
+      "translation_token_reduction_rate": null,
+      "compression_token_reduction_rate": null,
+      "validation_errors": [],
+      "repair_actions": [],
+      "error": "[\n  {\n    \"origin\": \"string\",\n    \"code\": \"too_small\",\n    \"minimum\": 1,\n    \"inclusive\": true,\n    \"path\": [\n      \"compiled_prompt\"\n    ],\n    \"message\": \"Too small: expected string to have >=1 characters\"\n  }\n]"
+    },
+    {
+      "index": 1,
+      "raw_input": "우리 팀에서 써보고 있는 이 레거시 모듈 깔끔하게 Refactor 하는 로드맵 좀 짜줄 수 있어? 최대한 현대적인 코드로 말이야.",
+      "ph_masked_input": "우리 팀에서 써보고 있는 이 레거시 모듈 깔끔하게 Refactor 하는 로드맵 좀 짜줄 수 있어? 최대한 현대적인 코드로 말이야.",
+      "normalized_input": "",
+      "compiled_prompt": "",
+      "role2_handoff": "",
+      "language": "en",
+      "status": "failed",
+      "inference_time_sec": 0,
+      "input_prompt_tokens": 42,
+      "normalized_input_tokens": 0,
+      "compiled_prompt_tokens": 0,
+      "token_reduction_rate": null,
+      "translation_token_reduction_rate": null,
+      "compression_token_reduction_rate": null,
+      "validation_errors": [],
+      "repair_actions": [],
+      "error": "[\n  {\n    \"origin\": \"string\",\n    \"code\": \"too_small\",\n    \"minimum\": 1,\n    \"inclusive\": true,\n    \"path\": [\n      \"compiled_prompt\"\n    ],\n    \"message\": \"Too small: expected string to have >=1 characters\"\n  }\n]"
+    }
+  ]
+}

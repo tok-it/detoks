@@ -5,6 +5,8 @@ import { ParallelClassifier } from "../task-graph/ParallelClassifier.js";
 import { TaskGraphProcessor } from "../task-graph/TaskGraphProcessor.js";
 import { TaskSentenceSplitter } from "../task-graph/TaskSentenceSplitter.js";
 import { compilePrompt, createRole2PromptInput } from "../prompt/compiler.js";
+import { loadRole1Policies, loadRole1RuntimeConfig } from "../prompt/config.js";
+import { compress_prompt } from "../prompt/compression.js";
 import { ContextBuilder } from "../context/ContextBuilder.js";
 import { ContextCompressor } from "../context/ContextCompressor.js";
 import { SessionStateManager } from "../state/SessionStateManager.js";
@@ -12,7 +14,12 @@ import { executeWithAdapter } from "../executor/execute.js";
 import { logger } from "../utils/logger.js";
 import { PipelineTracer } from "../utils/PipelineTracer.js";
 import { translateVisibleText } from "../utils/visibleText.js";
-import { buildTokenMetrics, type TokenMetricsSnapshot } from "../utils/tokenMetrics.js";
+import {
+  buildTokenMetrics,
+  buildTokenReductionSnapshot,
+  type TokenMetricsSnapshot,
+  type TokenReductionSnapshot,
+} from "../utils/tokenMetrics.js";
 import { getLLMModelConfig } from "../llm-client/llm-models.js";
 import type { PtyTranscript } from "../../integrations/subprocess/types.js";
 import type { SessionState } from "../../schemas/pipeline.js";
@@ -212,6 +219,47 @@ function applySessionTokenMetrics(
   };
 }
 
+async function compressExecutionContextSummary(
+  summary: string | undefined,
+  request: PipelineExecutionRequest,
+): Promise<{ summary: string | undefined; repairActions: string[] }> {
+  if (!summary?.trim() || !summary.includes("Previous Task Results:")) {
+    return { summary, repairActions: [] };
+  }
+
+  try {
+    const runtimeConfig = loadRole1RuntimeConfig({
+      ...(request.userRequest.cwd ? { cwd: request.userRequest.cwd } : {}),
+      ...(request.env ? { env: request.env } : {}),
+    });
+    const policies = loadRole1Policies({
+      ...(request.userRequest.cwd ? { cwd: request.userRequest.cwd } : {}),
+    });
+    const compressionResult = await compress_prompt(summary, {
+      config: runtimeConfig,
+      policies,
+      ...(runtimeConfig.localLlmModelName
+        ? { localLlmModelName: runtimeConfig.localLlmModelName }
+        : {}),
+      ...(request.userRequest.cwd ? { cwd: request.userRequest.cwd } : {}),
+      ...(request.env ? { env: request.env } : {}),
+      ...(request.compressionImplementation
+        ? { compressionImplementation: request.compressionImplementation }
+        : {}),
+    });
+
+    return {
+      summary: compressionResult.compressed_prompt,
+      repairActions: compressionResult.repair_actions,
+    };
+  } catch (error) {
+    return {
+      summary,
+      repairActions: [`context_compression_failed:${toErrorMessage(error)}`],
+    };
+  }
+}
+
 function mergePtyTranscripts(
   existing: PtyTranscript | undefined,
   incoming: PtyTranscript | undefined,
@@ -318,6 +366,7 @@ export const orchestratePipeline = async (
   const progressLog: PipelineProgressLog[] = [];
   const actionTimeline: ActionTimelineEvent[] = [];
   let adapterTranscript: PtyTranscript | undefined;
+  let promptTokenSavings: TokenReductionSnapshot | null = null;
   PipelineTracer.clear();
 
   const emitActionTimelineWithLogging = async (event: ActionTimelineEvent): Promise<void> => {
@@ -382,6 +431,10 @@ export const orchestratePipeline = async (
           ? { compressionImplementation: request.compressionImplementation }
           : {}),
       },
+    );
+    promptTokenSavings = buildTokenReductionSnapshot(
+      request.userRequest.raw_input,
+      compiledPrompt.compressed_prompt,
     );
     role2PromptInput = createRole2PromptInput(compiledPrompt);
     await PipelineTracer.trace({
@@ -487,6 +540,7 @@ export const orchestratePipeline = async (
       promptInferenceTimeSec: compiledPrompt.inference_time_sec ?? 0,
       promptValidationErrors: compiledPrompt.validation_errors ?? [],
       promptRepairActions: compiledPrompt.repair_actions ?? [],
+      ...(promptTokenSavings ? { promptTokenSavings } : {}),
       ...(actionTimeline.length ? { actionTimeline } : {}),
       ...(request.trace ? { traceLog: PipelineTracer.getTrace(sessionId) } : {}),
       ...(traceFilePath ? { traceFilePath } : {}),
@@ -651,6 +705,14 @@ export const orchestratePipeline = async (
       const modelName = resolveModelName(request.adapter, request.env);
       const tokensBeforeCompression = ContextCompressor.estimateTokens(state, modelName);
       const context = ContextBuilder.build(state, task, modelName);
+      const contextCompression = await compressExecutionContextSummary(
+        context.context_summary,
+        request,
+      );
+      const executionContext = {
+        ...context,
+        context_summary: contextCompression.summary,
+      };
       const compressedTaskIds = Object.entries(state.task_results)
         .filter(([, r]) => (r as Record<string, unknown>)._compressed === true)
         .map(([id]) => id);
@@ -663,7 +725,7 @@ export const orchestratePipeline = async (
       );
       await PipelineTracer.trace({
         sessionId, stage: "ContextOptimizer", role: "role2.2", phase: "output",
-        dataType: "ExecutionContext", data: context,
+        dataType: "ExecutionContext", data: executionContext,
         durationMs: PipelineTracer.endStage(`ContextOptimizer:${task.id}`),
       });
       await emitProgressWithLogging({
@@ -674,13 +736,18 @@ export const orchestratePipeline = async (
         data: {
           tokensBeforeCompression,
           contextTokens,
+          contextCompressionRepairActions: contextCompression.repairActions,
           compressedTaskIds,
           keptTaskIds,
         },
       });
 
       // Task 실행 (Role 3)
-      const prompt = `[${task.type.toUpperCase()}] ${task.title}\n\nContext: ${context.context_summary}`;
+      const responseLanguageInstruction =
+        compiledPrompt.language !== "en"
+          ? "Respond entirely in Korean.\n\n"
+          : "";
+      const prompt = `${responseLanguageInstruction}[${task.type.toUpperCase()}] ${task.title}\n\nContext: ${executionContext.context_summary}`;
       logger.info(`작업 [${task.id}] 실행 중 type=${task.type}`);
       await emitProgressWithLogging( {
         stage: "Executor",
@@ -699,6 +766,7 @@ export const orchestratePipeline = async (
         adapter: request.adapter,
         mode: request.mode,
         executionMode: request.executionMode,
+        ...(request.presentationMode ? { presentationMode: request.presentationMode } : {}),
         prompt,
         verbose: request.verbose,
         ...(adapterModel ? { model: adapterModel } : {}),
@@ -832,6 +900,7 @@ export const orchestratePipeline = async (
     promptInferenceTimeSec: compiledPrompt.inference_time_sec ?? 0,
     promptValidationErrors: compiledPrompt.validation_errors ?? [],
     promptRepairActions: compiledPrompt.repair_actions ?? [],
+    ...(promptTokenSavings ? { promptTokenSavings } : {}),
     ...(actionTimeline.length ? { actionTimeline } : {}),
     ...(request.trace ? { traceLog: PipelineTracer.getTrace(sessionId) } : {}),
     ...(traceFilePath ? { traceFilePath } : {}),

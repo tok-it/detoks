@@ -6,6 +6,7 @@ import {
   buildFooterText,
   renderScreenBorder,
   renderInputArea,
+  renderFocusArea,
   renderFooter,
   measureInputLayout,
 } from "./renderer.js";
@@ -24,7 +25,19 @@ import {
 import { PipelineStatusPanel } from "./panels/pipeline-status.js";
 import { TranscriptPanel } from "./panels/transcript.js";
 import { ResultSummaryPanel } from "./panels/result-summary.js";
+import { EmbeddedTerminalPane } from "./panels/embedded-terminal.js";
 import { renderSlashAutocompletePanel } from "./panels/slash-autocomplete.js";
+import {
+  createEmbeddedTerminalFocusManager,
+  isEmbeddedTerminalInterruptKey,
+  isEmbeddedTerminalNativeFocusToggleKey,
+  isEmbeddedTerminalReturnToDetoksKey,
+} from "./focus-manager.js";
+import {
+  createEmbeddedNativeCliSession,
+  type EmbeddedNativeCliSession,
+} from "./native-cli-session.js";
+import { formatEmbeddedTerminalFocusHint } from "./embedded-terminal.js";
 import {
   captureWorkspaceSnapshot,
   diffWorkspaceSnapshots,
@@ -32,7 +45,8 @@ import {
 import { toNormalizedRequest } from "../parse.js";
 import { orchestratePipeline } from "../../core/pipeline/orchestrator.js";
 import { buildActionTimeline } from "../../core/timeline/action-timeline.js";
-import { readRole1ModelName } from "../../core/prompt/config.js";
+import { readRole1ModelName, loadRole1RuntimeConfig } from "../../core/prompt/config.js";
+import { ensureLocalLlmRuntime } from "../../core/llm-client/local-runtime.js";
 import type { TokenReductionSnapshot } from "../../core/utils/tokenMetrics.js";
 import { colors } from "../colors.js";
 import { formatError } from "../format.js";
@@ -54,6 +68,7 @@ interface TuiRunOptions {
   translationModel?: string;
   adapterModel?: string;
   inferenceStrength?: string;
+  presentationMode?: CliArgs["presentationMode"];
 }
 
 const formatTokenSavingsBadge = (reduction?: TokenReductionSnapshot | null): string | undefined => {
@@ -76,14 +91,19 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
     currentAdapter === "codex"
       ? options.inferenceStrength ?? getCodexReasoningEffortOverride() ?? "medium"
       : undefined;
+  const nativePassthroughMode = options.presentationMode === "passthrough";
+  const embeddedPaneMode = options.presentationMode === "embedded-pane";
 
   const enterTuiDisplay = (): void => {
     screen.enterAltScreen();
     screen.setRawMode(true);
     screen.cursorHide();
+    // Enable bracketed paste mode so pasted content doesn't auto-submit
+    stdout.write("\x1b[?2004h");
   };
 
   const leaveTuiDisplay = (): void => {
+    stdout.write("\x1b[?2004l");
     screen.setRawMode(false);
     screen.cursorShow();
     screen.exitAltScreen();
@@ -100,6 +120,13 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
 
   // Initialize TUI
   enterTuiDisplay();
+
+  const sigtermHandler = (): void => {
+    stdout.write("\x1b[?2004l");
+    screen.cleanup();
+    process.exit(0);
+  };
+  process.once("SIGTERM", sigtermHandler);
 
   try {
     if (stdout.isTTY) {
@@ -129,6 +156,16 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
       enterTuiDisplay();
     }
 
+    // Warm up local LLM runtime eagerly so the first prompt doesn't stall.
+    if (options.executionMode === "real") {
+      const warmupConfig = loadRole1RuntimeConfig();
+      if (warmupConfig.localLlmAutoStart !== false) {
+        ensureLocalLlmRuntime(warmupConfig).catch(() => {
+          // Error will surface when the first prompt tries to use the runtime.
+        });
+      }
+    }
+
     let input = "";
     let running = true;
     let isExecuting = false;
@@ -137,11 +174,99 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
     const pipelinePanel = new PipelineStatusPanel();
     const transcriptPanel = new TranscriptPanel();
     const resultPanel = new ResultSummaryPanel();
+    const embeddedTerminalPane = new EmbeddedTerminalPane();
+    const embeddedTerminalFocus = createEmbeddedTerminalFocusManager();
     let hasExecuted = false;
     let lastInputSeparatorRow = -1;
     let slashAutocompleteSelectedIndex = 0;
     const executionCwd = process.cwd();
     let currentTokenSavingsLabel: string | undefined;
+    let isInputSuspended = false;
+    let isPasting = false;
+    let embeddedNativeCliSession: EmbeddedNativeCliSession | null = null;
+    let pendingNativeEscapeReturn = false;
+    let pendingNativeEscapeTimer: NodeJS.Timeout | undefined;
+    let executionClockStartedAt: number | null = null;
+    let executionClockTimer: NodeJS.Timeout | undefined;
+
+    const clearNativeEscapeTimer = (): void => {
+      if (pendingNativeEscapeTimer !== undefined) {
+        clearTimeout(pendingNativeEscapeTimer);
+        pendingNativeEscapeTimer = undefined;
+      }
+      pendingNativeEscapeReturn = false;
+    };
+
+    const closeEmbeddedNativeCliSession = (signal?: NodeJS.Signals): void => {
+      clearNativeEscapeTimer();
+      if (signal !== undefined) {
+        embeddedNativeCliSession?.kill(signal);
+      } else {
+        embeddedNativeCliSession?.close();
+      }
+      embeddedNativeCliSession = null;
+    };
+
+    const clearExecutionClock = (): void => {
+      if (executionClockTimer !== undefined) {
+        clearInterval(executionClockTimer);
+        executionClockTimer = undefined;
+      }
+      executionClockStartedAt = null;
+      pipelinePanel.setExecutionClock(null);
+    };
+
+    const startExecutionClock = (): void => {
+      if (!embeddedPaneMode || executionClockStartedAt !== null) {
+        return;
+      }
+
+      executionClockStartedAt = Date.now();
+      pipelinePanel.setExecutionClock(executionClockStartedAt);
+      executionClockTimer = setInterval(() => {
+        if (isExecuting) {
+          render();
+        }
+      }, 1000);
+    };
+
+    const ensureEmbeddedNativeCliSession = (): void => {
+      if (!embeddedPaneMode || embeddedNativeCliSession !== null || options.executionMode !== "real") {
+        return;
+      }
+
+      embeddedNativeCliSession = createEmbeddedNativeCliSession({
+        adapter: currentAdapter,
+        cwd: executionCwd,
+        verbose: currentVerbose,
+        ...(currentAdapterModel !== undefined ? { model: currentAdapterModel } : {}),
+        ...(options.sessionId !== undefined ? { sessionId: options.sessionId } : {}),
+        onEvent: (event) => {
+          embeddedTerminalPane.addEvent(event);
+          render();
+        },
+      });
+    };
+
+    const suspendInput = (): void => {
+      if (isInputSuspended) {
+        return;
+      }
+
+      stdin.removeListener("data", onData);
+      stdin.pause();
+      isInputSuspended = true;
+    };
+
+    const resumeInput = (): void => {
+      if (!isInputSuspended) {
+        return;
+      }
+
+      stdin.resume();
+      stdin.on("data", onData);
+      isInputSuspended = false;
+    };
 
     // Optimized: only update input area
     const renderInputOnly = (): void => {
@@ -177,7 +302,7 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
     const renderInteractiveInput = (): void => {
       const dims = screen.getDimensions();
       const ctx = { screen, dims };
-      const inputLayout = renderInputArea(ctx, input);
+      const inputLayout = measureInputLayout(dims, input);
       lastInputSeparatorRow = inputLayout.separatorRow;
 
       const slashAutocompleteQuery = getSlashAutocompleteQuery(input);
@@ -199,6 +324,15 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
         endRow: inputLayout.separatorRow,
         columns: dims.columns,
       };
+
+      if (embeddedPaneMode && embeddedTerminalFocus.focus !== "detoks-input") {
+        renderFocusArea(
+          ctx,
+          `${formatEmbeddedTerminalFocusHint(embeddedTerminalFocus.focus, currentAdapter)}  ·  Enter returns to detoks`,
+        );
+      } else {
+        renderInputArea(ctx, input);
+      }
 
       if (slashAutocompleteQuery !== null) {
         renderSlashAutocompletePanel(
@@ -259,14 +393,35 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
         endRow: transcriptRegionEnd,
         columns: dims.columns,
       };
-      transcriptPanel.render(ctx, transcriptRegion);
+      if (embeddedPaneMode) {
+        const transcriptRows = Math.max(1, transcriptRegion.endRow - transcriptRegion.startRow);
+        embeddedTerminalPane.resize(transcriptRegion.columns, transcriptRows);
+        embeddedTerminalPane.render(ctx, transcriptRegion);
+        if (embeddedNativeCliSession !== null) {
+          embeddedNativeCliSession?.resize(transcriptRegion.columns, transcriptRows);
+        }
+      } else {
+        transcriptPanel.render(ctx, transcriptRegion);
+      }
 
       renderInteractiveInput();
     };
 
     // Phase 3.2: Create onProgress callback
+    let lastProgressRenderAt = 0;
+    const PROGRESS_RENDER_INTERVAL_MS = 200;
     const onProgress = (event: PipelineProgressEvent): void => {
       pipelinePanel.update(event);
+      if (nativePassthroughMode && isExecuting) {
+        return;
+      }
+      if (embeddedPaneMode && isExecuting) {
+        const now = Date.now();
+        if (now - lastProgressRenderAt < PROGRESS_RENDER_INTERVAL_MS) {
+          return;
+        }
+        lastProgressRenderAt = now;
+      }
       render();
     };
 
@@ -278,7 +433,15 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
     // 4. Escape sequences: handled separately before character-by-character processing
     const onData = (chunk: Buffer): void => {
       if (isExecuting) {
-        return; // Ignore input while executing
+        // Embedded pane: forward raw bytes to child while adapter-terminal is focused
+        if (
+          embeddedPaneMode &&
+          embeddedTerminalFocus.focus === "adapter-terminal" &&
+          embeddedNativeCliSession !== null
+        ) {
+          embeddedNativeCliSession.write(decoder.write(chunk));
+        }
+        return;
       }
 
       // Use StringDecoder to handle multi-byte UTF-8 sequences that may be split across chunks
@@ -294,7 +457,34 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
         // Check for escape sequences first (multi-character sequences)
         // Must be processed as atomic units before character-by-character handling
         if (text.charCodeAt(i) === 0x1b && i + 2 < text.length) {
+          // Bracketed paste mode sequences (\x1b[200~ = paste start, \x1b[201~ = paste end)
+          if (text.startsWith("\x1b[200~", i)) {
+            isPasting = true;
+            i += 6;
+            handled = true;
+          } else if (text.startsWith("\x1b[201~", i)) {
+            isPasting = false;
+            i += 6;
+            handled = true;
+          }
+
+          if (handled) {
+            continue;
+          }
+
           const sequence = text.substring(i, i + 3);
+          if (embeddedPaneMode && embeddedTerminalFocus.focus === "adapter-terminal") {
+            if (pendingNativeEscapeReturn) {
+              clearNativeEscapeTimer();
+              ensureEmbeddedNativeCliSession();
+              embeddedNativeCliSession?.write("\x1b");
+            }
+            ensureEmbeddedNativeCliSession();
+            embeddedNativeCliSession?.write(sequence);
+            i += 3;
+            handled = true;
+            continue;
+          }
           if (sequence === "\x1b[A") {
             const slashAutocompleteQuery = getSlashAutocompleteQuery(input);
             if (slashAutocompleteQuery !== null) {
@@ -304,8 +494,10 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
                 getSlashAutocompleteCommands(currentAdapter, slashAutocompleteQuery).length,
               );
               renderInteractiveInput();
+            } else if (embeddedPaneMode) {
+              embeddedTerminalPane.scrollUp();
+              needsFullRender = true;
             } else {
-              // Arrow Up
               transcriptPanel.scrollUp();
               needsFullRender = true;
             }
@@ -320,8 +512,10 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
                 getSlashAutocompleteCommands(currentAdapter, slashAutocompleteQuery).length,
               );
               renderInteractiveInput();
+            } else if (embeddedPaneMode) {
+              embeddedTerminalPane.scrollDown();
+              needsFullRender = true;
             } else {
-              // Arrow Down
               transcriptPanel.scrollDown();
               needsFullRender = true;
             }
@@ -335,6 +529,116 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
           const char = text.charAt(i);
           const slashAutocompleteQuery = getSlashAutocompleteQuery(input);
           const slashAutocompleteActive = slashAutocompleteQuery !== null;
+          const summaryFocused =
+            embeddedPaneMode && embeddedTerminalFocus.focus === "summary";
+          const nativeTerminalFocused =
+            embeddedPaneMode && embeddedTerminalFocus.focus === "adapter-terminal";
+
+          if (summaryFocused) {
+            if (isEmbeddedTerminalReturnToDetoksKey(char)) {
+              clearNativeEscapeTimer();
+              embeddedTerminalFocus.focusDetoks();
+              renderInteractiveInput();
+              i++;
+              continue;
+            }
+
+            if (char === "\r" || char === "\n") {
+              clearNativeEscapeTimer();
+              if (options.executionMode === "real") {
+                embeddedTerminalFocus.focusNative();
+                ensureEmbeddedNativeCliSession();
+                renderInteractiveInput();
+              }
+              i++;
+              continue;
+            }
+
+            if (char === "\x1b") {
+              if (pendingNativeEscapeReturn) {
+                clearNativeEscapeTimer();
+                embeddedTerminalFocus.focusDetoks();
+                renderInteractiveInput();
+              } else {
+                pendingNativeEscapeReturn = true;
+                pendingNativeEscapeTimer = setTimeout(() => {
+                  if (!pendingNativeEscapeReturn) {
+                    return;
+                  }
+
+                  pendingNativeEscapeReturn = false;
+                  pendingNativeEscapeTimer = undefined;
+                }, 250);
+              }
+
+              i++;
+              continue;
+            }
+
+            i++;
+            continue;
+          }
+
+          if (nativeTerminalFocused) {
+            if (isEmbeddedTerminalReturnToDetoksKey(char)) {
+              clearNativeEscapeTimer();
+              embeddedTerminalFocus.focusDetoks();
+              renderInteractiveInput();
+              i++;
+              continue;
+            }
+
+            if (isEmbeddedTerminalInterruptKey(char)) {
+              ensureEmbeddedNativeCliSession();
+              embeddedNativeCliSession?.write(char);
+              i++;
+              continue;
+            }
+
+            if (char === "\x1b") {
+              if (pendingNativeEscapeReturn) {
+                clearNativeEscapeTimer();
+                embeddedTerminalFocus.focusDetoks();
+                renderInteractiveInput();
+              } else {
+                pendingNativeEscapeReturn = true;
+                pendingNativeEscapeTimer = setTimeout(() => {
+                  if (!pendingNativeEscapeReturn) {
+                    return;
+                  }
+
+                  pendingNativeEscapeReturn = false;
+                  pendingNativeEscapeTimer = undefined;
+                  ensureEmbeddedNativeCliSession();
+                  embeddedNativeCliSession?.write("\x1b");
+                }, 250);
+              }
+
+              i++;
+              continue;
+            }
+
+            if (
+              char === "\r" ||
+              char === "\n" ||
+              char === "\t" ||
+              char === "\x7f" ||
+              char === "\b" ||
+              char.charCodeAt(0) >= 32 ||
+              /[\p{L}\p{N}\p{P}\p{Z}]/u.test(char)
+            ) {
+              if (pendingNativeEscapeReturn) {
+                clearNativeEscapeTimer();
+                ensureEmbeddedNativeCliSession();
+                embeddedNativeCliSession?.write("\x1b");
+              }
+
+              ensureEmbeddedNativeCliSession();
+              embeddedNativeCliSession?.write(char);
+              i++;
+              continue;
+            }
+          }
 
           if (
             (char === "q" || char === "Q") &&
@@ -344,11 +648,18 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
             running = false;
             needsFullRender = true;
           } else if (char === "\x03") {
-            // Ctrl+C
+            // Ctrl+C: close any active embedded session before exiting
+            closeEmbeddedNativeCliSession("SIGINT");
             running = false;
             needsFullRender = true;
           } else if (char === "\r" || char === "\n") {
-            if (input.trim()) {
+            if (isPasting) {
+              // During bracketed paste, newlines are part of the pasted content
+              if (char === "\n") {
+                input += "\n";
+                needsFullRender = true;
+              }
+            } else if (input.trim()) {
               // Phase 3.2: Execute prompt
               const resolvedPrompt =
                 slashAutocompleteActive && (slashAutocompleteQuery?.length ?? 0) > 0
@@ -360,6 +671,13 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
               executePrompt(resolvedPrompt);
               input = ""; // Clear input for next prompt
               slashAutocompleteSelectedIndex = 0;
+            }
+          } else if (embeddedPaneMode && isEmbeddedTerminalNativeFocusToggleKey(char)) {
+            clearNativeEscapeTimer();
+            if (options.executionMode === "real") {
+              embeddedTerminalFocus.focusNative();
+              ensureEmbeddedNativeCliSession();
+              renderInteractiveInput();
             }
           } else if (char === "\x7f" || char === "\b") {
             // Backspace (DEL: 0x7f or Backspace: 0x08)
@@ -447,6 +765,7 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
               shouldRestoreMainScreen = true;
             },
             onAdapterChange: async (newAdapter) => {
+              closeEmbeddedNativeCliSession();
               currentAdapter = newAdapter;
               loadAndApplyConfig(newAdapter);
               updateSelectedAdapter(newAdapter);
@@ -479,11 +798,25 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
         }
 
         // Clear previous results
+        if (embeddedPaneMode) {
+          closeEmbeddedNativeCliSession();
+          embeddedTerminalFocus.focusDetoks();
+        }
         transcriptPanel.clear();
+        embeddedTerminalPane.clear();
         resultPanel.clear();
+        if (embeddedPaneMode) {
+          resultPanel.setExecuting(true);
+        }
         pipelinePanel.reset();
         currentTokenSavingsLabel = undefined;
-        render();
+        if (nativePassthroughMode) {
+          suspendInput();
+          leaveTuiDisplay();
+        } else {
+          render();
+        }
+        startExecutionClock();
 
         // Phase 3.1: Create normalized request
         const request = toNormalizedRequest(
@@ -506,29 +839,51 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
         // Phase 3.2: Execute via orchestrator with progress callback
         const result = await orchestratePipeline({
           ...request,
+          ...(options.presentationMode ? { presentationMode: options.presentationMode } : {}),
           onProgress,
           onAdapterEvent: (event) => {
             receivedLiveAdapterEvents = true;
-            transcriptPanel.addEvent(event);
+            if (nativePassthroughMode) {
+              return;
+            }
+
+            if (embeddedPaneMode) {
+              embeddedTerminalPane.addEvent(event);
+            } else {
+              transcriptPanel.addEvent(event);
+            }
             render();
           },
           onActionTimelineEvent: (event) => {
             pipelinePanel.updateActionTimelineEvent(event);
-            render();
+            if (!nativePassthroughMode || !isExecuting) {
+              render();
+            }
           },
         });
 
         // Phase 3.3: Feed PTY events to transcript panel
         if (!receivedLiveAdapterEvents && result.adapterTranscript?.events) {
           for (const event of result.adapterTranscript.events) {
-            transcriptPanel.addEvent(event);
+            if (embeddedPaneMode) {
+              embeddedTerminalPane.addEvent(event);
+            } else {
+              transcriptPanel.addEvent(event);
+            }
           }
         }
 
-        if (!transcriptPanel.hasVisibleContent()) {
+        const hasVisibleOutput = embeddedPaneMode
+          ? embeddedTerminalPane.hasVisibleContent()
+          : transcriptPanel.hasVisibleContent();
+        if (!hasVisibleOutput) {
           const finalOutput = result.rawOutput.trim();
           if (finalOutput.length > 0) {
-            transcriptPanel.appendFinalAnswer(finalOutput);
+            if (embeddedPaneMode) {
+              embeddedTerminalPane.appendFinalAnswer(finalOutput);
+            } else {
+              transcriptPanel.appendFinalAnswer(finalOutput);
+            }
           }
         }
 
@@ -542,22 +897,45 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
           ...result,
           ...(actionTimeline.length > 0 ? { actionTimeline } : {}),
         });
+        if (embeddedPaneMode) {
+          closeEmbeddedNativeCliSession();
+        }
+        if (embeddedPaneMode) {
+          embeddedTerminalFocus.focusDetoks();
+        }
         currentTokenSavingsLabel = formatTokenSavingsBadge(
-          result.tokenMetrics?.input ?? result.tokenMetrics?.output,
+          result.promptTokenSavings ?? result.tokenMetrics?.input ?? result.tokenMetrics?.output,
         );
+        clearExecutionClock();
+        if (nativePassthroughMode) {
+          resumeInput();
+          enterTuiDisplay();
+        }
         render();
 
       } catch (error) {
+        clearExecutionClock();
+        if (nativePassthroughMode) {
+          resumeInput();
+          enterTuiDisplay();
+        }
         // Display error
         const errorMsg = formatError(error, currentVerbose);
         transcriptPanel.append(`\n[ERROR] ${errorMsg}`);
         render();
       } finally {
+        clearExecutionClock();
+        resumeInput();
         isExecuting = false;
       }
     };
 
     stdin.on("data", onData);
+    stdin.on("end", () => {
+      clearNativeEscapeTimer();
+      closeEmbeddedNativeCliSession();
+      running = false;
+    });
 
     // Initial render
     render();
@@ -571,6 +949,7 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
 
     stdout.write("\n" + colors.info("TUI REPL이 종료되었습니다.\n") + "\n");
   } finally {
+    process.off("SIGTERM", sigtermHandler);
     screen.cleanup();
   }
 };
