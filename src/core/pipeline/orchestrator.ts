@@ -691,7 +691,11 @@ export const orchestratePipeline = async (
       });
 
       // Task 실행 (Role 3)
-      const prompt = `[${task.type.toUpperCase()}] ${task.title}\n\nContext: ${context.context_summary}`;
+      const responseLanguageInstruction =
+        compiledPrompt.language !== "en"
+          ? "Respond entirely in Korean.\n\n"
+          : "";
+      const prompt = `${responseLanguageInstruction}[${task.type.toUpperCase()}] ${task.title}\n\nContext: ${context.context_summary}`;
       logger.info(`작업 [${task.id}] 실행 중 type=${task.type}`);
       await emitProgressWithLogging( {
         stage: "Executor",
