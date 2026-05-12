@@ -45,7 +45,8 @@ import {
 import { toNormalizedRequest } from "../parse.js";
 import { orchestratePipeline } from "../../core/pipeline/orchestrator.js";
 import { buildActionTimeline } from "../../core/timeline/action-timeline.js";
-import { readRole1ModelName } from "../../core/prompt/config.js";
+import { readRole1ModelName, loadRole1RuntimeConfig } from "../../core/prompt/config.js";
+import { ensureLocalLlmRuntime } from "../../core/llm-client/local-runtime.js";
 import type { TokenReductionSnapshot } from "../../core/utils/tokenMetrics.js";
 import { colors } from "../colors.js";
 import { formatError } from "../format.js";
@@ -117,6 +118,12 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
   // Initialize TUI
   enterTuiDisplay();
 
+  const sigtermHandler = (): void => {
+    screen.cleanup();
+    process.exit(0);
+  };
+  process.once("SIGTERM", sigtermHandler);
+
   try {
     if (stdout.isTTY) {
       await playTuiEntryBootAnimation(stdout);
@@ -143,6 +150,16 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
       }
 
       enterTuiDisplay();
+    }
+
+    // Warm up local LLM runtime eagerly so the first prompt doesn't stall.
+    if (options.executionMode === "real") {
+      const warmupConfig = loadRole1RuntimeConfig();
+      if (warmupConfig.localLlmAutoStart !== false) {
+        ensureLocalLlmRuntime(warmupConfig).catch(() => {
+          // Error will surface when the first prompt tries to use the runtime.
+        });
+      }
     }
 
     let input = "";
@@ -899,6 +916,7 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
 
     stdout.write("\n" + colors.info("TUI REPL이 종료되었습니다.\n") + "\n");
   } finally {
+    process.off("SIGTERM", sigtermHandler);
     screen.cleanup();
   }
 };
