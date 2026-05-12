@@ -23,6 +23,8 @@ const executeWithAdapterMock = vi.mocked(executeWithAdapter);
 describe("orchestratePipeline", () => {
   beforeEach(() => {
     executeWithAdapterMock.mockClear();
+    vi.spyOn(SessionStateManager, "findSuccessfulSessionByInputHash").mockResolvedValue(null);
+    vi.spyOn(SessionStateManager, "findSuccessfulTaskByHash").mockResolvedValue(null);
   });
 
   afterEach(() => {
@@ -79,8 +81,8 @@ describe("orchestratePipeline", () => {
       /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/,
     );
 
-    // RAG 스키마 확장: shared_context에 raw_input_hash + project_id 채워짐
-    expect(savedState?.shared_context?.raw_input_hash).toMatch(/^[0-9a-f]{16}$/);
+    // stub 모드는 캐시 오염 방지를 위해 raw_input_hash 미설정
+    expect(savedState?.shared_context?.raw_input_hash).toBeUndefined();
     expect(savedState?.shared_context?.project_id).toBeTypeOf("string");
 
     // RAG 스키마 확장: 전체 task_graph 보존
@@ -96,6 +98,24 @@ describe("orchestratePipeline", () => {
       success: true,
       type: expect.any(String),
     });
+  });
+
+  it("does not set raw_input_hash for stub mode to prevent cache contamination", async () => {
+    vi.spyOn(SessionStateManager, "sessionExists").mockResolvedValue(false);
+    const saveSessionSpy = vi
+      .spyOn(SessionStateManager, "saveSession")
+      .mockResolvedValue(undefined);
+
+    await orchestratePipeline({
+      mode: "run",
+      adapter: "codex",
+      executionMode: "stub",
+      verbose: false,
+      userRequest: { raw_input: "stub cache contamination test" },
+    });
+
+    const savedState = saveSessionSpy.mock.calls.at(-1)?.[0] as any;
+    expect(savedState?.shared_context?.raw_input_hash).toBeUndefined();
   });
 
   it("passes execution mode through to the executor boundary", async () => {
@@ -537,5 +557,115 @@ describe("orchestratePipeline", () => {
       success: false,
       type: expect.any(String),
     });
+  });
+
+  it("F1: 동일 input hash의 과거 세션이 있을 때 adapter를 호출하지 않고 캐시 결과 반환", async () => {
+    const cachedSession = {
+      shared_context: {
+        session_id: "cached-session",
+        raw_input_hash: "willbematched",
+        project_id: "git-test123",
+        failed_task_ids: [],
+      },
+      task_results: {
+        t1: {
+          task_id: "t1",
+          success: true,
+          raw_output: "cached output",
+          summary: "cached output",
+        },
+      },
+      current_task_id: null,
+      completed_task_ids: ["t1"],
+      last_summary: "1개 작업을 모두 완료했습니다",
+      next_action: "파이프라인이 완료되었습니다.",
+      updated_at: new Date().toISOString(),
+    };
+    vi.spyOn(SessionStateManager, "findSuccessfulSessionByInputHash").mockResolvedValue(
+      cachedSession as any,
+    );
+
+    const result = await orchestratePipeline({
+      mode: "run",
+      adapter: "codex",
+      executionMode: "real",
+      verbose: false,
+      // projectInfo로 project_id를 캐시된 세션과 일치시킴
+      projectInfo: { projectId: "git-test123", projectPath: "/test", projectName: "test" },
+      userRequest: { raw_input: "cached prompt" },
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.cacheHit?.kind).toBe("session");
+    expect(result.cacheHit?.sourceSessionId).toBe("cached-session");
+    expect(result.rawOutput).toContain("cached output");
+    expect(executeWithAdapterMock).not.toHaveBeenCalled();
+  });
+
+  it("F1: stub 모드에서는 캐시 조회를 건너뜀", async () => {
+    vi.spyOn(SessionStateManager, "sessionExists").mockResolvedValue(false);
+    vi.spyOn(SessionStateManager, "saveSession").mockResolvedValue(undefined);
+
+    const result = await orchestratePipeline({
+      mode: "run",
+      adapter: "codex",
+      executionMode: "stub",
+      verbose: false,
+      userRequest: { raw_input: "hello detoks" },
+    });
+
+    // findSuccessfulSessionByInputHash가 mocked to null (beforeEach), stub 모드면 애초에 호출 안 함
+    expect(result.ok).toBe(true);
+    expect(result.cacheHit).toBeUndefined();
+    expect(result.rawOutput).toContain("[stub:codex]");
+  });
+
+  it("F1: noCache=true이면 캐시 조회 건너뜀", async () => {
+    // noCache=true 시 findSuccessfulSessionByInputHash가 반환값이 있어도 사용하지 않아야 함
+    // beforeEach에서 이미 null 반환으로 mocking됨 — stub 모드로 실제 실행 확인
+    vi.spyOn(SessionStateManager, "sessionExists").mockResolvedValue(false);
+    vi.spyOn(SessionStateManager, "saveSession").mockResolvedValue(undefined);
+
+    const result = await orchestratePipeline({
+      mode: "run",
+      adapter: "codex",
+      executionMode: "stub",
+      verbose: false,
+      noCache: true,
+      userRequest: { raw_input: "hello detoks" },
+    });
+
+    expect(result.cacheHit).toBeUndefined();
+    // stub 실행이 진행되어야 함
+    expect(result.rawOutput).toContain("[stub:codex]");
+  });
+
+  it("F2: task hash 매칭 시 해당 task의 adapter 호출을 건너뜀", async () => {
+    vi.spyOn(SessionStateManager, "sessionExists").mockResolvedValue(false);
+    vi.spyOn(SessionStateManager, "saveSession").mockResolvedValue(undefined);
+    vi.spyOn(SessionStateManager, "findSuccessfulTaskByHash").mockResolvedValue({
+      taskResult: {
+        task_id: "t1",
+        success: true,
+        raw_output: "cached task output",
+        summary: "cached task output",
+        completed_at: new Date().toISOString(),
+      } as any,
+      sessionId: "prev-session",
+    });
+
+    const result = await orchestratePipeline({
+      mode: "run",
+      adapter: "codex",
+      executionMode: "real",
+      verbose: false,
+      userRequest: { raw_input: "hello detoks" },
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.rawOutput).toContain("cached task output");
+    expect(executeWithAdapterMock).not.toHaveBeenCalled();
+    const cacheHitEvent = result.actionTimeline?.find((e) => e.kind === "cache_hit");
+    expect(cacheHitEvent).toBeDefined();
   });
 });

@@ -35,6 +35,7 @@ export interface PipelineExecutionRequest {
   verbose: boolean;
   presentationMode?: "passthrough" | "embedded-pane";
   trace?: boolean;
+  noCache?: boolean;
   projectInfo?: ProjectInfo;
   compressionImplementation?: CompressTextImplementation;
   userRequest: UserRequest;
@@ -65,6 +66,14 @@ export interface PipelineProgressLog {
   timestamp: number;
 }
 
+export interface CacheHitInfo {
+  kind: "session" | "task";
+  sourceSessionId: string;
+  sourceTaskId?: string;
+  cacheAge: number;
+  tokensSaved: number;
+}
+
 export interface PipelineExecutionResult {
   ok: boolean;
   mode: InteractionMode;
@@ -91,4 +100,5 @@ export interface PipelineExecutionResult {
   adapterStderr?: string; // adapter stderr 출력
   actionTimeline?: ActionTimelineEvent[];
   promptTokenSavings?: TokenReductionSnapshot | null;
+  cacheHit?: CacheHitInfo;
 }

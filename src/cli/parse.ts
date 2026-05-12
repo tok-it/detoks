@@ -291,6 +291,7 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
   let human = false;
   let verbose = false;
   let trace = false;
+  let noCache = false;
   let tui: CliArgs["tui"] = undefined;
   let presentationMode: CliArgs["presentationMode"] = undefined;
 
@@ -307,6 +308,11 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
 
     if (current === "--trace") {
       trace = true;
+      continue;
+    }
+
+    if (current === "--no-cache") {
+      noCache = true;
       continue;
     }
 
@@ -762,6 +768,7 @@ export const toNormalizedRequest = (
     executionMode: args.executionMode,
     verbose: args.verbose,
     trace: args.trace,
+    ...(args.noCache ? { noCache: true } : {}),
     userRequest: UserRequestSchema.parse({
       raw_input: prompt,
       cwd: options?.cwd ?? process.cwd(),
