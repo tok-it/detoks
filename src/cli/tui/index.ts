@@ -82,6 +82,13 @@ const formatTokenSavingsBadge = (reduction?: TokenReductionSnapshot | null): str
   return `tok -${percent}%`;
 };
 
+const formatCacheHitBadge = (cacheHit: import("../../core/pipeline/types.js").CacheHitInfo): string => {
+  const ageDays = Math.round(cacheHit.cacheAge / (24 * 60 * 60 * 1000));
+  const ageLabel = ageDays === 0 ? "오늘" : `${ageDays}일 전`;
+  const kindLabel = cacheHit.kind === "session" ? "세션" : "task";
+  return `cache hit(${kindLabel} · ${ageLabel})`;
+};
+
 export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
   const screen = createScreenManager(stdout, stdin);
   const decoder = new StringDecoder("utf8");
@@ -89,6 +96,7 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
   let currentAdapterModel = options.adapterModel ?? getAdapterModel(currentAdapter);
   let currentTranslationModel = options.translationModel ?? getTranslationModel();
   let currentVerbose = options.verbose;
+  let currentCacheDisabled = false;
   let currentInferenceStrength =
     currentAdapter === "codex"
       ? options.inferenceStrength ?? getCodexReasoningEffortOverride() ?? "medium"
@@ -784,8 +792,12 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
             executionMode: options.executionMode,
             modelName: currentTranslationModel,
             verbose: currentVerbose,
+            cacheDisabled: currentCacheDisabled,
             onVerboseToggle: (enabled) => {
               currentVerbose = enabled;
+            },
+            onCacheDisableToggle: (disabled) => {
+              currentCacheDisabled = disabled;
             },
             onMainScreenRestore: () => {
               shouldRestoreMainScreen = true;
@@ -852,6 +864,7 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
             adapter: currentAdapter,
             executionMode: options.executionMode,
             verbose: currentVerbose,
+            noCache: currentCacheDisabled,
             trace: false,
             showHelp: false,
             helpTopic: "repl",
@@ -929,9 +942,11 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
         if (embeddedPaneMode) {
           embeddedTerminalFocus.focusDetoks();
         }
-        currentTokenSavingsLabel = formatTokenSavingsBadge(
-          result.promptTokenSavings ?? result.tokenMetrics?.input ?? result.tokenMetrics?.output,
-        );
+        currentTokenSavingsLabel = result.cacheHit
+          ? formatCacheHitBadge(result.cacheHit)
+          : formatTokenSavingsBadge(
+              result.promptTokenSavings ?? result.tokenMetrics?.input ?? result.tokenMetrics?.output,
+            );
         clearExecutionClock();
         if (nativePassthroughMode) {
           resumeInput();

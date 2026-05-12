@@ -12,7 +12,7 @@ import { join } from "node:path";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
-const repoRoot = process.cwd();
+const repoRoot = new URL("../../..", import.meta.url).pathname.replace(/\/$/, "");
 const packageJson = JSON.parse(
   readFileSync(join(repoRoot, "package.json"), "utf8"),
 ) as {
@@ -500,6 +500,24 @@ describe("detoks CLI smoke", () => {
     expect(verboseJson.stages).toHaveLength(5);
     expect(verboseJson).toHaveProperty("rawOutput");
     expect(verboseRun.stdout).not.toBe(defaultRun.stdout);
+  });
+
+  it("accepts --no-cache flag and exits cleanly", () => {
+    const run = runCli(["hello detoks", "--execution-mode", "stub", "--no-cache"]);
+
+    expect(run.error).toBeUndefined();
+    expect(run.status).toBe(0);
+    expect(run.stderr).toBe("");
+    expect(run.stdout).toContain("[CODEX]");
+  });
+
+  it("produces same output with and without --no-cache in stub mode", () => {
+    const withCache = runCli(["hello detoks", "--execution-mode", "stub"]);
+    const withoutCache = runCli(["hello detoks", "--execution-mode", "stub", "--no-cache"]);
+
+    expect(withCache.status).toBe(0);
+    expect(withoutCache.status).toBe(0);
+    expect(withCache.stdout).toBe(withoutCache.stdout);
   });
 
   it("enters repl when detoks runs without arguments", () => {
