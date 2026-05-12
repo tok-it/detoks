@@ -10,6 +10,7 @@ import { spawn } from "node:child_process";
 import { closeSync, existsSync, openSync, readSync, statSync } from "node:fs";
 import { extname, join } from "node:path";
 import { createInteractivePtySession } from "./pty-session.js";
+import * as pty from "node-pty";
 
 const formatCommand = (request: SubprocessRequest): string => {
   const args = request.args.length > 0 ? ` ${request.args.join(" ")}` : "";
