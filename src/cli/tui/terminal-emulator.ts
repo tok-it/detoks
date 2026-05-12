@@ -39,7 +39,12 @@ const isWideCharacter = (char: string): boolean => {
     (code >= 0x30a0 && code <= 0x30ff) ||
     (code >= 0xac00 && code <= 0xd7af) ||
     (code >= 0x1100 && code <= 0x11ff) ||
-    (code >= 0x3130 && code <= 0x318f)
+    (code >= 0x3130 && code <= 0x318f) ||
+    (code >= 0x1f1e6 && code <= 0x1f1ff) ||
+    (code >= 0x1f300 && code <= 0x1faf6) ||
+    (code >= 0x1f900 && code <= 0x1f9ff) ||
+    (code >= 0x2600 && code <= 0x27bf) ||
+    /\p{Extended_Pictographic}/u.test(char)
   );
 };
 
@@ -89,6 +94,27 @@ const colorFromIndexed = (value: number): TerminalColor => {
 
 const colorFromRgb = (red: number, green: number, blue: number): TerminalColor => {
   return { kind: "rgb", red, green, blue };
+};
+
+const isCombiningCharacter = (char: string): boolean => {
+  return /\p{Mark}/u.test(char) || char === "\u200d" || char === "\u200c" || char === "\ufe0e" || char === "\ufe0f";
+};
+
+const getCharacterDisplayWidth = (char: string): number => {
+  const code = char.codePointAt(0) ?? 0;
+  if (code === 0) {
+    return 0;
+  }
+
+  if (code < 32 || (code >= 0x7f && code < 0xa0)) {
+    return 0;
+  }
+
+  if (isCombiningCharacter(char)) {
+    return 0;
+  }
+
+  return isWideCharacter(char) ? 2 : 1;
 };
 
 const applySgrParameters = (style: TerminalCellStyle, params: number[]): TerminalCellStyle => {
@@ -546,15 +572,28 @@ export class TerminalEmulatorBuffer {
       this.advanceLine();
     }
 
-    const width = isWideCharacter(char) ? 2 : 1;
-    if (width === 2 && this.columns > 1 && this.cursorColumn === this.columns - 1) {
-      this.advanceLine();
-    }
-
+    const width = getCharacterDisplayWidth(char);
     const screen = this.getActiveScreen();
     const row = screen[this.cursorRow];
     if (!row) {
       return;
+    }
+
+    if (width === 0) {
+      const targetColumn = this.cursorColumn > 0 ? this.cursorColumn - 1 : this.cursorColumn;
+      const targetCell = row[targetColumn];
+      if (!targetCell) {
+        return;
+      }
+      row[targetColumn] = {
+        char: `${targetCell.char}${char}`,
+        style: cloneStyle(targetCell.style ?? this.currentStyle),
+      };
+      return;
+    }
+
+    if (width === 2 && this.columns > 1 && this.cursorColumn === this.columns - 1) {
+      this.advanceLine();
     }
 
     row[this.cursorColumn] = {

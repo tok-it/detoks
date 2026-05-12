@@ -136,4 +136,22 @@ describe("TerminalEmulatorBuffer", () => {
     const snapshot = buffer.snapshot();
     expect(snapshot.visibleRows[0]?.trim()).toBe("premidpost!");
   });
+
+  it("treats combining marks as zero-width and emoji as double-width", () => {
+    const buffer = new TerminalEmulatorBuffer(8, 3);
+    buffer.write("a\u0301🚀b");
+
+    const snapshot = buffer.snapshot();
+    expect(snapshot.visibleRows[0]?.trim()).toBe("á🚀 b");
+    expect(snapshot.cursorColumn).toBe(4);
+  });
+
+  it("keeps mixed-width wrapping stable across line boundaries", () => {
+    const buffer = new TerminalEmulatorBuffer(3, 3);
+    buffer.write("a\u0301🚀c");
+
+    const snapshot = buffer.snapshot();
+    expect(snapshot.visibleRows[0]?.trim()).toBe("á🚀");
+    expect(snapshot.visibleRows[1]?.trim()).toBe("c");
+  });
 });
