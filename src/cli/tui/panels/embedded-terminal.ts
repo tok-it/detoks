@@ -4,7 +4,7 @@ import type { PtyEvent } from "../../../integrations/subprocess/types.js";
 import { getContentArea } from "../layout-manager.js";
 import { colors } from "../../colors.js";
 import type { TerminalCell, TerminalCellStyle, TerminalColor } from "../terminal-emulator.js";
-import { TerminalEmulatorBuffer } from "../terminal-emulator.js";
+import { TerminalEmulatorBuffer, getCharacterDisplayWidth } from "../terminal-emulator.js";
 
 // Larger than the terminal-emulator default (200) to retain full LLM session output.
 const EMBEDDED_PANE_SCROLLBACK_LIMIT = 500;
@@ -81,9 +81,14 @@ const renderCellsToAnsi = (
 ): string => {
   const visibleCells = cells.slice(0, Math.max(0, maxWidth));
   let output = "";
+  let renderedColumns = 0;
   let currentSignature = "";
 
   for (const [index, cell] of visibleCells.entries()) {
+    if (cell.wideContinuation) {
+      continue;
+    }
+
     const isCursorCell = cursorVisible === true && cursorColumn === index;
     const displayStyle = isCursorCell
       ? { ...cell.style, inverse: true }
@@ -94,7 +99,13 @@ const renderCellsToAnsi = (
       output += styleToAnsi(displayStyle);
       currentSignature = signature;
     }
-    output += cell.char || " ";
+    const renderedChar = cell.char || " ";
+    output += renderedChar;
+    renderedColumns += cell.char.length > 0 ? getCharacterDisplayWidth(renderedChar) : 1;
+  }
+
+  if (renderedColumns < maxWidth) {
+    output += " ".repeat(maxWidth - renderedColumns);
   }
 
   return `${output}\x1b[0m`;
