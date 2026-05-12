@@ -73,16 +73,25 @@ const styleToAnsi = (style: TerminalCellStyle): string => {
   return codes.length > 0 ? `\x1b[${codes.join(";")}m` : "";
 };
 
-const renderCellsToAnsi = (cells: TerminalCell[], maxWidth: number): string => {
+const renderCellsToAnsi = (
+  cells: TerminalCell[],
+  maxWidth: number,
+  cursorColumn?: number,
+  cursorVisible?: boolean,
+): string => {
   const visibleCells = cells.slice(0, Math.max(0, maxWidth));
   let output = "";
   let currentSignature = "";
 
-  for (const cell of visibleCells) {
-    const signature = styleSignature(cell.style);
+  for (const [index, cell] of visibleCells.entries()) {
+    const isCursorCell = cursorVisible === true && cursorColumn === index;
+    const displayStyle = isCursorCell
+      ? { ...cell.style, inverse: true }
+      : cell.style;
+    const signature = styleSignature(displayStyle);
     if (signature !== currentSignature) {
       output += "\x1b[0m";
-      output += styleToAnsi(cell.style);
+      output += styleToAnsi(displayStyle);
       currentSignature = signature;
     }
     output += cell.char || " ";
@@ -180,7 +189,11 @@ export class EmbeddedTerminalPane {
     const hasContent = this.buffer.hasContent();
     let currentRow = region.startRow;
     if (hasContent) {
-      const rows = [...this.buffer.getScrollbackCells(), ...this.buffer.getVisibleCells()];
+      const scrollbackRows = this.buffer.getScrollbackCells();
+      const visibleRows = this.buffer.getVisibleCells();
+      const rows = [...scrollbackRows, ...visibleRows];
+      const cursorState = this.buffer.getCursorState();
+      const cursorGlobalRow = scrollbackRows.length + cursorState.row;
       let lastContentIndex = -1;
       for (let i = rows.length - 1; i >= 0; i -= 1) {
         const row = rows[i];
@@ -193,13 +206,16 @@ export class EmbeddedTerminalPane {
       const startIndex = Math.max(0, endIndex - usableHeight);
       const renderedRows = rows.slice(startIndex, Math.max(0, endIndex));
 
-      for (const row of renderedRows) {
+      for (const [offset, row] of renderedRows.entries()) {
         if (currentRow >= region.endRow) {
           break;
         }
 
         screen.cursorMoveTo(currentRow, 0);
-        screen.write(renderCellsToAnsi(row, usableWidth));
+        const globalRow = startIndex + offset;
+        const cursorColumn =
+          cursorState.visible && globalRow === cursorGlobalRow ? cursorState.column : undefined;
+        screen.write(renderCellsToAnsi(row, usableWidth, cursorColumn, cursorState.visible));
         currentRow += 1;
       }
     } else {

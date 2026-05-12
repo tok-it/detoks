@@ -42,4 +42,15 @@ describe("TerminalEmulatorBuffer", () => {
     expect(snapshot.alternateScreen).toBe(false);
     expect(snapshot.visibleRows[0]?.trim()).toBe("main");
   });
+
+  it("toggles cursor visibility with show and hide cursor sequences", () => {
+    const buffer = new TerminalEmulatorBuffer(6, 3);
+    expect(buffer.snapshot().cursorVisible).toBe(true);
+
+    buffer.write("\u001b[?25l");
+    expect(buffer.snapshot().cursorVisible).toBe(false);
+
+    buffer.write("\u001b[?25h");
+    expect(buffer.snapshot().cursorVisible).toBe(true);
+  });
 });

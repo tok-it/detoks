@@ -56,6 +56,15 @@ describe("EmbeddedTerminalPane", () => {
     expect(output).toContain("world");
   });
 
+  it("renders the live cursor cell with inverse video when the buffer reports a visible cursor", () => {
+    pane.addEvent({ type: "chunk", timestamp: Date.now(), stream: "stdout", data: "hello" });
+
+    pane.render(mockContext, mockRegion);
+
+    const output = mockScreen.write.mock.calls.map((call: any) => call[0]).join("\n");
+    expect(output).toContain("\x1b[7m");
+  });
+
   it("forwards resize events to the terminal buffer without writing content", () => {
     // Use a short string that fits within usableWidth (columns 20 - 4 border = 16)
     pane.addEvent({ type: "chunk", timestamp: Date.now(), stream: "stdout", data: "output line" });

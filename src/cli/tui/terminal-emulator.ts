@@ -25,6 +25,7 @@ export interface TerminalEmulatorSnapshot {
   visibleRows: string[];
   cursorRow: number;
   cursorColumn: number;
+  cursorVisible: boolean;
   alternateScreen: boolean;
 }
 
@@ -184,6 +185,7 @@ export class TerminalEmulatorBuffer {
   private activeScreen: TerminalCell[][];
   private cursorRow = 0;
   private cursorColumn = 0;
+  private cursorVisible = true;
   private alternateScreen = false;
   private wrapPending = false;
   private pendingEscape = "";
@@ -367,6 +369,16 @@ export class TerminalEmulatorBuffer {
       this.setActiveScreen(this.mainScreen);
       this.ensureCursorInBounds();
       this.wrapPending = false;
+      return;
+    }
+
+    if (sequence === "\u001b[?25h") {
+      this.cursorVisible = true;
+      return;
+    }
+
+    if (sequence === "\u001b[?25l") {
+      this.cursorVisible = false;
       return;
     }
 
@@ -570,6 +582,7 @@ export class TerminalEmulatorBuffer {
     this.setActiveScreen(this.mainScreen);
     this.cursorRow = 0;
     this.cursorColumn = 0;
+    this.cursorVisible = true;
     this.alternateScreen = false;
     this.pendingEscape = "";
     this.wrapPending = false;
@@ -620,7 +633,16 @@ export class TerminalEmulatorBuffer {
       visibleRows: this.getVisibleRows(),
       cursorRow: this.cursorRow,
       cursorColumn: this.cursorColumn,
+      cursorVisible: this.cursorVisible,
       alternateScreen: this.alternateScreen,
+    };
+  }
+
+  getCursorState(): { row: number; column: number; visible: boolean } {
+    return {
+      row: this.cursorRow,
+      column: this.cursorColumn,
+      visible: this.cursorVisible,
     };
   }
 }
