@@ -263,6 +263,7 @@ describe("orchestratePipeline", () => {
         LOCAL_LLM_API_BASE: "http://127.0.0.1:1234/v1",
         LOCAL_LLM_API_KEY: "test-key",
         LOCAL_LLM_MODEL_NAME: "local-model",
+        LOCAL_LLM_RUNTIME_PROVIDER: "llama-server",
         TRANSLATION_MAX_ATTEMPTS: "1",
         TEMPERATURE: "0",
       },
