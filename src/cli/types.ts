@@ -39,6 +39,7 @@ export interface CliArgs {
   trace: boolean;
   tui?: "force" | "disabled"; // undefined = auto (TUI if interactive TTY), "force" = always TUI, "disabled" = legacy text REPL
   presentationMode?: "passthrough" | "embedded-pane";
+  noCache?: boolean;
   showHelp: boolean;
   helpTopic?:
     | "main"

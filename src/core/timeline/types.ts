@@ -8,6 +8,8 @@ export const ActionTimelineKinds = [
   "approval_result",
   "turn_recap",
   "stage_update",
+  "cache_hit",
+  "cache_miss",
 ] as const;
 
 export type ActionTimelineKind = (typeof ActionTimelineKinds)[number];

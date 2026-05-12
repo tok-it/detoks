@@ -22,6 +22,8 @@ import {
 } from "../utils/tokenMetrics.js";
 import { getLLMModelConfig } from "../llm-client/llm-models.js";
 import { computeProjectId, hashRawInput } from "../rag/hash.js";
+import { CACHE_DISABLED, CACHE_TTL_DAYS } from "../cache/cache-config.js";
+import { isSessionCacheValid, isTaskCacheValid } from "../cache/cache-validator.js";
 import type { PtyTranscript } from "../../integrations/subprocess/types.js";
 import type { SessionState } from "../../schemas/pipeline.js";
 import type {
@@ -444,6 +446,63 @@ export const orchestratePipeline = async (
     }
   };
 
+  // ── F1: Cross-session input_hash cache bypass ────────────────────────────
+  // stub 모드는 테스트/개발용이므로 캐시 우회 대상에서 제외
+  if (!request.noCache && !CACHE_DISABLED && request.executionMode !== "stub") {
+    const inputHash = hashRawInput(request.userRequest.raw_input);
+    const projectId =
+      request.projectInfo?.projectId ??
+      computeProjectId(request.userRequest.cwd ?? process.cwd());
+    const cachedSession = await SessionStateManager.findSuccessfulSessionByInputHash(
+      inputHash,
+      { project_id: projectId, recencyDays: CACHE_TTL_DAYS },
+    );
+    if (cachedSession && isSessionCacheValid(cachedSession, { project_id: projectId })) {
+      const cacheAge = cachedSession.updated_at
+        ? Date.now() - new Date(cachedSession.updated_at).getTime()
+        : 0;
+      const cachedSessionId = cachedSession.shared_context.session_id;
+      await emitActionTimelineWithLogging(
+        createActionTimelineEvent({
+          kind: "cache_hit",
+          source: "pipeline",
+          summary: `F1 캐시 hit — 세션 ${cachedSessionId} (${Math.round(cacheAge / 86400000)}일 전)`,
+        }),
+      );
+      const { rawOutputText, summaryText } = collectTaskOutputText(cachedSession);
+      return {
+        ok: true,
+        mode: request.mode,
+        adapter: request.adapter,
+        summary: cachedSession.last_summary ?? summaryText.slice(0, 200),
+        nextAction: cachedSession.next_action ?? "캐시된 결과를 반환했습니다.",
+        originalPrompt: request.userRequest.raw_input,
+        stages: buildPipelineStages(true),
+        rawOutput: rawOutputText,
+        sessionId: cachedSessionId,
+        taskRecords: cachedSession.completed_task_ids.map((id) => ({
+          taskId: id,
+          status: "completed" as const,
+          rawOutput: (cachedSession.task_results[id] as Record<string, unknown>)?.raw_output as string ?? "",
+        })),
+        cacheHit: {
+          kind: "session" as const,
+          sourceSessionId: cachedSessionId,
+          cacheAge,
+          tokensSaved: 0,
+        },
+        ...(actionTimeline.length ? { actionTimeline } : {}),
+      };
+    }
+    await emitActionTimelineWithLogging(
+      createActionTimelineEvent({
+        kind: "cache_miss",
+        source: "pipeline",
+        summary: `F1 캐시 miss — hash ${inputHash}`,
+      }),
+    );
+  }
+
   // ── Step 1: Prompt compile + Role 2.1 handoff 생성 (Role 1) ──────────────
   let compiledPrompt;
   let role2PromptInput;
@@ -736,6 +795,49 @@ export const orchestratePipeline = async (
           message: `Executor(${task.id})는 의존성 ${blockedBy} 실패로 건너뜁니다`,
         });
         continue;
+      }
+
+      // F2: Task-level input_hash cache bypass (stub 모드 제외)
+      if (!request.noCache && !CACHE_DISABLED && request.executionMode !== "stub" && task.input_hash) {
+        const projectId = state.shared_context.project_id as string | undefined;
+        const cachedTask = await SessionStateManager.findSuccessfulTaskByHash(
+          task.input_hash,
+          { ...(projectId ? { project_id: projectId } : {}), recencyDays: CACHE_TTL_DAYS },
+        );
+        if (cachedTask && isTaskCacheValid(cachedTask.taskResult, {})) {
+          const cachedOutput = (cachedTask.taskResult.raw_output as string) ?? "";
+          state = markTaskCompleted(state, task.id, cachedOutput, task.type, task);
+          state = applySessionTokenMetrics(
+            state,
+            request.userRequest.raw_input,
+            compiledPrompt.compressed_prompt,
+          ).state;
+          await SessionStateManager.saveSession(state);
+          taskRecords.push({ taskId: task.id, status: "completed", rawOutput: cachedOutput });
+          await emitActionTimelineWithLogging(
+            createActionTimelineEvent({
+              kind: "cache_hit",
+              source: "pipeline",
+              summary: `F2 캐시 hit — task ${task.id} (세션 ${cachedTask.sessionId})`,
+              taskId: task.id,
+            }),
+          );
+          await emitProgressWithLogging({
+            stage: "Executor",
+            status: "skip",
+            taskId: task.id,
+            message: `Executor(${task.id}) F2 캐시 hit — adapter 호출 생략`,
+          });
+          continue;
+        }
+        await emitActionTimelineWithLogging(
+          createActionTimelineEvent({
+            kind: "cache_miss",
+            source: "pipeline",
+            summary: `F2 캐시 miss — task ${task.id} hash ${task.input_hash}`,
+            taskId: task.id,
+          }),
+        );
       }
 
       // 현재 실행 중인 Task 기록 (Role 2.2)

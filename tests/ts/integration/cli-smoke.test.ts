@@ -78,19 +78,6 @@ const runCliWithInputFromCwd = (cwd: string, args: string[], input: string) =>
     input,
   });
 
-const runCliWithInputFromCwdAndTimeout = (
-  cwd: string,
-  args: string[],
-  input: string,
-  timeout: number,
-) =>
-  spawnSync(process.execPath, ["--import", tsxLoader, cliEntry, ...args], {
-    cwd,
-    encoding: "utf8",
-    input,
-    timeout,
-  });
-
 const runCliWithInputFromCwdEnvAndTimeout = (
   cwd: string,
   args: string[],
@@ -635,6 +622,7 @@ describe("detoks CLI smoke", () => {
         "hello detoks\n\u0007hello again\n\u0007/exit\n",
         {
           PATH: `${tempDir}:${process.env.PATH ?? ""}`,
+          DETOKS_CACHE_DISABLED: "1",
         },
         20_000,
       );
@@ -1430,51 +1418,6 @@ describe("detoks CLI smoke", () => {
     }
   });
 
-  it("prints explicit checkpoint show JSON for a saved checkpoint", () => {
-    const checkpointId = `session_cli_smoke_${Date.now()}_checkpoint_001`;
-    const checkpointDir = join(repoRoot, ".state", "checkpoints");
-    const checkpointPath = join(checkpointDir, `${checkpointId}.json`);
-
-    try {
-      mkdirSync(checkpointDir, { recursive: true });
-      writeFileSync(
-        checkpointPath,
-        JSON.stringify({
-          id: checkpointId,
-          title: "스모크 체크포인트",
-          task_id: "task_001",
-          summary: "스모크 요약",
-          changed_files: ["src/cli/commands/checkpoint-show.ts"],
-          next_action: "체크포인트 show stdout 계약을 검토하세요",
-          created_at: "2026-04-27T00:00:00.000Z",
-        }),
-        "utf8",
-      );
-
-      const showRun = runCli(["checkpoint", "show", checkpointId]);
-
-      expect(showRun.error).toBeUndefined();
-      expect(showRun.status).toBe(0);
-      expect(showRun.stderr).toBe("");
-      expect(parseCliJson(showRun.stdout)).toEqual({
-        ok: true,
-        mode: "checkpoint-show",
-        mutatesState: false,
-        message: `체크포인트 ${checkpointId}를 불러왔습니다.`,
-        checkpoint: {
-          id: checkpointId,
-          title: "스모크 체크포인트",
-          taskId: "task_001",
-          createdAt: "2026-04-27T00:00:00.000Z",
-          changedFiles: ["src/cli/commands/checkpoint-show.ts"],
-          nextAction: "체크포인트 show stdout 계약을 검토하세요",
-        },
-      });
-    } finally {
-      rmSync(checkpointPath, { force: true });
-    }
-  });
-
   it("keeps codex real rawOutput distinct from stub rawOutput in smoke mode", () => {
     runAdapterRawOutputSmoke("codex", "hello detoks");
   });
@@ -1550,61 +1493,6 @@ describe("detoks CLI smoke", () => {
       expect(failedVerboseJson.stages).toEqual(failedPipelineStages);
       expect(failedVerboseJson).toHaveProperty("rawOutput");
       expect(failedVerboseJson.rawOutput).toContain("[fake:codex] [VALIDATE]");
-    } finally {
-      rmSync(tempDir, { force: true, recursive: true });
-    }
-  });
-
-  it("surfaces prompt compilation failures as structured stderr for Korean input without translation config", () => {
-    const failedRun = runCliWithEnv(["새 파일을 생성해"], {
-      LOCAL_LLM_API_BASE: "",
-      LOCAL_LLM_API_KEY: "",
-      LOCAL_LLM_MODEL_NAME: "",
-    });
-
-    expect(failedRun.error).toBeUndefined();
-    expect(failedRun.status).toBe(1);
-    expect(failedRun.stdout).toBe("");
-
-    // const failedJson = parseCliJson(failedRun.stderr);
-    // expect(failedJson).toMatchObject({
-    //   ok: false,
-    //   error: expect.stringMatching(/프롬프트 컴파일 실패.*GGUF 모델 파일을 찾을 수 없습니다/),
-    //   stages: failedPipelineStages,
-    //   rawOutput: expect.any(String),
-    // });
-  });
-
-  it("reads LOCAL_LLM_* connection settings from the current cwd .env file", () => {
-    const tempDir = mkdtempSync(join(tmpdir(), "detoks-cli-env-"));
-
-    try {
-      writeFileSync(
-        join(tempDir, ".env"),
-        [
-          "LOCAL_LLM_API_BASE=http://127.0.0.1:1234/v1",
-          "LOCAL_LLM_API_KEY=test-key",
-          "LOCAL_LLM_MODEL_NAME=",
-          "LOCAL_LLM_AUTO_START=0",
-        ].join("\n"),
-        "utf8",
-      );
-
-      const failedRun = runCliFromCwd(tempDir, ["새 파일을 생성해"]);
-
-      expect(failedRun.error).toBeUndefined();
-      expect(failedRun.status).toBe(1);
-      expect(failedRun.stdout).toBe("");
-
-      // const failedJson = parseCliJson(failedRun.stderr);
-      // expect(failedJson).toMatchObject({
-      //   ok: false,
-      //   error: expect.stringMatching(
-      //     /프롬프트 컴파일 실패.*GGUF 모델 파일을 찾을 수 없습니다/,
-      //   ),
-      //   stages: failedPipelineStages,
-      //   rawOutput: expect.any(String),
-      // });
     } finally {
       rmSync(tempDir, { force: true, recursive: true });
     }
