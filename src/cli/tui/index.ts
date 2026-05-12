@@ -32,6 +32,8 @@ import {
   isEmbeddedTerminalInterruptKey,
   isEmbeddedTerminalNativeFocusToggleKey,
   isEmbeddedTerminalReturnToDetoksKey,
+  isTerminalFocusInSequence,
+  isTerminalFocusOutSequence,
 } from "./focus-manager.js";
 import {
   createEmbeddedNativeCliSession,
@@ -100,10 +102,13 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
     screen.cursorHide();
     // Enable bracketed paste mode so pasted content doesn't auto-submit
     stdout.write("\x1b[?2004h");
+    // Enable terminal focus reporting so we can repaint after app switch/resume.
+    stdout.write("\x1b[?1004h");
   };
 
   const leaveTuiDisplay = (): void => {
     stdout.write("\x1b[?2004l");
+    stdout.write("\x1b[?1004l");
     screen.setRawMode(false);
     screen.cursorShow();
     screen.exitAltScreen();
@@ -188,6 +193,7 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
     let pendingNativeEscapeTimer: NodeJS.Timeout | undefined;
     let executionClockStartedAt: number | null = null;
     let executionClockTimer: NodeJS.Timeout | undefined;
+    let forceFullRender = false;
 
     const clearNativeEscapeTimer = (): void => {
       if (pendingNativeEscapeTimer !== undefined) {
@@ -214,6 +220,10 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
       }
       executionClockStartedAt = null;
       pipelinePanel.setExecutionClock(null);
+    };
+
+    const requestFullRender = (): void => {
+      forceFullRender = true;
     };
 
     const startExecutionClock = (): void => {
@@ -362,6 +372,11 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
     const render = (): void => {
       const dims = screen.getDimensions();
       const ctx = { screen, dims };
+      if (forceFullRender) {
+        screen.clear();
+        screen.cursorMoveTo(0, 0);
+        forceFullRender = false;
+      }
       const inputLayout = measureInputLayout(dims, input);
       const bannerRows = Math.min(3, Math.max(0, inputLayout.separatorRow));
       const statusRegionStart = bannerRows;
@@ -432,6 +447,18 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
     // 3. Display width calculation: Korean characters are 2 columns wide in terminal
     // 4. Escape sequences: handled separately before character-by-character processing
     const onData = (chunk: Buffer): void => {
+      const text = decoder.write(chunk);
+
+      if (isTerminalFocusInSequence(text)) {
+        requestFullRender();
+        render();
+        return;
+      }
+
+      if (isTerminalFocusOutSequence(text)) {
+        return;
+      }
+
       if (isExecuting) {
         // Embedded pane: forward raw bytes to child while adapter-terminal is focused
         if (
@@ -439,14 +466,13 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
           embeddedTerminalFocus.focus === "adapter-terminal" &&
           embeddedNativeCliSession !== null
         ) {
-          embeddedNativeCliSession.write(decoder.write(chunk));
+          embeddedNativeCliSession.write(text);
         }
         return;
       }
 
       // Use StringDecoder to handle multi-byte UTF-8 sequences that may be split across chunks
       // This ensures Korean and other Unicode characters don't get corrupted
-      const text = decoder.write(chunk);
       let needsFullRender = false;
       let i = 0;
 

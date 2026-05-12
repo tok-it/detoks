@@ -40,3 +40,9 @@ export const isEmbeddedTerminalReturnToDetoksKey = (char: string): boolean =>
 
 export const isEmbeddedTerminalInterruptKey = (char: string): boolean =>
   char === "\x03"; // Ctrl+C
+
+export const isTerminalFocusInSequence = (text: string): boolean =>
+  text === "\x1b[I";
+
+export const isTerminalFocusOutSequence = (text: string): boolean =>
+  text === "\x1b[O";

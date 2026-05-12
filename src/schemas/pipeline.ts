@@ -212,6 +212,12 @@ export const ExecutionResultSchema = z.object({
     .optional(),
   next_action: z.string().optional(),
   type: z.enum(RequestCategoryValues).optional(),
+  // RAG 메타데이터 (Phase 2 임베딩 인덱싱·F2 hash 캐시용)
+  // 모두 optional이라 기존 세션 파일은 그대로 통과.
+  title: z.string().optional(),
+  input_hash: z.string().optional(),
+  depends_on: z.array(z.string()).optional(),
+  completed_at: z.string().datetime().optional(),
 }).passthrough();
 
 export const CompressedExecutionResultSchema = z.object({
@@ -258,6 +264,8 @@ export const SessionStateSchema = z.object({
   shared_context: z.object({
     session_id: z.string(),
     raw_input: z.string().optional(),
+    // RAG F1 (cross-session input_hash 캐시) 조회 키. raw_input의 SHA256 16자.
+    raw_input_hash: z.string().optional(),
     failed_task_ids: z.array(z.string()).optional(),
     input_history: z.array(z.string()).optional(),
     // Session persistence fields
@@ -271,6 +279,8 @@ export const SessionStateSchema = z.object({
   task_results: z.record(z.string(), TaskResultSchema).default({}),
   current_task_id: z.string().optional().nullable(),
   completed_task_ids: z.array(z.string()).default([]),
+  // RAG Phase 2: 전체 DAG 보존 (현재는 completed_task_ids만 있어서 depends_on 재구성 불가).
+  task_graph: TaskGraphSchema.optional(),
   last_summary: z.string().optional(),
   next_action: z.string().optional(),
   updated_at: z.string().datetime().optional(),
