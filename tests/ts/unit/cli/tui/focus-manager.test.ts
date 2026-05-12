@@ -4,6 +4,8 @@ import {
   isEmbeddedTerminalInterruptKey,
   isEmbeddedTerminalNativeFocusToggleKey,
   isEmbeddedTerminalReturnToDetoksKey,
+  isTerminalFocusInSequence,
+  isTerminalFocusOutSequence,
 } from "../../../../../src/cli/tui/focus-manager.js";
 
 describe("embedded-terminal focus manager", () => {
@@ -26,5 +28,12 @@ describe("embedded-terminal focus manager", () => {
     expect(isEmbeddedTerminalNativeFocusToggleKey("\x14")).toBe(true);
     expect(isEmbeddedTerminalReturnToDetoksKey("\x07")).toBe(true);
     expect(isEmbeddedTerminalInterruptKey("\x03")).toBe(true);
+  });
+
+  it("detects terminal focus reporting sequences", () => {
+    expect(isTerminalFocusInSequence("\x1b[I")).toBe(true);
+    expect(isTerminalFocusOutSequence("\x1b[O")).toBe(true);
+    expect(isTerminalFocusInSequence("\x1b[O")).toBe(false);
+    expect(isTerminalFocusOutSequence("\x1b[I")).toBe(false);
   });
 });
