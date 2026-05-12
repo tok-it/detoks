@@ -5,7 +5,9 @@ import {
   type KompressClientResult,
 } from "./kompress-client.js";
 import {
+  cluster_placeholder_sequences,
   collect_preservable_literals,
+  expand_placeholder_clusters,
   mask_protected_segments,
   type MaskProtectedSegmentsOptions,
   restore_placeholders,
@@ -28,7 +30,7 @@ const INLINE_FILLER_PATTERNS: ReadonlyArray<[pattern: RegExp, replacement: strin
 const ACTION_STARTER_REGEX =
   /\b(find|locate|trace|follow|show|read|search|explore|inspect|analyze|investigate|explain|review|compare|assess|evaluate|create|build|generate|scaffold|implement|add|make|modify|update|change|fix|patch|edit|refactor|rename|rewrite|remove|replace|improve|optimi[sz]e|tune|correct|test|validate|verify|confirm|ensure|lint|typecheck|run|execute|deploy|start|launch|restart|stop|install|migrate|seed|serve|document|summari[sz]e|describe|write|prepare|plan|design|outline|propose|check)\b/i;
 
-const PLACEHOLDER_REGEX = /__PH_\d{4}__/g;
+const PLACEHOLDER_REGEX = /__PH(?:C)?_\d{4}__/g;
 
 export interface CompressPromptOptions {
   policies: Role1Policies;
@@ -164,7 +166,7 @@ async function compressNaturalLanguageSegment(
 }
 
 function isExactPlaceholder(text: string): boolean {
-  return /^__PH_\d{4}__$/.test(text);
+  return /^__PH(?:C)?_\d{4}__$/.test(text);
 }
 
 async function compressBody(
@@ -176,7 +178,7 @@ async function compressBody(
     return source;
   }
 
-  const parts = source.split(/(__PH_\d{4}__)/g);
+  const parts = source.split(/(__PH(?:C)?_\d{4}__)/g);
 
   if (parts.length === 1) {
     return await compressNaturalLanguageSegment(source, options);
@@ -335,17 +337,25 @@ export async function compress_prompt(
     maskOptions,
   );
   const masked = mask_protected_segments(normalized_input, maskOptions);
-  const compressedMaskedText = await compressMaskedText(masked.masked_text, options);
+  const clustered = cluster_placeholder_sequences(masked.masked_text);
+  const compressedMaskedText = await compressMaskedText(
+    clustered.masked_text,
+    options,
+  );
 
-  if (isUnsafeCompression(masked.masked_text, compressedMaskedText)) {
+  if (isUnsafeCompression(clustered.masked_text, compressedMaskedText)) {
     return {
       compressed_prompt: normalized_input,
       repair_actions: ["compression_fallback_to_normalized_input"],
     };
   }
 
-  const restored = restore_placeholders(
+  const expandedClusterText = expand_placeholder_clusters(
     compressedMaskedText,
+    clustered.clusters,
+  );
+  const restored = restore_placeholders(
+    expandedClusterText,
     masked.placeholders as PlaceholderEntry[],
   );
 

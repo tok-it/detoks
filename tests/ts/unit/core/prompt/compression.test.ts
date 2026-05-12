@@ -64,7 +64,7 @@ describe("compress_prompt", () => {
     expect(result.compressed_prompt).toContain("npm test -- --runInBand 2");
     expect(result.compressed_prompt).toContain("REST API v2");
     for (const [text] of compressionImplementation.mock.calls) {
-      expect(text).not.toContain("__PH_");
+      expect(text).not.toMatch(/__PH(?:C)?_\d{4}__/);
     }
   });
 
@@ -140,7 +140,7 @@ describe("compress_prompt", () => {
 
     expect(compressionImplementation).toHaveBeenCalled();
     for (const [text] of compressionImplementation.mock.calls) {
-      expect(text).not.toContain("__PH_");
+      expect(text).not.toMatch(/__PH(?:C)?_\d{4}__/);
     }
     expect(result.compressed_prompt).toContain("src/api/user.ts");
     expect(result.compressed_prompt).toContain("npm test -- --runInBand 2");
