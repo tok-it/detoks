@@ -24,9 +24,7 @@ const DEFAULT_LOCAL_LLM_TOP_P = 0.95;
 const DEFAULT_LOCAL_LLM_SLEEP_IDLE_SECONDS = 1200;
 const DEFAULT_LOCAL_LLM_MAX_TOKENS = 512;
 const DEFAULT_LOCAL_LLM_REASONING = "off";
-const DEFAULT_KOMPRESS_PYTHON_BIN = "python3";
 const DEFAULT_KOMPRESS_MODEL_ID = "chopratejas/kompress-base";
-const DEFAULT_KOMPRESS_STARTUP_TIMEOUT = 120_000;
 
 const PipelineModeSchema = z.enum(["safe", "debug"]);
 const LocalLlmRuntimeProviderSchema = z.enum([
@@ -57,9 +55,7 @@ const Role1RuntimeConfigSchema = z.object({
 	localLlmModelUrl: z.string().optional(),
 	localLlmHfRepo: z.string().optional(),
 	localLlmHfFile: z.string().optional(),
-	kompressPythonBin: z.string().optional(),
 	kompressModelId: z.string().optional(),
-	kompressStartupTimeout: z.number().int().positive().optional(),
 	pipelineMode: PipelineModeSchema,
 	requestTimeout: z.number().int().positive(),
 	translationMaxAttempts: z.number().int().positive(),
@@ -366,14 +362,7 @@ export function loadRole1RuntimeConfig(
 		localLlmModelUrl: pickEnv("LOCAL_LLM_MODEL_URL"),
 		localLlmHfRepo: pickEnv("LOCAL_LLM_HF_REPO") ?? DEFAULT_LOCAL_LLM_HF_REPO,
 		localLlmHfFile: pickEnv("LOCAL_LLM_HF_FILE") ?? DEFAULT_LOCAL_LLM_HF_FILE,
-		kompressPythonBin:
-			pickEnv("KOMPRESS_PYTHON_BIN") ?? DEFAULT_KOMPRESS_PYTHON_BIN,
 		kompressModelId: pickEnv("KOMPRESS_MODEL_ID") ?? DEFAULT_KOMPRESS_MODEL_ID,
-		kompressStartupTimeout: parseNumber(
-			env.KOMPRESS_STARTUP_TIMEOUT,
-			DEFAULT_KOMPRESS_STARTUP_TIMEOUT,
-			"KOMPRESS_STARTUP_TIMEOUT",
-		),
 		pipelineMode,
 		requestTimeout: parseNumber(
 			env.REQUEST_TIMEOUT,

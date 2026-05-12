@@ -8,6 +8,12 @@ import { ProjectDetector } from "../../../../src/cli/ProjectDetector.js";
 
 describe("ProjectDetector", () => {
   it("prefers a git remote hash for projectId and package.json name for projectName", async () => {
+    try {
+      execFileSync("git", ["--version"], { stdio: "ignore" });
+    } catch {
+      return;
+    }
+
     const cwd = mkdtempSync(join(tmpdir(), "detoks-project-detector-"));
 
     try {

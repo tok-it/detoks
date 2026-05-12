@@ -29,7 +29,3 @@ export function runCommand(command, args) {
 export function npmCommand() {
   return process.platform === "win32" ? "npm.cmd" : "npm";
 }
-
-export function uvCommand() {
-  return process.platform === "win32" ? "uv.exe" : "uv";
-}

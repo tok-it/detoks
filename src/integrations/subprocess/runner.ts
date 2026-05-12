@@ -10,6 +10,7 @@ import { spawn } from "node:child_process";
 import { closeSync, existsSync, openSync, readSync, statSync } from "node:fs";
 import { extname, join } from "node:path";
 import { createInteractivePtySession } from "./pty-session.js";
+import * as pty from "node-pty";
 
 const formatCommand = (request: SubprocessRequest): string => {
   const args = request.args.length > 0 ? ` ${request.args.join(" ")}` : "";
@@ -322,6 +323,98 @@ const runStreamingJsonProcess = (
   });
 };
 
+const runWithNodePty = (
+  request: SubprocessRequest,
+  options?: PtyRunnerOptions,
+): Promise<PtyResult> => {
+  const env = request.env ? { ...process.env, ...request.env } : process.env;
+  const resolvedCommand = resolveCommandFromPath(request.command, env);
+  const runViaNode = resolvedCommand !== undefined && isNodeShebangScript(resolvedCommand);
+  const command = runViaNode ? process.execPath : resolvedCommand ?? request.command;
+  const args = runViaNode ? [resolvedCommand, ...request.args] : request.args;
+
+  const startTime = Date.now();
+  const events: PtyEvent[] = [];
+
+  const emitEvent = (event: Omit<PtyEvent, "timestamp">): void => {
+    const fullEvent: PtyEvent = { ...event, timestamp: Date.now() };
+    events.push(fullEvent);
+    options?.onEvent?.(fullEvent);
+  };
+
+  let ptyProcess: pty.IPty;
+  try {
+    ptyProcess = pty.spawn(command, args, {
+      name: "xterm-256color",
+      cols: 80,
+      rows: 24,
+      cwd: request.cwd ?? process.cwd(),
+      env: env as Record<string, string | undefined>,
+    });
+  } catch (err) {
+    const errMsg = err instanceof Error ? err.message : String(err);
+    const endTime = Date.now();
+    return Promise.resolve({
+      stdout: "",
+      stderr: errMsg,
+      exitCode: 127,
+      timedOut: false,
+      transcript: {
+        events: [{ type: "error", timestamp: endTime, data: errMsg }],
+        startTime,
+        endTime,
+        totalDuration: endTime - startTime,
+        exitCode: 127,
+        timedOut: false,
+      },
+    });
+  }
+
+  return new Promise<PtyResult>((resolve) => {
+    let stdout = "";
+    let settled = false;
+
+    const finish = (code: number, timedOut: boolean): void => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+
+      const endTime = Date.now();
+      emitEvent({ type: "exit", data: String(code) });
+
+      resolve({
+        stdout,
+        stderr: "",
+        exitCode: code,
+        timedOut,
+        transcript: {
+          events,
+          startTime,
+          endTime,
+          totalDuration: endTime - startTime,
+          exitCode: code,
+          timedOut,
+        },
+      });
+    };
+
+    ptyProcess.onData((data) => {
+      stdout += data;
+      emitEvent({ type: "chunk", stream: "stdout", data });
+    });
+
+    ptyProcess.onExit(({ exitCode }) => {
+      finish(exitCode ?? 0, false);
+    });
+
+    if (request.input !== undefined) {
+      emitEvent({ type: "prompt", data: request.input });
+      ptyProcess.write(request.input);
+    }
+  });
+};
+
 export const createPtySubprocessRunner = (
   options?: PtyRunnerOptions,
 ): SubprocessRunner & { runWithTranscript: (request: SubprocessRequest) => Promise<PtyResult> } => {
@@ -335,12 +428,7 @@ export const createPtySubprocessRunner = (
         return await runStreamingJsonProcess(request, options);
       }
 
-      const session = createInteractivePtySession(request, options);
-      if (request.input !== undefined) {
-        session.write(request.input);
-      }
-      session.close();
-      return await session.result;
+      return await runWithNodePty(request, options);
     },
   };
 };
