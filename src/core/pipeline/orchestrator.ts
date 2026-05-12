@@ -33,6 +33,7 @@ import type {
   PipelineExecutionResult,
   PipelineStageStatus,
   TaskExecutionRecord,
+  ResumeHintInfo,
 } from "./types.js";
 import { createActionTimelineEvent } from "../timeline/types.js";
 import type { ActionTimelineEvent } from "../timeline/types.js";
@@ -502,6 +503,32 @@ export const orchestratePipeline = async (
         summary: `F1 캐시 miss — hash ${inputHash}`,
       }),
     );
+  }
+
+  // ── F3: 미완성 세션 resume 힌트 ──────────────────────────────────────────
+  let resumeHint: ResumeHintInfo | undefined;
+  if (!request.noCache && !CACHE_DISABLED && request.executionMode !== "stub") {
+    const inputHash = hashRawInput(request.userRequest.raw_input);
+    const projectId =
+      request.projectInfo?.projectId ??
+      computeProjectId(request.userRequest.cwd ?? process.cwd());
+    const incompleteSession = await SessionStateManager.findIncompleteSessionByInputHash(
+      inputHash,
+      { project_id: projectId },
+    );
+    if (incompleteSession && incompleteSession.current_task_id) {
+      resumeHint = {
+        sessionId: incompleteSession.shared_context.session_id,
+        completedTaskIds: incompleteSession.completed_task_ids,
+        currentTaskId: incompleteSession.current_task_id,
+        updatedAt: incompleteSession.updated_at ?? new Date().toISOString(),
+      };
+      await emitProgressWithLogging({
+        stage: "State Manager",
+        status: "info",
+        message: `이전 미완성 세션 발견: ${resumeHint.sessionId} (완료: ${resumeHint.completedTaskIds.join(", ")} | 중단: ${resumeHint.currentTaskId})`,
+      });
+    }
   }
 
   // ── Step 1: Prompt compile + Role 2.1 handoff 생성 (Role 1) ──────────────
@@ -1055,6 +1082,7 @@ export const orchestratePipeline = async (
     ...(actionTimeline.length ? { actionTimeline } : {}),
     ...(request.trace ? { traceLog: PipelineTracer.getTrace(sessionId) } : {}),
     ...(traceFilePath ? { traceFilePath } : {}),
-    progressLog, // detoks 내부 진행 로그
+    progressLog,
+    ...(resumeHint ? { resumeHint } : {}),
   };
 };

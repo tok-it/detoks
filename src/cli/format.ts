@@ -180,6 +180,17 @@ function formatResultHuman(result: CliExecutionResult, ok: boolean): string {
     );
   }
 
+  if (result.resumeHint) {
+    const { sessionId, completedTaskIds, currentTaskId } = result.resumeHint;
+    lines.push(
+      "",
+      colors.header("이전 미완성 세션"),
+      `${colors.warning("!")} 동일 요청의 미완성 세션이 있습니다: ${colors.muted(sessionId)}`,
+      `  ${colors.muted("완료:")} ${completedTaskIds.join(", ")} ${colors.muted("|")} ${colors.muted("중단:")} ${currentTaskId}`,
+      `  ${colors.muted("이어서 진행:")} detoks session continue ${sessionId}`,
+    );
+  }
+
   if (result.stages.length > 0) {
     lines.push(
       "",

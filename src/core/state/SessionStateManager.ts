@@ -431,6 +431,40 @@ export class SessionStateManager {
     return null;
   }
 
+  static async findIncompleteSessionByInputHash(
+    hash: string,
+    opts: { project_id?: string; recencyHours?: number } = {},
+  ): Promise<SessionState | null> {
+    const { project_id, recencyHours = 24 } = opts;
+    const cutoff = Date.now() - recencyHours * 60 * 60 * 1000;
+
+    let files: string[];
+    try {
+      files = await fs.readdir(SESSIONS_DIR);
+    } catch {
+      return null;
+    }
+
+    for (const file of files) {
+      if (!file.endsWith(".json")) continue;
+      try {
+        const data = await fs.readFile(join(SESSIONS_DIR, file), "utf-8");
+        const state = SessionStateSchema.parse(JSON.parse(data));
+
+        if (state.shared_context.raw_input_hash !== hash) continue;
+        if (project_id && state.shared_context.project_id !== project_id) continue;
+        if (state.updated_at && new Date(state.updated_at).getTime() < cutoff) continue;
+        if (state.current_task_id === null) continue;       // 이미 완료
+        if (state.completed_task_ids.length === 0) continue; // 아무것도 완료 안 됨
+
+        return state;
+      } catch {
+        continue;
+      }
+    }
+    return null;
+  }
+
   static async deleteSession(sessionId: string): Promise<void> {
     try {
       const filePath = join(SESSIONS_DIR, `${sessionId}.json`);

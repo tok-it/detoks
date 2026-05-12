@@ -74,6 +74,13 @@ export interface CacheHitInfo {
   tokensSaved: number;
 }
 
+export interface ResumeHintInfo {
+  sessionId: string;
+  completedTaskIds: string[];
+  currentTaskId: string;
+  updatedAt: string;
+}
+
 export interface PipelineExecutionResult {
   ok: boolean;
   mode: InteractionMode;
@@ -101,4 +108,5 @@ export interface PipelineExecutionResult {
   actionTimeline?: ActionTimelineEvent[];
   promptTokenSavings?: TokenReductionSnapshot | null;
   cacheHit?: CacheHitInfo;
+  resumeHint?: ResumeHintInfo;
 }
