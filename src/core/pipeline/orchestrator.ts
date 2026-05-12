@@ -21,6 +21,7 @@ import {
   type TokenReductionSnapshot,
 } from "../utils/tokenMetrics.js";
 import { getLLMModelConfig } from "../llm-client/llm-models.js";
+import { computeProjectId, hashRawInput } from "../rag/hash.js";
 import type { PtyTranscript } from "../../integrations/subprocess/types.js";
 import type { SessionState } from "../../schemas/pipeline.js";
 import type {
@@ -58,7 +59,11 @@ function generateSessionId(): string {
 
 function initSessionState(sessionId: string, rawInput: string): SessionState {
   return {
-    shared_context: { session_id: sessionId, raw_input: rawInput },
+    shared_context: {
+      session_id: sessionId,
+      raw_input: rawInput,
+      raw_input_hash: hashRawInput(rawInput),
+    },
     task_results: {},
     current_task_id: null,
     completed_task_ids: [],
@@ -69,19 +74,43 @@ function initSessionState(sessionId: string, rawInput: string): SessionState {
 function applyProjectInfo(
   state: SessionState,
   projectInfo: PipelineExecutionRequest["projectInfo"],
+  fallbackCwd?: string,
 ): SessionState {
-  if (!projectInfo) {
-    return state;
+  if (projectInfo) {
+    return {
+      ...state,
+      shared_context: {
+        ...state.shared_context,
+        project_id: projectInfo.projectId,
+        project_path: projectInfo.projectPath,
+        project_name: projectInfo.projectName,
+      },
+    };
   }
 
+  // projectInfo가 없어도 RAG 캐시 필터링을 위해 project_id는 항상 채운다.
+  if (!state.shared_context.project_id) {
+    const cwd = fallbackCwd ?? process.cwd();
+    return {
+      ...state,
+      shared_context: {
+        ...state.shared_context,
+        project_id: computeProjectId(cwd),
+        project_path: state.shared_context.project_path ?? cwd,
+      },
+    };
+  }
+
+  return state;
+}
+
+// RAG 메타데이터: Task 객체에서 task_results에 보존할 필드만 추출
+function extractRagMeta(task?: { title?: string; input_hash?: string; depends_on?: string[] }) {
+  if (!task) return {};
   return {
-    ...state,
-    shared_context: {
-      ...state.shared_context,
-      project_id: projectInfo.projectId,
-      project_path: projectInfo.projectPath,
-      project_name: projectInfo.projectName,
-    },
+    ...(task.title !== undefined ? { title: task.title } : {}),
+    ...(task.input_hash !== undefined ? { input_hash: task.input_hash } : {}),
+    ...(task.depends_on !== undefined ? { depends_on: task.depends_on } : {}),
   };
 }
 
@@ -90,7 +119,9 @@ function markTaskCompleted(
   taskId: string,
   rawOutput: string,
   taskType?: string,
+  task?: { title?: string; input_hash?: string; depends_on?: string[] },
 ): SessionState {
+  const now = new Date().toISOString();
   return {
     ...state,
     current_task_id: null,
@@ -103,9 +134,11 @@ function markTaskCompleted(
         summary: rawOutput.slice(0, 200),
         raw_output: rawOutput,
         ...(taskType ? { type: taskType } : {}),
+        ...extractRagMeta(task),
+        completed_at: now,
       },
     },
-    updated_at: new Date().toISOString(),
+    updated_at: now,
   };
 }
 
@@ -114,7 +147,9 @@ function markTaskFailed(
   taskId: string,
   rawOutput: string,
   taskType?: string,
+  task?: { title?: string; input_hash?: string; depends_on?: string[] },
 ): SessionState {
+  const now = new Date().toISOString();
   return {
     ...state,
     current_task_id: taskId,
@@ -126,9 +161,11 @@ function markTaskFailed(
         summary: rawOutput.slice(0, 200),
         raw_output: rawOutput,
         ...(taskType ? { type: taskType } : {}),
+        ...extractRagMeta(task),
+        completed_at: now,
       },
     },
-    updated_at: new Date().toISOString(),
+    updated_at: now,
   };
 }
 
@@ -137,8 +174,10 @@ function markTaskSkipped(
   taskId: string,
   blockedBy: string,
   taskType?: string,
+  task?: { title?: string; input_hash?: string; depends_on?: string[] },
 ): SessionState {
   const skipReason = `의존성 [${blockedBy}] 실패로 건너뜀`;
+  const now = new Date().toISOString();
 
   return {
     ...state,
@@ -151,9 +190,11 @@ function markTaskSkipped(
         summary: skipReason,
         raw_output: skipReason,
         ...(taskType ? { type: taskType } : {}),
+        ...extractRagMeta(task),
+        completed_at: now,
       },
     },
-    updated_at: new Date().toISOString(),
+    updated_at: now,
   };
 }
 
@@ -611,16 +652,20 @@ export const orchestratePipeline = async (
   if (await SessionStateManager.sessionExists(sessionId)) {
     logger.info(`기존 세션을 불러옵니다: ${sessionId}`);
     state = await SessionStateManager.loadSession(sessionId);
+    const resolvedRawInput =
+      typeof state.shared_context.raw_input === "string" &&
+      state.shared_context.raw_input.trim().length > 0
+        ? state.shared_context.raw_input
+        : request.userRequest.raw_input;
     state = {
       ...state,
       shared_context: {
         ...state.shared_context,
         session_id: sessionId,
-        raw_input:
-          typeof state.shared_context.raw_input === "string" &&
-          state.shared_context.raw_input.trim().length > 0
-            ? state.shared_context.raw_input
-            : request.userRequest.raw_input,
+        raw_input: resolvedRawInput,
+        // 구 세션 backfill: raw_input_hash가 없으면 생성, 있으면 보존
+        raw_input_hash:
+          state.shared_context.raw_input_hash ?? hashRawInput(resolvedRawInput),
       },
     };
     // 이전에 실패한 작업들을 failedTaskIds에 추가하여 의존성 차단 로직이 작동하게 함
@@ -629,7 +674,9 @@ export const orchestratePipeline = async (
   } else {
     state = initSessionState(sessionId, request.userRequest.raw_input);
   }
-  state = applyProjectInfo(state, request.projectInfo);
+  state = applyProjectInfo(state, request.projectInfo, request.userRequest.cwd);
+  // RAG Phase 2: 전체 DAG 보존 (Task의 input_hash, depends_on, priority 등 완전 보존)
+  state = { ...state, task_graph: graph };
   await emitProgressWithLogging( {
     stage: "State Manager",
     status: "end",
@@ -664,7 +711,7 @@ export const orchestratePipeline = async (
       if (blockedBy) {
         failedTaskIds.add(task.id);
         const skipReason = `의존성 [${blockedBy}] 실패로 건너뜀`;
-        state = markTaskSkipped(state, task.id, blockedBy, task.type);
+        state = markTaskSkipped(state, task.id, blockedBy, task.type, task);
         state = applySessionTokenMetrics(
           state,
           request.userRequest.raw_input,
@@ -780,7 +827,7 @@ export const orchestratePipeline = async (
       if (!execResult.ok) {
         // 실패 — Strict 모드에 따라 후속 의존 Task도 차단됨
         failedTaskIds.add(task.id);
-        state = markTaskFailed(state, task.id, execResult.rawOutput, task.type);
+        state = markTaskFailed(state, task.id, execResult.rawOutput, task.type, task);
         state = applySessionTokenMetrics(
           state,
           request.userRequest.raw_input,
@@ -814,7 +861,7 @@ export const orchestratePipeline = async (
           message: `Executor(${task.id}) 완료`,
         });
         failedTaskIds.delete(task.id);
-        state = markTaskCompleted(state, task.id, execResult.rawOutput, task.type);
+        state = markTaskCompleted(state, task.id, execResult.rawOutput, task.type, task);
         state = applySessionTokenMetrics(
           state,
           request.userRequest.raw_input,

@@ -71,6 +71,23 @@ describe("orchestratePipeline", () => {
     const savedTaskResult = Object.values(savedState?.task_results ?? {})[0] as any;
     expect(savedTaskResult?.type).toBeTypeOf("string");
 
+    // RAG 스키마 확장: task_results에 input_hash, title, depends_on, completed_at 보존
+    expect(savedTaskResult?.input_hash).toMatch(/^[0-9a-f]{12,}$/);
+    expect(savedTaskResult?.title).toBeTypeOf("string");
+    expect(savedTaskResult?.depends_on).toBeInstanceOf(Array);
+    expect(savedTaskResult?.completed_at).toMatch(
+      /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/,
+    );
+
+    // RAG 스키마 확장: shared_context에 raw_input_hash + project_id 채워짐
+    expect(savedState?.shared_context?.raw_input_hash).toMatch(/^[0-9a-f]{16}$/);
+    expect(savedState?.shared_context?.project_id).toBeTypeOf("string");
+
+    // RAG 스키마 확장: 전체 task_graph 보존
+    expect(savedState?.task_graph?.tasks).toBeInstanceOf(Array);
+    expect(savedState?.task_graph?.tasks?.length).toBeGreaterThan(0);
+    expect(savedState?.task_graph?.tasks?.[0]?.input_hash).toBeTypeOf("string");
+
     const executionOutputs = PipelineTracer.getTrace(result.sessionId).entries.filter(
       (entry) => entry.dataType === "ExecutionResult" && entry.phase === "output",
     ) as Array<{ data: any }>;
