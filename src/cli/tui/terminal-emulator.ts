@@ -176,6 +176,8 @@ const applySgrParameters = (style: TerminalCellStyle, params: number[]): Termina
   return nextStyle;
 };
 
+type EscapeMode = "none" | "csi" | "osc" | "dcs" | "charset";
+
 export class TerminalEmulatorBuffer {
   private columns: number;
   private rows: number;
@@ -189,11 +191,20 @@ export class TerminalEmulatorBuffer {
   private alternateScreen = false;
   private wrapPending = false;
   private pendingEscape = "";
+  private escapeMode: EscapeMode = "none";
+  private pendingStringEscapeTerminator = false;
   private currentStyle: TerminalCellStyle = {};
   private savedMainState: {
     screen: TerminalCell[][];
     cursorRow: number;
     cursorColumn: number;
+    style: TerminalCellStyle;
+  } | null = null;
+  private savedCursorState: {
+    cursorRow: number;
+    cursorColumn: number;
+    cursorVisible: boolean;
+    wrapPending: boolean;
     style: TerminalCellStyle;
   } | null = null;
   private readonly scrollbackRows: TerminalCell[][] = [];
@@ -253,6 +264,228 @@ export class TerminalEmulatorBuffer {
     if (this.cursorColumn >= this.columns) {
       this.cursorColumn = this.columns - 1;
     }
+  }
+
+  private cloneActiveScreen(): TerminalCell[][] {
+    return this.getActiveScreen().map((row) => cloneRow(row, this.columns));
+  }
+
+  private commitActiveScreen(screen: TerminalCell[][]): void {
+    if (this.alternateScreen) {
+      this.alternateScreenBuffer = screen;
+    } else {
+      this.mainScreen = screen;
+    }
+    this.setActiveScreen(screen);
+  }
+
+  private saveCursorState(): void {
+    this.savedCursorState = {
+      cursorRow: this.cursorRow,
+      cursorColumn: this.cursorColumn,
+      cursorVisible: this.cursorVisible,
+      wrapPending: this.wrapPending,
+      style: cloneStyle(this.currentStyle),
+    };
+  }
+
+  private restoreCursorState(): void {
+    if (!this.savedCursorState) {
+      return;
+    }
+
+    this.cursorRow = this.savedCursorState.cursorRow;
+    this.cursorColumn = this.savedCursorState.cursorColumn;
+    this.cursorVisible = this.savedCursorState.cursorVisible;
+    this.wrapPending = this.savedCursorState.wrapPending;
+    this.currentStyle = cloneStyle(this.savedCursorState.style);
+    this.savedCursorState = null;
+    this.ensureCursorInBounds();
+  }
+
+  private insertLines(amount: number): void {
+    if (this.rows <= 0 || amount <= 0) {
+      return;
+    }
+
+    const screen = this.cloneActiveScreen();
+    const count = Math.min(amount, this.rows);
+    const beforeCursor = screen.slice(0, this.cursorRow);
+    const afterCursor = screen.slice(this.cursorRow, Math.max(this.cursorRow, this.rows - count));
+    const blanks = Array.from({ length: count }, () => createBlankRow(this.columns));
+    const next = [...beforeCursor, ...blanks, ...afterCursor].slice(0, this.rows);
+
+    while (next.length < this.rows) {
+      next.push(createBlankRow(this.columns));
+    }
+
+    this.commitActiveScreen(next);
+    this.wrapPending = false;
+  }
+
+  private deleteLines(amount: number): void {
+    if (this.rows <= 0 || amount <= 0) {
+      return;
+    }
+
+    const screen = this.cloneActiveScreen();
+    const count = Math.min(amount, this.rows);
+    const beforeCursor = screen.slice(0, this.cursorRow);
+    const afterCursor = screen.slice(Math.min(screen.length, this.cursorRow + count));
+    const next = [...beforeCursor, ...afterCursor];
+
+    while (next.length < this.rows) {
+      next.push(createBlankRow(this.columns));
+    }
+
+    this.commitActiveScreen(next.slice(0, this.rows));
+    this.wrapPending = false;
+  }
+
+  private insertChars(amount: number): void {
+    if (this.rows <= 0 || this.columns <= 0 || amount <= 0) {
+      return;
+    }
+
+    const screen = this.cloneActiveScreen();
+    const row = screen[this.cursorRow];
+    if (!row) {
+      return;
+    }
+
+    const count = Math.min(amount, this.columns - this.cursorColumn);
+    const prefix = row.slice(0, this.cursorColumn).map((cell) => ({
+      char: cell.char,
+      style: cloneStyle(cell.style),
+    }));
+    const blanks = Array.from({ length: count }, () => createBlankCell());
+    const suffix = row.slice(this.cursorColumn, Math.max(this.cursorColumn, this.columns - count)).map((cell) => ({
+      char: cell.char,
+      style: cloneStyle(cell.style),
+    }));
+    const nextRow = [...prefix, ...blanks, ...suffix].slice(0, this.columns);
+
+    while (nextRow.length < this.columns) {
+      nextRow.push(createBlankCell());
+    }
+
+    screen[this.cursorRow] = nextRow;
+    this.commitActiveScreen(screen);
+    this.wrapPending = false;
+  }
+
+  private deleteChars(amount: number): void {
+    if (this.rows <= 0 || this.columns <= 0 || amount <= 0) {
+      return;
+    }
+
+    const screen = this.cloneActiveScreen();
+    const row = screen[this.cursorRow];
+    if (!row) {
+      return;
+    }
+
+    const count = Math.min(amount, this.columns - this.cursorColumn);
+    const prefix = row.slice(0, this.cursorColumn).map((cell) => ({
+      char: cell.char,
+      style: cloneStyle(cell.style),
+    }));
+    const suffix = row.slice(this.cursorColumn + count).map((cell) => ({
+      char: cell.char,
+      style: cloneStyle(cell.style),
+    }));
+    const nextRow = [...prefix, ...suffix];
+
+    while (nextRow.length < this.columns) {
+      nextRow.push(createBlankCell());
+    }
+
+    screen[this.cursorRow] = nextRow.slice(0, this.columns);
+    this.commitActiveScreen(screen);
+    this.wrapPending = false;
+  }
+
+  private scrollDownLines(amount: number): void {
+    if (this.rows <= 0 || amount <= 0) {
+      return;
+    }
+
+    const screen = this.cloneActiveScreen();
+    const count = Math.min(amount, this.rows);
+    for (let i = 0; i < count; i += 1) {
+      screen.pop();
+      screen.unshift(createBlankRow(this.columns));
+    }
+
+    while (screen.length < this.rows) {
+      screen.push(createBlankRow(this.columns));
+    }
+
+    this.commitActiveScreen(screen.slice(0, this.rows));
+    this.wrapPending = false;
+  }
+
+  private scrollUpLines(amount: number): void {
+    if (this.rows <= 0 || amount <= 0) {
+      return;
+    }
+
+    const screen = this.cloneActiveScreen();
+    const count = Math.min(amount, this.rows);
+    for (let i = 0; i < count; i += 1) {
+      const removed = screen.shift();
+      if (removed) {
+        this.pushScrollback(removed);
+      }
+      screen.push(createBlankRow(this.columns));
+    }
+
+    while (screen.length < this.rows) {
+      screen.push(createBlankRow(this.columns));
+    }
+
+    this.commitActiveScreen(screen.slice(0, this.rows));
+    this.cursorRow = Math.max(0, this.rows - 1);
+    this.wrapPending = false;
+  }
+
+  private resetEscapeState(): void {
+    this.pendingEscape = "";
+    this.escapeMode = "none";
+    this.pendingStringEscapeTerminator = false;
+  }
+
+  private consumeStringEscape(char: string): void {
+    if (char === "\u001b") {
+      this.pendingStringEscapeTerminator = true;
+      return;
+    }
+
+    if (this.pendingStringEscapeTerminator) {
+      this.pendingStringEscapeTerminator = false;
+      if (char === "\\") {
+        this.resetEscapeState();
+        return;
+      }
+    }
+
+    if (char === "\u0007") {
+      this.resetEscapeState();
+    }
+  }
+
+  private reverseIndex(): void {
+    if (this.rows <= 0) {
+      return;
+    }
+
+    if (this.cursorRow === 0) {
+      this.scrollDownLines(1);
+      return;
+    }
+
+    this.cursorRow = Math.max(0, this.cursorRow - 1);
+    this.wrapPending = false;
   }
 
   private pushScrollback(row: TerminalCell[]): void {
@@ -340,6 +573,21 @@ export class TerminalEmulatorBuffer {
   }
 
   private handleEscape(sequence: string): void {
+    if (sequence === "\u001b7") {
+      this.saveCursorState();
+      return;
+    }
+
+    if (sequence === "\u001b8") {
+      this.restoreCursorState();
+      return;
+    }
+
+    if (sequence === "\u001bM") {
+      this.reverseIndex();
+      return;
+    }
+
     if (sequence === "\u001b[?1049h") {
       if (!this.alternateScreen) {
         this.savedMainState = {
@@ -441,6 +689,38 @@ export class TerminalEmulatorBuffer {
         }
         break;
       }
+      case "L": {
+        this.insertLines(args[0] ?? 1);
+        break;
+      }
+      case "M": {
+        this.deleteLines(args[0] ?? 1);
+        break;
+      }
+      case "@": {
+        this.insertChars(args[0] ?? 1);
+        break;
+      }
+      case "P": {
+        this.deleteChars(args[0] ?? 1);
+        break;
+      }
+      case "S": {
+        this.scrollUpLines(args[0] ?? 1);
+        break;
+      }
+      case "T": {
+        this.scrollDownLines(args[0] ?? 1);
+        break;
+      }
+      case "s": {
+        this.saveCursorState();
+        break;
+      }
+      case "u": {
+        this.restoreCursorState();
+        break;
+      }
       case "K": {
         const mode = args[0] ?? 0;
         const screen = this.getActiveScreen();
@@ -517,13 +797,53 @@ export class TerminalEmulatorBuffer {
   write(chunk: string): void {
     const chars = Array.from(chunk);
     for (const char of chars) {
+      if (this.escapeMode === "osc" || this.escapeMode === "dcs") {
+        this.consumeStringEscape(char);
+        continue;
+      }
+
+      if (this.escapeMode === "charset") {
+        this.resetEscapeState();
+        continue;
+      }
+
+      if (this.pendingEscape === "\u001b") {
+        if (char === "[") {
+          this.pendingEscape += char;
+          this.escapeMode = "csi";
+          continue;
+        }
+        if (char === "]") {
+          this.resetEscapeState();
+          this.escapeMode = "osc";
+          continue;
+        }
+        if (char === "P") {
+          this.resetEscapeState();
+          this.escapeMode = "dcs";
+          continue;
+        }
+        if (char === "(" || char === ")" || char === "*" || char === "+" || char === "-") {
+          this.resetEscapeState();
+          this.escapeMode = "charset";
+          continue;
+        }
+        if (char === "7" || char === "8" || char === "M") {
+          this.handleEscape(`\u001b${char}`);
+          this.resetEscapeState();
+          continue;
+        }
+        this.resetEscapeState();
+        continue;
+      }
+
       if (this.pendingEscape.length > 0) {
         this.pendingEscape += char;
-        if (/^\u001b\[[?0-9;]*[@-~]$/.test(this.pendingEscape) || /^\u001b\[\?[0-9]+[hl]$/.test(this.pendingEscape)) {
+        if (/^\u001b\[[?0-9;]*[@-~]$/.test(this.pendingEscape)) {
           this.handleEscape(this.pendingEscape);
-          this.pendingEscape = "";
-        } else if (this.pendingEscape.length > 64) {
-          this.pendingEscape = "";
+          this.resetEscapeState();
+        } else if (this.pendingEscape.length > 256) {
+          this.resetEscapeState();
         }
         continue;
       }
