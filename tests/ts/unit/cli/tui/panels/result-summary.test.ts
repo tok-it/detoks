@@ -73,6 +73,38 @@ describe("ResultSummaryPanel", () => {
     });
   });
 
+  describe("setExecuting", () => {
+    it("shows waiting placeholder while executing", () => {
+      panel.setExecuting(true);
+      panel.render(mockContext, mockRegion);
+
+      const output = mockScreen.write.mock.calls.map((c: any) => c[0]).join("\n");
+      expect(output).toContain("Waiting for adapter CLI to finish");
+      expect(output).not.toContain("실행 결과가 아직 없습니다.");
+    });
+
+    it("clears executing state when setResult is called", () => {
+      panel.setExecuting(true);
+      panel.setResult(mockResult());
+      mockScreen.write.mockClear();
+      panel.render(mockContext, mockRegion);
+
+      const output = mockScreen.write.mock.calls.map((c: any) => c[0]).join("\n");
+      expect(output).not.toContain("Waiting for adapter CLI to finish");
+      expect(output).toContain("완료");
+    });
+
+    it("clears executing state when clear is called", () => {
+      panel.setExecuting(true);
+      panel.clear();
+      mockScreen.write.mockClear();
+      panel.render(mockContext, mockRegion);
+
+      const output = mockScreen.write.mock.calls.map((c: any) => c[0]).join("\n");
+      expect(output).not.toContain("Waiting for adapter CLI to finish");
+    });
+  });
+
   describe("clear", () => {
     it("clears result data", () => {
       const result = mockResult();

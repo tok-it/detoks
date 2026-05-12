@@ -175,9 +175,13 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
       pendingNativeEscapeReturn = false;
     };
 
-    const closeEmbeddedNativeCliSession = (): void => {
+    const closeEmbeddedNativeCliSession = (signal?: NodeJS.Signals): void => {
       clearNativeEscapeTimer();
-      embeddedNativeCliSession?.close();
+      if (signal !== undefined) {
+        embeddedNativeCliSession?.kill(signal);
+      } else {
+        embeddedNativeCliSession?.close();
+      }
       embeddedNativeCliSession = null;
     };
 
@@ -398,7 +402,15 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
     // 4. Escape sequences: handled separately before character-by-character processing
     const onData = (chunk: Buffer): void => {
       if (isExecuting) {
-        return; // Ignore input while executing
+        // Embedded pane: forward raw bytes to child while adapter-terminal is focused
+        if (
+          embeddedPaneMode &&
+          embeddedTerminalFocus.focus === "adapter-terminal" &&
+          embeddedNativeCliSession !== null
+        ) {
+          embeddedNativeCliSession.write(decoder.write(chunk));
+        }
+        return;
       }
 
       // Use StringDecoder to handle multi-byte UTF-8 sequences that may be split across chunks
@@ -586,7 +598,8 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
             running = false;
             needsFullRender = true;
           } else if (char === "\x03") {
-            // Ctrl+C
+            // Ctrl+C: close any active embedded session before exiting
+            closeEmbeddedNativeCliSession("SIGINT");
             running = false;
             needsFullRender = true;
           } else if (char === "\r" || char === "\n") {
@@ -736,6 +749,9 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
         transcriptPanel.clear();
         embeddedTerminalPane.clear();
         resultPanel.clear();
+        if (embeddedPaneMode) {
+          resultPanel.setExecuting(true);
+        }
         pipelinePanel.reset();
         currentTokenSavingsLabel = undefined;
         if (nativePassthroughMode) {

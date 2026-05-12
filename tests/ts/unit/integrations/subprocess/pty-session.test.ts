@@ -133,6 +133,63 @@ describe("interactive PTY session", () => {
     expect(onEvent.mock.calls.some(([event]) => event.type === "chunk" && event.stream === "stdout")).toBe(true);
   });
 
+  it("rawOutput: true emits only raw chunks and no additional line-split events", async () => {
+    const child = new FakeChildProcess();
+    childProcessMocks.spawn.mockReturnValueOnce(child as unknown as never);
+    const onEvent = vi.fn();
+
+    const session = createInteractivePtySession(
+      { command: process.execPath, args: [] },
+      { rawOutput: true, onEvent },
+    );
+
+    child.stdout.emit("data", "line1\nline2\n");
+    session.close();
+    child.emit("close", 0, null);
+    await session.result;
+
+    const chunkEvents = onEvent.mock.calls
+      .map((args: any[]) => args[0])
+      .filter((e: any) => e.type === "chunk");
+
+    // rawOutput mode: exactly one chunk event per emit, no line-split duplicates
+    expect(chunkEvents.length).toBe(1);
+    expect(chunkEvents[0].data).toBe("line1\nline2\n");
+  });
+
+  it("kill forwards the given signal to the child process", async () => {
+    const child = new FakeChildProcess();
+    childProcessMocks.spawn.mockReturnValueOnce(child as unknown as never);
+
+    const session = createInteractivePtySession(
+      { command: process.execPath, args: [] },
+      { onEvent: vi.fn() },
+    );
+
+    session.kill("SIGINT");
+    expect(child.kill).toHaveBeenCalledWith("SIGINT");
+
+    session.kill("SIGTERM");
+    expect(child.kill).toHaveBeenCalledWith("SIGTERM");
+
+    child.emit("close", 130, null);
+    const result = await session.result;
+    expect(result.exitCode).toBe(130);
+  });
+
+  it("kill defaults to SIGTERM when no signal is provided", () => {
+    const child = new FakeChildProcess();
+    childProcessMocks.spawn.mockReturnValueOnce(child as unknown as never);
+
+    const session = createInteractivePtySession(
+      { command: process.execPath, args: [] },
+      { onEvent: vi.fn() },
+    );
+
+    session.kill();
+    expect(child.kill).toHaveBeenCalledWith("SIGTERM");
+  });
+
   it("preserves raw chunks without script-wrapper normalization", async () => {
     const child = new FakeChildProcess();
     childProcessMocks.spawn.mockReturnValueOnce(child as unknown as never);

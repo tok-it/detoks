@@ -43,6 +43,7 @@ export interface PtySessionController {
   write: (data: string) => void;
   resize: (columns: number, rows: number) => void;
   close: () => void;
+  kill: (signal?: NodeJS.Signals) => void;
   result: Promise<PtyResult>;
 }
 
