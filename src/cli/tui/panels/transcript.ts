@@ -3,6 +3,7 @@ import type { PanelRegion } from "../layout-manager.js";
 import type { PtyEvent } from "../../../integrations/subprocess/types.js";
 import type { ActionTimelineEvent } from "../../../core/timeline/types.js";
 import { getContentArea, getPanelHeight } from "../layout-manager.js";
+import { padDisplayWidth } from "../renderer.js";
 import { colors } from "../../colors.js";
 
 const EMPTY_TRANSCRIPT_LINES = [
@@ -726,13 +727,14 @@ export class TranscriptPanel {
               ? "[recap] "
               : "";
       const line = truncateLine(`${prefix}${entry.text}`, usableWidth);
+      const paddedLine = padDisplayWidth(line, usableWidth);
       const displayLine = isEmptyState
-        ? colors.muted(line)
+        ? colors.muted(paddedLine)
         : entry.kind === "diagnostic"
-          ? colors.error(line)
+          ? colors.error(paddedLine)
           : entry.kind === "recap"
-            ? colors.info(line)
-            : line;
+            ? colors.info(paddedLine)
+            : paddedLine;
 
       screen.cursorMoveTo(currentRow, 0);
       screen.write(displayLine);

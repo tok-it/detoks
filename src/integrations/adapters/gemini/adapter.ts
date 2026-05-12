@@ -7,7 +7,7 @@ export class GeminiStubAdapter implements CliAdapter {
   readonly target = "gemini" as const;
 
   buildSubprocessRequest(request: AdapterExecutionRequest) {
-    if (request.presentationMode === "embedded-pane" || request.presentationMode === "passthrough") {
+    if (request.presentationMode === "passthrough") {
       return {
         command: "gemini",
         args: [
@@ -15,6 +15,15 @@ export class GeminiStubAdapter implements CliAdapter {
           ...(request.prompt ? [request.prompt] : []),
         ],
         ...(request.cwd !== undefined ? { cwd: request.cwd } : {}),
+      };
+    }
+
+    if (request.presentationMode === "embedded-pane") {
+      return {
+        command: "gemini",
+        args: request.model ? ["--model", request.model] : [],
+        ...(request.cwd !== undefined ? { cwd: request.cwd } : {}),
+        input: request.prompt,
       };
     }
 

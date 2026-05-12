@@ -3,6 +3,11 @@ import { PipelineStatusPanel } from "../../../../../../src/cli/tui/panels/pipeli
 import type { PipelineProgressEvent } from "../../../../../../src/core/pipeline/types.js";
 import type { ActionTimelineEvent } from "../../../../../../src/core/timeline/types.js";
 
+const stripAnsi = (value: string): string =>
+  value
+    .replace(/\u001b\[[0-?]*[ -/]*[@-~]/g, "")
+    .replace(/\u001b\][^\u0007]*(?:\u0007|\u001b\\)/g, "");
+
 describe("PipelineStatusPanel", () => {
   let panel: PipelineStatusPanel;
   let mockScreen: any;
@@ -45,6 +50,7 @@ describe("PipelineStatusPanel", () => {
       const output = calls.map((c: any) => c[0]).join("\n");
       expect(output).toContain("●");
       expect(output).toContain("Prompt Compiler");
+      expect(stripAnsi(calls[0][0])).toHaveLength(80);
     });
 
     it("transitions stage from start to error", () => {
@@ -68,6 +74,7 @@ describe("PipelineStatusPanel", () => {
         .join("\n");
       expect(output).toContain("●");
       expect(output).toContain("Task Graph Builder");
+      expect(stripAnsi(mockScreen.write.mock.calls[0][0])).toHaveLength(80);
     });
 
     it("supports skip status", () => {

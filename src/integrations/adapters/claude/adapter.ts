@@ -9,7 +9,7 @@ export class ClaudeStubAdapter implements CliAdapter {
   readonly target = "claude" as const;
 
   buildSubprocessRequest(request: AdapterExecutionRequest) {
-    if (request.presentationMode === "embedded-pane" || request.presentationMode === "passthrough") {
+    if (request.presentationMode === "passthrough") {
       return {
         command: "claude",
         args: [
@@ -19,6 +19,22 @@ export class ClaudeStubAdapter implements CliAdapter {
           ...(request.prompt ? [request.prompt] : []),
         ],
         ...(request.cwd !== undefined ? { cwd: request.cwd } : {}),
+      };
+    }
+
+    if (request.presentationMode === "embedded-pane") {
+      return {
+        command: "claude",
+        args: [
+          "-p",
+          "--output-format",
+          "text",
+          "--permission-mode",
+          CLAUDE_PERMISSION_MODE,
+          ...(request.model ? ["--model", request.model] : []),
+        ],
+        ...(request.cwd !== undefined ? { cwd: request.cwd } : {}),
+        input: request.prompt,
       };
     }
 

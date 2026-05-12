@@ -167,7 +167,7 @@ describe("adapter subprocess path", () => {
     });
   });
 
-  it("builds codex embedded-pane subprocess requests as interactive sessions without stdin pipe", () => {
+  it("builds codex embedded-pane subprocess requests as one-shot stdin prompts", () => {
     const adapter = new CodexStubAdapter();
     expect(
       adapter.buildSubprocessRequest({
@@ -180,12 +180,21 @@ describe("adapter subprocess path", () => {
       }),
     ).toEqual({
       command: "codex",
-      args: ["--model", "gpt-5", "--sandbox", "workspace-write"],
+      args: [
+        "exec",
+        "--model",
+        "gpt-5",
+        "-",
+        "--sandbox",
+        "workspace-write",
+        "--skip-git-repo-check",
+      ],
       cwd: "/tmp",
+      input: "",
     });
   });
 
-  it("builds claude embedded-pane subprocess requests as interactive sessions without stdin pipe", () => {
+  it("builds claude embedded-pane subprocess requests as one-shot stdin prompts", () => {
     const adapter = new ClaudeStubAdapter();
     expect(
       adapter.buildSubprocessRequest({
@@ -198,12 +207,21 @@ describe("adapter subprocess path", () => {
       }),
     ).toEqual({
       command: "claude",
-      args: ["--model", "claude-sonnet-4-6", "--permission-mode", "default"],
+      args: [
+        "-p",
+        "--output-format",
+        "text",
+        "--permission-mode",
+        "default",
+        "--model",
+        "claude-sonnet-4-6",
+      ],
       cwd: "/tmp",
+      input: "",
     });
   });
 
-  it("builds gemini embedded-pane subprocess requests as interactive sessions without stdin pipe", () => {
+  it("builds gemini embedded-pane subprocess requests as one-shot stdin prompts", () => {
     const adapter = new GeminiStubAdapter();
     expect(
       adapter.buildSubprocessRequest({
@@ -218,6 +236,7 @@ describe("adapter subprocess path", () => {
       command: "gemini",
       args: ["--model", "gemini-2.5-pro"],
       cwd: "/tmp",
+      input: "",
     });
   });
 

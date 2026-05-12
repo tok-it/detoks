@@ -10,7 +10,7 @@ export class CodexStubAdapter implements CliAdapter {
   buildSubprocessRequest(request: AdapterExecutionRequest) {
     const reasoningEffort = getCodexReasoningEffortOverride();
 
-    if (request.presentationMode === "embedded-pane" || request.presentationMode === "passthrough") {
+    if (request.presentationMode === "passthrough") {
       return {
         command: "codex",
         args: [
@@ -21,6 +21,23 @@ export class CodexStubAdapter implements CliAdapter {
           ...(request.prompt ? [request.prompt] : []),
         ],
         ...(request.cwd !== undefined ? { cwd: request.cwd } : {}),
+      };
+    }
+
+    if (request.presentationMode === "embedded-pane") {
+      return {
+        command: "codex",
+        args: [
+          "exec",
+          ...(reasoningEffort ? ["-c", `model_reasoning_effort=${reasoningEffort}`] : []),
+          ...(request.model ? ["--model", request.model] : []),
+          "-",
+          "--sandbox",
+          "workspace-write",
+          "--skip-git-repo-check",
+        ],
+        ...(request.cwd !== undefined ? { cwd: request.cwd } : {}),
+        input: request.prompt,
       };
     }
 

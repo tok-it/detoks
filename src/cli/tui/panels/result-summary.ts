@@ -4,6 +4,7 @@ import type { PipelineExecutionResult } from "../../../core/pipeline/types.js";
 import type { TokenReductionSnapshot } from "../../../core/utils/tokenMetrics.js";
 import { getTurnRecapLines } from "../../../core/timeline/action-timeline.js";
 import { getContentArea } from "../layout-manager.js";
+import { padDisplayWidth } from "../renderer.js";
 import { colors } from "../../colors.js";
 
 const EMPTY_RESULT_LINES = [
@@ -112,8 +113,8 @@ export class ResultSummaryPanel {
       if (currentRow >= region.endRow) break;
 
       const displayLine = isEmptyState
-        ? colors.muted(truncateLine(line, usableWidth))
-        : truncateLine(line, usableWidth);
+        ? colors.muted(padDisplayWidth(truncateLine(line, usableWidth), usableWidth))
+        : padDisplayWidth(truncateLine(line, usableWidth), usableWidth);
 
       screen.cursorMoveTo(currentRow, 0);
       screen.write(displayLine);

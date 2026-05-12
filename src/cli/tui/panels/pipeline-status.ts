@@ -4,6 +4,7 @@ import type { PipelineProgressEvent, PipelineProgressStatus } from "../../../cor
 import type { ActionTimelineEvent } from "../../../core/timeline/types.js";
 import { deriveActionWorkState } from "../../../core/timeline/action-timeline.js";
 import { getContentArea } from "../layout-manager.js";
+import { padDisplayWidth } from "../renderer.js";
 import { colors } from "../../colors.js";
 
 interface StageStatus {
@@ -106,17 +107,17 @@ export class PipelineStatusPanel {
         const spinnerFrames = ["|", "/", "-", "\\"];
         const spinner = spinnerFrames[Math.floor(elapsedMs / 250) % spinnerFrames.length] ?? "|";
         screen.cursorMoveTo(currentRow, 0);
-        screen.write(colors.statusOrange(`● 작업 진행 중 ${spinner} ${minutes}:${seconds}`).padEnd(usableWidth));
+        screen.write(colors.statusOrange(padDisplayWidth(`● 작업 진행 중 ${spinner} ${minutes}:${seconds}`, usableWidth)));
         currentRow += 1;
       } else if (allStagesSuccessful) {
         screen.cursorMoveTo(currentRow, 0);
-        screen.write(colors.statusBlue("● ALL BLUE ✓").padEnd(usableWidth));
+        screen.write(colors.statusBlue(padDisplayWidth("● ALL BLUE ✓", usableWidth)));
         currentRow += 1;
       } else if (this.latestWorkState) {
         const detail = this.latestWorkStateDetail ? ` · ${this.latestWorkStateDetail}` : "";
         const style = anyStageFailed ? colors.statusRed : colors.statusOrange;
         screen.cursorMoveTo(currentRow, 0);
-        screen.write(style(`● ${this.latestWorkState}${detail}`).padEnd(usableWidth));
+        screen.write(style(padDisplayWidth(`● ${this.latestWorkState}${detail}`, usableWidth)));
         currentRow += 1;
       }
     }
@@ -128,7 +129,7 @@ export class PipelineStatusPanel {
       if (!stageStatus) continue;
 
       const icon = STATUS_ICONS[stageStatus.status];
-      const styledLine = STATUS_STYLES[stageStatus.status](`${icon} ${stageName}`.padEnd(usableWidth));
+      const styledLine = STATUS_STYLES[stageStatus.status](padDisplayWidth(`${icon} ${stageName}`, usableWidth));
 
       screen.cursorMoveTo(currentRow, 0);
       screen.write(styledLine);

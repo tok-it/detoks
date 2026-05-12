@@ -98,23 +98,23 @@ describe("layout-manager", () => {
   });
 
   describe("getContentArea", () => {
-    it("calculates usable width by subtracting borders and padding", () => {
+    it("uses the full region width for pane content", () => {
       const region = { startRow: 0, endRow: 10, columns: 80 };
       const { usableWidth } = getContentArea(region);
-      expect(usableWidth).toBe(76); // 80 - 4
+      expect(usableWidth).toBe(80);
     });
 
-    it("calculates usable height by subtracting header and footer rows", () => {
+    it("uses the full region height for pane content", () => {
       const region = { startRow: 0, endRow: 10, columns: 80 };
       const { usableHeight } = getContentArea(region);
-      expect(usableHeight).toBe(8); // 10 - 2
+      expect(usableHeight).toBe(10);
     });
 
-    it("returns 0 for usable dimensions when region is too small", () => {
+    it("returns the raw dimensions even for a very small region", () => {
       const region = { startRow: 0, endRow: 1, columns: 2 };
       const { usableWidth, usableHeight } = getContentArea(region);
-      expect(usableWidth).toBe(0);
-      expect(usableHeight).toBe(0);
+      expect(usableWidth).toBe(2);
+      expect(usableHeight).toBe(1);
     });
   });
 });

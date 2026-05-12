@@ -73,7 +73,9 @@ export const getPanelHeight = (region: PanelRegion): number => {
 
 export const getContentArea = (region: PanelRegion): { usableWidth: number; usableHeight: number } => {
   return {
-    usableWidth: Math.max(0, region.columns - 4), // 좌우 테두리 2 + 패딩 2
-    usableHeight: Math.max(0, getPanelHeight(region) - 2), // 상하 라인 2
+    // Panel regions already represent the drawable content area in the current TUI.
+    // Avoid subtracting extra "border" padding here so panes use the full width/height.
+    usableWidth: Math.max(0, region.columns),
+    usableHeight: Math.max(0, getPanelHeight(region)),
   };
 };

@@ -82,6 +82,12 @@ const measureDisplayWidth = (text: string): number => {
   return width;
 };
 
+export const padDisplayWidth = (text: string, width: number): string => {
+  const safeWidth = Math.max(0, width);
+  const padding = Math.max(0, safeWidth - measureDisplayWidth(text));
+  return `${text}${" ".repeat(padding)}`;
+};
+
 const ellipsizeLeft = (text: string, maxWidth: number): string => {
   if (maxWidth <= 0) {
     return "";
@@ -243,10 +249,9 @@ export const measureInputLayout = (dims: ScreenDimensions, input: string): Input
 };
 
 export const renderScreenBorder = (ctx: RenderContext): void => {
-  const { screen, dims } = ctx;
-
-  // Clear screen only
-  screen.clear();
+  void ctx;
+  // The outer TUI now redraws rows in place. Avoid a full-screen clear on every
+  // render pass to prevent flicker and preserve native-CLI pane stability.
 };
 
 export const renderHeader = (ctx: RenderContext, title: string): void => {
