@@ -5,6 +5,9 @@ import { getContentArea } from "../layout-manager.js";
 import { colors } from "../../colors.js";
 import { TerminalEmulatorBuffer } from "../terminal-emulator.js";
 
+// Larger than the terminal-emulator default (200) to retain full LLM session output.
+const EMBEDDED_PANE_SCROLLBACK_LIMIT = 500;
+
 const EMPTY_PANE_LINES = [
   "원본 CLI 출력이 이 영역에 표시됩니다.",
   "PTY 이벤트가 들어오면 버퍼를 이 패널에 렌더링합니다.",
@@ -27,17 +30,20 @@ const truncateToWidth = (line: string, maxWidth: number): string => {
 };
 
 export class EmbeddedTerminalPane {
-  private readonly buffer = new TerminalEmulatorBuffer(80, 24);
+  private readonly buffer = new TerminalEmulatorBuffer(80, 24, EMBEDDED_PANE_SCROLLBACK_LIMIT);
   private scrollOffset = 0;
+  // Cached total row count (scrollback + visible) — updated on every write to avoid
+  // rebuilding the combined array on every scrollUp() keypress.
+  private cachedTotalRows = 0;
 
   clear(): void {
     this.buffer.reset();
     this.scrollOffset = 0;
+    this.cachedTotalRows = 0;
   }
 
   scrollUp(): void {
-    const rows = [...this.buffer.getScrollbackRows(), ...this.buffer.getVisibleRows()];
-    this.scrollOffset = Math.min(this.scrollOffset + 1, Math.max(0, rows.length - 1));
+    this.scrollOffset = Math.min(this.scrollOffset + 1, Math.max(0, this.cachedTotalRows - 1));
   }
 
   scrollDown(): void {
@@ -48,10 +54,15 @@ export class EmbeddedTerminalPane {
     this.scrollOffset = 0;
   }
 
+  private updateCachedTotalRows(): void {
+    this.cachedTotalRows = this.buffer.getScrollbackRows().length + this.buffer.getVisibleRows().length;
+  }
+
   addEvent(event: PtyEvent): void {
     if (event.type === "resize") {
       if (typeof event.columns === "number" && typeof event.rows === "number") {
         this.buffer.resize(event.columns, event.rows);
+        this.updateCachedTotalRows();
       }
       return;
     }
@@ -61,6 +72,7 @@ export class EmbeddedTerminalPane {
     }
 
     this.buffer.write(event.data);
+    this.updateCachedTotalRows();
     this.scrollOffset = 0;
   }
 
@@ -70,6 +82,7 @@ export class EmbeddedTerminalPane {
     }
 
     this.buffer.write(text.endsWith("\n") ? text : `${text}\n`);
+    this.updateCachedTotalRows();
     this.scrollOffset = 0;
   }
 

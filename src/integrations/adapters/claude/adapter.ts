@@ -9,7 +9,7 @@ export class ClaudeStubAdapter implements CliAdapter {
   readonly target = "claude" as const;
 
   buildSubprocessRequest(request: AdapterExecutionRequest) {
-    if (request.presentationMode === "passthrough") {
+    if (request.presentationMode === "embedded-pane" || request.presentationMode === "passthrough") {
       return {
         command: "claude",
         args: [
