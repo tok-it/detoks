@@ -98,9 +98,12 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
     screen.enterAltScreen();
     screen.setRawMode(true);
     screen.cursorHide();
+    // Enable bracketed paste mode so pasted content doesn't auto-submit
+    stdout.write("\x1b[?2004h");
   };
 
   const leaveTuiDisplay = (): void => {
+    stdout.write("\x1b[?2004l");
     screen.setRawMode(false);
     screen.cursorShow();
     screen.exitAltScreen();
@@ -119,6 +122,7 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
   enterTuiDisplay();
 
   const sigtermHandler = (): void => {
+    stdout.write("\x1b[?2004l");
     screen.cleanup();
     process.exit(0);
   };
@@ -178,6 +182,7 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
     const executionCwd = process.cwd();
     let currentTokenSavingsLabel: string | undefined;
     let isInputSuspended = false;
+    let isPasting = false;
     let embeddedNativeCliSession: EmbeddedNativeCliSession | null = null;
     let pendingNativeEscapeReturn = false;
     let pendingNativeEscapeTimer: NodeJS.Timeout | undefined;
@@ -453,6 +458,21 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
         // Check for escape sequences first (multi-character sequences)
         // Must be processed as atomic units before character-by-character handling
         if (text.charCodeAt(i) === 0x1b && i + 2 < text.length) {
+          // Bracketed paste mode sequences (\x1b[200~ = paste start, \x1b[201~ = paste end)
+          if (text.startsWith("\x1b[200~", i)) {
+            isPasting = true;
+            i += 6;
+            handled = true;
+          } else if (text.startsWith("\x1b[201~", i)) {
+            isPasting = false;
+            i += 6;
+            handled = true;
+          }
+
+          if (handled) {
+            continue;
+          }
+
           const sequence = text.substring(i, i + 3);
           if (embeddedPaneMode && embeddedTerminalFocus.focus === "adapter-terminal") {
             if (pendingNativeEscapeReturn) {
@@ -634,7 +654,13 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
             running = false;
             needsFullRender = true;
           } else if (char === "\r" || char === "\n") {
-            if (input.trim()) {
+            if (isPasting) {
+              // During bracketed paste, newlines are part of the pasted content
+              if (char === "\n") {
+                input += "\n";
+                needsFullRender = true;
+              }
+            } else if (input.trim()) {
               // Phase 3.2: Execute prompt
               const resolvedPrompt =
                 slashAutocompleteActive && (slashAutocompleteQuery?.length ?? 0) > 0

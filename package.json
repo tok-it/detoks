@@ -25,6 +25,7 @@
   },
   "scripts": {
     "build": "npx --no-install tsc -p tsconfig.json",
+    "postinstall": "node scripts/fix-node-pty-perms.cjs",
     "prepare": "npm run build",
     "prepack": "npm run build",
     "cli": "tsx src/cli/index.ts",
