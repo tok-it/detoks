@@ -25,7 +25,7 @@
   },
   "scripts": {
     "build": "node ./node_modules/typescript/bin/tsc -p tsconfig.json",
-    "prepare": "npm run build",
+    "prepare": "node -e \"const{existsSync}=require('fs');const tsc='./node_modules/typescript/bin/tsc';if(existsSync(tsc)){require('child_process').execSync('node '+tsc+' -p tsconfig.json',{stdio:'inherit'})}else{console.log('Skipping build: typescript not available in local node_modules')}\"",
     "prepack": "npm run build",
     "cli": "tsx src/cli/index.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json",
@@ -44,7 +44,7 @@
     "node-llama-cpp": "^3.18.1",
     "node-pty": "^1.1.0",
     "tiktoken": "^1.0.22",
-    "typescript": "5.8.3",
+    "tsx": "4.20.5",
     "zod": "4.3.6"
   },
   "devDependencies": {
