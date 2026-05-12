@@ -59,12 +59,13 @@ function generateSessionId(): string {
   return createHash("sha256").update(String(Date.now())).digest("hex").slice(0, 12);
 }
 
-function initSessionState(sessionId: string, rawInput: string): SessionState {
+function initSessionState(sessionId: string, rawInput: string, executionMode: string): SessionState {
   return {
     shared_context: {
       session_id: sessionId,
       raw_input: rawInput,
-      raw_input_hash: hashRawInput(rawInput),
+      // stub 모드 세션은 캐시 조회 대상에서 제외 — real 모드가 stub 결과를 캐시 hit으로 받는 오염 방지
+      ...(executionMode !== "stub" ? { raw_input_hash: hashRawInput(rawInput) } : {}),
     },
     task_results: {},
     current_task_id: null,
@@ -722,16 +723,17 @@ export const orchestratePipeline = async (
         ...state.shared_context,
         session_id: sessionId,
         raw_input: resolvedRawInput,
-        // 구 세션 backfill: raw_input_hash가 없으면 생성, 있으면 보존
-        raw_input_hash:
-          state.shared_context.raw_input_hash ?? hashRawInput(resolvedRawInput),
+        // 구 세션 backfill: stub 모드는 hash 미설정, real 모드는 없으면 생성 있으면 보존
+        ...(request.executionMode !== "stub"
+          ? { raw_input_hash: state.shared_context.raw_input_hash ?? hashRawInput(resolvedRawInput) }
+          : {}),
       },
     };
     // 이전에 실패한 작업들을 failedTaskIds에 추가하여 의존성 차단 로직이 작동하게 함
     const loadedFailedIds = (state.shared_context.failed_task_ids as string[]) || [];
     loadedFailedIds.forEach((id) => failedTaskIds.add(id));
   } else {
-    state = initSessionState(sessionId, request.userRequest.raw_input);
+    state = initSessionState(sessionId, request.userRequest.raw_input, request.executionMode);
   }
   state = applyProjectInfo(state, request.projectInfo, request.userRequest.cwd);
   // RAG Phase 2: 전체 DAG 보존 (Task의 input_hash, depends_on, priority 등 완전 보존)
