@@ -166,4 +166,17 @@ describe("TerminalEmulatorBuffer", () => {
     expect(snapshot.visibleRows[2]?.trim()).toBe("ef");
     expect(snapshot.visibleRows[3]?.trim()).toBe("gh");
   });
+
+  it("reflows scrollback rows when the terminal narrows", () => {
+    const buffer = new TerminalEmulatorBuffer(4, 2);
+    buffer.write("abcd\nefgh\nijkl");
+    const beforeResize = buffer.snapshot();
+    expect(beforeResize.scrollbackRows[0]?.trim()).toBe("abcd");
+
+    buffer.resize(2, 4);
+
+    const snapshot = buffer.snapshot();
+    expect(snapshot.scrollbackRows[0]?.trim()).toBe("ab");
+    expect(snapshot.scrollbackRows[1]?.trim()).toBe("cd");
+  });
 });

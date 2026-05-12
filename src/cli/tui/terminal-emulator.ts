@@ -535,6 +535,18 @@ export class TerminalEmulatorBuffer {
     return nextScreen;
   }
 
+  private reflowScrollback(nextColumns: number): void {
+    if (nextColumns <= 0) {
+      this.scrollbackRows.length = 0;
+      return;
+    }
+
+    const reflowedScrollback = this.reflowScreen(this.scrollbackRows, nextColumns);
+    const trimmedScrollback = reflowedScrollback.slice(Math.max(0, reflowedScrollback.length - this.scrollbackLimit));
+    this.scrollbackRows.length = 0;
+    this.scrollbackRows.push(...trimmedScrollback);
+  }
+
   private remapCursorForResize(
     cursorRow: number,
     cursorColumn: number,
@@ -946,6 +958,7 @@ export class TerminalEmulatorBuffer {
 
     this.columns = nextColumns;
     this.rows = nextRows;
+    this.reflowScrollback(nextColumns);
     this.mainScreen = reflowedMain.slice(Math.max(0, reflowedMain.length - nextRows));
     this.alternateScreenBuffer = reflowedAlternate.slice(Math.max(0, reflowedAlternate.length - nextRows));
     this.setActiveScreen(this.alternateScreen ? this.alternateScreenBuffer : this.mainScreen);
