@@ -472,13 +472,13 @@ All LLM interaction must go through `src/core/llm-client`.
 
 ### Boundary Rule
 
-Core modules must not call llama.cpp or Python server implementation details directly.
+Core modules must not call llama.cpp server implementation details directly.
 They must invoke model inference through `src/core/llm-client`.
-Core modules must not call llama.cpp or Python server implementation details directly.
+Core modules must not call llama.cpp server implementation details directly.
 They must invoke model inference through `src/core/llm-client`.
 
-<!-- 한국어 설명: TypeScript core 모듈은 Python 서버 내부 구현을 직접 참조하지 않고, 정해진 llm-client 계층을 통해서만 모델 추론을 호출해야 합니다. -->
-<!-- 한국어 설명: TypeScript core 모듈은 Python 서버 내부 구현을 직접 참조하지 않고, 정해진 llm-client 계층을 통해서만 모델 추론을 호출해야 합니다. -->
+<!-- 한국어 설명: TypeScript core 모듈은 서버 내부 구현을 직접 참조하지 않고, 정해진 llm-client 계층을 통해서만 모델 추론을 호출해야 합니다. -->
+<!-- 한국어 설명: TypeScript core 모듈은 서버 내부 구현을 직접 참조하지 않고, 정해진 llm-client 계층을 통해서만 모델 추론을 호출해야 합니다. -->
 
 ### LLM Completion Request
 ### LLM Completion Request
@@ -520,10 +520,10 @@ type LlmCompletionResponse = {
 
 - OpenAI-compatible JSON request/response shape
 - explicit timeout handling
-- no direct dependency on Python modules from TypeScript
+- no direct dependency on server implementation modules from TypeScript
 - OpenAI-compatible JSON request/response shape
 - explicit timeout handling
-- no direct dependency on Python modules from TypeScript
+- no direct dependency on server implementation modules from TypeScript
 
 <!-- 한국어 설명: LLM client는 OpenAI-compatible JSON 요청/응답 형태를 사용하고, timeout과 오류를 명시적으로 처리해야 합니다. -->
 <!-- 한국어 설명: LLM client는 OpenAI-compatible JSON 요청/응답 형태를 사용하고, timeout과 오류를 명시적으로 처리해야 합니다. -->

@@ -14,9 +14,7 @@ describe("compress_prompt", () => {
       {
         policies: defaultPolicies,
         config: {
-          kompressPythonBin: "python3",
           kompressModelId: "chopratejas/kompress-base",
-          kompressStartupTimeout: 120000,
           requestTimeout: 30000,
         },
         compressionImplementation: vi.fn(async (text: string) => ({
@@ -51,9 +49,7 @@ describe("compress_prompt", () => {
       {
         policies: defaultPolicies,
         config: {
-          kompressPythonBin: "python3",
           kompressModelId: "chopratejas/kompress-base",
-          kompressStartupTimeout: 120000,
           requestTimeout: 30000,
         },
         compressionImplementation,
@@ -73,9 +69,7 @@ describe("compress_prompt", () => {
     const result = await compress_prompt("Can you please", {
       policies: defaultPolicies,
       config: {
-        kompressPythonBin: "python3",
         kompressModelId: "chopratejas/kompress-base",
-        kompressStartupTimeout: 120000,
         requestTimeout: 30000,
       },
       compressionImplementation,
@@ -94,9 +88,7 @@ describe("compress_prompt", () => {
       {
         policies: defaultPolicies,
         config: {
-          kompressPythonBin: "python3",
           kompressModelId: "chopratejas/kompress-base",
-          kompressStartupTimeout: 120000,
           requestTimeout: 30000,
         },
         compressionImplementation: vi.fn(async (text: string) => ({
@@ -129,9 +121,7 @@ describe("compress_prompt", () => {
       {
         policies: defaultPolicies,
         config: {
-          kompressPythonBin: "python3",
           kompressModelId: "chopratejas/kompress-base",
-          kompressStartupTimeout: 120000,
           requestTimeout: 30000,
         },
         compressionImplementation,

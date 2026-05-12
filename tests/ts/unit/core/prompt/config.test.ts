@@ -56,9 +56,7 @@ describe("loadRole1RuntimeConfig", () => {
 		expect(config.localLlmHfFile).toBe(
 			"gemma-4-e2b-it-heretic-ara.Q4_K_S.gguf",
 		);
-		expect(config.kompressPythonBin).toBe("python3");
 		expect(config.kompressModelId).toBe("chopratejas/kompress-base");
-		expect(config.kompressStartupTimeout).toBe(120000);
 	});
 
 	it(".env와 legacy alias를 함께 읽는다", () => {
@@ -78,9 +76,7 @@ describe("loadRole1RuntimeConfig", () => {
 				"LOCAL_LLM_SLEEP_IDLE_SECONDS=900",
 				"LOCAL_LLM_RUNTIME_PROVIDER=llama-server",
 				"LOCAL_LLM_MODEL_DIR=/tmp/detoks-models",
-				"KOMPRESS_PYTHON_BIN=python3.13",
 				"KOMPRESS_MODEL_ID=chopratejas/kompress-small",
-				"KOMPRESS_STARTUP_TIMEOUT=45000",
 			].join("\n"),
 			"utf8",
 		);
@@ -99,9 +95,7 @@ describe("loadRole1RuntimeConfig", () => {
 		expect(config.localLlmSleepIdleSeconds).toBe(900);
 		expect(config.localLlmRuntimeProvider).toBe("llama-server");
 		expect(config.localLlmModelDir).toBe("/tmp/detoks-models");
-		expect(config.kompressPythonBin).toBe("python3.13");
 		expect(config.kompressModelId).toBe("chopratejas/kompress-small");
-		expect(config.kompressStartupTimeout).toBe(45000);
 	});
 
 	it("LOCAL_LLM_MODEL_PATH가 있으면 node-llama-cpp를 기본 provider로 쓴다", () => {
