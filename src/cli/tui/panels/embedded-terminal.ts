@@ -3,6 +3,7 @@ import type { PanelRegion } from "../layout-manager.js";
 import type { PtyEvent } from "../../../integrations/subprocess/types.js";
 import { getContentArea } from "../layout-manager.js";
 import { colors } from "../../colors.js";
+import { padDisplayWidth } from "../renderer.js";
 import type { TerminalCell, TerminalCellStyle, TerminalColor } from "../terminal-emulator.js";
 import { TerminalEmulatorBuffer, getCharacterDisplayWidth } from "../terminal-emulator.js";
 
@@ -73,11 +74,79 @@ const styleToAnsi = (style: TerminalCellStyle): string => {
   return codes.length > 0 ? `\x1b[${codes.join(";")}m` : "";
 };
 
+const applyDefaultStyle = (
+  style: TerminalCellStyle,
+  defaultStyle?: Partial<TerminalCellStyle>,
+): TerminalCellStyle => {
+  if (defaultStyle === undefined) {
+    return style;
+  }
+
+  return {
+    fg: style.fg ?? defaultStyle.fg,
+    bg: style.bg ?? defaultStyle.bg,
+    bold: style.bold || defaultStyle.bold === true,
+    dim: style.dim || defaultStyle.dim === true,
+    italic: style.italic || defaultStyle.italic === true,
+    underline: style.underline || defaultStyle.underline === true,
+    inverse: style.inverse || defaultStyle.inverse === true,
+  };
+};
+
+const rowToPlainText = (cells: TerminalCell[], maxWidth: number): string => {
+  const visibleCells = cells.slice(0, Math.max(0, maxWidth));
+  let output = "";
+
+  for (const cell of visibleCells) {
+    if (cell.wideContinuation) {
+      continue;
+    }
+    output += cell.char || " ";
+  }
+
+  return output.trimEnd();
+};
+
+const META_LINE_PATTERNS = [
+  /^Context:/,
+  /^OpenAI Codex\b/,
+  /^workdir:/,
+  /^model:/,
+  /^provider:/,
+  /^approval:/,
+  /^sandbox:/,
+  /^reasoning effort:/,
+  /^reasoning summaries:/,
+  /^session id:/,
+] as const;
+
+const getRowDefaultStyle = (plainText: string): Partial<TerminalCellStyle> | undefined => {
+  if (plainText.length === 0) {
+    return undefined;
+  }
+
+  if (/^-{4,}$/.test(plainText)) {
+    return {
+      fg: { kind: "indexed", value: 244 },
+      dim: true,
+    };
+  }
+
+  if (META_LINE_PATTERNS.some((pattern) => pattern.test(plainText))) {
+    return {
+      fg: { kind: "indexed", value: 250 },
+    };
+  }
+
+  return undefined;
+};
+
 const renderCellsToAnsi = (
   cells: TerminalCell[],
   maxWidth: number,
   cursorColumn?: number,
   cursorVisible?: boolean,
+  defaultStyle?: Partial<TerminalCellStyle>,
 ): string => {
   const visibleCells = cells.slice(0, Math.max(0, maxWidth));
   let output = "";
@@ -90,9 +159,10 @@ const renderCellsToAnsi = (
     }
 
     const isCursorCell = cursorVisible === true && cursorColumn === index;
+    const baseStyle = applyDefaultStyle(cell.style, defaultStyle);
     const displayStyle = isCursorCell
-      ? { ...cell.style, inverse: true }
-      : cell.style;
+      ? { ...baseStyle, inverse: true }
+      : baseStyle;
     const signature = styleSignature(displayStyle);
     if (signature !== currentSignature) {
       output += "\x1b[0m";
@@ -110,6 +180,10 @@ const renderCellsToAnsi = (
 
   return `${output}\x1b[0m`;
 };
+
+export interface EmbeddedTerminalRenderableLine {
+  text: string;
+}
 
 export class EmbeddedTerminalPane {
   private readonly buffer = new TerminalEmulatorBuffer(80, 24, EMBEDDED_PANE_SCROLLBACK_LIMIT);
@@ -189,6 +263,52 @@ export class EmbeddedTerminalPane {
     return this.buffer.hasContent();
   }
 
+  getRenderableLines(maxWidth: number, maxRows?: number, scrollOffset = 0): EmbeddedTerminalRenderableLine[] {
+    if (maxWidth <= 0) {
+      return [];
+    }
+
+    if (!this.buffer.hasContent()) {
+      return EMPTY_PANE_LINES.map((line) => ({
+        text: colors.muted(padDisplayWidth(truncateToWidth(line, maxWidth), maxWidth)),
+      }));
+    }
+
+    const scrollbackRows = this.buffer.getScrollbackCells();
+    const visibleRows = this.buffer.getVisibleCells();
+    const rows = [...scrollbackRows, ...visibleRows];
+    const cursorState = this.buffer.getCursorState();
+    const cursorGlobalRow = scrollbackRows.length + cursorState.row;
+    let lastContentIndex = -1;
+    for (let i = rows.length - 1; i >= 0; i -= 1) {
+      const row = rows[i];
+      if (row !== undefined && row.some((cell) => (cell.char ?? "").trim().length > 0)) {
+        lastContentIndex = i;
+        break;
+      }
+    }
+
+    const endIndex = Math.max(0, lastContentIndex + 1 - scrollOffset);
+    const startIndex = Math.max(0, maxRows === undefined ? 0 : endIndex - Math.max(0, maxRows));
+    const renderedRows = rows.slice(startIndex, endIndex);
+
+    return renderedRows.map((row, offset) => {
+      const globalRow = startIndex + offset;
+      const cursorColumn =
+        cursorState.visible && globalRow === cursorGlobalRow ? cursorState.column : undefined;
+      const plainText = rowToPlainText(row, maxWidth);
+      return {
+        text: renderCellsToAnsi(
+          row,
+          maxWidth,
+          cursorColumn,
+          cursorState.visible,
+          getRowDefaultStyle(plainText),
+        ),
+      };
+    });
+  }
+
   render(ctx: RenderContext, region: PanelRegion): void {
     const { screen } = ctx;
     const { usableWidth, usableHeight } = getContentArea(region);
@@ -197,48 +317,17 @@ export class EmbeddedTerminalPane {
       return;
     }
 
-    const hasContent = this.buffer.hasContent();
     let currentRow = region.startRow;
-    if (hasContent) {
-      const scrollbackRows = this.buffer.getScrollbackCells();
-      const visibleRows = this.buffer.getVisibleCells();
-      const rows = [...scrollbackRows, ...visibleRows];
-      const cursorState = this.buffer.getCursorState();
-      const cursorGlobalRow = scrollbackRows.length + cursorState.row;
-      let lastContentIndex = -1;
-      for (let i = rows.length - 1; i >= 0; i -= 1) {
-        const row = rows[i];
-        if (row !== undefined && row.some((cell) => (cell.char ?? "").trim().length > 0)) {
-          lastContentIndex = i;
-          break;
-        }
-      }
-      const endIndex = lastContentIndex + 1 - this.scrollOffset;
-      const startIndex = Math.max(0, endIndex - usableHeight);
-      const renderedRows = rows.slice(startIndex, Math.max(0, endIndex));
+    const renderedLines = this.getRenderableLines(usableWidth, usableHeight, this.scrollOffset);
 
-      for (const [offset, row] of renderedRows.entries()) {
-        if (currentRow >= region.endRow) {
-          break;
-        }
-
-        screen.cursorMoveTo(currentRow, 0);
-        const globalRow = startIndex + offset;
-        const cursorColumn =
-          cursorState.visible && globalRow === cursorGlobalRow ? cursorState.column : undefined;
-        screen.write(renderCellsToAnsi(row, usableWidth, cursorColumn, cursorState.visible));
-        currentRow += 1;
+    for (const line of renderedLines) {
+      if (currentRow >= region.endRow) {
+        break;
       }
-    } else {
-      for (const line of EMPTY_PANE_LINES) {
-        if (currentRow >= region.endRow) {
-          break;
-        }
 
-        screen.cursorMoveTo(currentRow, 0);
-        screen.write(colors.muted(truncateToWidth(line, usableWidth)));
-        currentRow += 1;
-      }
+      screen.cursorMoveTo(currentRow, 0);
+      screen.write(line.text);
+      currentRow += 1;
     }
 
     while (currentRow < region.endRow) {

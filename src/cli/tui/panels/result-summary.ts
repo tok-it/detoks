@@ -9,7 +9,7 @@ import { colors } from "../../colors.js";
 
 const EMPTY_RESULT_LINES = [
   "실행 결과가 아직 없습니다.",
-  "첫 실행 이후 작업 타임라인 · 다음 작업 · 토큰 절감이 이 영역에 표시됩니다.",
+  "첫 실행 이후 작업 타임라인 · 다음 작업 · 사용량/압축 지표가 이 영역에 표시됩니다.",
 ] as const;
 
 const truncateLine = (line: string, maxWidth: number): string => {
@@ -54,7 +54,12 @@ export class ResultSummaryPanel {
     return `${tokens.originalTokens}토큰 → ${tokens.optimizedTokens}토큰 (절감 ${saved}토큰, ${percent}%)`;
   }
 
-  private buildLines(): string[] {
+  private extractActualTokenUsage(rawOutput: string): string | null {
+    const usageMatch = /tokens used\s*\n\s*([0-9][0-9,]*)/i.exec(rawOutput);
+    return usageMatch?.[1] ?? null;
+  }
+
+  getLines(): string[] {
     if (this.executing) {
       return ["", "  Waiting for adapter CLI to finish…"];
     }
@@ -86,15 +91,22 @@ export class ResultSummaryPanel {
       }
     }
 
+    const actualUsage = this.extractActualTokenUsage(this.result.rawOutput);
+    if (actualUsage !== null) {
+      lines.push("");
+      lines.push("사용량");
+      lines.push(`  실제 ${this.result.adapter} 사용량: ${actualUsage} tokens`);
+    }
+
     // Token metrics
     if (this.result.tokenMetrics || this.result.promptTokenSavings) {
       lines.push("");
-      lines.push("토큰 절감");
+      lines.push("detoks 압축 지표");
       if (this.result.tokenMetrics) {
-        lines.push(`  입력: ${this.formatTokenReduction(this.result.tokenMetrics.input)}`);
-        lines.push(`  작업 결과 요약: ${this.formatTokenReduction(this.result.tokenMetrics.output)}`);
+        lines.push(`  프롬프트 압축: ${this.formatTokenReduction(this.result.tokenMetrics.input)}`);
+        lines.push(`  결과 요약 압축: ${this.formatTokenReduction(this.result.tokenMetrics.output)}`);
       } else if (this.result.promptTokenSavings) {
-        lines.push(`  입력: ${this.formatTokenReduction(this.result.promptTokenSavings)}`);
+        lines.push(`  프롬프트 압축: ${this.formatTokenReduction(this.result.promptTokenSavings)}`);
       }
     }
 
@@ -106,7 +118,7 @@ export class ResultSummaryPanel {
     const { usableWidth } = getContentArea(region);
 
     const isEmptyState = this.result === null && !this.executing;
-    const lines = isEmptyState ? [...EMPTY_RESULT_LINES] : this.buildLines();
+    const lines = isEmptyState ? [...EMPTY_RESULT_LINES] : this.getLines();
     let currentRow = region.startRow;
 
     for (const line of lines) {

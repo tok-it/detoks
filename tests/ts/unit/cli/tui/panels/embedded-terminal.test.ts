@@ -71,6 +71,23 @@ describe("EmbeddedTerminalPane", () => {
     expect(output).toContain("world");
   });
 
+  it("renders codex metadata lines with a muted gray tone for readability", () => {
+    pane.addEvent({
+      type: "chunk",
+      timestamp: Date.now(),
+      stream: "stdout",
+      data: "OpenAI Codex v0.130.0\nworkdir: /tmp/demo\n--------\n",
+    });
+
+    pane.render(mockContext, mockRegion);
+
+    const output = mockScreen.write.mock.calls.map((call: any) => call[0]).join("\n");
+    expect(output).toContain("\x1b[38;5;250m");
+    expect(output).toContain("\x1b[2;38;5;244m");
+    expect(output).toContain("OpenAI Codex");
+    expect(output).toContain("workdir:");
+  });
+
   it("renders the live cursor cell with inverse video when the buffer reports a visible cursor", () => {
     pane.addEvent({ type: "chunk", timestamp: Date.now(), stream: "stdout", data: "hello" });
 
