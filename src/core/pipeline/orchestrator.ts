@@ -91,13 +91,21 @@ function resolveGitHead(cwd: string): string | undefined {
   }
 }
 
-function initSessionState(sessionId: string, rawInput: string, executionMode: string): SessionState {
+function initSessionState(
+  sessionId: string,
+  rawInput: string,
+  executionMode: string,
+  stamp: { adapter?: string; adapterModel?: string; gitHead?: string } = {},
+): SessionState {
   return {
     shared_context: {
       session_id: sessionId,
       raw_input: rawInput,
       // stub 모드 세션은 캐시 조회 대상에서 제외 — real 모드가 stub 결과를 캐시 hit으로 받는 오염 방지
       ...(executionMode !== "stub" ? { raw_input_hash: hashRawInput(rawInput) } : {}),
+      ...(stamp.adapter ? { adapter: stamp.adapter } : {}),
+      ...(stamp.adapterModel ? { adapter_model: stamp.adapterModel } : {}),
+      ...(stamp.gitHead ? { git_head: stamp.gitHead } : {}),
     },
     task_results: {},
     current_task_id: null,
@@ -155,6 +163,7 @@ function markTaskCompleted(
   rawOutput: string,
   taskType?: string,
   task?: { title?: string; input_hash?: string; depends_on?: string[] },
+  stamp: { adapter?: string; adapterModel?: string; gitHead?: string } = {},
 ): SessionState {
   const now = new Date().toISOString();
   return {
@@ -171,6 +180,9 @@ function markTaskCompleted(
         ...(taskType ? { type: taskType } : {}),
         ...extractRagMeta(task),
         completed_at: now,
+        ...(stamp.adapter ? { adapter: stamp.adapter } : {}),
+        ...(stamp.adapterModel ? { adapter_model: stamp.adapterModel } : {}),
+        ...(stamp.gitHead ? { git_head: stamp.gitHead } : {}),
       },
     },
     updated_at: now,
@@ -848,7 +860,11 @@ export const orchestratePipeline = async (
     const loadedFailedIds = (state.shared_context.failed_task_ids as string[]) || [];
     loadedFailedIds.forEach((id) => failedTaskIds.add(id));
   } else {
-    state = initSessionState(sessionId, request.userRequest.raw_input, request.executionMode);
+    state = initSessionState(sessionId, request.userRequest.raw_input, request.executionMode, {
+      adapter: request.adapter,
+      ...(adapterModel ? { adapterModel } : {}),
+      ...(gitHead ? { gitHead } : {}),
+    });
   }
   state = applyProjectInfo(state, request.projectInfo, request.userRequest.cwd);
   // RAG Phase 2: 전체 DAG 보존 (Task의 input_hash, depends_on, priority 등 완전 보존)
