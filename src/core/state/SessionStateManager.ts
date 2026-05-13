@@ -362,9 +362,9 @@ export class SessionStateManager {
 
   static async findSuccessfulSessionByInputHash(
     hash: string,
-    opts: { project_id?: string; recencyDays?: number } = {},
+    opts: { project_id?: string; recencyDays?: number; adapter?: string } = {},
   ): Promise<SessionState | null> {
-    const { project_id, recencyDays = 7 } = opts;
+    const { project_id, recencyDays = 7, adapter } = opts;
     const cutoff = Date.now() - recencyDays * 24 * 60 * 60 * 1000;
 
     let files: string[];
@@ -388,6 +388,10 @@ export class SessionStateManager {
         const failedIds = (state.shared_context.failed_task_ids as string[] | undefined) ?? [];
         if (failedIds.length > 0) continue;
 
+        // 구 세션(adapter stamp 없음)은 필드 자체가 없으므로 비교 없이 통과
+        const ctx = state.shared_context as Record<string, unknown>;
+        if (adapter && ctx.adapter && ctx.adapter !== adapter) continue;
+
         return state;
       } catch {
         continue;
@@ -398,9 +402,9 @@ export class SessionStateManager {
 
   static async findSuccessfulTaskByHash(
     taskHash: string,
-    opts: { project_id?: string; recencyDays?: number } = {},
+    opts: { project_id?: string; recencyDays?: number; adapter?: string; git_head?: string } = {},
   ): Promise<{ taskResult: Record<string, unknown>; sessionId: string } | null> {
-    const { project_id, recencyDays = 7 } = opts;
+    const { project_id, recencyDays = 7, adapter, git_head } = opts;
     const cutoff = Date.now() - recencyDays * 24 * 60 * 60 * 1000;
 
     let files: string[];
@@ -426,6 +430,9 @@ export class SessionStateManager {
           if (typeof res.completed_at === "string") {
             if (new Date(res.completed_at).getTime() < cutoff) continue;
           }
+          // 구 세션(stamp 필드 없음)은 필드 자체가 없으므로 비교 없이 통과
+          if (adapter && res.adapter && res.adapter !== adapter) continue;
+          if (git_head && res.git_head && res.git_head !== git_head) continue;
           return { taskResult: res, sessionId: file.slice(0, -".json".length) };
         }
       } catch {
