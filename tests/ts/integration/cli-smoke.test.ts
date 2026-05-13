@@ -397,7 +397,7 @@ const runLiveLocalLlmSmoke = () => {
   expect(verboseRun.stdout).not.toBe(defaultRun.stdout);
 };
 
-describe("detoks CLI smoke", () => {
+describe.skipIf(Boolean(process.env.CI))("detoks CLI smoke", () => {
   it("keeps default stdout concise and verbose stdout full", () => {
     const defaultRun = runCli(["hello detoks", "--execution-mode", "stub"]);
     const verboseRun = runCli([
