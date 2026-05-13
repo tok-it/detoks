@@ -567,7 +567,13 @@ export const orchestratePipeline = async (
   // ~/.detoks/disabled 또는 DETOKS_MEMORY=off 시 저장/조회/인덱싱 전체 비활성화
   const memoryDisabled = await isMemoryDisabled();
   const saveSessionIfEnabled = async (s: SessionState) => {
-    if (!memoryDisabled) await SessionStateManager.saveSession(s);
+    if (memoryDisabled) return;
+    try {
+      await SessionStateManager.saveSession(s);
+    } catch (err) {
+      // 디스크 풀·권한 오류 등은 파이프라인을 중단하지 않고 경고만 남긴다.
+      logger.warn(`세션 저장 실패 (non-fatal): ${toErrorMessage(err)}`);
+    }
   };
 
   // 첫 실행 1회 안내 (non-fatal, stderr) — 메모리 비활성화 상태면 표시하지 않음
