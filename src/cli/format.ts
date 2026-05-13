@@ -191,6 +191,14 @@ function formatResultHuman(result: CliExecutionResult, ok: boolean): string {
     );
   }
 
+  if (result.semanticContext && result.semanticContext.length > 0) {
+    lines.push("", colors.header("관련 과거 작업"));
+    for (const item of result.semanticContext.slice(0, 3)) {
+      const label = item.task_id ? `${item.kind}::${item.session_id}::${item.task_id}` : `${item.kind}::${item.session_id}`;
+      lines.push(`  ${colors.muted("·")} ${label} ${colors.muted(`(dist: ${item.distance.toFixed(3)})`)}`);
+    }
+  }
+
   if (result.stages.length > 0) {
     lines.push(
       "",

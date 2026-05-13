@@ -24,6 +24,11 @@ import { getLLMModelConfig } from "../llm-client/llm-models.js";
 import { computeProjectId, hashRawInput } from "../rag/hash.js";
 import { CACHE_DISABLED, CACHE_TTL_DAYS } from "../cache/cache-config.js";
 import { isSessionCacheValid, isTaskCacheValid } from "../cache/cache-validator.js";
+import { isRagEnabled, getRagModelPath, getRagVectorDbPath, RAG_EMBEDDING_DIMS } from "../rag/rag-config.js";
+import { EmbeddingService } from "../rag/embedding-service.js";
+import { VectorStore } from "../rag/vector-store.js";
+import { SemanticRetriever } from "../rag/semantic-retriever.js";
+import { EmbeddingIndexer } from "../rag/embedding-indexer.js";
 import type { PtyTranscript } from "../../integrations/subprocess/types.js";
 import type { SessionState } from "../../schemas/pipeline.js";
 import type {
@@ -34,6 +39,7 @@ import type {
   PipelineStageStatus,
   TaskExecutionRecord,
   ResumeHintInfo,
+  SemanticContextResult,
 } from "./types.js";
 import { createActionTimelineEvent } from "../timeline/types.js";
 import type { ActionTimelineEvent } from "../timeline/types.js";
@@ -528,6 +534,43 @@ export const orchestratePipeline = async (
         status: "info",
         message: `이전 미완성 세션 발견: ${resumeHint.sessionId} (완료: ${resumeHint.completedTaskIds.join(", ")} | 중단: ${resumeHint.currentTaskId})`,
       });
+    }
+  }
+
+  // ── F4~F7: Semantic retrieval (RAG Phase 2A) — BGE-M3 + sqlite-vec ───────
+  let semanticContext: SemanticContextResult[] | undefined;
+  let ragEmbedder: EmbeddingService | undefined;
+  let ragStore: VectorStore | undefined;
+  if (isRagEnabled() && request.executionMode !== "stub") {
+    try {
+      const modelPath = getRagModelPath()!;
+      const dbPath = getRagVectorDbPath(request.userRequest.cwd ?? process.cwd());
+      ragEmbedder = new EmbeddingService(modelPath);
+      await ragEmbedder.init();
+      ragStore = new VectorStore(dbPath, RAG_EMBEDDING_DIMS);
+      ragStore.open();
+      const retriever = new SemanticRetriever(ragStore, ragEmbedder);
+      const hits = await retriever.hybridSearch(request.userRequest.raw_input, 5);
+      if (hits.length > 0) {
+        semanticContext = hits.map((h) => ({
+          id: h.id,
+          distance: h.distance,
+          kind: h.meta.kind as SemanticContextResult["kind"],
+          session_id: h.meta.session_id as string,
+          ...(h.meta.task_id ? { task_id: h.meta.task_id as string } : {}),
+        }));
+        await emitProgressWithLogging({
+          stage: "State Manager",
+          status: "info",
+          message: `RAG: 유사 과거 컨텍스트 ${hits.length}건 발견`,
+        });
+      }
+    } catch (ragErr) {
+      logger.warn(`RAG retrieval 실패 (non-fatal): ${toErrorMessage(ragErr)}`);
+      await ragEmbedder?.dispose().catch(() => {});
+      ragStore?.close();
+      ragEmbedder = undefined;
+      ragStore = undefined;
     }
   }
 
@@ -1059,6 +1102,19 @@ export const orchestratePipeline = async (
     message: "State Manager: 최종 세션 저장 완료",
   });
 
+  // ── RAG indexing: 완료된 세션을 벡터 DB에 인덱싱 ─────────────────────────
+  if (ragEmbedder && ragStore) {
+    try {
+      const indexer = new EmbeddingIndexer(ragStore, ragEmbedder);
+      await indexer.indexSession(state as any);
+    } catch (idxErr) {
+      logger.warn(`RAG indexing 실패 (non-fatal): ${toErrorMessage(idxErr)}`);
+    } finally {
+      await ragEmbedder.dispose().catch(() => {});
+      ragStore.close();
+    }
+  }
+
   return {
     ok: allOk,
     mode: request.mode,
@@ -1084,5 +1140,6 @@ export const orchestratePipeline = async (
     ...(traceFilePath ? { traceFilePath } : {}),
     progressLog,
     ...(resumeHint ? { resumeHint } : {}),
+    ...(semanticContext ? { semanticContext } : {}),
   };
 };

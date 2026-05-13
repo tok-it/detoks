@@ -81,6 +81,14 @@ export interface ResumeHintInfo {
   updatedAt: string;
 }
 
+export interface SemanticContextResult {
+  id: string;
+  distance: number;
+  kind: "task" | "prompt" | "output";
+  session_id: string;
+  task_id?: string;
+}
+
 export interface PipelineExecutionResult {
   ok: boolean;
   mode: InteractionMode;
@@ -109,4 +117,5 @@ export interface PipelineExecutionResult {
   promptTokenSavings?: TokenReductionSnapshot | null;
   cacheHit?: CacheHitInfo;
   resumeHint?: ResumeHintInfo;
+  semanticContext?: SemanticContextResult[];
 }
