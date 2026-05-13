@@ -243,9 +243,9 @@ describe("ResultSummaryPanel", () => {
         .map((c: any) => c[0])
         .join("\n");
 
-      expect(output).toContain("토큰 절감");
-      expect(output).toContain("입력");
-      expect(output).toContain("작업 결과 요약");
+      expect(output).toContain("detoks 압축 지표");
+      expect(output).toContain("프롬프트 압축");
+      expect(output).toContain("결과 요약 압축");
     });
 
     it("displays prompt token savings when only passthrough savings are available", () => {
@@ -266,11 +266,28 @@ describe("ResultSummaryPanel", () => {
         .map((c: any) => c[0])
         .join("\n");
 
-      expect(output).toContain("토큰 절감");
-      expect(output).toContain("입력");
+      expect(output).toContain("detoks 압축 지표");
+      expect(output).toContain("프롬프트 압축");
       expect(output).toContain("120");
       expect(output).toContain("74");
-      expect(output).not.toContain("작업 결과 요약");
+      expect(output).not.toContain("결과 요약 압축");
+    });
+
+    it("displays actual adapter usage separately when raw output reports tokens used", () => {
+      const result = mockResult({
+        rawOutput: "codex\nanswer\n\ntokens used\n29,052\n",
+      });
+
+      panel.setResult(result);
+      mockScreen.write.mockClear();
+      panel.render(mockContext, mockRegion);
+
+      const output = mockScreen.write.mock.calls
+        .map((c: any) => c[0])
+        .join("\n");
+
+      expect(output).toContain("사용량");
+      expect(output).toContain("실제 codex 사용량: 29,052 tokens");
     });
 
     it("renders the action timeline section from the recap event", () => {
@@ -313,7 +330,8 @@ describe("ResultSummaryPanel", () => {
         .map((c: any) => c[0])
         .join("\n");
 
-      expect(output).not.toContain("토큰 절감");
+      expect(output).not.toContain("detoks 압축 지표");
+      expect(output).not.toContain("사용량");
     });
 
     it("truncates long lines with ellipsis", () => {
