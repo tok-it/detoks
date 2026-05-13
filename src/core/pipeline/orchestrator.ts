@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { execSync } from "node:child_process";
 import { promises as fs } from "node:fs";
 import { join } from "node:path";
@@ -77,7 +77,8 @@ function resolveModelName(adapter: string, env?: NodeJS.ProcessEnv): string {
 }
 
 function generateSessionId(): string {
-  return createHash("sha256").update(String(Date.now())).digest("hex").slice(0, 12);
+  // randomBytes: 64비트 엔트로피 — 같은 밀리초에 여러 프로세스가 실행돼도 충돌 없음
+  return randomBytes(8).toString("hex");
 }
 
 // package.json major 버전 — cache key의 detoksMajorVersion으로 사용.
