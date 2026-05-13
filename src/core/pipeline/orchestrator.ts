@@ -87,11 +87,11 @@ const DETOKS_MAJOR_VERSION = 1;
 // per-task semantic retrieval 대상 task 타입. execute/validate는 기본 skip.
 const RAG_ELIGIBLE_TYPES = new Set(["explore", "analyze", "debug", "update", "create"]);
 
-// Budget Gate 상수 — 환경변수로 override 가능
-const COLD_START_THRESHOLD = parseInt(process.env.DETOKS_COLD_START_THRESHOLD ?? "5", 10);
-const RAG_BREAK_EVEN_RATIO = parseFloat(process.env.DETOKS_RAG_BREAK_EVEN ?? "0.5");
-const PER_TASK_TOKEN_CAP = parseInt(process.env.DETOKS_RAG_PER_TASK_CAP ?? "250", 10);
-const PER_SESSION_TOKEN_CAP = parseInt(process.env.DETOKS_RAG_PER_SESSION_CAP ?? "500", 10);
+// Budget Gate 상수 — 환경변수로 override 가능. 잘못된 값(NaN)은 기본값으로 복원.
+const COLD_START_THRESHOLD = Math.max(0, parseInt(process.env.DETOKS_COLD_START_THRESHOLD ?? "5", 10) || 5);
+const RAG_BREAK_EVEN_RATIO = parseFloat(process.env.DETOKS_RAG_BREAK_EVEN ?? "0.5") || 0.5;
+const PER_TASK_TOKEN_CAP = Math.max(0, parseInt(process.env.DETOKS_RAG_PER_TASK_CAP ?? "250", 10) || 250);
+const PER_SESSION_TOKEN_CAP = Math.max(0, parseInt(process.env.DETOKS_RAG_PER_SESSION_CAP ?? "500", 10) || 500);
 
 function sumCachedTaskTokens(hits: Map<string, Record<string, unknown>>): number {
   let total = 0;
