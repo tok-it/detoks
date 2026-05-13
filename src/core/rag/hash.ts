@@ -55,3 +55,19 @@ export const computeProjectId = (cwd: string): string => {
 
   return `path-${createHash("sha256").update(absoluteCwd).digest("hex").slice(0, 12)}`;
 };
+
+// task cache 키 v2 — task.id(실행 순서 식별자 t1/t2/…)를 제외하고
+// 작업 의미(type, normalizedIntent, adapter, 버전)만으로 hash를 생성한다.
+// v1은 id 포함으로 인해 앞 task가 하나만 바뀌어도 이후 모든 hash가 깨지는 구조적 문제가 있었다.
+// normalizedIntent는 공백·문장 부호만 정규화하고 파일 경로·심볼명 등 식별자는 그대로 보존해야 한다.
+export const hashTaskInputV2 = (params: {
+  projectId: string;
+  type: string;
+  normalizedIntent: string;
+  adapter: string;
+  adapterModel: string;
+  detoksMajorVersion: number;
+}): string => {
+  const content = JSON.stringify(params);
+  return createHash("sha256").update(content).digest("hex").slice(0, 16);
+};
