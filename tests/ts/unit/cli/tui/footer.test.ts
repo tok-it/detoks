@@ -25,13 +25,14 @@ describe("footer text", () => {
       adapterModel: "gpt-5.4-mini",
       inferenceStrength: "medium",
       tokenSavings: "tok -18%",
+      scrollHint: "↓ 자동 추적 중",
       cwd: "/Users/choi/Desktop/workspace/detoks",
     });
 
     expect(footer.startsWith(" ")).toBe(true);
     expect(footer.endsWith(" ")).toBe(true);
     expect(footer.trim()).toBe(
-      "codex | gpt-5.4-mini | medium | tok -18% | /Users/choi/Desktop/workspace/detoks",
+      "codex | gpt-5.4-mini | medium | tok -18% · ↓ 자동 추적 중 | /Users/choi/Desktop/workspace/detoks",
     );
     expect(getDisplayWidth(footer)).toBe(120);
   });
@@ -42,12 +43,14 @@ describe("footer text", () => {
       adapterModel: "gpt-5.4-mini",
       inferenceStrength: "medium",
       tokenSavings: "tok -18%",
+      scrollHint: "↑ 기록 탐색 중 · End 최신",
       cwd: "/Users/choi/Desktop/workspace/detoks",
     });
 
     expect(getDisplayWidth(footer)).toBe(60);
     expect(footer.startsWith(" ")).toBe(true);
     expect(footer.endsWith(" ")).toBe(true);
-    expect(footer.trim()).toBe("codex | tok -18% | /Users/choi/Desktop/workspace/detoks");
+    expect(footer.trim()).toContain("tok -18% · ↑ 기록 탐색 중 · End 최신");
+    expect(footer.trim()).toContain("…");
   });
 });

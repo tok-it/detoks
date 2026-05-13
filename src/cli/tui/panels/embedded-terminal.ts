@@ -150,8 +150,31 @@ export class EmbeddedTerminalPane {
     this.scrollOffset = Math.max(this.scrollOffset - 1, 0);
   }
 
+  scrollPageUp(lines: number): void {
+    this.scrollOffset = Math.min(
+      this.scrollOffset + Math.max(1, lines),
+      Math.max(0, this.cachedTotalRows - 1),
+    );
+  }
+
+  scrollPageDown(lines: number): void {
+    this.scrollOffset = Math.max(this.scrollOffset - Math.max(1, lines), 0);
+  }
+
+  scrollToTop(): void {
+    this.scrollOffset = Math.max(0, this.cachedTotalRows - 1);
+  }
+
   scrollToBottom(): void {
     this.scrollOffset = 0;
+  }
+
+  isPinnedToBottom(): boolean {
+    return this.scrollOffset === 0;
+  }
+
+  hasScrollableHistory(): boolean {
+    return this.cachedTotalRows > this.currentRows;
   }
 
   private updateCachedTotalRows(): void {
@@ -170,9 +193,20 @@ export class EmbeddedTerminalPane {
       return;
     }
 
+    const previousTotalRows = this.cachedTotalRows;
+    const wasPinnedToBottom = this.scrollOffset === 0;
     this.buffer.write(event.data);
     this.updateCachedTotalRows();
-    this.scrollOffset = 0;
+    if (wasPinnedToBottom) {
+      this.scrollOffset = 0;
+      return;
+    }
+
+    const addedRows = Math.max(0, this.cachedTotalRows - previousTotalRows);
+    this.scrollOffset = Math.min(
+      this.scrollOffset + addedRows,
+      Math.max(0, this.cachedTotalRows - 1),
+    );
   }
 
   appendFinalAnswer(text: string): void {
@@ -180,9 +214,20 @@ export class EmbeddedTerminalPane {
       return;
     }
 
+    const previousTotalRows = this.cachedTotalRows;
+    const wasPinnedToBottom = this.scrollOffset === 0;
     this.buffer.write(text.endsWith("\n") ? text : `${text}\n`);
     this.updateCachedTotalRows();
-    this.scrollOffset = 0;
+    if (wasPinnedToBottom) {
+      this.scrollOffset = 0;
+      return;
+    }
+
+    const addedRows = Math.max(0, this.cachedTotalRows - previousTotalRows);
+    this.scrollOffset = Math.min(
+      this.scrollOffset + addedRows,
+      Math.max(0, this.cachedTotalRows - 1),
+    );
   }
 
   hasVisibleContent(): boolean {

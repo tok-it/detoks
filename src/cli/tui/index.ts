@@ -40,6 +40,7 @@ import {
   type EmbeddedNativeCliSession,
 } from "./native-cli-session.js";
 import { formatEmbeddedTerminalFocusHint } from "./embedded-terminal.js";
+import { consumeMouseReportingInput } from "./mouse-reporting.js";
 import {
   captureWorkspaceSnapshot,
   diffWorkspaceSnapshots,
@@ -112,11 +113,16 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
     stdout.write("\x1b[?2004h");
     // Enable terminal focus reporting so we can repaint after app switch/resume.
     stdout.write("\x1b[?1004h");
+    // Enable SGR mouse reporting for wheel/trackpad viewport scrolling.
+    stdout.write("\x1b[?1000h");
+    stdout.write("\x1b[?1006h");
   };
 
   const leaveTuiDisplay = (): void => {
     stdout.write("\x1b[?2004l");
     stdout.write("\x1b[?1004l");
+    stdout.write("\x1b[?1000l");
+    stdout.write("\x1b[?1006l");
     screen.setRawMode(false);
     screen.cursorShow();
     screen.exitAltScreen();
@@ -128,7 +134,7 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
     currentInferenceStrength =
       currentAdapter === "codex"
         ? getCodexReasoningEffortOverride() ?? "medium"
-        : undefined;
+      : undefined;
   };
 
   // Initialize TUI
@@ -136,6 +142,8 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
 
   const sigtermHandler = (): void => {
     stdout.write("\x1b[?2004l");
+    stdout.write("\x1b[?1000l");
+    stdout.write("\x1b[?1006l");
     screen.cleanup();
     process.exit(0);
   };
@@ -202,6 +210,30 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
     let executionClockStartedAt: number | null = null;
     let executionClockTimer: NodeJS.Timeout | undefined;
     let forceFullRender = false;
+    let pendingMouseInputSequence = "";
+
+    const getScrollHint = (): string | undefined => {
+      const pinnedToBottom = embeddedPaneMode
+        ? embeddedTerminalPane.isPinnedToBottom()
+        : transcriptPanel.isPinnedToBottom();
+      const hasScrollableHistory = embeddedPaneMode
+        ? embeddedTerminalPane.hasScrollableHistory()
+        : transcriptPanel.hasVisibleContent();
+
+      if (!hasScrollableHistory && !isExecuting) {
+        return undefined;
+      }
+
+      if (!pinnedToBottom) {
+        return "↑ 기록 탐색 중 · End 최신";
+      }
+
+      if (isExecuting) {
+        return "↓ 자동 추적 중";
+      }
+
+      return undefined;
+    };
 
     const clearNativeEscapeTimer = (): void => {
       if (pendingNativeEscapeTimer !== undefined) {
@@ -371,10 +403,71 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
           adapterModel: currentAdapterModel,
           inferenceStrength: currentInferenceStrength,
           tokenSavings: currentTokenSavingsLabel,
+          scrollHint: getScrollHint(),
           cwd: executionCwd,
         }),
       );
       screen.flush();
+    };
+
+    const scrollContentUp = (amount: number): void => {
+      if (embeddedPaneMode) {
+        embeddedTerminalPane.scrollPageUp(amount);
+      } else {
+        transcriptPanel.scrollPageUp(amount);
+      }
+    };
+
+    const scrollContentDown = (amount: number): void => {
+      if (embeddedPaneMode) {
+        embeddedTerminalPane.scrollPageDown(amount);
+      } else {
+        transcriptPanel.scrollPageDown(amount);
+      }
+    };
+
+    const scrollContentToTop = (): void => {
+      if (embeddedPaneMode) {
+        embeddedTerminalPane.scrollToTop();
+      } else {
+        transcriptPanel.scrollToTop();
+      }
+    };
+
+    const scrollContentToBottom = (): void => {
+      if (embeddedPaneMode) {
+        embeddedTerminalPane.scrollToBottom();
+      } else {
+        transcriptPanel.scrollToBottom();
+      }
+    };
+
+    const applyMouseWheelEvents = (
+      text: string,
+    ): { cleanedText: string; handledWheel: boolean } => {
+      const consumption = consumeMouseReportingInput(`${pendingMouseInputSequence}${text}`);
+      pendingMouseInputSequence = consumption.pendingSequence;
+
+      if (consumption.wheelEvents.length === 0) {
+        return { cleanedText: consumption.cleanedText, handledWheel: false };
+      }
+
+      if (!(embeddedPaneMode && embeddedTerminalFocus.focus === "adapter-terminal")) {
+        const pageSize = Math.max(1, Math.floor(Math.max(1, screen.getDimensions().rows) * 0.25));
+        for (const wheelEvent of consumption.wheelEvents) {
+          if (wheelEvent.direction === "up") {
+            scrollContentUp(pageSize);
+          } else {
+            scrollContentDown(pageSize);
+          }
+        }
+        render();
+      }
+
+      return {
+        cleanedText: consumption.cleanedText,
+        handledWheel: true,
+      };
     };
 
     const render = (): void => {
@@ -455,7 +548,11 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
     // 3. Display width calculation: Korean characters are 2 columns wide in terminal
     // 4. Escape sequences: handled separately before character-by-character processing
     const onData = (chunk: Buffer): void => {
-      const text = decoder.write(chunk);
+      const decodedText = decoder.write(chunk);
+      const { cleanedText: text } = applyMouseWheelEvents(decodedText);
+      if (text.length === 0) {
+        return;
+      }
 
       if (isTerminalFocusInSequence(text)) {
         requestFullRender();
@@ -490,7 +587,7 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
 
         // Check for escape sequences first (multi-character sequences)
         // Must be processed as atomic units before character-by-character handling
-        if (text.charCodeAt(i) === 0x1b && i + 2 < text.length) {
+        if (text.charCodeAt(i) === 0x1b) {
           // Bracketed paste mode sequences (\x1b[200~ = paste start, \x1b[201~ = paste end)
           if (text.startsWith("\x1b[200~", i)) {
             isPasting = true;
@@ -503,6 +600,42 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
           }
 
           if (handled) {
+            continue;
+          }
+
+          if (text.startsWith("\x1b[F", i) || text.startsWith("\x1b[4~", i)) {
+            scrollContentToBottom();
+            i += text.startsWith("\x1b[4~", i) ? 4 : 3;
+            handled = true;
+            continue;
+          }
+
+          if (text.startsWith("\x1b[H", i) || text.startsWith("\x1b[1~", i)) {
+            scrollContentToTop();
+            needsFullRender = true;
+            i += text.startsWith("\x1b[1~", i) ? 4 : 3;
+            handled = true;
+            continue;
+          }
+
+          if (text.startsWith("\x1b[5~", i)) {
+            scrollContentUp(Math.max(1, Math.floor(Math.max(1, screen.getDimensions().rows) * 0.5)));
+            needsFullRender = true;
+            i += 4;
+            handled = true;
+            continue;
+          }
+
+          if (text.startsWith("\x1b[6~", i)) {
+            scrollContentDown(Math.max(1, Math.floor(Math.max(1, screen.getDimensions().rows) * 0.5)));
+            needsFullRender = true;
+            i += 4;
+            handled = true;
+            continue;
+          }
+
+          if (i + 2 >= text.length) {
+            i += 1;
             continue;
           }
 
@@ -529,10 +662,10 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
               );
               renderInteractiveInput();
             } else if (embeddedPaneMode) {
-              embeddedTerminalPane.scrollUp();
+              scrollContentUp(1);
               needsFullRender = true;
             } else {
-              transcriptPanel.scrollUp();
+              scrollContentUp(1);
               needsFullRender = true;
             }
             i += 3;
@@ -547,10 +680,10 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
               );
               renderInteractiveInput();
             } else if (embeddedPaneMode) {
-              embeddedTerminalPane.scrollDown();
+              scrollContentDown(1);
               needsFullRender = true;
             } else {
-              transcriptPanel.scrollDown();
+              scrollContentDown(1);
               needsFullRender = true;
             }
             i += 3;

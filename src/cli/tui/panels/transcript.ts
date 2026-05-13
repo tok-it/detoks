@@ -511,16 +511,25 @@ export class TranscriptPanel {
     return this.entries.length > 0 || this.pendingFinalText.length > 0;
   }
 
+  isPinnedToBottom(): boolean {
+    return this.scrollOffset === 0;
+  }
+
   private pushEntry(kind: TranscriptEntryKind, text: string): void {
     if (text.length === 0) {
       return;
     }
 
+    const wasPinnedToBottom = this.scrollOffset === 0;
     this.entries.push({ kind, text });
     if (kind === "edit") {
       this.hasEditEntries = true;
     }
-    this.scrollToBottom();
+    if (wasPinnedToBottom) {
+      this.scrollToBottom();
+    } else {
+      this.scrollOffset += 1;
+    }
   }
 
   private appendCommittedText(kind: TranscriptEntryKind, text: string): void {
@@ -680,8 +689,25 @@ export class TranscriptPanel {
     this.scrollOffset = Math.max(this.scrollOffset - 1, 0);
   }
 
+  scrollPageUp(lines: number): void {
+    const totalLines = this.entries.length + (this.pendingFinalText.length > 0 ? 1 : 0);
+    this.scrollOffset = Math.min(
+      this.scrollOffset + Math.max(1, lines),
+      Math.max(0, totalLines - 1),
+    );
+  }
+
+  scrollPageDown(lines: number): void {
+    this.scrollOffset = Math.max(this.scrollOffset - Math.max(1, lines), 0);
+  }
+
   scrollToBottom(): void {
     this.scrollOffset = 0;
+  }
+
+  scrollToTop(): void {
+    const totalLines = this.entries.length + (this.pendingFinalText.length > 0 ? 1 : 0);
+    this.scrollOffset = Math.max(0, totalLines - 1);
   }
 
   clear(): void {

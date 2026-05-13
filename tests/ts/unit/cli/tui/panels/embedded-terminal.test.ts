@@ -134,6 +134,22 @@ describe("EmbeddedTerminalPane", () => {
     expect(output).toContain("line2");
   });
 
+  it("keeps history position when new output arrives while scrolled up", () => {
+    pane.resize(20, 3);
+    pane.addEvent({ type: "chunk", timestamp: Date.now(), stream: "stdout", data: "line1\nline2\nline3\nline4\n" });
+    pane.scrollUp();
+    expect(pane.isPinnedToBottom()).toBe(false);
+
+    mockScreen.write.mockClear();
+    pane.addEvent({ type: "chunk", timestamp: Date.now(), stream: "stdout", data: "line5\n" });
+    pane.render(mockContext, mockRegion);
+
+    const output = mockScreen.write.mock.calls.map((call: any) => call[0]).join("\n");
+    expect(output).toContain("line1");
+    expect(output).not.toContain("line5");
+    expect(pane.isPinnedToBottom()).toBe(false);
+  });
+
   it("scrollDown does not go below 0", () => {
     pane.addEvent({ type: "chunk", timestamp: Date.now(), stream: "stdout", data: "line\n" });
     // scrollDown at bottom should be a no-op
@@ -143,6 +159,20 @@ describe("EmbeddedTerminalPane", () => {
 
     const output = mockScreen.write.mock.calls.map((call: any) => call[0]).join("\n");
     expect(output).toContain("line");
+  });
+
+  it("supports page scrolling and top/bottom jumps", () => {
+    pane.resize(20, 3);
+    pane.addEvent({ type: "chunk", timestamp: Date.now(), stream: "stdout", data: "a\nb\nc\nd\ne\n" });
+
+    pane.scrollPageUp(2);
+    expect(pane.isPinnedToBottom()).toBe(false);
+    pane.scrollPageDown(1);
+    expect(pane.isPinnedToBottom()).toBe(false);
+    pane.scrollToTop();
+    expect(pane.isPinnedToBottom()).toBe(false);
+    pane.scrollToBottom();
+    expect(pane.isPinnedToBottom()).toBe(true);
   });
 
   it("scrollUp clamps at total row count and does not crash on empty buffer", () => {

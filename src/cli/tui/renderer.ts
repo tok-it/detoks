@@ -27,6 +27,7 @@ export interface FooterContext {
   adapterModel?: string | undefined;
   inferenceStrength?: string | undefined;
   tokenSavings?: string | undefined;
+  scrollHint?: string | undefined;
   cwd: string;
 }
 
@@ -155,11 +156,14 @@ const ellipsizeRight = (text: string, maxWidth: number): string => {
 export const buildFooterText = (columns: number, footer: FooterContext): string => {
   const sidePadding = columns >= 4 ? 1 : 0;
   const innerColumns = Math.max(0, columns - sidePadding * 2);
+  const statusSummary = [footer.tokenSavings, footer.scrollHint]
+    .filter((value): value is string => Boolean(value))
+    .join(" · ");
   const footerValues = [
     footer.adapter,
     footer.adapterModel,
     footer.adapter === "codex" ? footer.inferenceStrength : undefined,
-    footer.tokenSavings,
+    statusSummary || undefined,
     footer.cwd,
   ].filter((value): value is string => Boolean(value));
 
@@ -176,25 +180,25 @@ export const buildFooterText = (columns: number, footer: FooterContext): string 
     return finalizeFooter(fullText);
   }
 
-  const compactText = footer.tokenSavings
-    ? `${footer.adapter} | ${footer.tokenSavings} | ${footer.cwd}`
+  const compactText = statusSummary
+    ? `${footer.adapter} | ${statusSummary} | ${footer.cwd}`
     : `${footer.adapter} | ${footer.cwd}`;
   if (measureDisplayWidth(compactText) <= innerColumns) {
     return finalizeFooter(compactText);
   }
 
-  const tokenAwareCwdBudget = footer.tokenSavings
+  const tokenAwareCwdBudget = statusSummary
     ? Math.max(
         0,
         innerColumns -
           measureDisplayWidth(footer.adapter) -
-          measureDisplayWidth(footer.tokenSavings) -
+          measureDisplayWidth(statusSummary) -
           6,
       )
     : Math.max(0, innerColumns - measureDisplayWidth(footer.adapter) - 3);
   const tokenAwareShortenedCwd = ellipsizeLeft(footer.cwd, tokenAwareCwdBudget);
-  let line = footer.tokenSavings
-    ? `${footer.adapter} | ${footer.tokenSavings} | ${tokenAwareShortenedCwd}`
+  let line = statusSummary
+    ? `${footer.adapter} | ${statusSummary} | ${tokenAwareShortenedCwd}`
     : `${footer.adapter} | ${tokenAwareShortenedCwd}`;
 
   if (measureDisplayWidth(line) <= innerColumns) {

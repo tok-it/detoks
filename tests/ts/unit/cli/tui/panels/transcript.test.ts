@@ -245,6 +245,29 @@ describe("TranscriptPanel", () => {
         .join("\n");
       expect(output).toContain("Second");
     });
+
+    it("keeps the browsed transcript position when new output arrives while scrolled up", () => {
+      for (let i = 0; i < 20; i++) {
+        panel.append(`Line ${i}`);
+      }
+
+      panel.scrollUp();
+      panel.scrollUp();
+      mockScreen.write.mockClear();
+
+      panel.addEvent({
+        type: "chunk",
+        stream: "stdout",
+        data: "Newest line",
+        timestamp: Date.now(),
+      });
+      panel.render(mockContext, mockRegion);
+
+      const output = mockScreen.write.mock.calls
+        .map((c: any) => c[0])
+        .join("\n");
+      expect(output).not.toContain("Newest line");
+    });
   });
 
   describe("hasVisibleContent", () => {
@@ -331,6 +354,21 @@ describe("TranscriptPanel", () => {
       expect(() => {
         panel.render(mockContext, mockRegion);
       }).not.toThrow();
+    });
+
+    it("supports page scrolling and top/bottom jumps", () => {
+      for (let i = 0; i < 20; i++) {
+        panel.append(`Line ${i}`);
+      }
+
+      panel.scrollPageUp(5);
+      expect(panel.isPinnedToBottom()).toBe(false);
+      panel.scrollPageDown(2);
+      expect(panel.isPinnedToBottom()).toBe(false);
+      panel.scrollToTop();
+      expect(panel.isPinnedToBottom()).toBe(false);
+      panel.scrollToBottom();
+      expect(panel.isPinnedToBottom()).toBe(true);
     });
   });
 
