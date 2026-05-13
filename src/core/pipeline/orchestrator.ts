@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { execSync } from "node:child_process";
 import { DAGValidator } from "../task-graph/DAGValidator.js";
 import { DependencyResolver } from "../task-graph/DependencyResolver.js";
 import { ParallelClassifier } from "../task-graph/ParallelClassifier.js";
@@ -21,7 +22,7 @@ import {
   type TokenReductionSnapshot,
 } from "../utils/tokenMetrics.js";
 import { getLLMModelConfig } from "../llm-client/llm-models.js";
-import { computeProjectId, hashRawInput } from "../rag/hash.js";
+import { computeProjectId, hashRawInput, hashTaskInputV2 } from "../rag/hash.js";
 import { CACHE_DISABLED, CACHE_TTL_DAYS } from "../cache/cache-config.js";
 import { isSessionCacheValid, isTaskCacheValid } from "../cache/cache-validator.js";
 import { isRagEnabled, getRagModelPath, getRagVectorDbPath, RAG_EMBEDDING_DIMS } from "../rag/rag-config.js";
@@ -73,13 +74,38 @@ function generateSessionId(): string {
   return createHash("sha256").update(String(Date.now())).digest("hex").slice(0, 12);
 }
 
-function initSessionState(sessionId: string, rawInput: string, executionMode: string): SessionState {
+// package.json major 버전 — cache key의 detoksMajorVersion으로 사용.
+// major 버전이 올라갈 때만 기존 캐시가 자동 무효화된다.
+const DETOKS_MAJOR_VERSION = 1;
+
+// git HEAD short SHA (8자). git이 없는 환경이면 undefined.
+function resolveGitHead(cwd: string): string | undefined {
+  try {
+    return execSync("git rev-parse HEAD", {
+      cwd,
+      stdio: ["ignore", "pipe", "ignore"],
+      encoding: "utf8",
+    }).trim().slice(0, 8);
+  } catch {
+    return undefined;
+  }
+}
+
+function initSessionState(
+  sessionId: string,
+  rawInput: string,
+  executionMode: string,
+  stamp: { adapter?: string; adapterModel?: string; gitHead?: string } = {},
+): SessionState {
   return {
     shared_context: {
       session_id: sessionId,
       raw_input: rawInput,
       // stub 모드 세션은 캐시 조회 대상에서 제외 — real 모드가 stub 결과를 캐시 hit으로 받는 오염 방지
       ...(executionMode !== "stub" ? { raw_input_hash: hashRawInput(rawInput) } : {}),
+      ...(stamp.adapter ? { adapter: stamp.adapter } : {}),
+      ...(stamp.adapterModel ? { adapter_model: stamp.adapterModel } : {}),
+      ...(stamp.gitHead ? { git_head: stamp.gitHead } : {}),
     },
     task_results: {},
     current_task_id: null,
@@ -137,6 +163,7 @@ function markTaskCompleted(
   rawOutput: string,
   taskType?: string,
   task?: { title?: string; input_hash?: string; depends_on?: string[] },
+  stamp: { adapter?: string; adapterModel?: string; gitHead?: string } = {},
 ): SessionState {
   const now = new Date().toISOString();
   return {
@@ -153,6 +180,9 @@ function markTaskCompleted(
         ...(taskType ? { type: taskType } : {}),
         ...extractRagMeta(task),
         completed_at: now,
+        ...(stamp.adapter ? { adapter: stamp.adapter } : {}),
+        ...(stamp.adapterModel ? { adapter_model: stamp.adapterModel } : {}),
+        ...(stamp.gitHead ? { git_head: stamp.gitHead } : {}),
       },
     },
     updated_at: now,
@@ -461,22 +491,33 @@ export const orchestratePipeline = async (
     }
   };
 
+  // projectId / gitHead — F1·F3 cache lookup과 hash v2 re-map에서 공통으로 사용
+  const projectId =
+    request.projectInfo?.projectId ??
+    computeProjectId(request.userRequest.cwd ?? process.cwd());
+  const gitHead = resolveGitHead(request.userRequest.cwd ?? process.cwd());
+
   // ── F1: Cross-session input_hash cache bypass ────────────────────────────
   // stub 모드는 테스트/개발용이므로 캐시 우회 대상에서 제외
   if (!request.noCache && !CACHE_DISABLED && request.executionMode !== "stub") {
     const inputHash = hashRawInput(request.userRequest.raw_input);
-    const projectId =
-      request.projectInfo?.projectId ??
-      computeProjectId(request.userRequest.cwd ?? process.cwd());
     const cachedSession = await SessionStateManager.findSuccessfulSessionByInputHash(
       inputHash,
-      { project_id: projectId, recencyDays: CACHE_TTL_DAYS },
+      { project_id: projectId, recencyDays: CACHE_TTL_DAYS, adapter: request.adapter },
     );
-    if (cachedSession && isSessionCacheValid(cachedSession, { project_id: projectId })) {
-      const cacheAge = cachedSession.updated_at
-        ? Date.now() - new Date(cachedSession.updated_at).getTime()
+    const f1Validity = cachedSession
+      ? isSessionCacheValid(cachedSession, {
+          project_id: projectId,
+          expected_adapter: request.adapter,
+          ...(gitHead ? { expected_git_head: gitHead } : {}),
+        })
+      : "skip";
+
+    if (f1Validity === "auto") {
+      const cacheAge = cachedSession!.updated_at
+        ? Date.now() - new Date(cachedSession!.updated_at).getTime()
         : 0;
-      const cachedSessionId = cachedSession.shared_context.session_id;
+      const cachedSessionId = cachedSession!.shared_context.session_id;
       await emitActionTimelineWithLogging(
         createActionTimelineEvent({
           kind: "cache_hit",
@@ -484,21 +525,21 @@ export const orchestratePipeline = async (
           summary: `F1 캐시 hit — 세션 ${cachedSessionId} (${Math.round(cacheAge / 86400000)}일 전)`,
         }),
       );
-      const { rawOutputText, summaryText } = collectTaskOutputText(cachedSession);
+      const { rawOutputText, summaryText } = collectTaskOutputText(cachedSession!);
       return {
         ok: true,
         mode: request.mode,
         adapter: request.adapter,
-        summary: cachedSession.last_summary ?? summaryText.slice(0, 200),
-        nextAction: cachedSession.next_action ?? "캐시된 결과를 반환했습니다.",
+        summary: cachedSession!.last_summary ?? summaryText.slice(0, 200),
+        nextAction: cachedSession!.next_action ?? "캐시된 결과를 반환했습니다.",
         originalPrompt: request.userRequest.raw_input,
         stages: buildPipelineStages(true),
         rawOutput: rawOutputText,
         sessionId: cachedSessionId,
-        taskRecords: cachedSession.completed_task_ids.map((id) => ({
+        taskRecords: cachedSession!.completed_task_ids.map((id) => ({
           taskId: id,
           status: "completed" as const,
-          rawOutput: (cachedSession.task_results[id] as Record<string, unknown>)?.raw_output as string ?? "",
+          rawOutput: (cachedSession!.task_results[id] as Record<string, unknown>)?.raw_output as string ?? "",
         })),
         cacheHit: {
           kind: "session" as const,
@@ -509,11 +550,15 @@ export const orchestratePipeline = async (
         ...(actionTimeline.length ? { actionTimeline } : {}),
       };
     }
+
+    // "advise": adapter·git HEAD 불일치 — P0에서는 miss로 처리 (P1에서 사용자 안내 추가 예정)
     await emitActionTimelineWithLogging(
       createActionTimelineEvent({
         kind: "cache_miss",
         source: "pipeline",
-        summary: `F1 캐시 miss — hash ${inputHash}`,
+        summary: f1Validity === "advise"
+          ? `F1 캐시 advise — adapter 또는 git HEAD 불일치 (hash ${inputHash})`
+          : `F1 캐시 miss — hash ${inputHash}`,
       }),
     );
   }
@@ -522,9 +567,6 @@ export const orchestratePipeline = async (
   let resumeHint: ResumeHintInfo | undefined;
   if (!request.noCache && !CACHE_DISABLED && request.executionMode !== "stub") {
     const inputHash = hashRawInput(request.userRequest.raw_input);
-    const projectId =
-      request.projectInfo?.projectId ??
-      computeProjectId(request.userRequest.cwd ?? process.cwd());
     const incompleteSession = await SessionStateManager.findIncompleteSessionByInputHash(
       inputHash,
       { project_id: projectId },
@@ -679,7 +721,22 @@ export const orchestratePipeline = async (
   });
   PipelineTracer.startStage("TaskGraphBuilder");
   const compiledSentences = TaskSentenceSplitter.split(role2PromptInput.compiled_prompt);
-  const graph = TaskGraphProcessor.process(compiledSentences);
+  const rawGraph = TaskGraphProcessor.process(compiledSentences);
+  const adapterModel = request.env?.ADAPTER_MODEL ?? process.env.ADAPTER_MODEL ?? "";
+  const graph = {
+    ...rawGraph,
+    tasks: rawGraph.tasks.map((task) => ({
+      ...task,
+      input_hash: hashTaskInputV2({
+        projectId,
+        type: task.type,
+        normalizedIntent: task.title,
+        adapter: request.adapter,
+        adapterModel,
+        detoksMajorVersion: DETOKS_MAJOR_VERSION,
+      }),
+    })),
+  };
   await PipelineTracer.trace({
     sessionId, stage: "TaskGraphBuilder", role: "role2.1", phase: "output",
     dataType: "TaskGraph", data: graph,
@@ -815,7 +872,11 @@ export const orchestratePipeline = async (
     const loadedFailedIds = (state.shared_context.failed_task_ids as string[]) || [];
     loadedFailedIds.forEach((id) => failedTaskIds.add(id));
   } else {
-    state = initSessionState(sessionId, request.userRequest.raw_input, request.executionMode);
+    state = initSessionState(sessionId, request.userRequest.raw_input, request.executionMode, {
+      adapter: request.adapter,
+      ...(adapterModel ? { adapterModel } : {}),
+      ...(gitHead ? { gitHead } : {}),
+    });
   }
   state = applyProjectInfo(state, request.projectInfo, request.userRequest.cwd);
   // RAG Phase 2: 전체 DAG 보존 (Task의 input_hash, depends_on, priority 등 완전 보존)
@@ -946,14 +1007,30 @@ export const orchestratePipeline = async (
 
       // F2: Task-level input_hash cache bypass (stub 모드 제외)
       if (!request.noCache && !CACHE_DISABLED && request.executionMode !== "stub" && task.input_hash) {
-        const projectId = state.shared_context.project_id as string | undefined;
+        const f2ProjectId = state.shared_context.project_id as string | undefined;
         const cachedTask = await SessionStateManager.findSuccessfulTaskByHash(
           task.input_hash,
-          { ...(projectId ? { project_id: projectId } : {}), recencyDays: CACHE_TTL_DAYS },
+          {
+            ...(f2ProjectId ? { project_id: f2ProjectId } : {}),
+            recencyDays: CACHE_TTL_DAYS,
+            adapter: request.adapter,
+            ...(gitHead ? { git_head: gitHead } : {}),
+          },
         );
-        if (cachedTask && isTaskCacheValid(cachedTask.taskResult, {})) {
-          const cachedOutput = (cachedTask.taskResult.raw_output as string) ?? "";
-          state = markTaskCompleted(state, task.id, cachedOutput, task.type, task);
+        const f2Validity = cachedTask
+          ? isTaskCacheValid(cachedTask.taskResult, {
+              expected_adapter: request.adapter,
+              ...(gitHead ? { expected_git_head: gitHead } : {}),
+            })
+          : "skip";
+
+        if (f2Validity === "auto") {
+          const cachedOutput = (cachedTask!.taskResult.raw_output as string) ?? "";
+          state = markTaskCompleted(state, task.id, cachedOutput, task.type, task, {
+            adapter: request.adapter,
+            ...(adapterModel ? { adapterModel } : {}),
+            ...(gitHead ? { gitHead } : {}),
+          });
           state = applySessionTokenMetrics(
             state,
             request.userRequest.raw_input,
@@ -965,7 +1042,7 @@ export const orchestratePipeline = async (
             createActionTimelineEvent({
               kind: "cache_hit",
               source: "pipeline",
-              summary: `F2 캐시 hit — task ${task.id} (세션 ${cachedTask.sessionId})`,
+              summary: `F2 캐시 hit — task ${task.id} (세션 ${cachedTask!.sessionId})`,
               taskId: task.id,
             }),
           );
@@ -977,11 +1054,15 @@ export const orchestratePipeline = async (
           });
           continue;
         }
+
+        // "advise": adapter·git HEAD 불일치 — P0에서는 miss로 처리
         await emitActionTimelineWithLogging(
           createActionTimelineEvent({
             kind: "cache_miss",
             source: "pipeline",
-            summary: `F2 캐시 miss — task ${task.id} hash ${task.input_hash}`,
+            summary: f2Validity === "advise"
+              ? `F2 캐시 advise — adapter 또는 git HEAD 불일치 (task ${task.id})`
+              : `F2 캐시 miss — task ${task.id} hash ${task.input_hash}`,
             taskId: task.id,
           }),
         );
@@ -1058,7 +1139,6 @@ export const orchestratePipeline = async (
       });
 
       PipelineTracer.startStage(`Executor:${task.id}`);
-      const adapterModel = request.env?.ADAPTER_MODEL ?? process.env.ADAPTER_MODEL;
       const execResult = await executeWithAdapter({
         adapter: request.adapter,
         mode: request.mode,
@@ -1111,7 +1191,11 @@ export const orchestratePipeline = async (
           message: `Executor(${task.id}) 완료`,
         });
         failedTaskIds.delete(task.id);
-        state = markTaskCompleted(state, task.id, execResult.rawOutput, task.type, task);
+        state = markTaskCompleted(state, task.id, execResult.rawOutput, task.type, task, {
+          adapter: request.adapter,
+          ...(adapterModel ? { adapterModel } : {}),
+          ...(gitHead ? { gitHead } : {}),
+        });
         state = applySessionTokenMetrics(
           state,
           request.userRequest.raw_input,
