@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { execSync } from "node:child_process";
 import { DAGValidator } from "../task-graph/DAGValidator.js";
 import { DependencyResolver } from "../task-graph/DependencyResolver.js";
 import { ParallelClassifier } from "../task-graph/ParallelClassifier.js";
@@ -21,7 +22,7 @@ import {
   type TokenReductionSnapshot,
 } from "../utils/tokenMetrics.js";
 import { getLLMModelConfig } from "../llm-client/llm-models.js";
-import { computeProjectId, hashRawInput } from "../rag/hash.js";
+import { computeProjectId, hashRawInput, hashTaskInputV2 } from "../rag/hash.js";
 import { CACHE_DISABLED, CACHE_TTL_DAYS } from "../cache/cache-config.js";
 import { isSessionCacheValid, isTaskCacheValid } from "../cache/cache-validator.js";
 import { isRagEnabled, getRagModelPath, getRagVectorDbPath, RAG_EMBEDDING_DIMS } from "../rag/rag-config.js";
@@ -71,6 +72,23 @@ function resolveModelName(adapter: string, env?: NodeJS.ProcessEnv): string {
 
 function generateSessionId(): string {
   return createHash("sha256").update(String(Date.now())).digest("hex").slice(0, 12);
+}
+
+// package.json major 버전 — cache key의 detoksMajorVersion으로 사용.
+// major 버전이 올라갈 때만 기존 캐시가 자동 무효화된다.
+const DETOKS_MAJOR_VERSION = 1;
+
+// git HEAD short SHA (8자). git이 없는 환경이면 undefined.
+function resolveGitHead(cwd: string): string | undefined {
+  try {
+    return execSync("git rev-parse HEAD", {
+      cwd,
+      stdio: ["ignore", "pipe", "ignore"],
+      encoding: "utf8",
+    }).trim().slice(0, 8);
+  } catch {
+    return undefined;
+  }
 }
 
 function initSessionState(sessionId: string, rawInput: string, executionMode: string): SessionState {
@@ -461,13 +479,16 @@ export const orchestratePipeline = async (
     }
   };
 
+  // projectId / gitHead — F1·F3 cache lookup과 hash v2 re-map에서 공통으로 사용
+  const projectId =
+    request.projectInfo?.projectId ??
+    computeProjectId(request.userRequest.cwd ?? process.cwd());
+  const gitHead = resolveGitHead(request.userRequest.cwd ?? process.cwd());
+
   // ── F1: Cross-session input_hash cache bypass ────────────────────────────
   // stub 모드는 테스트/개발용이므로 캐시 우회 대상에서 제외
   if (!request.noCache && !CACHE_DISABLED && request.executionMode !== "stub") {
     const inputHash = hashRawInput(request.userRequest.raw_input);
-    const projectId =
-      request.projectInfo?.projectId ??
-      computeProjectId(request.userRequest.cwd ?? process.cwd());
     const cachedSession = await SessionStateManager.findSuccessfulSessionByInputHash(
       inputHash,
       { project_id: projectId, recencyDays: CACHE_TTL_DAYS },
@@ -522,9 +543,6 @@ export const orchestratePipeline = async (
   let resumeHint: ResumeHintInfo | undefined;
   if (!request.noCache && !CACHE_DISABLED && request.executionMode !== "stub") {
     const inputHash = hashRawInput(request.userRequest.raw_input);
-    const projectId =
-      request.projectInfo?.projectId ??
-      computeProjectId(request.userRequest.cwd ?? process.cwd());
     const incompleteSession = await SessionStateManager.findIncompleteSessionByInputHash(
       inputHash,
       { project_id: projectId },
@@ -679,7 +697,22 @@ export const orchestratePipeline = async (
   });
   PipelineTracer.startStage("TaskGraphBuilder");
   const compiledSentences = TaskSentenceSplitter.split(role2PromptInput.compiled_prompt);
-  const graph = TaskGraphProcessor.process(compiledSentences);
+  const rawGraph = TaskGraphProcessor.process(compiledSentences);
+  const adapterModel = request.env?.ADAPTER_MODEL ?? process.env.ADAPTER_MODEL ?? "";
+  const graph = {
+    ...rawGraph,
+    tasks: rawGraph.tasks.map((task) => ({
+      ...task,
+      input_hash: hashTaskInputV2({
+        projectId,
+        type: task.type,
+        normalizedIntent: task.title,
+        adapter: request.adapter,
+        adapterModel,
+        detoksMajorVersion: DETOKS_MAJOR_VERSION,
+      }),
+    })),
+  };
   await PipelineTracer.trace({
     sessionId, stage: "TaskGraphBuilder", role: "role2.1", phase: "output",
     dataType: "TaskGraph", data: graph,
