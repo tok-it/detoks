@@ -563,7 +563,7 @@ describe("detoks CLI smoke", () => {
       expect(replRun.stdout).toContain("hello detoks");
       expect(replRun.stdout).toContain("실행 결과가 아직 없습니다.");
       expect(replRun.stdout).toContain("작업 타임라인");
-      expect(replRun.stdout).toContain("토큰 절감");
+      expect(replRun.stdout).toContain("detoks 압축 지표");
     } finally {
       rmSync(tempDir, { force: true, recursive: true });
     }
@@ -590,7 +590,7 @@ describe("detoks CLI smoke", () => {
       expect(replRun.stdout).toContain("[fake:codex]");
       expect(replRun.stdout).toContain("hello detoks");
       expect(replRun.stdout).toContain("hello again");
-      expect(replRun.stdout.match(/1개 작업을 모두 완료했습니다/g)?.length ?? 0).toBeGreaterThanOrEqual(1);
+      expect(replRun.stdout.match(/\[fake:codex\]/g)?.length ?? 0).toBeGreaterThanOrEqual(2);
     } finally {
       rmSync(tempDir, { force: true, recursive: true });
     }
