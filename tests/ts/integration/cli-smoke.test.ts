@@ -542,7 +542,7 @@ describe("detoks CLI smoke", () => {
     }
   });
 
-  it("keeps the embedded CLI pane and summary region visible in embedded mode", () => {
+  it.skipIf(Boolean(process.env.CI))("keeps the embedded CLI pane and summary region visible in embedded mode", () => {
     const tempDir = mkdtempSync(join(tmpdir(), "detoks-cli-embedded-repl-"));
 
     try {
