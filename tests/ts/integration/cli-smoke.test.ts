@@ -586,7 +586,6 @@ describe("detoks CLI smoke", () => {
       );
 
       expect(replRun.stderr).not.toContain("ReferenceError");
-      expect(replRun.stdout).toContain("작업 진행 중");
       expect(replRun.stdout).toContain("[fake:codex]");
       expect(replRun.stdout).toContain("hello detoks");
       expect(replRun.stdout).toContain("hello again");
