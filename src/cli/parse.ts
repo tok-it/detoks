@@ -41,6 +41,8 @@ const CLI_USAGE_MAIN = [
   "  detoks checkpoint list <session-id>",
   "  detoks checkpoint show <checkpoint-id>",
   "  detoks checkpoint restore <checkpoint-id>",
+  "  detoks memory disable                DeToks 메모리 기능 전체 비활성화",
+  "  detoks memory purge --all            세션 파일 및 벡터 DB 일괄 삭제",
   "  detoks repl --help",
   "  detoks --help",
   "",
@@ -652,6 +654,35 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
     }
 
     throw new Error(`지원하지 않는 체크포인트 명령입니다. ${topicHelpHint("detoks checkpoint list --help")}, ${topicHelpHint("detoks checkpoint show --help")}, ${topicHelpHint("detoks checkpoint restore --help")}를 확인하세요.`);
+  }
+
+  if (first === "memory") {
+    const sub = positionals[1];
+    if (sub === "disable") {
+      return {
+        mode: "run",
+        adapter,
+        executionMode,
+        verbose,
+        trace,
+        showHelp: false,
+        command: "memory-disable",
+      };
+    }
+    if (sub === "purge") {
+      return {
+        mode: "run",
+        adapter,
+        executionMode,
+        verbose,
+        trace,
+        showHelp: false,
+        command: "memory-purge-all",
+        memoryPurgeAll: argv.includes("--all"),
+        skipConfirm: argv.includes("--yes"),
+      };
+    }
+    throw new Error(`알 수 없는 memory 하위 명령: ${sub ?? "(없음)"}. detoks memory disable | purge --all`);
   }
 
   if (first === "repl") {
