@@ -18,9 +18,11 @@ import { translateVisibleText } from "../utils/visibleText.js";
 import {
   buildTokenMetrics,
   buildTokenReductionSnapshot,
+  computeCostUsd,
   type TokenMetricsSnapshot,
   type TokenReductionSnapshot,
 } from "../utils/tokenMetrics.js";
+import { computeNetTokens, countRagContextTokens } from "../utils/tokenAccounting.js";
 import { getLLMModelConfig } from "../llm-client/llm-models.js";
 import { computeProjectId, hashRawInput, hashTaskInputV2 } from "../rag/hash.js";
 import { CACHE_DISABLED, CACHE_TTL_DAYS } from "../cache/cache-config.js";
@@ -77,6 +79,9 @@ function generateSessionId(): string {
 // package.json major 버전 — cache key의 detoksMajorVersion으로 사용.
 // major 버전이 올라갈 때만 기존 캐시가 자동 무효화된다.
 const DETOKS_MAJOR_VERSION = 1;
+
+// per-task semantic retrieval 대상 task 타입. execute/validate는 기본 skip.
+const RAG_ELIGIBLE_TYPES = new Set(["explore", "analyze", "debug", "update", "create"]);
 
 // git HEAD short SHA (8자). git이 없는 환경이면 undefined.
 function resolveGitHead(cwd: string): string | undefined {
@@ -586,47 +591,11 @@ export const orchestratePipeline = async (
     }
   }
 
-  // ── F4~F7: Semantic retrieval (RAG Phase 2A) — BGE-M3 + sqlite-vec ───────
+  // ── F4~F7: 변수 선언 — 실제 retrieval은 DAG 확정 후 (per-task 검색) ──────
   let semanticContext: SemanticContextResult[] | undefined;
-  let ragSnippets: RagSnippet[] = [];
   let ragEmbedder: EmbeddingService | undefined;
   let ragStore: VectorStore | undefined;
-  if (isRagEnabled() && request.executionMode !== "stub") {
-    try {
-      const modelPath = getRagModelPath()!;
-      const cwd = request.userRequest.cwd ?? process.cwd();
-      const dbPath = getRagVectorDbPath(cwd);
-      ragEmbedder = new EmbeddingService(modelPath);
-      await ragEmbedder.init();
-      ragStore = new VectorStore(dbPath, RAG_EMBEDDING_DIMS);
-      ragStore.open();
-      const retriever = new SemanticRetriever(ragStore, ragEmbedder);
-      const hits = await retriever.hybridSearch(request.userRequest.raw_input, 5);
-      if (hits.length > 0) {
-        semanticContext = hits.map((h) => ({
-          id: h.id,
-          distance: h.distance,
-          kind: h.meta.kind as SemanticContextResult["kind"],
-          session_id: h.meta.session_id as string,
-          ...(h.meta.task_id ? { task_id: h.meta.task_id as string } : {}),
-        }));
-        const sessionsDir = resolveSessionsDir(cwd);
-        const loader = new RagContextLoader(sessionsDir);
-        ragSnippets = await loader.load(hits.slice(0, 3));
-        await emitProgressWithLogging({
-          stage: "State Manager",
-          status: "info",
-          message: `RAG: 유사 과거 컨텍스트 ${hits.length}건 발견 (스니펫 ${ragSnippets.length}건 로딩)`,
-        });
-      }
-    } catch (ragErr) {
-      logger.warn(`RAG retrieval 실패 (non-fatal): ${toErrorMessage(ragErr)}`);
-      await ragEmbedder?.dispose().catch(() => {});
-      ragStore?.close();
-      ragEmbedder = undefined;
-      ragStore = undefined;
-    }
-  }
+  const perTaskSnippets = new Map<string, RagSnippet[]>();
 
   // ── Step 1: Prompt compile + Role 2.1 handoff 생성 (Role 1) ──────────────
   let compiledPrompt;
@@ -887,6 +856,80 @@ export const orchestratePipeline = async (
     message: "State Manager: 세션 상태 준비 완료",
   });
 
+  // ── [E0] F2 pre-scan + F4~F7: per-task semantic retrieval ────────────────
+  // DAG가 확정된 뒤 실행 필요 task를 먼저 파악하고, 그 task에만 RAG 검색을 수행한다.
+  const f2PreScanHits = new Map<string, Record<string, unknown>>();
+  const tasksNeedingExecution: typeof graph.tasks = [];
+  if (!request.noCache && !CACHE_DISABLED && request.executionMode !== "stub") {
+    const prescanProjectId = state.shared_context.project_id as string | undefined;
+    for (const task of graph.tasks) {
+      if (!task.input_hash) { tasksNeedingExecution.push(task); continue; }
+      const cachedTask = await SessionStateManager.findSuccessfulTaskByHash(
+        task.input_hash,
+        {
+          ...(prescanProjectId ? { project_id: prescanProjectId } : {}),
+          recencyDays: CACHE_TTL_DAYS,
+          adapter: request.adapter,
+          ...(gitHead ? { git_head: gitHead } : {}),
+        },
+      );
+      if (cachedTask) {
+        f2PreScanHits.set(task.id, cachedTask.taskResult);
+      } else {
+        tasksNeedingExecution.push(task);
+      }
+    }
+  } else {
+    tasksNeedingExecution.push(...graph.tasks);
+  }
+
+  if (isRagEnabled() && request.executionMode !== "stub" && tasksNeedingExecution.length > 0) {
+    try {
+      const modelPath = getRagModelPath()!;
+      const cwd = request.userRequest.cwd ?? process.cwd();
+      const dbPath = getRagVectorDbPath(cwd);
+      ragEmbedder = new EmbeddingService(modelPath);
+      await ragEmbedder.init();
+      ragStore = new VectorStore(dbPath, RAG_EMBEDDING_DIMS);
+      ragStore.open();
+      const retriever = new SemanticRetriever(ragStore, ragEmbedder);
+      const sessionsDir = resolveSessionsDir(cwd);
+      const loader = new RagContextLoader(sessionsDir);
+
+      for (const task of tasksNeedingExecution) {
+        if (!RAG_ELIGIBLE_TYPES.has(task.type)) continue;
+        const queryText = `${task.type} ${task.title}`;
+        const hits = await retriever.hybridSearch(queryText, 5);
+        if (hits.length > 0) {
+          semanticContext = hits.map((h) => ({
+            id: h.id,
+            distance: h.distance,
+            kind: h.meta.kind as SemanticContextResult["kind"],
+            session_id: h.meta.session_id as string,
+            ...(h.meta.task_id ? { task_id: h.meta.task_id as string } : {}),
+          }));
+          const snippets = await loader.load(hits.slice(0, 1));
+          if (snippets.length > 0) perTaskSnippets.set(task.id, snippets);
+        }
+      }
+
+      const totalSnippets = Array.from(perTaskSnippets.values()).reduce((s, v) => s + v.length, 0);
+      if (totalSnippets > 0) {
+        await emitProgressWithLogging({
+          stage: "State Manager",
+          status: "info",
+          message: `RAG: ${tasksNeedingExecution.length}개 task 중 ${perTaskSnippets.size}개 task에 과거 컨텍스트 발견`,
+        });
+      }
+    } catch (ragErr) {
+      logger.warn(`RAG retrieval 실패 (non-fatal): ${toErrorMessage(ragErr)}`);
+      await ragEmbedder?.dispose().catch(() => {});
+      ragStore?.close();
+      ragEmbedder = undefined;
+      ragStore = undefined;
+    }
+  }
+
   // ── F8~F14: 프로젝트별 패턴 학습 (non-fatal) ─────────────────────────────
   if (request.executionMode !== "stub") {
     const cwd = request.userRequest.cwd ?? process.cwd();
@@ -1124,7 +1167,7 @@ export const orchestratePipeline = async (
         compiledPrompt.language !== "en"
           ? "Respond entirely in Korean.\n\n"
           : "";
-      const ragContext = formatRagSnippetsForPrompt(ragSnippets);
+      const ragContext = formatRagSnippetsForPrompt(perTaskSnippets.get(task.id) ?? []);
       const prompt = `${responseLanguageInstruction}${ragContext ? `${ragContext}\n\n` : ""}[${task.type.toUpperCase()}] ${task.title}\n\nContext: ${executionContext.context_summary}`;
       logger.info(`작업 [${task.id}] 실행 중 type=${task.type}`);
       await emitProgressWithLogging( {
