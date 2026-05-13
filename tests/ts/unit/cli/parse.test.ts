@@ -538,6 +538,74 @@ describe("parseCliArgs", () => {
     });
   });
 
+  it("parses memory disable command", () => {
+    expect(parseCliArgs(["memory", "disable"])).toEqual({
+      mode: "run",
+      command: "memory-disable",
+      adapter: "codex",
+      executionMode: "real",
+      verbose: false,
+      trace: false,
+      showHelp: false,
+    });
+  });
+
+  it("preserves human output flag for memory disable", () => {
+    expect(parseCliArgs(["memory", "disable", "--human"])).toEqual({
+      mode: "run",
+      command: "memory-disable",
+      human: true,
+      adapter: "codex",
+      executionMode: "real",
+      verbose: false,
+      trace: false,
+      showHelp: false,
+    });
+  });
+
+  it("parses memory purge --all command", () => {
+    expect(parseCliArgs(["memory", "purge", "--all"])).toEqual({
+      mode: "run",
+      command: "memory-purge-all",
+      memoryPurgeAll: true,
+      skipConfirm: false,
+      adapter: "codex",
+      executionMode: "real",
+      verbose: false,
+      trace: false,
+      showHelp: false,
+    });
+  });
+
+  it("parses memory purge --all --yes command", () => {
+    expect(parseCliArgs(["memory", "purge", "--all", "--yes"])).toEqual({
+      mode: "run",
+      command: "memory-purge-all",
+      memoryPurgeAll: true,
+      skipConfirm: true,
+      adapter: "codex",
+      executionMode: "real",
+      verbose: false,
+      trace: false,
+      showHelp: false,
+    });
+  });
+
+  it("requires --all for memory purge", () => {
+    expect(() => parseCliArgs(["memory", "purge"])).toThrow(
+      /memory purge에는 --all 플래그가 필요합니다/,
+    );
+  });
+
+  it("rejects purge-only flags for memory disable", () => {
+    expect(() => parseCliArgs(["memory", "disable", "--all"])).toThrow(
+      /memory disable은 --all 또는 --yes를 지원하지 않습니다/,
+    );
+    expect(() => parseCliArgs(["memory", "disable", "--yes"])).toThrow(
+      /memory disable은 --all 또는 --yes를 지원하지 않습니다/,
+    );
+  });
+
   it("parses repl with explicit --no-tui flag to disable TUI mode", () => {
     const parsed = parseCliArgs(["repl", "--no-tui"]);
     expect(parsed).toEqual({

@@ -1,3 +1,6 @@
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => {
@@ -84,6 +87,9 @@ vi.mock("../../../../src/cli/config/config-manager.js", () => ({
 import { handleAdapterSwitch } from "../../../../src/cli/repl-commands/index.js";
 import { handleSlashCommand } from "../../../../src/cli/repl-commands/index.js";
 
+const originalHome = process.env.HOME;
+let tempHome: string | undefined;
+
 const restoreTTY = () => {
   Object.defineProperty(process.stdin, "isTTY", {
     configurable: true,
@@ -102,6 +108,8 @@ const restoreTTY = () => {
 
 describe("adapter auth flow", () => {
   beforeEach(() => {
+    tempHome = mkdtempSync(join(tmpdir(), "detoks-repl-auth-home-"));
+    process.env.HOME = tempHome;
     vi.clearAllMocks();
     mocks.resetAuthStarted();
     Object.defineProperty(process.stdin, "isTTY", {
@@ -122,6 +130,15 @@ describe("adapter auth flow", () => {
 
   afterEach(() => {
     restoreTTY();
+    if (originalHome === undefined) {
+      delete process.env.HOME;
+    } else {
+      process.env.HOME = originalHome;
+    }
+    if (tempHome) {
+      rmSync(tempHome, { recursive: true, force: true });
+      tempHome = undefined;
+    }
   });
 
   it("authenticates immediately after selecting claude", async () => {

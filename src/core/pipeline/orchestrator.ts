@@ -659,7 +659,9 @@ export const orchestratePipeline = async (
           kind: "session" as const,
           sourceSessionId: cachedSessionId,
           cacheAge,
-          tokensSaved: 0,
+          tokensSaved: sumCachedTaskTokens(
+            new Map(Object.entries(cachedSession!.task_results as Record<string, Record<string, unknown>>)),
+          ),
         },
         ...(actionTimeline.length ? { actionTimeline } : {}),
       };
