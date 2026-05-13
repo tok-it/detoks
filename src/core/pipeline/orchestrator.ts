@@ -1007,14 +1007,30 @@ export const orchestratePipeline = async (
 
       // F2: Task-level input_hash cache bypass (stub 모드 제외)
       if (!request.noCache && !CACHE_DISABLED && request.executionMode !== "stub" && task.input_hash) {
-        const projectId = state.shared_context.project_id as string | undefined;
+        const f2ProjectId = state.shared_context.project_id as string | undefined;
         const cachedTask = await SessionStateManager.findSuccessfulTaskByHash(
           task.input_hash,
-          { ...(projectId ? { project_id: projectId } : {}), recencyDays: CACHE_TTL_DAYS },
+          {
+            ...(f2ProjectId ? { project_id: f2ProjectId } : {}),
+            recencyDays: CACHE_TTL_DAYS,
+            adapter: request.adapter,
+            ...(gitHead ? { git_head: gitHead } : {}),
+          },
         );
-        if (cachedTask && isTaskCacheValid(cachedTask.taskResult, {})) {
-          const cachedOutput = (cachedTask.taskResult.raw_output as string) ?? "";
-          state = markTaskCompleted(state, task.id, cachedOutput, task.type, task);
+        const f2Validity = cachedTask
+          ? isTaskCacheValid(cachedTask.taskResult, {
+              expected_adapter: request.adapter,
+              ...(gitHead ? { expected_git_head: gitHead } : {}),
+            })
+          : "skip";
+
+        if (f2Validity === "auto") {
+          const cachedOutput = (cachedTask!.taskResult.raw_output as string) ?? "";
+          state = markTaskCompleted(state, task.id, cachedOutput, task.type, task, {
+            adapter: request.adapter,
+            ...(adapterModel ? { adapterModel } : {}),
+            ...(gitHead ? { gitHead } : {}),
+          });
           state = applySessionTokenMetrics(
             state,
             request.userRequest.raw_input,
@@ -1026,7 +1042,7 @@ export const orchestratePipeline = async (
             createActionTimelineEvent({
               kind: "cache_hit",
               source: "pipeline",
-              summary: `F2 캐시 hit — task ${task.id} (세션 ${cachedTask.sessionId})`,
+              summary: `F2 캐시 hit — task ${task.id} (세션 ${cachedTask!.sessionId})`,
               taskId: task.id,
             }),
           );
@@ -1038,11 +1054,15 @@ export const orchestratePipeline = async (
           });
           continue;
         }
+
+        // "advise": adapter·git HEAD 불일치 — P0에서는 miss로 처리
         await emitActionTimelineWithLogging(
           createActionTimelineEvent({
             kind: "cache_miss",
             source: "pipeline",
-            summary: `F2 캐시 miss — task ${task.id} hash ${task.input_hash}`,
+            summary: f2Validity === "advise"
+              ? `F2 캐시 advise — adapter 또는 git HEAD 불일치 (task ${task.id})`
+              : `F2 캐시 miss — task ${task.id} hash ${task.input_hash}`,
             taskId: task.id,
           }),
         );
@@ -1119,7 +1139,6 @@ export const orchestratePipeline = async (
       });
 
       PipelineTracer.startStage(`Executor:${task.id}`);
-      const adapterModel = request.env?.ADAPTER_MODEL ?? process.env.ADAPTER_MODEL;
       const execResult = await executeWithAdapter({
         adapter: request.adapter,
         mode: request.mode,
@@ -1172,7 +1191,11 @@ export const orchestratePipeline = async (
           message: `Executor(${task.id}) 완료`,
         });
         failedTaskIds.delete(task.id);
-        state = markTaskCompleted(state, task.id, execResult.rawOutput, task.type, task);
+        state = markTaskCompleted(state, task.id, execResult.rawOutput, task.type, task, {
+          adapter: request.adapter,
+          ...(adapterModel ? { adapterModel } : {}),
+          ...(gitHead ? { gitHead } : {}),
+        });
         state = applySessionTokenMetrics(
           state,
           request.userRequest.raw_input,
