@@ -14,6 +14,10 @@ const STATE_DIR = '.state';
 const SESSIONS_DIR = join(STATE_DIR, 'sessions');
 const CHECKPOINTS_DIR = join(STATE_DIR, 'checkpoints');
 
+export function resolveSessionsDir(cwd?: string): string {
+  return cwd ? join(cwd, STATE_DIR, 'sessions') : SESSIONS_DIR;
+}
+
 const LOCK_STALE_TIMEOUT_MS = 5_000;
 const MAX_LOCK_RETRIES = 3;
 

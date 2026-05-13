@@ -9,7 +9,7 @@ import { loadRole1Policies, loadRole1RuntimeConfig } from "../prompt/config.js";
 import { compress_prompt } from "../prompt/compression.js";
 import { ContextBuilder } from "../context/ContextBuilder.js";
 import { ContextCompressor } from "../context/ContextCompressor.js";
-import { SessionStateManager } from "../state/SessionStateManager.js";
+import { SessionStateManager, resolveSessionsDir } from "../state/SessionStateManager.js";
 import { executeWithAdapter } from "../executor/execute.js";
 import { logger } from "../utils/logger.js";
 import { PipelineTracer } from "../utils/PipelineTracer.js";
@@ -29,6 +29,8 @@ import { EmbeddingService } from "../rag/embedding-service.js";
 import { VectorStore } from "../rag/vector-store.js";
 import { SemanticRetriever } from "../rag/semantic-retriever.js";
 import { EmbeddingIndexer } from "../rag/embedding-indexer.js";
+import { RagContextLoader, formatRagSnippetsForPrompt } from "../rag/rag-context-loader.js";
+import type { RagSnippet } from "../rag/rag-context-loader.js";
 import type { PtyTranscript } from "../../integrations/subprocess/types.js";
 import type { SessionState } from "../../schemas/pipeline.js";
 import type {
@@ -539,12 +541,14 @@ export const orchestratePipeline = async (
 
   // ── F4~F7: Semantic retrieval (RAG Phase 2A) — BGE-M3 + sqlite-vec ───────
   let semanticContext: SemanticContextResult[] | undefined;
+  let ragSnippets: RagSnippet[] = [];
   let ragEmbedder: EmbeddingService | undefined;
   let ragStore: VectorStore | undefined;
   if (isRagEnabled() && request.executionMode !== "stub") {
     try {
       const modelPath = getRagModelPath()!;
-      const dbPath = getRagVectorDbPath(request.userRequest.cwd ?? process.cwd());
+      const cwd = request.userRequest.cwd ?? process.cwd();
+      const dbPath = getRagVectorDbPath(cwd);
       ragEmbedder = new EmbeddingService(modelPath);
       await ragEmbedder.init();
       ragStore = new VectorStore(dbPath, RAG_EMBEDDING_DIMS);
@@ -559,10 +563,13 @@ export const orchestratePipeline = async (
           session_id: h.meta.session_id as string,
           ...(h.meta.task_id ? { task_id: h.meta.task_id as string } : {}),
         }));
+        const sessionsDir = resolveSessionsDir(cwd);
+        const loader = new RagContextLoader(sessionsDir);
+        ragSnippets = await loader.load(hits.slice(0, 3));
         await emitProgressWithLogging({
           stage: "State Manager",
           status: "info",
-          message: `RAG: 유사 과거 컨텍스트 ${hits.length}건 발견`,
+          message: `RAG: 유사 과거 컨텍스트 ${hits.length}건 발견 (스니펫 ${ragSnippets.length}건 로딩)`,
         });
       }
     } catch (ragErr) {
@@ -968,7 +975,8 @@ export const orchestratePipeline = async (
         compiledPrompt.language !== "en"
           ? "Respond entirely in Korean.\n\n"
           : "";
-      const prompt = `${responseLanguageInstruction}[${task.type.toUpperCase()}] ${task.title}\n\nContext: ${executionContext.context_summary}`;
+      const ragContext = formatRagSnippetsForPrompt(ragSnippets);
+      const prompt = `${responseLanguageInstruction}${ragContext ? `${ragContext}\n\n` : ""}[${task.type.toUpperCase()}] ${task.title}\n\nContext: ${executionContext.context_summary}`;
       logger.info(`작업 [${task.id}] 실행 중 type=${task.type}`);
       await emitProgressWithLogging( {
         stage: "Executor",
