@@ -74,7 +74,7 @@ const wrapInputLines = (
   return lines;
 };
 
-const measureDisplayWidth = (text: string): number => {
+export const measureDisplayWidth = (text: string): number => {
   let width = 0;
   for (const char of text) {
     width += isWideCharacter(char) ? 2 : 1;
@@ -86,6 +86,40 @@ export const padDisplayWidth = (text: string, width: number): string => {
   const safeWidth = Math.max(0, width);
   const padding = Math.max(0, safeWidth - measureDisplayWidth(text));
   return `${text}${" ".repeat(padding)}`;
+};
+
+export const wrapTextToDisplayWidth = (text: string, width: number): string[] => {
+  if (width <= 0) {
+    return [""];
+  }
+
+  const wrapped: string[] = [];
+
+  for (const sourceLine of text.split("\n")) {
+    if (sourceLine.length === 0) {
+      wrapped.push("");
+      continue;
+    }
+
+    let currentLine = "";
+    let currentWidth = 0;
+
+    for (const char of Array.from(sourceLine)) {
+      const charWidth = isWideCharacter(char) ? 2 : 1;
+      if (currentLine.length > 0 && currentWidth + charWidth > width) {
+        wrapped.push(currentLine);
+        currentLine = "";
+        currentWidth = 0;
+      }
+
+      currentLine += char;
+      currentWidth += charWidth;
+    }
+
+    wrapped.push(currentLine);
+  }
+
+  return wrapped.length > 0 ? wrapped : [""];
 };
 
 const ellipsizeLeft = (text: string, maxWidth: number): string => {

@@ -9,6 +9,8 @@ import {
   renderFocusArea,
   renderFooter,
   measureInputLayout,
+  padDisplayWidth,
+  wrapTextToDisplayWidth,
 } from "./renderer.js";
 import { playTuiEntryBootAnimation } from "../interactive/prompt-animation.js";
 import { runModelSetupIfNeeded } from "../model-setup/index.js";
@@ -40,6 +42,14 @@ import {
   type EmbeddedNativeCliSession,
 } from "./native-cli-session.js";
 import { formatEmbeddedTerminalFocusHint } from "./embedded-terminal.js";
+import {
+  createPinnedViewportState,
+  resolveViewportWindow,
+  scrollViewportBy,
+  scrollViewportToBottom,
+  scrollViewportToTop,
+} from "./content-viewport.js";
+import { consumeMouseReportingInput } from "./mouse-reporting.js";
 import {
   captureWorkspaceSnapshot,
   diffWorkspaceSnapshots,
@@ -112,11 +122,16 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
     stdout.write("\x1b[?2004h");
     // Enable terminal focus reporting so we can repaint after app switch/resume.
     stdout.write("\x1b[?1004h");
+    // Enable mouse wheel reporting in SGR mode for trackpad/mouse viewport scrolling.
+    stdout.write("\x1b[?1000h");
+    stdout.write("\x1b[?1006h");
   };
 
   const leaveTuiDisplay = (): void => {
     stdout.write("\x1b[?2004l");
     stdout.write("\x1b[?1004l");
+    stdout.write("\x1b[?1000l");
+    stdout.write("\x1b[?1006l");
     screen.setRawMode(false);
     screen.cursorShow();
     screen.exitAltScreen();
@@ -136,6 +151,8 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
 
   const sigtermHandler = (): void => {
     stdout.write("\x1b[?2004l");
+    stdout.write("\x1b[?1000l");
+    stdout.write("\x1b[?1006l");
     screen.cleanup();
     process.exit(0);
   };
@@ -202,6 +219,102 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
     let executionClockStartedAt: number | null = null;
     let executionClockTimer: NodeJS.Timeout | undefined;
     let forceFullRender = false;
+    let scrollViewportState = createPinnedViewportState();
+    let lastSubmittedPrompt: string | null = null;
+    let pendingMouseInputSequence = "";
+
+    const buildSectionDivider = (label: string, width: number): string => {
+      if (width <= 0) {
+        return "";
+      }
+
+      const prefix = `── ${label} `;
+      return colors.header(padDisplayWidth(
+        prefix.length >= width ? prefix.slice(0, width) : `${prefix}${"─".repeat(width - prefix.length)}`,
+        width,
+      ));
+    };
+
+    const buildWrappedBlock = (lines: string[], width: number, prefix = ""): string[] => {
+      if (width <= 0) {
+        return [];
+      }
+
+      const contentWidth = Math.max(1, width - prefix.length);
+      const wrapped: string[] = [];
+      for (const line of lines) {
+        const segments = wrapTextToDisplayWidth(line, contentWidth);
+        for (const segment of segments) {
+          wrapped.push(padDisplayWidth(`${prefix}${segment}`, width));
+        }
+      }
+      return wrapped;
+    };
+
+    const buildScrollableContentLines = (width: number): string[] => {
+      if (width <= 0) {
+        return [];
+      }
+
+      const lines: string[] = [];
+
+      if (lastSubmittedPrompt !== null) {
+        lines.push(buildSectionDivider("Prompt", width));
+        lines.push(...buildWrappedBlock(lastSubmittedPrompt.split("\n"), width, "> "));
+        lines.push(colors.header("─".repeat(width)));
+        lines.push(" ".repeat(width));
+      }
+
+      lines.push(...embeddedTerminalPane.getRenderableLines(width).map((line) => line.text));
+      lines.push(" ".repeat(width));
+      lines.push(buildSectionDivider("Summary", width));
+
+      const summaryLines = resultPanel.getLines();
+      if (summaryLines.length === 0 && !isExecuting) {
+        lines.push(...buildWrappedBlock([
+          "실행 결과가 아직 없습니다.",
+          "첫 실행 이후 작업 타임라인 · 다음 작업 · 토큰 절감이 이 영역에 표시됩니다.",
+        ], width).map((line) => colors.muted(line)));
+      } else {
+        lines.push(...buildWrappedBlock(summaryLines, width));
+      }
+
+      return lines;
+    };
+
+    const scrollEmbeddedViewportBy = (deltaRows: number): void => {
+      const dims = screen.getDimensions();
+      const inputLayout = measureInputLayout(dims, input);
+      const bannerRows = Math.min(3, Math.max(0, inputLayout.separatorRow));
+      const statusRegionStart = bannerRows;
+      const statusRegionEnd = Math.min(inputLayout.separatorRow, statusRegionStart + 8);
+      const contentHeight = Math.max(0, inputLayout.separatorRow - statusRegionEnd);
+      const totalLines = buildScrollableContentLines(dims.columns).length;
+      scrollViewportState = scrollViewportBy(totalLines, contentHeight, scrollViewportState, deltaRows);
+    };
+
+    const applyMouseWheelEvents = (
+      text: string,
+    ): { cleanedText: string; handledWheel: boolean } => {
+      const consumption = consumeMouseReportingInput(`${pendingMouseInputSequence}${text}`);
+      pendingMouseInputSequence = consumption.pendingSequence;
+
+      if (
+        embeddedPaneMode &&
+        embeddedTerminalFocus.focus !== "adapter-terminal" &&
+        consumption.wheelEvents.length > 0
+      ) {
+        for (const wheelEvent of consumption.wheelEvents) {
+          scrollEmbeddedViewportBy(wheelEvent.direction === "up" ? -3 : 3);
+        }
+        render();
+      }
+
+      return {
+        cleanedText: consumption.cleanedText,
+        handledWheel: consumption.wheelEvents.length > 0,
+      };
+    };
 
     const clearNativeEscapeTimer = (): void => {
       if (pendingNativeEscapeTimer !== undefined) {
@@ -297,10 +410,14 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
 
     const renderBanner = (): void => {
       const dims = screen.getDimensions();
+      const browsingHistoryHint =
+        embeddedPaneMode && !scrollViewportState.pinnedToBottom
+          ? "기록 탐색 중 · ↑↓ PgUp/PgDn/휠 · End로 최신으로 이동"
+          : "첫 프롬프트를 입력하면 아래 패널이 채워집니다 · /... 자동완성 · q 종료";
       const bannerLines = [
         `adapter: ${currentAdapter} | model: ${currentAdapterModel ?? "미설정"} | translate: ${currentTranslationModel ?? "미설정"}`,
         `mode: ${options.executionMode} | session: ${options.sessionId ?? "new"}`,
-        "첫 프롬프트를 입력하면 아래 패널이 채워집니다 · /... 자동완성 · q 종료",
+        browsingHistoryHint,
       ];
 
       for (const [index, line] of bannerLines.entries()) {
@@ -360,7 +477,7 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
           getSlashAutocompleteCommands(currentAdapter, slashAutocompleteQuery),
           slashAutocompleteSelectedIndex,
         );
-      } else {
+      } else if (!embeddedPaneMode) {
         resultPanel.render(ctx, resultRegion);
       }
 
@@ -413,13 +530,38 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
 
       const transcriptRegion = {
         startRow: contentRegionStart,
-        endRow: transcriptRegionEnd,
+        endRow: embeddedPaneMode ? inputLayout.separatorRow : transcriptRegionEnd,
         columns: dims.columns,
       };
       if (embeddedPaneMode) {
-        const transcriptRows = Math.max(1, transcriptRegion.endRow - transcriptRegion.startRow);
+        const contentLines = buildScrollableContentLines(transcriptRegion.columns);
+        const viewport = resolveViewportWindow(
+          contentLines.length,
+          Math.max(0, transcriptRegion.endRow - transcriptRegion.startRow),
+          scrollViewportState,
+        );
+        scrollViewportState = {
+          pinnedToBottom: viewport.pinnedToBottom,
+          topRow: viewport.topRow,
+        };
+
+        let row = transcriptRegion.startRow;
+        for (const line of contentLines.slice(viewport.startIndex, viewport.endIndex)) {
+          if (row >= transcriptRegion.endRow) {
+            break;
+          }
+          screen.cursorMoveTo(row, 0);
+          screen.write(line);
+          row += 1;
+        }
+        while (row < transcriptRegion.endRow) {
+          screen.cursorMoveTo(row, 0);
+          screen.write(" ".repeat(transcriptRegion.columns));
+          row += 1;
+        }
+
+        const transcriptRows = Math.max(1, Math.ceil(availableContentRows * 0.7));
         embeddedTerminalPane.resize(transcriptRegion.columns, transcriptRows);
-        embeddedTerminalPane.render(ctx, transcriptRegion);
         if (embeddedNativeCliSession !== null) {
           embeddedNativeCliSession?.resize(transcriptRegion.columns, transcriptRows);
         }
@@ -455,7 +597,9 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
     // 3. Display width calculation: Korean characters are 2 columns wide in terminal
     // 4. Escape sequences: handled separately before character-by-character processing
     const onData = (chunk: Buffer): void => {
-      const text = decoder.write(chunk);
+      const decodedText = decoder.write(chunk);
+      const { cleanedText, handledWheel } = applyMouseWheelEvents(decodedText);
+      const text = cleanedText;
 
       if (isTerminalFocusInSequence(text)) {
         requestFullRender();
@@ -467,7 +611,34 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
         return;
       }
 
+      if (handledWheel && text.length === 0) {
+        return;
+      }
+
       if (isExecuting) {
+        if (embeddedPaneMode && embeddedTerminalFocus.focus !== "adapter-terminal") {
+          if (text === "\x1b[A") {
+            scrollEmbeddedViewportBy(-1);
+            render();
+          } else if (text === "\x1b[B") {
+            scrollEmbeddedViewportBy(1);
+            render();
+          } else if (text === "\x1b[5~") {
+            scrollEmbeddedViewportBy(-Math.max(1, Math.floor(screen.getDimensions().rows / 3)));
+            render();
+          } else if (text === "\x1b[6~") {
+            scrollEmbeddedViewportBy(Math.max(1, Math.floor(screen.getDimensions().rows / 3)));
+            render();
+          } else if (text === "\x1b[H" || text === "\x1b[1~") {
+            scrollViewportState = scrollViewportToTop();
+            render();
+          } else if (text === "\x1b[F" || text === "\x1b[4~") {
+            scrollViewportState = scrollViewportToBottom();
+            render();
+          }
+          return;
+        }
+
         // Embedded pane: forward raw bytes to child while adapter-terminal is focused
         if (
           embeddedPaneMode &&
@@ -506,6 +677,25 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
             continue;
           }
 
+          const matchedScrollSequence = (
+            ["\x1b[5~", "\x1b[6~", "\x1b[H", "\x1b[F", "\x1b[1~", "\x1b[4~"] as const
+          ).find((candidate) => text.startsWith(candidate, i));
+          if (matchedScrollSequence !== undefined && embeddedPaneMode) {
+            if (matchedScrollSequence === "\x1b[5~") {
+              scrollEmbeddedViewportBy(-Math.max(1, Math.floor(screen.getDimensions().rows / 3)));
+            } else if (matchedScrollSequence === "\x1b[6~") {
+              scrollEmbeddedViewportBy(Math.max(1, Math.floor(screen.getDimensions().rows / 3)));
+            } else if (matchedScrollSequence === "\x1b[H" || matchedScrollSequence === "\x1b[1~") {
+              scrollViewportState = scrollViewportToTop();
+            } else {
+              scrollViewportState = scrollViewportToBottom();
+            }
+            needsFullRender = true;
+            i += matchedScrollSequence.length;
+            handled = true;
+            continue;
+          }
+
           const sequence = text.substring(i, i + 3);
           if (embeddedPaneMode && embeddedTerminalFocus.focus === "adapter-terminal") {
             if (pendingNativeEscapeReturn) {
@@ -529,7 +719,7 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
               );
               renderInteractiveInput();
             } else if (embeddedPaneMode) {
-              embeddedTerminalPane.scrollUp();
+              scrollEmbeddedViewportBy(-1);
               needsFullRender = true;
             } else {
               transcriptPanel.scrollUp();
@@ -547,7 +737,7 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
               );
               renderInteractiveInput();
             } else if (embeddedPaneMode) {
-              embeddedTerminalPane.scrollDown();
+              scrollEmbeddedViewportBy(1);
               needsFullRender = true;
             } else {
               transcriptPanel.scrollDown();
@@ -775,6 +965,8 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
     const executePrompt = async (prompt: string): Promise<void> => {
       isExecuting = true;
       hasExecuted = true;
+      lastSubmittedPrompt = prompt;
+      scrollViewportState = scrollViewportToBottom();
       const workspaceBefore = captureWorkspaceSnapshot(executionCwd);
       let receivedLiveAdapterEvents = false;
       try {
@@ -962,7 +1154,12 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
         }
         // Display error
         const errorMsg = formatError(error, currentVerbose);
-        transcriptPanel.append(`\n[ERROR] ${errorMsg}`);
+        resultPanel.clear();
+        if (embeddedPaneMode) {
+          embeddedTerminalPane.appendFinalAnswer(`\n[ERROR] ${errorMsg}\n`);
+        } else {
+          transcriptPanel.append(`\n[ERROR] ${errorMsg}`);
+        }
         render();
       } finally {
         clearExecutionClock();
