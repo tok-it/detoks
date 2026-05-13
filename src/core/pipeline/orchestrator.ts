@@ -960,7 +960,7 @@ export const orchestratePipeline = async (
     tasksNeedingExecution.push(...graph.tasks);
   }
 
-  if (isRagEnabled() && request.executionMode !== "stub" && tasksNeedingExecution.length > 0) {
+  if (isRagEnabled() && !memoryDisabled && request.executionMode !== "stub" && tasksNeedingExecution.length > 0) {
     try {
       const modelPath = getRagModelPath()!;
       const cwd = request.userRequest.cwd ?? process.cwd();
