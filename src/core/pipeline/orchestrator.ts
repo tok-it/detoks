@@ -1008,7 +1008,7 @@ export const orchestratePipeline = async (
   }
 
   // ── F8~F14: 프로젝트별 패턴 학습 (non-fatal) ─────────────────────────────
-  if (request.executionMode !== "stub") {
+  if (request.executionMode !== "stub" && !memoryDisabled) {
     const cwd = request.userRequest.cwd ?? process.cwd();
     const sessionsDir = resolveSessionsDir(cwd);
     const projectId = state.shared_context.project_id as string | undefined;
