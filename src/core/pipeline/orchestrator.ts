@@ -571,8 +571,9 @@ export const orchestratePipeline = async (
     try {
       await SessionStateManager.saveSession(s);
     } catch (err) {
-      // 디스크 풀·권한 오류 등은 파이프라인을 중단하지 않고 경고만 남긴다.
-      logger.warn(`세션 저장 실패 (non-fatal): ${toErrorMessage(err)}`);
+      // 디스크 풀·권한 오류 등은 파이프라인을 중단하지 않는다.
+      // logger.error는 DETOKS_DEBUG 여부와 무관하게 항상 stderr에 출력된다.
+      logger.error(`세션 저장 실패 (non-fatal): ${toErrorMessage(err)}`);
     }
   };
 
