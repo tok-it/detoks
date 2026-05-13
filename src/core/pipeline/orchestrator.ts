@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { execSync } from "node:child_process";
 import { promises as fs } from "node:fs";
 import { join } from "node:path";
+import { homedir } from "node:os";
 import { DAGValidator } from "../task-graph/DAGValidator.js";
 import { DependencyResolver } from "../task-graph/DependencyResolver.js";
 import { ParallelClassifier } from "../task-graph/ParallelClassifier.js";
@@ -111,6 +112,17 @@ async function countPriorSessions(projectId: string | undefined): Promise<number
     }).length;
   } catch {
     return 0;
+  }
+}
+
+// ~/.detoks/disabled 파일 또는 DETOKS_MEMORY=off 환경변수가 있으면 저장/조회/인덱싱 전체 비활성화.
+async function isMemoryDisabled(): Promise<boolean> {
+  if (process.env.DETOKS_MEMORY === "off" || process.env.DETOKS_MEMORY === "0") return true;
+  try {
+    await fs.access(join(homedir(), ".detoks", "disabled"));
+    return true;
+  } catch {
+    return false;
   }
 }
 
@@ -555,6 +567,12 @@ export const orchestratePipeline = async (
   // 첫 실행 1회 안내 (non-fatal, stderr)
   await maybeShowFirstRunNotice(request.userRequest.cwd ?? process.cwd());
 
+  // ~/.detoks/disabled 또는 DETOKS_MEMORY=off 시 저장/조회/인덱싱 전체 비활성화
+  const memoryDisabled = await isMemoryDisabled();
+  const saveSessionIfEnabled = async (s: SessionState) => {
+    if (!memoryDisabled) await SessionStateManager.saveSession(s);
+  };
+
   // projectId / gitHead — F1·F3 cache lookup과 hash v2 re-map에서 공통으로 사용
   const projectId =
     request.projectInfo?.projectId ??
@@ -563,7 +581,7 @@ export const orchestratePipeline = async (
 
   // ── F1: Cross-session input_hash cache bypass ────────────────────────────
   // stub 모드는 테스트/개발용이므로 캐시 우회 대상에서 제외
-  if (!request.noCache && !CACHE_DISABLED && request.executionMode !== "stub") {
+  if (!request.noCache && !CACHE_DISABLED && !memoryDisabled && request.executionMode !== "stub") {
     const inputHash = hashRawInput(request.userRequest.raw_input);
     const cachedSession = await SessionStateManager.findSuccessfulSessionByInputHash(
       inputHash,
@@ -629,7 +647,7 @@ export const orchestratePipeline = async (
 
   // ── F3: 미완성 세션 resume 힌트 ──────────────────────────────────────────
   let resumeHint: ResumeHintInfo | undefined;
-  if (!request.noCache && !CACHE_DISABLED && request.executionMode !== "stub") {
+  if (!request.noCache && !CACHE_DISABLED && !memoryDisabled && request.executionMode !== "stub") {
     const inputHash = hashRawInput(request.userRequest.raw_input);
     const incompleteSession = await SessionStateManager.findIncompleteSessionByInputHash(
       inputHash,
@@ -1091,7 +1109,7 @@ export const orchestratePipeline = async (
           request.userRequest.raw_input,
           compiledPrompt.compressed_prompt,
         ).state;
-        await SessionStateManager.saveSession(state);
+        await saveSessionIfEnabled(state);
         taskRecords.push({ taskId: task.id, status: "skipped", rawOutput: "", blockedBy });
         await PipelineTracer.trace({
           sessionId, stage: `Executor:${task.id}`, role: "role3", phase: "output",
@@ -1113,7 +1131,7 @@ export const orchestratePipeline = async (
       }
 
       // F2: Task-level input_hash cache bypass (stub 모드 제외)
-      if (!request.noCache && !CACHE_DISABLED && request.executionMode !== "stub" && task.input_hash) {
+      if (!request.noCache && !CACHE_DISABLED && !memoryDisabled && request.executionMode !== "stub" && task.input_hash) {
         const f2ProjectId = state.shared_context.project_id as string | undefined;
         const cachedTask = await SessionStateManager.findSuccessfulTaskByHash(
           task.input_hash,
@@ -1146,7 +1164,7 @@ export const orchestratePipeline = async (
             request.userRequest.raw_input,
             compiledPrompt.compressed_prompt,
           ).state;
-          await SessionStateManager.saveSession(state);
+          await saveSessionIfEnabled(state);
           taskRecords.push({ taskId: task.id, status: "completed", rawOutput: cachedOutput });
           await emitActionTimelineWithLogging(
             createActionTimelineEvent({
@@ -1296,7 +1314,7 @@ export const orchestratePipeline = async (
           request.userRequest.raw_input,
           compiledPrompt.compressed_prompt,
         ).state;
-        await SessionStateManager.saveSession(state);
+        await saveSessionIfEnabled(state);
         taskRecords.push({ taskId: task.id, status: "failed", rawOutput: execResult.rawOutput });
         await PipelineTracer.trace({
           sessionId, stage: `Executor:${task.id}`, role: "role3", phase: "output",
@@ -1341,7 +1359,7 @@ export const orchestratePipeline = async (
           taskId: task.id,
           message: `State Manager(${task.id}) 저장 중`,
         });
-        await SessionStateManager.saveSession(state);
+        await saveSessionIfEnabled(state);
         await emitProgressWithLogging( {
           stage: "State Manager",
           status: "end",
@@ -1389,7 +1407,7 @@ export const orchestratePipeline = async (
     status: "start",
     message: "State Manager: 최종 세션 저장 중",
   });
-  await SessionStateManager.saveSession(state);
+  await saveSessionIfEnabled(state);
   await emitProgressWithLogging( {
     stage: "State Manager",
     status: "end",
@@ -1397,7 +1415,7 @@ export const orchestratePipeline = async (
   });
 
   // ── RAG indexing: 완료된 세션을 벡터 DB에 인덱싱 ─────────────────────────
-  if (ragEmbedder && ragStore) {
+  if (ragEmbedder && ragStore && !memoryDisabled) {
     try {
       const indexer = new EmbeddingIndexer(ragStore, ragEmbedder);
       await indexer.indexSession(state as any);
