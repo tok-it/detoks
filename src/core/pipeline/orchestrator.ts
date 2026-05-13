@@ -564,14 +564,16 @@ export const orchestratePipeline = async (
     }
   };
 
-  // 첫 실행 1회 안내 (non-fatal, stderr)
-  await maybeShowFirstRunNotice(request.userRequest.cwd ?? process.cwd());
-
   // ~/.detoks/disabled 또는 DETOKS_MEMORY=off 시 저장/조회/인덱싱 전체 비활성화
   const memoryDisabled = await isMemoryDisabled();
   const saveSessionIfEnabled = async (s: SessionState) => {
     if (!memoryDisabled) await SessionStateManager.saveSession(s);
   };
+
+  // 첫 실행 1회 안내 (non-fatal, stderr) — 메모리 비활성화 상태면 표시하지 않음
+  if (!memoryDisabled) {
+    await maybeShowFirstRunNotice(request.userRequest.cwd ?? process.cwd());
+  }
 
   // projectId / gitHead — F1·F3 cache lookup과 hash v2 re-map에서 공통으로 사용
   const projectId =
