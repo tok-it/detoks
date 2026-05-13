@@ -937,7 +937,7 @@ export const orchestratePipeline = async (
   // DAG가 확정된 뒤 실행 필요 task를 먼저 파악하고, 그 task에만 RAG 검색을 수행한다.
   const f2PreScanHits = new Map<string, Record<string, unknown>>();
   const tasksNeedingExecution: typeof graph.tasks = [];
-  if (!request.noCache && !CACHE_DISABLED && request.executionMode !== "stub") {
+  if (!request.noCache && !CACHE_DISABLED && !memoryDisabled && request.executionMode !== "stub") {
     const prescanProjectId = state.shared_context.project_id as string | undefined;
     for (const task of graph.tasks) {
       if (!task.input_hash) { tasksNeedingExecution.push(task); continue; }
