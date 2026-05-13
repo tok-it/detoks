@@ -83,6 +83,34 @@ const DETOKS_MAJOR_VERSION = 1;
 // per-task semantic retrieval 대상 task 타입. execute/validate는 기본 skip.
 const RAG_ELIGIBLE_TYPES = new Set(["explore", "analyze", "debug", "update", "create"]);
 
+// Budget Gate 상수 — 환경변수로 override 가능
+const COLD_START_THRESHOLD = parseInt(process.env.DETOKS_COLD_START_THRESHOLD ?? "5", 10);
+const RAG_BREAK_EVEN_RATIO = parseFloat(process.env.DETOKS_RAG_BREAK_EVEN ?? "0.5");
+const PER_TASK_TOKEN_CAP = parseInt(process.env.DETOKS_RAG_PER_TASK_CAP ?? "250", 10);
+const PER_SESSION_TOKEN_CAP = parseInt(process.env.DETOKS_RAG_PER_SESSION_CAP ?? "500", 10);
+
+function sumCachedTaskTokens(hits: Map<string, Record<string, unknown>>): number {
+  let total = 0;
+  for (const result of hits.values()) {
+    const est = result.token_estimate_total as number | undefined;
+    if (est) total += est;
+  }
+  return total;
+}
+
+async function countPriorSessions(projectId: string | undefined): Promise<number> {
+  try {
+    const sessions = await SessionStateManager.listSessions();
+    if (!projectId) return sessions.length;
+    return sessions.filter((s) => {
+      const pid = (s as unknown as Record<string, unknown>).project_id;
+      return pid === projectId;
+    }).length;
+  } catch {
+    return 0;
+  }
+}
+
 // git HEAD short SHA (8자). git이 없는 환경이면 undefined.
 function resolveGitHead(cwd: string): string | undefined {
   try {
@@ -994,6 +1022,11 @@ export const orchestratePipeline = async (
   }
 
   // ── Step 6: 실행 루프 ────────────────────────────────────────────────────
+  let tokensAddedByRagContext = 0;
+  let tokensSavedByCache = 0;
+  let cacheHitCount = 0;
+  let ragContextInjected = false;
+
   for (const { stage, tasks } of stages) {
     logger.info(`단계 ${stage} 실행 중 — 작업 ${tasks.length}개`);
 
@@ -1069,6 +1102,9 @@ export const orchestratePipeline = async (
 
         if (f2Validity === "auto") {
           const cachedOutput = (cachedTask!.taskResult.raw_output as string) ?? "";
+          const taskTokenEst = (cachedTask!.taskResult.token_estimate_total as number | undefined) ?? 0;
+          tokensSavedByCache += taskTokenEst;
+          cacheHitCount += 1;
           state = markTaskCompleted(state, task.id, cachedOutput, task.type, task, {
             adapter: request.adapter,
             ...(adapterModel ? { adapterModel } : {}),
@@ -1167,7 +1203,30 @@ export const orchestratePipeline = async (
         compiledPrompt.language !== "en"
           ? "Respond entirely in Korean.\n\n"
           : "";
-      const ragContext = formatRagSnippetsForPrompt(perTaskSnippets.get(task.id) ?? []);
+
+      // Budget Gate — per-task ragContext 결정
+      const taskSnippets = perTaskSnippets.get(task.id) ?? [];
+      const ragContextRaw = formatRagSnippetsForPrompt(taskSnippets);
+      const ragTokensForTask = countRagContextTokens(ragContextRaw);
+      let ragContext = "";
+      if (ragContextRaw && ragTokensForTask > 0) {
+        const projectedAdded = tokensAddedByRagContext + ragTokensForTask;
+        const projectedSaved = sumCachedTaskTokens(f2PreScanHits);
+        const sessionCount = await countPriorSessions(
+          state.shared_context.project_id as string | undefined,
+        );
+        const inColdStart = sessionCount < COLD_START_THRESHOLD;
+        const block =
+          projectedAdded > PER_SESSION_TOKEN_CAP ||
+          ragTokensForTask > PER_TASK_TOKEN_CAP ||
+          (!inColdStart && projectedAdded > projectedSaved * RAG_BREAK_EVEN_RATIO);
+        if (!block) {
+          ragContext = ragContextRaw;
+          tokensAddedByRagContext += ragTokensForTask;
+          ragContextInjected = true;
+        }
+      }
+
       const prompt = `${responseLanguageInstruction}${ragContext ? `${ragContext}\n\n` : ""}[${task.type.toUpperCase()}] ${task.title}\n\nContext: ${executionContext.context_summary}`;
       logger.info(`작업 [${task.id}] 실행 중 type=${task.type}`);
       await emitProgressWithLogging( {
@@ -1318,6 +1377,26 @@ export const orchestratePipeline = async (
     }
   }
 
+  // ── Token/Cost Accounting 집계 ────────────────────────────────────────────
+  const tokenAccounting = computeNetTokens(tokensSavedByCache, tokensAddedByRagContext);
+  const costEstimate = computeCostUsd({
+    savedInTokens: tokensSavedByCache,
+    savedOutTokens: 0,
+    addedInTokens: tokensAddedByRagContext,
+    adapter: request.adapter,
+    ...(adapterModel ? { adapterModel } : {}),
+  });
+  const costAccounting: import("../utils/tokenAccounting.js").CostAccounting = {
+    costSavedUsd: costEstimate.costSavedUsd,
+    costAddedUsd: costEstimate.costAddedUsd,
+    compressionCostUsd: 0,
+    netCostSavedUsd: costEstimate.netCostSavedUsd,
+  };
+  const lightQuality: import("../utils/tokenAccounting.js").LightQualityCounters = {
+    ragContextInjected,
+    cacheHitRate: graph.tasks.length > 0 ? cacheHitCount / graph.tasks.length : 0,
+  };
+
   return {
     ok: allOk,
     mode: request.mode,
@@ -1344,5 +1423,8 @@ export const orchestratePipeline = async (
     progressLog,
     ...(resumeHint ? { resumeHint } : {}),
     ...(semanticContext ? { semanticContext } : {}),
+    tokenAccounting,
+    costAccounting,
+    lightQuality,
   };
 };
