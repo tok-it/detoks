@@ -273,7 +273,7 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
       if (summaryLines.length === 0 && !isExecuting) {
         lines.push(...buildWrappedBlock([
           "실행 결과가 아직 없습니다.",
-          "첫 실행 이후 작업 타임라인 · 다음 작업 · 토큰 절감이 이 영역에 표시됩니다.",
+          "첫 실행 이후 작업 타임라인 · 다음 작업 · 사용량/압축 지표가 이 영역에 표시됩니다.",
         ], width).map((line) => colors.muted(line)));
       } else {
         lines.push(...buildWrappedBlock(summaryLines, width));
