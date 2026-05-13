@@ -25,6 +25,7 @@ import {
   type TokenReductionSnapshot,
 } from "../utils/tokenMetrics.js";
 import { computeNetTokens, countRagContextTokens } from "../utils/tokenAccounting.js";
+import { countTokens } from "../utils/tokenMetrics.js";
 import { getLLMModelConfig } from "../llm-client/llm-models.js";
 import { computeProjectId, hashRawInput, hashTaskInputV2 } from "../rag/hash.js";
 import { CACHE_DISABLED, CACHE_TTL_DAYS } from "../cache/cache-config.js";
@@ -222,6 +223,7 @@ function markTaskCompleted(
   taskType?: string,
   task?: { title?: string; input_hash?: string; depends_on?: string[] },
   stamp: { adapter?: string; adapterModel?: string; gitHead?: string } = {},
+  tokenEstimateTotal?: number,
 ): SessionState {
   const now = new Date().toISOString();
   return {
@@ -241,6 +243,7 @@ function markTaskCompleted(
         ...(stamp.adapter ? { adapter: stamp.adapter } : {}),
         ...(stamp.adapterModel ? { adapter_model: stamp.adapterModel } : {}),
         ...(stamp.gitHead ? { git_head: stamp.gitHead } : {}),
+        ...(tokenEstimateTotal !== undefined ? { token_estimate_total: tokenEstimateTotal } : {}),
       },
     },
     updated_at: now,
@@ -1321,11 +1324,12 @@ export const orchestratePipeline = async (
           message: `Executor(${task.id}) 완료`,
         });
         failedTaskIds.delete(task.id);
+        const taskTokenEstimate = countTokens(prompt) + countTokens(execResult.rawOutput);
         state = markTaskCompleted(state, task.id, execResult.rawOutput, task.type, task, {
           adapter: request.adapter,
           ...(adapterModel ? { adapterModel } : {}),
           ...(gitHead ? { gitHead } : {}),
-        });
+        }, taskTokenEstimate);
         state = applySessionTokenMetrics(
           state,
           request.userRequest.raw_input,
