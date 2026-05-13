@@ -503,13 +503,21 @@ export const orchestratePipeline = async (
     const inputHash = hashRawInput(request.userRequest.raw_input);
     const cachedSession = await SessionStateManager.findSuccessfulSessionByInputHash(
       inputHash,
-      { project_id: projectId, recencyDays: CACHE_TTL_DAYS },
+      { project_id: projectId, recencyDays: CACHE_TTL_DAYS, adapter: request.adapter },
     );
-    if (cachedSession && isSessionCacheValid(cachedSession, { project_id: projectId })) {
-      const cacheAge = cachedSession.updated_at
-        ? Date.now() - new Date(cachedSession.updated_at).getTime()
+    const f1Validity = cachedSession
+      ? isSessionCacheValid(cachedSession, {
+          project_id: projectId,
+          expected_adapter: request.adapter,
+          ...(gitHead ? { expected_git_head: gitHead } : {}),
+        })
+      : "skip";
+
+    if (f1Validity === "auto") {
+      const cacheAge = cachedSession!.updated_at
+        ? Date.now() - new Date(cachedSession!.updated_at).getTime()
         : 0;
-      const cachedSessionId = cachedSession.shared_context.session_id;
+      const cachedSessionId = cachedSession!.shared_context.session_id;
       await emitActionTimelineWithLogging(
         createActionTimelineEvent({
           kind: "cache_hit",
@@ -517,21 +525,21 @@ export const orchestratePipeline = async (
           summary: `F1 캐시 hit — 세션 ${cachedSessionId} (${Math.round(cacheAge / 86400000)}일 전)`,
         }),
       );
-      const { rawOutputText, summaryText } = collectTaskOutputText(cachedSession);
+      const { rawOutputText, summaryText } = collectTaskOutputText(cachedSession!);
       return {
         ok: true,
         mode: request.mode,
         adapter: request.adapter,
-        summary: cachedSession.last_summary ?? summaryText.slice(0, 200),
-        nextAction: cachedSession.next_action ?? "캐시된 결과를 반환했습니다.",
+        summary: cachedSession!.last_summary ?? summaryText.slice(0, 200),
+        nextAction: cachedSession!.next_action ?? "캐시된 결과를 반환했습니다.",
         originalPrompt: request.userRequest.raw_input,
         stages: buildPipelineStages(true),
         rawOutput: rawOutputText,
         sessionId: cachedSessionId,
-        taskRecords: cachedSession.completed_task_ids.map((id) => ({
+        taskRecords: cachedSession!.completed_task_ids.map((id) => ({
           taskId: id,
           status: "completed" as const,
-          rawOutput: (cachedSession.task_results[id] as Record<string, unknown>)?.raw_output as string ?? "",
+          rawOutput: (cachedSession!.task_results[id] as Record<string, unknown>)?.raw_output as string ?? "",
         })),
         cacheHit: {
           kind: "session" as const,
@@ -542,11 +550,15 @@ export const orchestratePipeline = async (
         ...(actionTimeline.length ? { actionTimeline } : {}),
       };
     }
+
+    // "advise": adapter·git HEAD 불일치 — P0에서는 miss로 처리 (P1에서 사용자 안내 추가 예정)
     await emitActionTimelineWithLogging(
       createActionTimelineEvent({
         kind: "cache_miss",
         source: "pipeline",
-        summary: `F1 캐시 miss — hash ${inputHash}`,
+        summary: f1Validity === "advise"
+          ? `F1 캐시 advise — adapter 또는 git HEAD 불일치 (hash ${inputHash})`
+          : `F1 캐시 miss — hash ${inputHash}`,
       }),
     );
   }
