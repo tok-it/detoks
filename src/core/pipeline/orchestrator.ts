@@ -1,5 +1,7 @@
 import { createHash } from "node:crypto";
 import { execSync } from "node:child_process";
+import { promises as fs } from "node:fs";
+import { join } from "node:path";
 import { DAGValidator } from "../task-graph/DAGValidator.js";
 import { DependencyResolver } from "../task-graph/DependencyResolver.js";
 import { ParallelClassifier } from "../task-graph/ParallelClassifier.js";
@@ -109,6 +111,29 @@ async function countPriorSessions(projectId: string | undefined): Promise<number
   } catch {
     return 0;
   }
+}
+
+const NOTICE_SHOWN_FILE = ".state/.detoks-notice-shown";
+
+async function maybeShowFirstRunNotice(cwd: string): Promise<void> {
+  const flagPath = join(cwd, NOTICE_SHOWN_FILE);
+  try {
+    await fs.access(flagPath);
+    return; // 이미 표시했음
+  } catch { /* 파일 없음 → 안내 필요 */ }
+
+  const notice = [
+    "[detoks] DeToks는 실행 메모리를 .state/sessions에 저장합니다.",
+    "[detoks] cross-project store에는 generalize 단계를 거친 익명 패턴만 들어갑니다.",
+    "[detoks] 비활성화: detoks memory disable / 일괄 삭제: detoks memory purge --all",
+  ].join("\n");
+
+  process.stderr.write(`${notice}\n`);
+
+  try {
+    await fs.mkdir(join(cwd, ".state"), { recursive: true });
+    await fs.writeFile(flagPath, new Date().toISOString(), "utf-8");
+  } catch { /* 쓰기 실패는 non-fatal */ }
 }
 
 // git HEAD short SHA (8자). git이 없는 환경이면 undefined.
@@ -523,6 +548,9 @@ export const orchestratePipeline = async (
       request.onProgress(event);
     }
   };
+
+  // 첫 실행 1회 안내 (non-fatal, stderr)
+  await maybeShowFirstRunNotice(request.userRequest.cwd ?? process.cwd());
 
   // projectId / gitHead — F1·F3 cache lookup과 hash v2 re-map에서 공통으로 사용
   const projectId =
