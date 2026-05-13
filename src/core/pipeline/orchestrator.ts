@@ -94,6 +94,28 @@ const RAG_BREAK_EVEN_RATIO = parseFloat(process.env.DETOKS_RAG_BREAK_EVEN ?? "0.
 const PER_TASK_TOKEN_CAP = Math.max(0, parseInt(process.env.DETOKS_RAG_PER_TASK_CAP ?? "250", 10) || 250);
 const PER_SESSION_TOKEN_CAP = Math.max(0, parseInt(process.env.DETOKS_RAG_PER_SESSION_CAP ?? "500", 10) || 500);
 
+// 같은 stage 내 최대 병렬 LLM 호출 수.
+// 초과 분은 큐에서 대기해 파일 디스크립터·API rate limit 소진을 방지한다.
+const MAX_PARALLEL_TASKS = Math.max(1, parseInt(process.env.DETOKS_MAX_PARALLEL ?? "5", 10) || 5);
+
+function makeConcurrencyLimiter(concurrency: number) {
+  let running = 0;
+  const queue: Array<() => void> = [];
+  return function limit<T>(fn: () => Promise<T>): Promise<T> {
+    return new Promise<T>((resolve, reject) => {
+      const run = () => {
+        running++;
+        fn().then(resolve, reject).finally(() => {
+          running--;
+          queue.shift()?.();
+        });
+      };
+      if (running < concurrency) run();
+      else queue.push(run);
+    });
+  };
+}
+
 function sumCachedTaskTokens(hits: Map<string, Record<string, unknown>>): number {
   let total = 0;
   for (const result of hits.values()) {
@@ -1101,8 +1123,10 @@ export const orchestratePipeline = async (
     transcript: PtyTranscript | undefined;
   };
 
+  const stageLimit = makeConcurrencyLimiter(MAX_PARALLEL_TASKS);
+
   for (const { stage, tasks } of stages) {
-    logger.info(`단계 ${stage} 실행 중 — 작업 ${tasks.length}개${tasks.length > 1 ? " (병렬)" : ""}`);
+    logger.info(`단계 ${stage} 실행 중 — 작업 ${tasks.length}개${tasks.length > 1 ? ` (최대 ${MAX_PARALLEL_TASKS}개 병렬)` : ""}`);
 
     // Budget Gate: stage 시작 시점의 누적 토큰 스냅샷.
     // 같은 stage 내 병렬 task들은 이 값을 기준으로 Budget Gate를 계산한다.
@@ -1113,9 +1137,9 @@ export const orchestratePipeline = async (
     // Phase 3에서 state를 순차 갱신하므로 클로저 안에서 let state를 직접 참조하면 안 된다.
     const stageBaseState = state;
 
-    // Phase 2: 같은 stage 내 task들은 서로 의존하지 않으므로 병렬 실행
+    // Phase 2: 같은 stage 내 task들은 서로 의존하지 않으므로 병렬 실행 (MAX_PARALLEL_TASKS 제한)
     const outcomes = await Promise.all(
-      tasks.map(async (task): Promise<StageTaskOutcome> => {
+      tasks.map((task) => stageLimit(async (): Promise<StageTaskOutcome> => {
         const noop = (s: SessionState): SessionState => s;
         const stamp = {
           adapter: request.adapter,
@@ -1330,7 +1354,7 @@ export const orchestratePipeline = async (
           failed: false, tokensSavedDelta: 0, ragAddedDelta,
           ragInjected: ragInjectedThisTask, cacheHit: false, transcript: execResult.transcript,
         };
-      }),
+      })),
     );
 
     // Phase 3: 결과를 순차적으로 state에 적용
