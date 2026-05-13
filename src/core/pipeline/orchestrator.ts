@@ -33,6 +33,8 @@ import { RagContextLoader, formatRagSnippetsForPrompt } from "../rag/rag-context
 import type { RagSnippet } from "../rag/rag-context-loader.js";
 import { TaskSequenceMiner } from "../rag/task-sequence-miner.js";
 import { FailurePatternAnalyzer } from "../rag/failure-pattern-analyzer.js";
+import { WorkflowTemplateBuilder } from "../rag/workflow-template-builder.js";
+import { AdapterStatsLearner } from "../rag/adapter-stats-learner.js";
 import type { PtyTranscript } from "../../integrations/subprocess/types.js";
 import type { SessionState } from "../../schemas/pipeline.js";
 import type {
@@ -853,6 +855,35 @@ export const orchestratePipeline = async (
             message: warning,
           });
         }
+      }
+    } catch { /* non-fatal */ }
+
+    // F11: 워크플로우 템플릿 매칭
+    try {
+      const firstTaskType = graph.tasks[0]?.type;
+      if (firstTaskType) {
+        const templateBuilder = new WorkflowTemplateBuilder(sessionsDir);
+        const suggestion = await templateBuilder.suggest([firstTaskType]);
+        if (suggestion) {
+          await emitProgressWithLogging({
+            stage: "Task Graph Builder",
+            status: "info",
+            message: `워크플로우 템플릿 매칭: [${suggestion.typeSequence.join(" → ")}] (${suggestion.count}회 사용)`,
+          });
+        }
+      }
+    } catch { /* non-fatal */ }
+
+    // F13+F14: Adapter 토큰 통계 학습 — budget 힌트 emit
+    try {
+      const statsLearner = new AdapterStatsLearner(sessionsDir);
+      const budget = await statsLearner.estimateBudget(request.adapter);
+      if (budget && budget.estimatedInputTokens > 0) {
+        await emitProgressWithLogging({
+          stage: "Context Optimizer",
+          status: "info",
+          message: `${request.adapter} 평균 입력 ${Math.round(budget.estimatedInputTokens)} 토큰, 평균 압축율 ${Math.round(budget.estimatedReductionRatio * 100)}%`,
+        });
       }
     } catch { /* non-fatal */ }
   }
