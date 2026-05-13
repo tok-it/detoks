@@ -1109,6 +1109,10 @@ export const orchestratePipeline = async (
     // stage 완료 후 ragAddedDelta 합산으로 카운터를 보정한다.
     const tokensAddedAtStageStart = tokensAddedByRagContext;
 
+    // Phase 2 클로저들은 stage 진입 시점의 state 스냅샷만 읽는다.
+    // Phase 3에서 state를 순차 갱신하므로 클로저 안에서 let state를 직접 참조하면 안 된다.
+    const stageBaseState = state;
+
     // Phase 2: 같은 stage 내 task들은 서로 의존하지 않으므로 병렬 실행
     const outcomes = await Promise.all(
       tasks.map(async (task): Promise<StageTaskOutcome> => {
@@ -1120,13 +1124,13 @@ export const orchestratePipeline = async (
         };
 
         // (1) 세션 재개 스킵 — 이전 실행에서 이미 완료된 task
-        if (state.completed_task_ids.includes(task.id)) {
+        if (stageBaseState.completed_task_ids.includes(task.id)) {
           logger.info(`작업 [${task.id}]는 세션에서 이미 완료되어 건너뜁니다`);
           await emitProgressWithLogging({
             stage: "Executor", status: "skip", taskId: task.id,
             message: `Executor(${task.id})는 이미 완료되어 건너뜁니다`,
           });
-          const prev = state.task_results[task.id] as any;
+          const prev = stageBaseState.task_results[task.id] as any;
           return {
             task, record: { taskId: task.id, status: "completed", rawOutput: prev?.raw_output ?? "" },
             applyState: noop, failed: false, tokensSavedDelta: 0, ragAddedDelta: 0,
@@ -1158,7 +1162,7 @@ export const orchestratePipeline = async (
 
         // (3) F2: Task-level input_hash 캐시 bypass (stub 모드 제외)
         if (!request.noCache && !CACHE_DISABLED && !memoryDisabled && request.executionMode !== "stub" && task.input_hash) {
-          const f2ProjectId = state.shared_context.project_id as string | undefined;
+          const f2ProjectId = stageBaseState.shared_context.project_id as string | undefined;
           const cachedTask = await SessionStateManager.findSuccessfulTaskByHash(
             task.input_hash,
             {
@@ -1215,16 +1219,16 @@ export const orchestratePipeline = async (
         });
         PipelineTracer.startStage(`ContextOptimizer:${task.id}`);
         const modelName = resolveModelName(request.adapter, request.env);
-        const tokensBeforeCompression = ContextCompressor.estimateTokens(state, modelName);
-        const context = ContextBuilder.build(state, task, modelName);
+        const tokensBeforeCompression = ContextCompressor.estimateTokens(stageBaseState, modelName);
+        const context = ContextBuilder.build(stageBaseState, task, modelName);
         const contextCompression = await compressExecutionContextSummary(context.context_summary, request);
         const executionContext = { ...context, context_summary: contextCompression.summary };
-        const compressedTaskIds = Object.entries(state.task_results)
+        const compressedTaskIds = Object.entries(stageBaseState.task_results)
           .filter(([, r]) => (r as Record<string, unknown>)._compressed === true)
           .map(([id]) => id);
-        const keptTaskIds = state.completed_task_ids.filter((id) => !compressedTaskIds.includes(id));
+        const keptTaskIds = stageBaseState.completed_task_ids.filter((id) => !compressedTaskIds.includes(id));
         const contextTokens = ContextCompressor.estimateTokens(
-          { ...state, task_results: context.selected_context as typeof state.task_results },
+          { ...stageBaseState, task_results: context.selected_context as typeof stageBaseState.task_results },
           modelName,
         );
         await PipelineTracer.trace({
@@ -1249,7 +1253,7 @@ export const orchestratePipeline = async (
         if (ragContextRaw && ragTokensForTask > 0) {
           const projectedAdded = tokensAddedAtStageStart + ragTokensForTask;
           const projectedSaved = sumCachedTaskTokens(f2PreScanHits);
-          const sessionCount = await countPriorSessions(state.shared_context.project_id as string | undefined);
+          const sessionCount = await countPriorSessions(stageBaseState.shared_context.project_id as string | undefined);
           const inColdStart = sessionCount < COLD_START_THRESHOLD;
           const block =
             projectedAdded > PER_SESSION_TOKEN_CAP ||
