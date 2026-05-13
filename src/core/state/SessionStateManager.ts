@@ -14,6 +14,18 @@ const STATE_DIR = '.state';
 const SESSIONS_DIR = join(STATE_DIR, 'sessions');
 const CHECKPOINTS_DIR = join(STATE_DIR, 'checkpoints');
 
+// sessionId는 파일 경로로 직접 사용되므로 안전한 형식만 허용한다.
+const SESSION_ID_RE = /^[a-zA-Z0-9_-]{1,64}$/;
+
+function assertSafeSessionId(id: string): void {
+  if (!SESSION_ID_RE.test(id)) {
+    throw new StateIOError(
+      `Invalid session ID "${id}" — only alphanumeric, underscore, hyphen (max 64 chars) are allowed`,
+      { sessionId: id },
+    );
+  }
+}
+
 export function resolveSessionsDir(cwd?: string): string {
   return cwd ? join(cwd, STATE_DIR, 'sessions') : SESSIONS_DIR;
 }
@@ -120,6 +132,7 @@ export class SessionStateManager {
 
   static async saveSession(state: SessionState): Promise<void> {
     const sessionId = state.shared_context?.session_id as string || 'default';
+    assertSafeSessionId(sessionId);
     await this.ensureDirectories();
     await this.acquireLock(sessionId);
     try {
@@ -174,6 +187,7 @@ export class SessionStateManager {
   }
 
   static async loadSession(sessionId: string): Promise<SessionState> {
+    assertSafeSessionId(sessionId);
     const filePath = join(SESSIONS_DIR, `${sessionId}.json`);
     try {
       const data = await fs.readFile(filePath, 'utf-8');
@@ -205,6 +219,7 @@ export class SessionStateManager {
 
 
   static async sessionExists(sessionId: string): Promise<boolean> {
+    assertSafeSessionId(sessionId);
     try {
       const filePath = join(SESSIONS_DIR, `${sessionId}.json`);
       await fs.access(filePath);
@@ -216,6 +231,8 @@ export class SessionStateManager {
 
 
   static async forkSession(sourceSessionId: string, newSessionId: string): Promise<SessionState> {
+    assertSafeSessionId(sourceSessionId);
+    assertSafeSessionId(newSessionId);
     if (!(await this.sessionExists(sourceSessionId))) {
       throw new StateIOError(`Session file not found [${sourceSessionId}]`, {
         sessionId: sourceSessionId,
@@ -496,6 +513,7 @@ export class SessionStateManager {
   }
 
   static async deleteSession(sessionId: string): Promise<void> {
+    assertSafeSessionId(sessionId);
     try {
       const filePath = join(SESSIONS_DIR, `${sessionId}.json`);
       await fs.unlink(filePath);
