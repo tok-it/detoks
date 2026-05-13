@@ -1,5 +1,7 @@
 import { createHash } from "node:crypto";
 import { execSync } from "node:child_process";
+import { promises as fs } from "node:fs";
+import { join } from "node:path";
 import { DAGValidator } from "../task-graph/DAGValidator.js";
 import { DependencyResolver } from "../task-graph/DependencyResolver.js";
 import { ParallelClassifier } from "../task-graph/ParallelClassifier.js";
@@ -18,9 +20,11 @@ import { translateVisibleText } from "../utils/visibleText.js";
 import {
   buildTokenMetrics,
   buildTokenReductionSnapshot,
+  computeCostUsd,
   type TokenMetricsSnapshot,
   type TokenReductionSnapshot,
 } from "../utils/tokenMetrics.js";
+import { computeNetTokens, countRagContextTokens } from "../utils/tokenAccounting.js";
 import { getLLMModelConfig } from "../llm-client/llm-models.js";
 import { computeProjectId, hashRawInput, hashTaskInputV2 } from "../rag/hash.js";
 import { CACHE_DISABLED, CACHE_TTL_DAYS } from "../cache/cache-config.js";
@@ -77,6 +81,60 @@ function generateSessionId(): string {
 // package.json major 버전 — cache key의 detoksMajorVersion으로 사용.
 // major 버전이 올라갈 때만 기존 캐시가 자동 무효화된다.
 const DETOKS_MAJOR_VERSION = 1;
+
+// per-task semantic retrieval 대상 task 타입. execute/validate는 기본 skip.
+const RAG_ELIGIBLE_TYPES = new Set(["explore", "analyze", "debug", "update", "create"]);
+
+// Budget Gate 상수 — 환경변수로 override 가능
+const COLD_START_THRESHOLD = parseInt(process.env.DETOKS_COLD_START_THRESHOLD ?? "5", 10);
+const RAG_BREAK_EVEN_RATIO = parseFloat(process.env.DETOKS_RAG_BREAK_EVEN ?? "0.5");
+const PER_TASK_TOKEN_CAP = parseInt(process.env.DETOKS_RAG_PER_TASK_CAP ?? "250", 10);
+const PER_SESSION_TOKEN_CAP = parseInt(process.env.DETOKS_RAG_PER_SESSION_CAP ?? "500", 10);
+
+function sumCachedTaskTokens(hits: Map<string, Record<string, unknown>>): number {
+  let total = 0;
+  for (const result of hits.values()) {
+    const est = result.token_estimate_total as number | undefined;
+    if (est) total += est;
+  }
+  return total;
+}
+
+async function countPriorSessions(projectId: string | undefined): Promise<number> {
+  try {
+    const sessions = await SessionStateManager.listSessions();
+    if (!projectId) return sessions.length;
+    return sessions.filter((s) => {
+      const pid = (s as unknown as Record<string, unknown>).project_id;
+      return pid === projectId;
+    }).length;
+  } catch {
+    return 0;
+  }
+}
+
+const NOTICE_SHOWN_FILE = ".state/.detoks-notice-shown";
+
+async function maybeShowFirstRunNotice(cwd: string): Promise<void> {
+  const flagPath = join(cwd, NOTICE_SHOWN_FILE);
+  try {
+    await fs.access(flagPath);
+    return; // 이미 표시했음
+  } catch { /* 파일 없음 → 안내 필요 */ }
+
+  const notice = [
+    "[detoks] DeToks는 실행 메모리를 .state/sessions에 저장합니다.",
+    "[detoks] cross-project store에는 generalize 단계를 거친 익명 패턴만 들어갑니다.",
+    "[detoks] 비활성화: detoks memory disable / 일괄 삭제: detoks memory purge --all",
+  ].join("\n");
+
+  process.stderr.write(`${notice}\n`);
+
+  try {
+    await fs.mkdir(join(cwd, ".state"), { recursive: true });
+    await fs.writeFile(flagPath, new Date().toISOString(), "utf-8");
+  } catch { /* 쓰기 실패는 non-fatal */ }
+}
 
 // git HEAD short SHA (8자). git이 없는 환경이면 undefined.
 function resolveGitHead(cwd: string): string | undefined {
@@ -491,6 +549,9 @@ export const orchestratePipeline = async (
     }
   };
 
+  // 첫 실행 1회 안내 (non-fatal, stderr)
+  await maybeShowFirstRunNotice(request.userRequest.cwd ?? process.cwd());
+
   // projectId / gitHead — F1·F3 cache lookup과 hash v2 re-map에서 공통으로 사용
   const projectId =
     request.projectInfo?.projectId ??
@@ -586,47 +647,11 @@ export const orchestratePipeline = async (
     }
   }
 
-  // ── F4~F7: Semantic retrieval (RAG Phase 2A) — BGE-M3 + sqlite-vec ───────
+  // ── F4~F7: 변수 선언 — 실제 retrieval은 DAG 확정 후 (per-task 검색) ──────
   let semanticContext: SemanticContextResult[] | undefined;
-  let ragSnippets: RagSnippet[] = [];
   let ragEmbedder: EmbeddingService | undefined;
   let ragStore: VectorStore | undefined;
-  if (isRagEnabled() && request.executionMode !== "stub") {
-    try {
-      const modelPath = getRagModelPath()!;
-      const cwd = request.userRequest.cwd ?? process.cwd();
-      const dbPath = getRagVectorDbPath(cwd);
-      ragEmbedder = new EmbeddingService(modelPath);
-      await ragEmbedder.init();
-      ragStore = new VectorStore(dbPath, RAG_EMBEDDING_DIMS);
-      ragStore.open();
-      const retriever = new SemanticRetriever(ragStore, ragEmbedder);
-      const hits = await retriever.hybridSearch(request.userRequest.raw_input, 5);
-      if (hits.length > 0) {
-        semanticContext = hits.map((h) => ({
-          id: h.id,
-          distance: h.distance,
-          kind: h.meta.kind as SemanticContextResult["kind"],
-          session_id: h.meta.session_id as string,
-          ...(h.meta.task_id ? { task_id: h.meta.task_id as string } : {}),
-        }));
-        const sessionsDir = resolveSessionsDir(cwd);
-        const loader = new RagContextLoader(sessionsDir);
-        ragSnippets = await loader.load(hits.slice(0, 3));
-        await emitProgressWithLogging({
-          stage: "State Manager",
-          status: "info",
-          message: `RAG: 유사 과거 컨텍스트 ${hits.length}건 발견 (스니펫 ${ragSnippets.length}건 로딩)`,
-        });
-      }
-    } catch (ragErr) {
-      logger.warn(`RAG retrieval 실패 (non-fatal): ${toErrorMessage(ragErr)}`);
-      await ragEmbedder?.dispose().catch(() => {});
-      ragStore?.close();
-      ragEmbedder = undefined;
-      ragStore = undefined;
-    }
-  }
+  const perTaskSnippets = new Map<string, RagSnippet[]>();
 
   // ── Step 1: Prompt compile + Role 2.1 handoff 생성 (Role 1) ──────────────
   let compiledPrompt;
@@ -887,6 +912,80 @@ export const orchestratePipeline = async (
     message: "State Manager: 세션 상태 준비 완료",
   });
 
+  // ── [E0] F2 pre-scan + F4~F7: per-task semantic retrieval ────────────────
+  // DAG가 확정된 뒤 실행 필요 task를 먼저 파악하고, 그 task에만 RAG 검색을 수행한다.
+  const f2PreScanHits = new Map<string, Record<string, unknown>>();
+  const tasksNeedingExecution: typeof graph.tasks = [];
+  if (!request.noCache && !CACHE_DISABLED && request.executionMode !== "stub") {
+    const prescanProjectId = state.shared_context.project_id as string | undefined;
+    for (const task of graph.tasks) {
+      if (!task.input_hash) { tasksNeedingExecution.push(task); continue; }
+      const cachedTask = await SessionStateManager.findSuccessfulTaskByHash(
+        task.input_hash,
+        {
+          ...(prescanProjectId ? { project_id: prescanProjectId } : {}),
+          recencyDays: CACHE_TTL_DAYS,
+          adapter: request.adapter,
+          ...(gitHead ? { git_head: gitHead } : {}),
+        },
+      );
+      if (cachedTask) {
+        f2PreScanHits.set(task.id, cachedTask.taskResult);
+      } else {
+        tasksNeedingExecution.push(task);
+      }
+    }
+  } else {
+    tasksNeedingExecution.push(...graph.tasks);
+  }
+
+  if (isRagEnabled() && request.executionMode !== "stub" && tasksNeedingExecution.length > 0) {
+    try {
+      const modelPath = getRagModelPath()!;
+      const cwd = request.userRequest.cwd ?? process.cwd();
+      const dbPath = getRagVectorDbPath(cwd);
+      ragEmbedder = new EmbeddingService(modelPath);
+      await ragEmbedder.init();
+      ragStore = new VectorStore(dbPath, RAG_EMBEDDING_DIMS);
+      ragStore.open();
+      const retriever = new SemanticRetriever(ragStore, ragEmbedder);
+      const sessionsDir = resolveSessionsDir(cwd);
+      const loader = new RagContextLoader(sessionsDir);
+
+      for (const task of tasksNeedingExecution) {
+        if (!RAG_ELIGIBLE_TYPES.has(task.type)) continue;
+        const queryText = `${task.type} ${task.title}`;
+        const hits = await retriever.hybridSearch(queryText, 5);
+        if (hits.length > 0) {
+          semanticContext = hits.map((h) => ({
+            id: h.id,
+            distance: h.distance,
+            kind: h.meta.kind as SemanticContextResult["kind"],
+            session_id: h.meta.session_id as string,
+            ...(h.meta.task_id ? { task_id: h.meta.task_id as string } : {}),
+          }));
+          const snippets = await loader.load(hits.slice(0, 1));
+          if (snippets.length > 0) perTaskSnippets.set(task.id, snippets);
+        }
+      }
+
+      const totalSnippets = Array.from(perTaskSnippets.values()).reduce((s, v) => s + v.length, 0);
+      if (totalSnippets > 0) {
+        await emitProgressWithLogging({
+          stage: "State Manager",
+          status: "info",
+          message: `RAG: ${tasksNeedingExecution.length}개 task 중 ${perTaskSnippets.size}개 task에 과거 컨텍스트 발견`,
+        });
+      }
+    } catch (ragErr) {
+      logger.warn(`RAG retrieval 실패 (non-fatal): ${toErrorMessage(ragErr)}`);
+      await ragEmbedder?.dispose().catch(() => {});
+      ragStore?.close();
+      ragEmbedder = undefined;
+      ragStore = undefined;
+    }
+  }
+
   // ── F8~F14: 프로젝트별 패턴 학습 (non-fatal) ─────────────────────────────
   if (request.executionMode !== "stub") {
     const cwd = request.userRequest.cwd ?? process.cwd();
@@ -951,6 +1050,11 @@ export const orchestratePipeline = async (
   }
 
   // ── Step 6: 실행 루프 ────────────────────────────────────────────────────
+  let tokensAddedByRagContext = 0;
+  let tokensSavedByCache = 0;
+  let cacheHitCount = 0;
+  let ragContextInjected = false;
+
   for (const { stage, tasks } of stages) {
     logger.info(`단계 ${stage} 실행 중 — 작업 ${tasks.length}개`);
 
@@ -1026,6 +1130,9 @@ export const orchestratePipeline = async (
 
         if (f2Validity === "auto") {
           const cachedOutput = (cachedTask!.taskResult.raw_output as string) ?? "";
+          const taskTokenEst = (cachedTask!.taskResult.token_estimate_total as number | undefined) ?? 0;
+          tokensSavedByCache += taskTokenEst;
+          cacheHitCount += 1;
           state = markTaskCompleted(state, task.id, cachedOutput, task.type, task, {
             adapter: request.adapter,
             ...(adapterModel ? { adapterModel } : {}),
@@ -1124,7 +1231,30 @@ export const orchestratePipeline = async (
         compiledPrompt.language !== "en"
           ? "Respond entirely in Korean.\n\n"
           : "";
-      const ragContext = formatRagSnippetsForPrompt(ragSnippets);
+
+      // Budget Gate — per-task ragContext 결정
+      const taskSnippets = perTaskSnippets.get(task.id) ?? [];
+      const ragContextRaw = formatRagSnippetsForPrompt(taskSnippets);
+      const ragTokensForTask = countRagContextTokens(ragContextRaw);
+      let ragContext = "";
+      if (ragContextRaw && ragTokensForTask > 0) {
+        const projectedAdded = tokensAddedByRagContext + ragTokensForTask;
+        const projectedSaved = sumCachedTaskTokens(f2PreScanHits);
+        const sessionCount = await countPriorSessions(
+          state.shared_context.project_id as string | undefined,
+        );
+        const inColdStart = sessionCount < COLD_START_THRESHOLD;
+        const block =
+          projectedAdded > PER_SESSION_TOKEN_CAP ||
+          ragTokensForTask > PER_TASK_TOKEN_CAP ||
+          (!inColdStart && projectedAdded > projectedSaved * RAG_BREAK_EVEN_RATIO);
+        if (!block) {
+          ragContext = ragContextRaw;
+          tokensAddedByRagContext += ragTokensForTask;
+          ragContextInjected = true;
+        }
+      }
+
       const prompt = `${responseLanguageInstruction}${ragContext ? `${ragContext}\n\n` : ""}[${task.type.toUpperCase()}] ${task.title}\n\nContext: ${executionContext.context_summary}`;
       logger.info(`작업 [${task.id}] 실행 중 type=${task.type}`);
       await emitProgressWithLogging( {
@@ -1275,6 +1405,26 @@ export const orchestratePipeline = async (
     }
   }
 
+  // ── Token/Cost Accounting 집계 ────────────────────────────────────────────
+  const tokenAccounting = computeNetTokens(tokensSavedByCache, tokensAddedByRagContext);
+  const costEstimate = computeCostUsd({
+    savedInTokens: tokensSavedByCache,
+    savedOutTokens: 0,
+    addedInTokens: tokensAddedByRagContext,
+    adapter: request.adapter,
+    ...(adapterModel ? { adapterModel } : {}),
+  });
+  const costAccounting: import("../utils/tokenAccounting.js").CostAccounting = {
+    costSavedUsd: costEstimate.costSavedUsd,
+    costAddedUsd: costEstimate.costAddedUsd,
+    compressionCostUsd: 0,
+    netCostSavedUsd: costEstimate.netCostSavedUsd,
+  };
+  const lightQuality: import("../utils/tokenAccounting.js").LightQualityCounters = {
+    ragContextInjected,
+    cacheHitRate: graph.tasks.length > 0 ? cacheHitCount / graph.tasks.length : 0,
+  };
+
   return {
     ok: allOk,
     mode: request.mode,
@@ -1301,5 +1451,8 @@ export const orchestratePipeline = async (
     progressLog,
     ...(resumeHint ? { resumeHint } : {}),
     ...(semanticContext ? { semanticContext } : {}),
+    tokenAccounting,
+    costAccounting,
+    lightQuality,
   };
 };

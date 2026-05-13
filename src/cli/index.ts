@@ -14,6 +14,7 @@ import { runSessionResetCommand } from "./commands/session-reset.js";
 import { runModelResetCommand } from "./commands/model-reset.js";
 import { runSessionForkCommand } from "./commands/session-fork.js";
 import { runCheckpointRestoreCommand } from "./commands/checkpoint-restore.js";
+import { runMemoryDisableCommand, runMemoryPurgeAllCommand } from "./commands/memory.js";
 import { startRepl } from "./repl/index.js";
 import { colors } from "./colors.js";
 import { runModelSetupIfNeeded } from "./model-setup/index.js";
@@ -147,6 +148,22 @@ const main = async (): Promise<void> => {
     if (!result.ok) {
       process.exitCode = 1;
     }
+    return;
+  }
+
+  if (args.command === "memory-disable") {
+    const result = await runMemoryDisableCommand();
+    console.log(args.human ? result.message : JSON.stringify(result, null, 2));
+    if (!result.ok) process.exitCode = 1;
+    return;
+  }
+
+  if (args.command === "memory-purge-all") {
+    const result = await runMemoryPurgeAllCommand(
+      ...(args.skipConfirm ? [{ skipConfirm: true as const }] : [{}]),
+    );
+    console.log(args.human ? result.message : JSON.stringify(result, null, 2));
+    if (!result.ok) process.exitCode = 1;
     return;
   }
 

@@ -7,6 +7,7 @@ import type { PtyTranscript } from "../../integrations/subprocess/types.js";
 import type { PtyEvent } from "../../integrations/subprocess/types.js";
 import type { ActionTimelineEvent, ActionTimelineSink } from "../timeline/types.js";
 import type { TokenReductionSnapshot } from "../utils/tokenMetrics.js";
+import type { TokenAccounting, CostAccounting, LightQualityCounters } from "../utils/tokenAccounting.js";
 
 export const AdapterValues = ["codex", "gemini", "claude"] as const;
 export type Adapter = (typeof AdapterValues)[number];
@@ -118,4 +119,7 @@ export interface PipelineExecutionResult {
   cacheHit?: CacheHitInfo;
   resumeHint?: ResumeHintInfo;
   semanticContext?: SemanticContextResult[];
+  tokenAccounting?: TokenAccounting;
+  costAccounting?: CostAccounting;
+  lightQuality?: LightQualityCounters;
 }
