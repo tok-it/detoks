@@ -36,6 +36,15 @@ export class SessionStateManager {
     return join(SESSIONS_DIR, `${sessionId}.tmp.json`);
   }
 
+  private static isProcessAlive(pid: number): boolean {
+    try {
+      process.kill(pid, 0);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   private static async acquireLock(sessionId: string, retryDepth = 0): Promise<void> {
     if (retryDepth > MAX_LOCK_RETRIES) {
       throw new StateLockError(
@@ -49,14 +58,24 @@ export class SessionStateManager {
     try {
       // O_EXCL: 파일이 이미 존재하면 즉시 실패 — atomic check-and-create
       fd = await fs.open(lockFile, 'wx');
-      await fd.writeFile(String(Date.now()));
+      // PID를 기록해 다른 인스턴스가 lock 보유자 생존 여부를 확인할 수 있게 한다.
+      await fd.writeFile(String(process.pid));
     } catch (error: unknown) {
       const nodeError = error as NodeJS.ErrnoException;
       if (nodeError.code === 'EEXIST') {
-        // 잠금 파일 존재 — stale 여부 확인
+        // 잠금 파일 존재 — stale 여부 확인 (PID 우선, mtime 보조)
         try {
-          const stat = await fs.stat(lockFile);
-          if (Date.now() - stat.mtimeMs > LOCK_STALE_TIMEOUT_MS) {
+          const [content, stat] = await Promise.all([
+            fs.readFile(lockFile, 'utf8').catch(() => ''),
+            fs.stat(lockFile),
+          ]);
+          const ownerPid = parseInt(content.trim(), 10);
+          const isStale =
+            // 보유 프로세스가 이미 종료된 경우
+            (!isNaN(ownerPid) && !this.isProcessAlive(ownerPid)) ||
+            // PID를 읽을 수 없거나 타임아웃을 넘긴 경우 (보조 조건)
+            (isNaN(ownerPid) && Date.now() - stat.mtimeMs > LOCK_STALE_TIMEOUT_MS);
+          if (isStale) {
             await fs.unlink(lockFile);
             return this.acquireLock(sessionId, retryDepth + 1);
           }
