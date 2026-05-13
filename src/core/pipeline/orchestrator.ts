@@ -31,6 +31,8 @@ import { SemanticRetriever } from "../rag/semantic-retriever.js";
 import { EmbeddingIndexer } from "../rag/embedding-indexer.js";
 import { RagContextLoader, formatRagSnippetsForPrompt } from "../rag/rag-context-loader.js";
 import type { RagSnippet } from "../rag/rag-context-loader.js";
+import { TaskSequenceMiner } from "../rag/task-sequence-miner.js";
+import { FailurePatternAnalyzer } from "../rag/failure-pattern-analyzer.js";
 import type { PtyTranscript } from "../../integrations/subprocess/types.js";
 import type { SessionState } from "../../schemas/pipeline.js";
 import type {
@@ -820,6 +822,40 @@ export const orchestratePipeline = async (
     status: "end",
     message: "State Manager: 세션 상태 준비 완료",
   });
+
+  // ── F8+F9: 시퀀스 예측 & 실패 패턴 경고 (non-fatal) ──────────────────────
+  if (request.executionMode !== "stub") {
+    const cwd = request.userRequest.cwd ?? process.cwd();
+    const sessionsDir = resolveSessionsDir(cwd);
+    try {
+      const miner = new TaskSequenceMiner(sessionsDir);
+      const firstTaskType = graph.tasks[0]?.type;
+      if (firstTaskType) {
+        const predicted = await miner.predictNext([firstTaskType]);
+        if (predicted) {
+          await emitProgressWithLogging({
+            stage: "Task Graph Builder",
+            status: "info",
+            message: `패턴 예측: ${firstTaskType} 다음은 ${predicted} 가능성 높음`,
+          });
+        }
+      }
+    } catch { /* non-fatal */ }
+
+    try {
+      const analyzer = new FailurePatternAnalyzer(sessionsDir);
+      for (const task of graph.tasks.slice(0, 3)) {
+        const warning = await analyzer.getWarning(task.type, request.adapter);
+        if (warning) {
+          await emitProgressWithLogging({
+            stage: "Executor",
+            status: "info",
+            message: warning,
+          });
+        }
+      }
+    } catch { /* non-fatal */ }
+  }
 
   // ── Step 6: 실행 루프 ────────────────────────────────────────────────────
   for (const { stage, tasks } of stages) {
