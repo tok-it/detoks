@@ -975,18 +975,19 @@ export const orchestratePipeline = async (
       const sessionsDir = resolveSessionsDir(cwd);
       const loader = new RagContextLoader(sessionsDir);
 
+      if (!semanticContext) semanticContext = [];
       for (const task of tasksNeedingExecution) {
         if (!RAG_ELIGIBLE_TYPES.has(task.type)) continue;
         const queryText = `${task.type} ${task.title}`;
         const hits = await retriever.hybridSearch(queryText, 5);
         if (hits.length > 0) {
-          semanticContext = hits.map((h) => ({
+          semanticContext.push(...hits.map((h) => ({
             id: h.id,
             distance: h.distance,
             kind: h.meta.kind as SemanticContextResult["kind"],
             session_id: h.meta.session_id as string,
             ...(h.meta.task_id ? { task_id: h.meta.task_id as string } : {}),
-          }));
+          })));
           const snippets = await loader.load(hits.slice(0, 1));
           if (snippets.length > 0) perTaskSnippets.set(task.id, snippets);
         }
