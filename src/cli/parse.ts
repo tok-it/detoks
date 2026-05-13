@@ -294,6 +294,8 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
   let verbose = false;
   let trace = false;
   let noCache = false;
+  let memoryPurgeAll = false;
+  let skipConfirm = false;
   let tui: CliArgs["tui"] = undefined;
   let presentationMode: CliArgs["presentationMode"] = undefined;
 
@@ -320,6 +322,16 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
 
     if (current === "--human") {
       human = true;
+      continue;
+    }
+
+    if (current === "--all" && positionals[0] === "memory") {
+      memoryPurgeAll = true;
+      continue;
+    }
+
+    if (current === "--yes" && positionals[0] === "memory") {
+      skipConfirm = true;
       continue;
     }
 
@@ -659,27 +671,35 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
   if (first === "memory") {
     const sub = positionals[1];
     if (sub === "disable") {
+      if (memoryPurgeAll || skipConfirm) {
+        throw new Error("memory disable은 --all 또는 --yes를 지원하지 않습니다. detoks memory disable [--human]");
+      }
       return {
         mode: "run",
         adapter,
         executionMode,
         verbose,
         trace,
+        ...(human ? { human } : {}),
         showHelp: false,
         command: "memory-disable",
       };
     }
     if (sub === "purge") {
+      if (!memoryPurgeAll) {
+        throw new Error("memory purge에는 --all 플래그가 필요합니다. detoks memory purge --all");
+      }
       return {
         mode: "run",
         adapter,
         executionMode,
         verbose,
         trace,
+        ...(human ? { human } : {}),
         showHelp: false,
         command: "memory-purge-all",
-        memoryPurgeAll: argv.includes("--all"),
-        skipConfirm: argv.includes("--yes"),
+        memoryPurgeAll,
+        skipConfirm,
       };
     }
     throw new Error(`알 수 없는 memory 하위 명령: ${sub ?? "(없음)"}. detoks memory disable | purge --all`);
