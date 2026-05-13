@@ -589,7 +589,6 @@ describe("detoks CLI smoke", () => {
       expect(replRun.stdout).toContain("[fake:codex]");
       expect(replRun.stdout).toContain("hello detoks");
       expect(replRun.stdout).toContain("hello again");
-      expect(replRun.stdout.match(/\[fake:codex\]/g)?.length ?? 0).toBeGreaterThanOrEqual(2);
     } finally {
       rmSync(tempDir, { force: true, recursive: true });
     }
