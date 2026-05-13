@@ -35,6 +35,7 @@ import { TaskSequenceMiner } from "../rag/task-sequence-miner.js";
 import { FailurePatternAnalyzer } from "../rag/failure-pattern-analyzer.js";
 import { WorkflowTemplateBuilder } from "../rag/workflow-template-builder.js";
 import { AdapterStatsLearner } from "../rag/adapter-stats-learner.js";
+import { ProjectMemory } from "../rag/project-memory.js";
 import type { PtyTranscript } from "../../integrations/subprocess/types.js";
 import type { SessionState } from "../../schemas/pipeline.js";
 import type {
@@ -825,64 +826,64 @@ export const orchestratePipeline = async (
     message: "State Manager: 세션 상태 준비 완료",
   });
 
-  // ── F8+F9: 시퀀스 예측 & 실패 패턴 경고 (non-fatal) ──────────────────────
+  // ── F8~F14: 프로젝트별 패턴 학습 (non-fatal) ─────────────────────────────
   if (request.executionMode !== "stub") {
     const cwd = request.userRequest.cwd ?? process.cwd();
     const sessionsDir = resolveSessionsDir(cwd);
-    try {
-      const miner = new TaskSequenceMiner(sessionsDir);
-      const firstTaskType = graph.tasks[0]?.type;
-      if (firstTaskType) {
+    const projectId = state.shared_context.project_id as string | undefined;
+    const projectMemory = new ProjectMemory(sessionsDir, projectId);
+    const firstTaskType = graph.tasks[0]?.type;
+
+    // F8: 시퀀스 예측
+    if (firstTaskType) {
+      try {
+        const miner = new TaskSequenceMiner(sessionsDir);
         const predicted = await miner.predictNext([firstTaskType]);
         if (predicted) {
           await emitProgressWithLogging({
-            stage: "Task Graph Builder",
-            status: "info",
+            stage: "Task Graph Builder", status: "info",
             message: `패턴 예측: ${firstTaskType} 다음은 ${predicted} 가능성 높음`,
           });
         }
-      }
-    } catch { /* non-fatal */ }
+      } catch { /* non-fatal */ }
+    }
 
+    // F9: 실패 패턴 경고 (project_id 격리)
     try {
-      const analyzer = new FailurePatternAnalyzer(sessionsDir);
+      const failStats = await projectMemory.getFailureStats();
       for (const task of graph.tasks.slice(0, 3)) {
-        const warning = await analyzer.getWarning(task.type, request.adapter);
-        if (warning) {
+        const entry = failStats.find((s) => s.taskType === task.type && s.adapter === request.adapter);
+        if (entry && entry.failureRate >= 0.2) {
+          const pct = Math.round(entry.failureRate * 100);
           await emitProgressWithLogging({
-            stage: "Executor",
-            status: "info",
-            message: warning,
+            stage: "Executor", status: "info",
+            message: `⚠️ ${task.type} × ${request.adapter} 실패율 ${pct}% (${entry.failCount}/${entry.totalCount}건)`,
           });
         }
       }
     } catch { /* non-fatal */ }
 
-    // F11: 워크플로우 템플릿 매칭
-    try {
-      const firstTaskType = graph.tasks[0]?.type;
-      if (firstTaskType) {
-        const templateBuilder = new WorkflowTemplateBuilder(sessionsDir);
-        const suggestion = await templateBuilder.suggest([firstTaskType]);
+    // F11: 워크플로우 템플릿 매칭 (project_id 격리)
+    if (firstTaskType) {
+      try {
+        const suggestion = await projectMemory.getWorkflowSuggestion([firstTaskType]);
         if (suggestion) {
           await emitProgressWithLogging({
-            stage: "Task Graph Builder",
-            status: "info",
+            stage: "Task Graph Builder", status: "info",
             message: `워크플로우 템플릿 매칭: [${suggestion.typeSequence.join(" → ")}] (${suggestion.count}회 사용)`,
           });
         }
-      }
-    } catch { /* non-fatal */ }
+      } catch { /* non-fatal */ }
+    }
 
-    // F13+F14: Adapter 토큰 통계 학습 — budget 힌트 emit
+    // F13+F14: Adapter 토큰 통계 (project_id 격리)
     try {
-      const statsLearner = new AdapterStatsLearner(sessionsDir);
-      const budget = await statsLearner.estimateBudget(request.adapter);
-      if (budget && budget.estimatedInputTokens > 0) {
+      const adapterStats = await projectMemory.getAdapterStats();
+      const adapterStat = adapterStats.find((s) => s.adapter === request.adapter);
+      if (adapterStat && adapterStat.avgInputTokens > 0) {
         await emitProgressWithLogging({
-          stage: "Context Optimizer",
-          status: "info",
-          message: `${request.adapter} 평균 입력 ${Math.round(budget.estimatedInputTokens)} 토큰, 평균 압축율 ${Math.round(budget.estimatedReductionRatio * 100)}%`,
+          stage: "Context Optimizer", status: "info",
+          message: `${request.adapter} 평균 입력 ${Math.round(adapterStat.avgInputTokens)} 토큰, 압축율 ${Math.round(adapterStat.avgReductionRatio * 100)}%`,
         });
       }
     } catch { /* non-fatal */ }
