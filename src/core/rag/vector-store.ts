@@ -1,7 +1,23 @@
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
-import Database from "better-sqlite3";
-import * as sqliteVec from "sqlite-vec";
+import { createRequire } from "node:module";
+
+// Runtime-only: loaded via createRequire to avoid tsc resolving native modules
+// at install time (prepare script runs tsc before native addons are built on CI)
+const _require = createRequire(import.meta.url);
+
+interface _Db {
+  exec(sql: string): void;
+  prepare<T = unknown>(sql: string): _Stmt<T>;
+  close(): void;
+}
+interface _Stmt<T = unknown> {
+  get(...params: unknown[]): T | undefined;
+  all(...params: unknown[]): T[];
+  run(...params: unknown[]): { lastInsertRowid: number | bigint };
+}
+interface _DbCtor { new(path: string): _Db; }
+interface _SqliteVec { load(db: _Db): void; }
 
 const vecToJson = (v: Float32Array): string => JSON.stringify(Array.from(v));
 
@@ -19,7 +35,7 @@ export interface SearchResult {
 }
 
 export class VectorStore {
-  private db: Database.Database | null = null;
+  private db: _Db | null = null;
 
   constructor(
     private readonly dbPath: string,
@@ -28,8 +44,10 @@ export class VectorStore {
 
   open(): void {
     mkdirSync(dirname(this.dbPath), { recursive: true });
-    this.db = new Database(this.dbPath);
-    sqliteVec.load(this.db);
+    const Ctor = _require("better-sqlite3") as _DbCtor;
+    const vec = _require("sqlite-vec") as _SqliteVec;
+    this.db = new Ctor(this.dbPath);
+    vec.load(this.db);
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS embedding_meta (
         rowid  INTEGER PRIMARY KEY,
@@ -49,7 +67,7 @@ export class VectorStore {
     this.db = null;
   }
 
-  private get conn(): Database.Database {
+  private get conn(): _Db {
     if (!this.db) throw new Error("VectorStore not opened");
     return this.db;
   }
@@ -57,7 +75,7 @@ export class VectorStore {
   upsert(id: string, vector: Float32Array, meta: EmbeddingMeta): void {
     const db = this.conn;
     const existing = db
-      .prepare<[string], { rowid: number }>("SELECT rowid FROM embedding_meta WHERE id = ?")
+      .prepare<{ rowid: number }>("SELECT rowid FROM embedding_meta WHERE id = ?")
       .get(id);
 
     if (existing) {
@@ -96,8 +114,9 @@ export class VectorStore {
     if (filter?.kind) params.push(filter.kind);
     if (filter?.session_id) params.push(filter.session_id);
 
+    type Row = { id: string; distance: number; kind: string; session_id: string; task_id: string | null };
     const rows = db
-      .prepare<unknown[], { id: string; distance: number; kind: string; session_id: string; task_id: string | null }>(
+      .prepare<Row>(
         `SELECT m.id, v.distance, m.kind, m.session_id, m.task_id
          FROM vec_index v
          JOIN embedding_meta m ON m.rowid = v.rowid
@@ -106,7 +125,7 @@ export class VectorStore {
          ORDER BY v.distance
          LIMIT ?`,
       )
-      .all(...params, k);
+      .all(...params, k) as Row[];
 
     return rows.map((r) => ({
       id: r.id,
@@ -122,7 +141,7 @@ export class VectorStore {
   delete(id: string): void {
     const db = this.conn;
     const row = db
-      .prepare<[string], { rowid: number }>("SELECT rowid FROM embedding_meta WHERE id = ?")
+      .prepare<{ rowid: number }>("SELECT rowid FROM embedding_meta WHERE id = ?")
       .get(id);
     if (!row) return;
     db.prepare("DELETE FROM vec_index WHERE rowid = ?").run(row.rowid);
