@@ -10,6 +10,14 @@ export class ClaudeStubAdapter implements CliAdapter {
 
   buildSubprocessRequest(request: AdapterExecutionRequest) {
     if (request.presentationMode === "passthrough") {
+      // passthrough 모드는 prompt를 CLI 인자로 전달하므로 OS ARG_MAX 제한을 받는다.
+      const promptBytes = Buffer.byteLength(request.prompt ?? "", "utf8");
+      if (promptBytes > 200_000) {
+        throw new Error(
+          `passthrough 모드에서 prompt가 너무 큽니다 (${promptBytes} bytes). ` +
+          `200,000 bytes 이하로 줄이거나 embedded-pane 모드를 사용하세요.`,
+        );
+      }
       return {
         command: "claude",
         args: [

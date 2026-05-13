@@ -11,6 +11,13 @@ export class CodexStubAdapter implements CliAdapter {
     const reasoningEffort = getCodexReasoningEffortOverride();
 
     if (request.presentationMode === "passthrough") {
+      const promptBytes = Buffer.byteLength(request.prompt ?? "", "utf8");
+      if (promptBytes > 200_000) {
+        throw new Error(
+          `passthrough 모드에서 prompt가 너무 큽니다 (${promptBytes} bytes). ` +
+          `200,000 bytes 이하로 줄이거나 embedded-pane 모드를 사용하세요.`,
+        );
+      }
       return {
         command: "codex",
         args: [
