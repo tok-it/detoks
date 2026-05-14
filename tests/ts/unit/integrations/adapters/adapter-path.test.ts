@@ -167,7 +167,7 @@ describe("adapter subprocess path", () => {
     });
   });
 
-  it("builds codex embedded-pane subprocess requests as one-shot stdin prompts", () => {
+  it("builds codex embedded-pane subprocess requests for interactive approval", () => {
     const adapter = new CodexStubAdapter();
     expect(
       adapter.buildSubprocessRequest({
@@ -181,6 +181,8 @@ describe("adapter subprocess path", () => {
     ).toEqual({
       command: "codex",
       args: [
+        "--ask-for-approval",
+        "on-request",
         "exec",
         "--model",
         "gpt-5",
@@ -191,6 +193,7 @@ describe("adapter subprocess path", () => {
       ],
       cwd: "/tmp",
       input: "",
+      interactiveAfterInput: true,
     });
   });
 

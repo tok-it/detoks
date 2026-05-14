@@ -47,28 +47,37 @@ const wrapInputLines = (
   firstLineWidth: number,
   continuationWidth: number,
 ): WrappedInputLine[] => {
-  const chars = Array.from(input);
   const lines: WrappedInputLine[] = [];
-  let currentText = "";
-  let currentWidth = 0;
+  const normalizedInput = input.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  const logicalLines = normalizedInput.split("\n");
+
   let currentLimit = firstLineWidth;
 
-  for (const char of chars) {
-    const charWidth = isWideCharacter(char) ? 2 : 1;
+  for (const logicalLine of logicalLines) {
+    const chars = Array.from(logicalLine);
+    let currentText = "";
+    let currentWidth = 0;
 
-    if (currentText.length > 0 && currentWidth + charWidth > currentLimit) {
-      lines.push({ text: currentText, width: currentWidth });
-      currentText = "";
-      currentWidth = 0;
-      currentLimit = continuationWidth;
+    for (const char of chars) {
+      const charWidth = isWideCharacter(char) ? 2 : 1;
+
+      if (currentText.length > 0 && currentWidth + charWidth > currentLimit) {
+        lines.push({ text: currentText, width: currentWidth });
+        currentText = "";
+        currentWidth = 0;
+        currentLimit = continuationWidth;
+      }
+
+      currentText += char;
+      currentWidth += charWidth;
     }
 
-    currentText += char;
-    currentWidth += charWidth;
+    lines.push({ text: currentText, width: currentWidth });
+    currentLimit = continuationWidth;
   }
 
-  if (currentText.length > 0 || lines.length === 0) {
-    lines.push({ text: currentText, width: currentWidth });
+  if (lines.length === 0) {
+    lines.push({ text: "", width: 0 });
   }
 
   return lines;

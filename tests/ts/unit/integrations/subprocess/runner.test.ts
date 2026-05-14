@@ -113,6 +113,55 @@ describe("createRealSubprocessRunner", () => {
     10_000,
   );
 
+  it("keeps the PTY open after prompt submission when interactiveAfterInput is enabled", async () => {
+    const dir = tempDirs.at(-1)!;
+    const codexScript = join(dir, "codex");
+    writeFileSync(
+      codexScript,
+      [
+        "#!/usr/bin/env node",
+        'let input = "";',
+        'process.stdin.setEncoding("utf8");',
+        'process.stdin.on("data", (chunk) => {',
+        "  input += chunk;",
+        "  process.stdout.write('approval required\\n');",
+        "});",
+        'process.stdin.on("end", () => {',
+        "  process.stdout.write('stdin-ended\\n');",
+        "});",
+        "setTimeout(() => {",
+        "  process.stdout.write(input);",
+        "  process.exit(0);",
+        "}, 60);",
+        "process.stdin.resume();",
+      ].join("\n"),
+      "utf8",
+    );
+    chmodSync(codexScript, 0o755);
+
+    let capturedController: { write: (data: string) => void } | null = null;
+    const runner = createPtySubprocessRunner({
+      onController: (controller) => {
+        capturedController = controller;
+      },
+    });
+    const result = await runner.runWithTranscript({
+      command: "codex",
+      args: ["exec", "-", "--sandbox", "workspace-write"],
+      input: "hello\n",
+      interactiveAfterInput: true,
+      env: {
+        ...process.env,
+        PATH: `${dir}:${process.env.PATH ?? ""}`,
+      },
+    });
+
+    expect(capturedController).not.toBeNull();
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain("approval required");
+    expect(result.stdout).not.toContain("stdin-ended");
+  }, 10_000);
+
   it("streams Codex JSON output without waiting for a PTY wrapper", async () => {
     const dir = tempDirs.at(-1)!;
     const codexScript = join(dir, "codex");

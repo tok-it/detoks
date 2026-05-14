@@ -134,6 +134,25 @@ describe("executeWithAdapter", () => {
     );
   });
 
+  it("threads PTY controller hooks into the real subprocess runner", async () => {
+    const onPtyController = vi.fn();
+
+    await executeWithAdapter({
+      adapter: "codex",
+      mode: "run",
+      executionMode: "real",
+      prompt: "hello controller",
+      verbose: false,
+      onPtyController,
+    });
+
+    expect(subprocessMocks.createPtyRunner).toHaveBeenCalledWith(
+      expect.objectContaining({
+        onController: onPtyController,
+      }),
+    );
+  });
+
   it("preserves transcript data when the real path exposes it", async () => {
     const result = await executeWithAdapter({
       adapter: "codex",

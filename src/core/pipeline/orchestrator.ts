@@ -1070,6 +1070,7 @@ export const orchestratePipeline = async (
         ...(request.userRequest.cwd ? { cwd: request.userRequest.cwd } : {}),
         sessionId,
         ...(request.onAdapterEvent ? { onAdapterEvent: request.onAdapterEvent } : {}),
+        ...(request.onPtyController ? { onPtyController: request.onPtyController } : {}),
         onActionTimelineEvent: emitActionTimelineWithLogging,
       });
       adapterTranscript = mergePtyTranscripts(adapterTranscript, execResult.transcript);

@@ -72,6 +72,7 @@ import {
 } from "../config/config-manager.js";
 import { loadAndApplyConfig } from "../config/loader.js";
 import type { PipelineProgressEvent } from "../../core/pipeline/types.js";
+import type { PtySessionController } from "../../integrations/subprocess/types.js";
 
 interface TuiRunOptions {
   adapter: CliArgs["adapter"];
@@ -243,6 +244,7 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
     let isInputSuspended = false;
     let isPasting = false;
     let embeddedNativeCliSession: EmbeddedNativeCliSession | null = null;
+    let activeAdapterController: PtySessionController | null = null;
     let pendingNativeEscapeReturn = false;
     let pendingNativeEscapeTimer: NodeJS.Timeout | undefined;
     let executionClockStartedAt: number | null = null;
@@ -392,6 +394,18 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
     const buildEmbeddedActivityLines = (width: number): string[] => {
       if (width <= 0) {
         return [];
+      }
+
+      const interactionState =
+        activeRunBlock?.status === "running" ? activeRunBlock.pane.getInteractionState(width) : null;
+      if (interactionState?.kind === "approval") {
+        const approvalLine = truncateToDisplayWidth(
+          `현재 활동: ${interactionState.label} · ${interactionState.detail ?? "승인 대기 중"} · 진행 중`,
+          width,
+        );
+        return [
+          colors.warning(padDisplayWidth(approvalLine, width)),
+        ].slice(0, getEmbeddedActivityRows());
       }
 
       const activity = activeRunBlock?.pane.getActivitySnapshot(width);
@@ -566,6 +580,20 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
         embeddedNativeCliSession?.close();
       }
       embeddedNativeCliSession = null;
+    };
+
+    const closeActiveAdapterController = (signal?: NodeJS.Signals): void => {
+      if (signal !== undefined) {
+        activeAdapterController?.kill(signal);
+      } else {
+        activeAdapterController?.close();
+      }
+      activeAdapterController = null;
+    };
+
+    const closeExecutionControllers = (signal?: NodeJS.Signals): void => {
+      closeEmbeddedNativeCliSession(signal);
+      closeActiveAdapterController(signal);
     };
 
     const clearExecutionClock = (): void => {
@@ -908,12 +936,22 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
         }
 
         // Embedded pane: forward raw bytes to child while adapter-terminal is focused
-        if (
-          embeddedPaneMode &&
-          embeddedTerminalFocus.focus === "adapter-terminal" &&
-          embeddedNativeCliSession !== null
-        ) {
-          embeddedNativeCliSession.write(text);
+        if (embeddedPaneMode && embeddedTerminalFocus.focus === "adapter-terminal") {
+          if (text === "\x07") {
+            clearNativeEscapeTimer();
+            embeddedTerminalFocus.focusDetoks();
+            renderInteractiveInput();
+            return;
+          }
+
+          if (activeAdapterController !== null) {
+            activeAdapterController.write(text);
+            return;
+          }
+
+          if (embeddedNativeCliSession !== null) {
+            embeddedNativeCliSession.write(text);
+          }
         }
         return;
       }
@@ -940,7 +978,7 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
           }
 
           if (char === "\x03") {
-            closeEmbeddedNativeCliSession("SIGINT");
+            closeExecutionControllers("SIGINT");
             running = false;
             needsFullRender = true;
             i++;
@@ -1191,7 +1229,7 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
             needsFullRender = true;
           } else if (char === "\x03") {
             // Ctrl+C: close any active embedded session before exiting
-            closeEmbeddedNativeCliSession("SIGINT");
+            closeExecutionControllers("SIGINT");
             running = false;
             needsFullRender = true;
           } else if (char === "\r" || char === "\n") {
@@ -1327,7 +1365,7 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
               shouldRestoreMainScreen = true;
             },
             onAdapterChange: async (newAdapter) => {
-              closeEmbeddedNativeCliSession();
+              closeExecutionControllers();
               currentAdapter = newAdapter;
               loadAndApplyConfig(newAdapter);
               updateSelectedAdapter(newAdapter);
@@ -1367,7 +1405,7 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
         }
 
         if (embeddedPaneMode) {
-          closeEmbeddedNativeCliSession();
+          closeExecutionControllers();
           embeddedTerminalFocus.focusDetoks();
         }
         transcriptPanel.clear();
@@ -1409,6 +1447,9 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
           ...request,
           ...(options.presentationMode ? { presentationMode: options.presentationMode } : {}),
           onProgress,
+          onPtyController: (controller) => {
+            activeAdapterController = controller;
+          },
           onAdapterEvent: (event) => {
             receivedLiveAdapterEvents = true;
             if (nativePassthroughMode) {
@@ -1417,6 +1458,13 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
 
             if (embeddedPaneMode) {
               embeddedTerminalPane.addEvent(event);
+              const interactionState = embeddedTerminalPane.getInteractionState();
+              if (
+                interactionState?.kind === "approval" &&
+                embeddedTerminalFocus.focus !== "adapter-terminal"
+              ) {
+                embeddedTerminalFocus.focusNative();
+              }
             } else {
               transcriptPanel.addEvent(event);
             }
@@ -1471,9 +1519,7 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
         currentRunBlock.completedAt = Date.now();
         setStickyPromptFromRun(currentRunBlock);
         if (embeddedPaneMode) {
-          closeEmbeddedNativeCliSession();
-        }
-        if (embeddedPaneMode) {
+          closeExecutionControllers();
           embeddedTerminalFocus.focusDetoks();
         }
         currentTokenSavingsLabel = result.cacheHit
@@ -1515,6 +1561,10 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
         render();
       } finally {
         clearExecutionClock();
+        closeActiveAdapterController();
+        if (embeddedPaneMode) {
+          embeddedTerminalFocus.focusDetoks();
+        }
         resumeInput();
         isExecuting = false;
       }
@@ -1523,7 +1573,7 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
     stdin.on("data", onData);
     stdin.on("end", () => {
       clearNativeEscapeTimer();
-      closeEmbeddedNativeCliSession();
+      closeExecutionControllers();
       running = false;
     });
 

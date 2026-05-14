@@ -154,6 +154,23 @@ const CONVERSATION_ROLE_PATTERNS = [
   /^tokens used$/i,
 ] as const;
 
+const APPROVAL_PROMPT_PATTERNS = [
+  /\bapproval\b/i,
+  /\bapprove\b/i,
+  /\bconfirm\b/i,
+  /\ballow\b/i,
+  /\bproceed\b/i,
+] as const;
+
+const APPROVAL_PROMPT_HINT_PATTERNS = [
+  /\by\/n\b/i,
+  /\byes\/no\b/i,
+  /\[y\/n\]/i,
+  /\[y\/N\]/i,
+  /\benter\b/i,
+  /\bcontinue\b/i,
+] as const;
+
 interface RenderedRowInfo {
   cells: TerminalCell[];
   plainText: string;
@@ -167,6 +184,12 @@ export interface EmbeddedActivitySnapshot {
   label: string;
   detail: string;
   status: "running" | "completed" | "failed";
+}
+
+export interface EmbeddedInteractionState {
+  kind: "none" | "approval";
+  label: string;
+  detail?: string;
 }
 
 const isMetaLine = (plainText: string): boolean =>
@@ -184,6 +207,16 @@ const looksLikeCommandLine = (plainText: string): boolean =>
 
 const isConversationRoleLine = (plainText: string): boolean =>
   plainText.length > 0 && CONVERSATION_ROLE_PATTERNS.some((pattern) => pattern.test(plainText));
+
+const isApprovalPromptLine = (plainText: string): boolean => {
+  if (plainText.length === 0) {
+    return false;
+  }
+
+  const hasApprovalVerb = APPROVAL_PROMPT_PATTERNS.some((pattern) => pattern.test(plainText));
+  const hasApprovalHint = APPROVAL_PROMPT_HINT_PATTERNS.some((pattern) => pattern.test(plainText));
+  return hasApprovalVerb && hasApprovalHint;
+};
 
 const extractCommandName = (commandLine: string): string => {
   const target = extractShellPayload(commandLine);
@@ -710,6 +743,34 @@ export class EmbeddedTerminalPane {
           label: row.plainText.startsWith("web search:") ? "웹 검색" : "도구 활동",
           detail: detail.length > 0 ? detail : "진행 중",
           status: "running",
+        };
+      }
+    }
+
+    return null;
+  }
+
+  getInteractionState(maxWidth = this.currentColumns): EmbeddedInteractionState | null {
+    if (!this.buffer.hasContent()) {
+      return null;
+    }
+
+    const { rows } = this.getRenderedRows(Math.max(1, maxWidth));
+    for (let index = rows.length - 1; index >= 0; index -= 1) {
+      const row = rows[index];
+      if (row === undefined || row.plainText.length === 0) {
+        continue;
+      }
+
+      if (isMetaLine(row.plainText) || isToolActivityLine(row.plainText) || isConversationRoleLine(row.plainText)) {
+        continue;
+      }
+
+      if (isApprovalPromptLine(row.plainText)) {
+        return {
+          kind: "approval",
+          label: "Codex 승인 대기",
+          detail: row.plainText,
         };
       }
     }

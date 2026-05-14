@@ -5,6 +5,7 @@ import type {
   PtyResult,
   PtyEvent,
   PtyTranscript,
+  PtySessionController,
 } from "./types.js";
 import { spawn } from "node:child_process";
 import { closeSync, existsSync, openSync, readSync, statSync } from "node:fs";
@@ -177,6 +178,7 @@ export const createRealSubprocessRunner = (): SubprocessRunner => ({
 
 interface PtyRunnerOptions {
   onEvent?: (event: PtyEvent) => void;
+  onController?: (controller: PtySessionController) => void;
   passthroughUi?: boolean;
 }
 
@@ -370,55 +372,82 @@ const runWithNodePty = (
     });
   }
 
-  return new Promise<PtyResult>((resolve) => {
-    let stdout = "";
-    let settled = false;
+  let resolveResult!: (value: PtyResult) => void;
+  const result = new Promise<PtyResult>((resolve) => {
+    resolveResult = resolve;
+  });
 
-    const finish = (code: number, timedOut: boolean): void => {
-      if (settled) {
-        return;
-      }
-      settled = true;
+  let stdout = "";
+  let settled = false;
 
-      const endTime = Date.now();
-      emitEvent({ type: "exit", data: String(code) });
+  const finish = (code: number, timedOut: boolean): void => {
+    if (settled) {
+      return;
+    }
+    settled = true;
 
-      resolve({
-        stdout,
-        stderr: "",
+    const endTime = Date.now();
+    emitEvent({ type: "exit", data: String(code) });
+
+    resolveResult({
+      stdout,
+      stderr: "",
+      exitCode: code,
+      timedOut,
+      transcript: {
+        events,
+        startTime,
+        endTime,
+        totalDuration: endTime - startTime,
         exitCode: code,
         timedOut,
-        transcript: {
-          events,
-          startTime,
-          endTime,
-          totalDuration: endTime - startTime,
-          exitCode: code,
-          timedOut,
-        },
-      });
-    };
-
-    ptyProcess.onData((data) => {
-      stdout += data;
-      emitEvent({ type: "chunk", stream: "stdout", data });
+      },
     });
+  };
 
-    ptyProcess.onExit(({ exitCode }) => {
-      finish(exitCode ?? 0, false);
-    });
+  const controller: PtySessionController = {
+    write: (data: string) => {
+      emitEvent({ type: "prompt", data });
+      ptyProcess.write(data);
+    },
+    resize: (columns: number, rows: number) => {
+      emitEvent({ type: "resize", columns, rows });
+      ptyProcess.resize(columns, rows);
+    },
+    close: () => {
+      ptyProcess.kill("SIGTERM");
+    },
+    kill: (signal: NodeJS.Signals = "SIGTERM") => {
+      ptyProcess.kill(signal);
+    },
+    result,
+  };
 
-    if (request.input !== undefined) {
-      emitEvent({ type: "prompt", data: request.input });
-      ptyProcess.write(request.input);
-      // One-shot PTY prompts need an explicit submit/EOF signal so terminal
-      // applications that read stdin can finish instead of waiting forever.
-      if (!request.input.endsWith("\r") && !request.input.endsWith("\n")) {
-        ptyProcess.write("\r");
-      }
+  options?.onController?.(controller);
+
+  ptyProcess.onData((data) => {
+    stdout += data;
+    emitEvent({ type: "chunk", stream: "stdout", data });
+  });
+
+  ptyProcess.onExit(({ exitCode }) => {
+    finish(exitCode ?? 0, false);
+  });
+
+  if (request.input !== undefined) {
+    emitEvent({ type: "prompt", data: request.input });
+    ptyProcess.write(request.input);
+    // One-shot PTY prompts need an explicit submit/EOF signal so terminal
+    // applications that read stdin can finish instead of waiting forever.
+    if (!request.input.endsWith("\r") && !request.input.endsWith("\n")) {
+      ptyProcess.write("\r");
+    }
+    if (request.interactiveAfterInput !== true) {
       ptyProcess.write("\x04");
     }
-  });
+  }
+
+  return result;
 };
 
 export const createPtySubprocessRunner = (

@@ -28,6 +28,8 @@ export class CodexStubAdapter implements CliAdapter {
       return {
         command: "codex",
         args: [
+          "--ask-for-approval",
+          "on-request",
           "exec",
           ...(reasoningEffort ? ["-c", `model_reasoning_effort=${reasoningEffort}`] : []),
           ...(request.model ? ["--model", request.model] : []),
@@ -38,6 +40,7 @@ export class CodexStubAdapter implements CliAdapter {
         ],
         ...(request.cwd !== undefined ? { cwd: request.cwd } : {}),
         input: request.prompt,
+        interactiveAfterInput: true,
       };
     }
 

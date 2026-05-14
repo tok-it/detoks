@@ -24,6 +24,7 @@ export const executeWithAdapter = async (request: ExecutorRequest): Promise<Exec
       ? createPtySubprocessRunner(
           {
             ...(request.onAdapterEvent ? { onEvent: request.onAdapterEvent } : {}),
+            ...(request.onPtyController ? { onController: request.onPtyController } : {}),
             ...(request.presentationMode === "passthrough" ? { passthroughUi: true } : {}),
           },
         )

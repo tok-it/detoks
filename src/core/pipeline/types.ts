@@ -3,8 +3,7 @@ import type { ProjectInfo } from "../state/SessionStateManager.js";
 import type { CompressTextImplementation } from "../prompt/compression.js";
 import type { TraceLog } from "../utils/PipelineTracer.js";
 import type { TokenMetricsSnapshot } from "../utils/tokenMetrics.js";
-import type { PtyTranscript } from "../../integrations/subprocess/types.js";
-import type { PtyEvent } from "../../integrations/subprocess/types.js";
+import type { PtyTranscript, PtyEvent, PtySessionController } from "../../integrations/subprocess/types.js";
 import type { ActionTimelineEvent, ActionTimelineSink } from "../timeline/types.js";
 import type { TokenReductionSnapshot } from "../utils/tokenMetrics.js";
 
@@ -43,6 +42,7 @@ export interface PipelineExecutionRequest {
   fetchImplementation?: typeof fetch;
   onProgress?: PipelineProgressHandler;
   onAdapterEvent?: (event: PtyEvent) => void;
+  onPtyController?: (controller: PtySessionController) => void;
   onActionTimelineEvent?: ActionTimelineSink;
 }
 

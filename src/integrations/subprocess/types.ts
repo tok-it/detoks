@@ -4,6 +4,7 @@ export interface SubprocessRequest {
   cwd?: string;
   env?: Record<string, string>;
   input?: string;
+  interactiveAfterInput?: boolean;
 }
 
 export interface SubprocessResult {
