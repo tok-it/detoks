@@ -1,5 +1,3 @@
-import { join } from "node:path";
-import { homedir } from "node:os";
 import { colors } from "../colors.js";
 import { TRANSLATION_MODELS, type TranslationModel } from "./models.js";
 import { selectModel } from "./select.js";
@@ -8,14 +6,13 @@ import { updateEnvFile } from "./env-writer.js";
 import { updateTranslationModel } from "../config/config-manager.js";
 import { readRole1ModelName } from "../../core/prompt/config.js";
 import { inspectLocalModelFile, shouldDownloadModelFile } from "./file-status.js";
+import {
+  getDetoksModelDir,
+  getDetoksModelFilePath,
+} from "../../core/model-store.js";
 
-const getModelsDir = () => join(homedir(), ".detoks", "models");
-
-const getModelFileStatus = (model: TranslationModel) => {
-  const modelsDir = getModelsDir();
-  const filePath = join(modelsDir, model.hfFile);
-  return inspectLocalModelFile(filePath);
-};
+const getModelFileStatus = (model: TranslationModel) =>
+  inspectLocalModelFile(getDetoksModelFilePath(model));
 
 export const runModelSetupIfNeeded = async (cwd: string = process.cwd()): Promise<void> => {
   const canPrompt =
@@ -69,6 +66,8 @@ export const runModelSetupIfNeeded = async (cwd: string = process.cwd()): Promis
 
   // 현재 프로세스의 환경변수도 업데이트
   process.env.LOCAL_LLM_MODEL_NAME = selectedModel.modelName;
+  process.env.LOCAL_LLM_MODEL_DIR = getDetoksModelDir(selectedModel);
+  process.env.LOCAL_LLM_MODEL_PATH = getDetoksModelFilePath(selectedModel);
   process.env.LOCAL_LLM_HF_REPO = `${selectedModel.hfRepo}:Q4_K_S`;
   process.env.LOCAL_LLM_HF_FILE = selectedModel.hfFile;
 

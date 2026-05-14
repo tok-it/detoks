@@ -24,20 +24,18 @@ afterEach(() => {
 });
 
 describe("downloadModel", () => {
-  it("downloads a GGUF file into ~/.detoks/models", async () => {
+  it("downloads a GGUF file into ~/.detoks/models/{author}/{repo}", async () => {
     const { home } = createWorkspace();
     vi.stubEnv("HOME", home);
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValue(
-        new Response(new Blob([Buffer.from("GGUF_test_payload")]), {
-          status: 200,
-          headers: {
-            "content-type": "application/octet-stream",
-          },
-        }),
-      ),
-    );
+    const fetchMock = vi.fn(async () => {
+      return new Response(new Blob([Buffer.from("GGUF_test_payload")]), {
+        status: 200,
+        headers: {
+          "content-type": "application/octet-stream",
+        },
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
     const stdoutWriteSpy = vi
       .spyOn(process.stdout, "write")
       .mockImplementation(() => true);
@@ -56,7 +54,12 @@ describe("downloadModel", () => {
       stdoutWriteSpy.mockRestore();
     }
 
-    const downloadedPath = join(home, ".detoks", "models", "test-model.gguf");
+    const modelDir = join(home, ".detoks", "models", "test", "repo");
+    const downloadedPath = join(modelDir, "test-model.gguf");
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://huggingface.co/test/repo/resolve/main/test-model.gguf",
+    );
     expect(existsSync(downloadedPath)).toBe(true);
     expect(readFileSync(downloadedPath, "utf8")).toBe("GGUF_test_payload");
   });

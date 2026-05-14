@@ -425,15 +425,14 @@ const ragContext = await ragModel.createEmbeddingContext();
 
 ### 6.2 GGUF 모델 파일 관리
 
-기존 Role 1 모델도 GGUF로 관리됨. 동일 디렉토리 구조에 추가:
+기존 Role 1 모델도 GGUF로 관리됨. `.detoks/models` 아래에서 Hugging Face repo의 author/repo 단위로 모델 디렉토리를 분리한다:
 
 ```
 .detoks/
 └── models/
-    ├── role1/           ← 기존
-    │   └── Qwen2.5-0.5B-Instruct-Q8_0.gguf
-    └── embedding/       ← 신규
-        └── bge-m3-Q8_0.gguf
+    └── <author>/
+        └── <repo-name>/
+            └── model.gguf
 ```
 
 ### 6.3 sqlite-vec 통합

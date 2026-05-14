@@ -1,7 +1,6 @@
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { tmpdir } from "node:os";
-import { homedir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { afterEach, describe, expect, it } from "vitest";
 import {
 	loadRole1Policies,
@@ -49,7 +48,15 @@ describe("loadRole1RuntimeConfig", () => {
 		expect(config.localLlmSleepIdleSeconds).toBe(1200);
 		expect(config.localLlmMaxTokens).toBe(512);
 		expect(config.localLlmReasoning).toBe("off");
-		expect(config.localLlmModelDir).toBe(join(homedir(), ".detoks", "models"));
+		expect(config.localLlmModelDir).toBe(
+			join(
+				homedir(),
+				".detoks",
+				"models",
+				"mradermacher",
+				"gemma-4-e2b-it-heretic-ara-GGUF",
+			),
+		);
 		expect(config.localLlmHfRepo).toBe(
 			"mradermacher/gemma-4-e2b-it-heretic-ara-GGUF:Q4_K_S",
 		);

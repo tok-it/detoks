@@ -63,6 +63,7 @@ This document defines the current detoks runtime contract for the prebuilt `llam
 | `LOCAL_LLM_REASONING`          | `off`                                                 | llama.cpp reasoning mode for chat templates                     |
 | `LOCAL_LLM_HF_REPO`            | `mradermacher/gemma-4-e2b-it-heretic-ara-GGUF:Q4_K_S` | Hugging Face GGUF repo and quant used when no model path exists |
 | `LOCAL_LLM_HF_FILE`            | `gemma-4-e2b-it-heretic-ara.Q4_K_S.gguf`              | Exact Hugging Face GGUF file                                    |
+| `LOCAL_LLM_MODEL_DIR`          | `~/.detoks/models/<author>/<repo>`                    | Local model folder containing the GGUF file                     |
 | `LOCAL_LLM_MODEL_PATH`         | unset                                                 | Optional local GGUF model path                                  |
 | `LOCAL_LLM_MODEL_URL`          | unset                                                 | Optional download URL when model path is missing                |
 | `REQUEST_TIMEOUT`              | `30000`                                               | Client-side request timeout in milliseconds                     |
@@ -88,6 +89,7 @@ Behavior:
 - If `LOCAL_LLM_MODEL_PATH` exists, start `llama-server -m <path>`
 - If `LOCAL_LLM_MODEL_PATH` is missing and `LOCAL_LLM_MODEL_URL` is set, download the GGUF file first
 - If no local model path is set, start `llama-server -hf <LOCAL_LLM_HF_REPO> --hf-file <LOCAL_LLM_HF_FILE>`
+- Interactive model setup stores each GGUF under `~/.detoks/models/<author>/<repo>/`
 - Pass `--alias <LOCAL_LLM_MODEL_NAME>` so `/v1/models` can be verified against the expected model id
 - Pass `--host`, `--port`, `--ctx-size`, `--top-k`, `--top-p`, `--reasoning`, and `--sleep-idle-seconds` from the current runtime config
 - Pass `--gpu-layers <LOCAL_LLM_GPU_LAYERS>`, default `all`, so Metal or GPU offload is requested on supported builds
