@@ -42,10 +42,7 @@ describe("downloadModel", () => {
 
     try {
       await downloadModel({
-        id: "test-model",
         displayName: "Test Model",
-        description: "download smoke test",
-        modelName: "test/model",
         role: "llm",
         hfRepo: "test/repo",
         hfFile: "test-model.gguf",
