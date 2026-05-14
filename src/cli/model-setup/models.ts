@@ -61,7 +61,7 @@ export const KURE_EMBEDDING_MODEL: EmbeddingModel = {
   id: "kure-v1",
   displayName: "KURE-v1 (한국어 임베딩, nlpai-lab)",
   role: "embedding",
-  hfRepo: "nlpai-lab/KURE-v1",
+  hfRepo: "mykor/KURE-v1-gguf",
   hfFile: "KURE-v1-Q4_K_M.gguf",
   sizeMb: 500,
 };
