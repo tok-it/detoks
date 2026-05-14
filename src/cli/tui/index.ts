@@ -42,6 +42,7 @@ import {
   type EmbeddedNativeCliSession,
 } from "./native-cli-session.js";
 import { formatEmbeddedTerminalFocusHint } from "./embedded-terminal.js";
+import { buildExecutionApprovalLines } from "./approval-prompt.js";
 import {
   createPinnedViewportState,
   resolveViewportWindow,
@@ -83,6 +84,34 @@ interface TuiRunOptions {
   presentationMode?: CliArgs["presentationMode"];
 }
 
+type RunBlockStatus = "pending-approval" | "running" | "completed" | "failed" | "cancelled";
+
+interface TuiRunBlock {
+  id: string;
+  index: number;
+  prompt: string;
+  status: RunBlockStatus;
+  createdAt: number;
+  completedAt?: number | undefined;
+  pane: EmbeddedTerminalPane;
+  summaryLines: string[];
+}
+
+interface StickyPromptState {
+  runId: string;
+  prompt: string;
+  status: RunBlockStatus;
+}
+
+const truncateToDisplayWidth = (text: string, width: number): string => {
+  if (width <= 0) {
+    return "";
+  }
+
+  const [firstLine = ""] = wrapTextToDisplayWidth(text, width);
+  return firstLine;
+};
+
 const formatTokenSavingsBadge = (reduction?: TokenReductionSnapshot | null): string | undefined => {
   if (!reduction) {
     return undefined;
@@ -104,8 +133,8 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
   const decoder = new StringDecoder("utf8");
   let currentAdapter = options.adapter;
   let currentAdapterModel = options.adapterModel ?? getAdapterModel(currentAdapter);
-  let currentTranslationModel = options.translationModel ?? getTranslationModel();
-  let currentVerbose = options.verbose;
+    let currentTranslationModel = options.translationModel ?? getTranslationModel();
+    let currentVerbose = options.verbose;
   let currentCacheDisabled = false;
   let currentInferenceStrength =
     currentAdapter === "codex"
@@ -204,7 +233,7 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
     const pipelinePanel = new PipelineStatusPanel();
     const transcriptPanel = new TranscriptPanel();
     const resultPanel = new ResultSummaryPanel();
-    const embeddedTerminalPane = new EmbeddedTerminalPane();
+    let embeddedTerminalPane = new EmbeddedTerminalPane();
     const embeddedTerminalFocus = createEmbeddedTerminalFocusManager();
     let hasExecuted = false;
     let lastInputSeparatorRow = -1;
@@ -220,8 +249,86 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
     let executionClockTimer: NodeJS.Timeout | undefined;
     let forceFullRender = false;
     let scrollViewportState = createPinnedViewportState();
-    let lastSubmittedPrompt: string | null = null;
+    let pendingApprovalPrompt: string | null = null;
+    let skipApprovalLineFeed = false;
     let pendingMouseInputSequence = "";
+    let runBlocks: TuiRunBlock[] = [];
+    let activeRunBlock: TuiRunBlock | null = null;
+    let stickyPrompt: StickyPromptState | null = null;
+
+    const getStickyPromptText = (): string | null => stickyPrompt?.prompt ?? pendingApprovalPrompt;
+
+    const getStickyPromptStatus = (): string => {
+      if (stickyPrompt !== null) {
+        switch (stickyPrompt.status) {
+          case "pending-approval":
+            return "실행 확인 대기 · Enter 실행 · Esc 편집 복귀";
+          case "running":
+            return "실행 중";
+          case "completed":
+            return "완료";
+          case "failed":
+            return "실패";
+          case "cancelled":
+            return "취소됨";
+        }
+      }
+
+      if (pendingApprovalPrompt !== null) {
+        return "실행 확인 대기 · Enter 실행 · Esc 편집 복귀";
+      }
+
+      return hasExecuted ? "최근 실행 완료" : "첫 프롬프트를 입력하세요";
+    };
+
+    const getEmbeddedStickyRows = (): number => 4;
+    const getEmbeddedActivityRows = (): number => 1;
+    const getEmbeddedFixedRows = (): number => getEmbeddedStickyRows() + getEmbeddedActivityRows();
+
+    const setStickyPromptFromRun = (run: TuiRunBlock): void => {
+      stickyPrompt = {
+        runId: run.id,
+        prompt: run.prompt,
+        status: run.status,
+      };
+    };
+
+    const createRunBlock = (prompt: string): TuiRunBlock => {
+      const index = runBlocks.length + 1;
+      return {
+        id: `run-${Date.now()}-${index}`,
+        index,
+        prompt,
+        status: "running",
+        createdAt: Date.now(),
+        pane: new EmbeddedTerminalPane(),
+        summaryLines: [],
+      };
+    };
+
+    const registerRunBlock = (prompt: string, status: RunBlockStatus): TuiRunBlock => {
+      const block = createRunBlock(prompt);
+      block.status = status;
+      runBlocks.push(block);
+      activeRunBlock = block;
+      embeddedTerminalPane = block.pane;
+      setStickyPromptFromRun(block);
+      return block;
+    };
+
+    const updateActiveRunBlockStatus = (status: RunBlockStatus): void => {
+      if (activeRunBlock === null) {
+        return;
+      }
+
+      activeRunBlock.status = status;
+      if (status === "running") {
+        activeRunBlock.completedAt = undefined;
+      } else {
+        activeRunBlock.completedAt = Date.now();
+      }
+      setStickyPromptFromRun(activeRunBlock);
+    };
 
     const buildSectionDivider = (label: string, width: number): string => {
       if (width <= 0) {
@@ -251,32 +358,159 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
       return wrapped;
     };
 
-    const buildScrollableContentLines = (width: number): string[] => {
+    const buildStickyPromptLines = (width: number): string[] => {
+      if (width <= 0) {
+        return [];
+      }
+
+      const promptText = getStickyPromptText();
+      const statusText = getStickyPromptStatus();
+      const lines: string[] = [];
+
+      if (promptText === null) {
+        lines.push(buildSectionDivider("Sticky Prompt", width));
+        lines.push(
+          ...buildWrappedBlock(
+            [hasExecuted ? "최근 실행 결과를 준비하는 중입니다." : "첫 프롬프트를 입력하세요."],
+            width,
+          ).map((line) => colors.muted(line)),
+        );
+        lines.push(colors.muted(padDisplayWidth(`상태: ${statusText}`, width)));
+        lines.push(" ".repeat(width));
+        return lines.slice(0, getEmbeddedStickyRows());
+      }
+
+      lines.push(buildSectionDivider("Sticky Prompt", width));
+      lines.push(
+        ...buildWrappedBlock(promptText.split("\n"), width, "> ").slice(0, Math.max(0, getEmbeddedStickyRows() - 2)),
+      );
+      lines.push(colors.muted(padDisplayWidth(`상태: ${statusText}`, width)));
+      lines.push(" ".repeat(width));
+      return lines.slice(0, getEmbeddedStickyRows());
+    };
+
+    const buildEmbeddedActivityLines = (width: number): string[] => {
+      if (width <= 0) {
+        return [];
+      }
+
+      const activity = activeRunBlock?.pane.getActivitySnapshot(width);
+      if (activity === null || activity === undefined) {
+        return [
+          colors.muted(padDisplayWidth("현재 활동: 대기", width)),
+        ].slice(0, getEmbeddedActivityRows());
+      }
+
+      const statusLabel =
+        activity.status === "running" ? "진행 중" : activity.status === "completed" ? "완료" : "실패";
+      const compactLine = truncateToDisplayWidth(
+        `현재 활동: ${activity.label} · ${activity.detail} · ${statusLabel}`,
+        width,
+      );
+      return [
+        activity.status === "failed"
+          ? colors.error(padDisplayWidth(compactLine, width))
+          : colors.muted(padDisplayWidth(compactLine, width)),
+      ].slice(0, getEmbeddedActivityRows());
+    };
+
+    const buildRunSummaryLines = (run: TuiRunBlock, width: number): string[] => {
+      if (run.status === "pending-approval") {
+        return buildExecutionApprovalLines(width).map((line) => line);
+      }
+
+      if (run.status === "running" && activeRunBlock?.id === run.id) {
+        const currentSummary = resultPanel.getLines();
+        if (currentSummary.length > 0) {
+          return currentSummary;
+        }
+      }
+
+      if (run.summaryLines.length > 0) {
+        return run.summaryLines;
+      }
+
+      if (run.status === "cancelled") {
+        return ["실행이 취소되었습니다."];
+      }
+
+      if (run.status === "failed") {
+        return ["실행이 실패했습니다."];
+      }
+
+      if (run.status === "running") {
+        return ["", "  Waiting for adapter CLI to finish…"];
+      }
+
+      return ["실행 결과가 아직 없습니다."];
+    };
+
+    const buildRunBlockLines = (run: TuiRunBlock, width: number): string[] => {
       if (width <= 0) {
         return [];
       }
 
       const lines: string[] = [];
+      lines.push(buildSectionDivider(`Run #${run.index}`, width));
+      lines.push(colors.muted(padDisplayWidth(`상태: ${getStickyPromptStatusForRun(run)}`, width)));
+      lines.push(buildSectionDivider(`Prompt #${run.index}`, width));
+      lines.push(...buildWrappedBlock(run.prompt.split("\n"), width, "> "));
+      lines.push(buildSectionDivider(`Original CLI #${run.index}`, width));
 
-      if (lastSubmittedPrompt !== null) {
-        lines.push(buildSectionDivider("Prompt", width));
-        lines.push(...buildWrappedBlock(lastSubmittedPrompt.split("\n"), width, "> "));
-        lines.push(colors.header("─".repeat(width)));
-        lines.push(" ".repeat(width));
+      if (run.status === "pending-approval") {
+        lines.push(
+          ...buildWrappedBlock(
+            ["실행 확인 대기 중 · Enter로 실행 · Esc로 편집 복귀"],
+            width,
+          ).map((line) => colors.muted(line)),
+        );
+      } else {
+        const cliLines = run.pane.getRenderableLines(width).map((line) => line.text);
+        lines.push(...cliLines);
       }
 
-      lines.push(...embeddedTerminalPane.getRenderableLines(width).map((line) => line.text));
-      lines.push(" ".repeat(width));
-      lines.push(buildSectionDivider("Summary", width));
-
-      const summaryLines = resultPanel.getLines();
-      if (summaryLines.length === 0 && !isExecuting) {
-        lines.push(...buildWrappedBlock([
-          "실행 결과가 아직 없습니다.",
-          "첫 실행 이후 작업 타임라인 · 다음 작업 · 사용량/압축 지표가 이 영역에 표시됩니다.",
-        ], width).map((line) => colors.muted(line)));
-      } else {
+      lines.push(buildSectionDivider(`Summary #${run.index}`, width));
+      const summaryLines = buildRunSummaryLines(run, width);
+      if (summaryLines.length > 0) {
         lines.push(...buildWrappedBlock(summaryLines, width));
+      }
+      lines.push(" ".repeat(width));
+      return lines;
+    };
+
+    const getStickyPromptStatusForRun = (run: TuiRunBlock): string => {
+      switch (run.status) {
+        case "pending-approval":
+          return "실행 확인 대기";
+        case "running":
+          return "실행 중";
+        case "completed":
+          return "완료";
+        case "failed":
+          return "실패";
+        case "cancelled":
+          return "취소됨";
+      }
+    };
+
+    const buildScrollableContentLines = (width: number): string[] => {
+      if (width <= 0) {
+        return [];
+      }
+
+      if (runBlocks.length === 0) {
+        return buildWrappedBlock(
+          [
+            "실행 히스토리가 아직 없습니다.",
+            "프롬프트를 실행하면 여기 아래에 RunBlock이 누적됩니다.",
+          ],
+          width,
+        ).map((line) => colors.muted(line));
+      }
+
+      const lines: string[] = [];
+      for (const run of runBlocks) {
+        lines.push(...buildRunBlockLines(run, width));
       }
 
       return lines;
@@ -288,7 +522,7 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
       const bannerRows = Math.min(3, Math.max(0, inputLayout.separatorRow));
       const statusRegionStart = bannerRows;
       const statusRegionEnd = Math.min(inputLayout.separatorRow, statusRegionStart + 8);
-      const contentHeight = Math.max(0, inputLayout.separatorRow - statusRegionEnd);
+      const contentHeight = Math.max(0, inputLayout.separatorRow - statusRegionEnd - getEmbeddedFixedRows());
       const totalLines = buildScrollableContentLines(dims.columns).length;
       scrollViewportState = scrollViewportBy(totalLines, contentHeight, scrollViewportState, deltaRows);
     };
@@ -411,7 +645,9 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
     const renderBanner = (): void => {
       const dims = screen.getDimensions();
       const browsingHistoryHint =
-        embeddedPaneMode && !scrollViewportState.pinnedToBottom
+        stickyPrompt?.status === "pending-approval" || pendingApprovalPrompt !== null
+          ? "실행 대기 중 · Enter 실행 · Esc 편집 복귀"
+          : embeddedPaneMode && !scrollViewportState.pinnedToBottom
           ? "기록 탐색 중 · ↑↓ PgUp/PgDn/휠 · End로 최신으로 이동"
           : "첫 프롬프트를 입력하면 아래 패널이 채워집니다 · /... 자동완성 · q 종료";
       const bannerLines = [
@@ -516,6 +752,9 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
         inputLayout.separatorRow,
         contentRegionStart + transcriptRows,
       );
+      const stickyRows = embeddedPaneMode ? getEmbeddedFixedRows() : 0;
+      const stickyRegionStart = contentRegionStart;
+      const stickyRegionEnd = Math.min(inputLayout.separatorRow, stickyRegionStart + stickyRows);
 
       // Render structure (minimal - no borders)
       renderScreenBorder(ctx);
@@ -528,12 +767,36 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
       };
       pipelinePanel.render(ctx, statusRegion);
 
-      const transcriptRegion = {
-        startRow: contentRegionStart,
-        endRow: embeddedPaneMode ? inputLayout.separatorRow : transcriptRegionEnd,
-        columns: dims.columns,
-      };
       if (embeddedPaneMode) {
+        const stickyRegion = {
+          startRow: stickyRegionStart,
+          endRow: stickyRegionEnd,
+          columns: dims.columns,
+        };
+        const stickyLines = [
+          ...buildStickyPromptLines(stickyRegion.columns),
+          ...buildEmbeddedActivityLines(stickyRegion.columns),
+        ];
+        let stickyRow = stickyRegion.startRow;
+        for (const line of stickyLines.slice(0, Math.max(0, stickyRegion.endRow - stickyRegion.startRow))) {
+          if (stickyRow >= stickyRegion.endRow) {
+            break;
+          }
+          screen.cursorMoveTo(stickyRow, 0);
+          screen.write(line);
+          stickyRow += 1;
+        }
+        while (stickyRow < stickyRegion.endRow) {
+          screen.cursorMoveTo(stickyRow, 0);
+          screen.write(" ".repeat(stickyRegion.columns));
+          stickyRow += 1;
+        }
+
+        const transcriptRegion = {
+          startRow: stickyRegionEnd,
+          endRow: inputLayout.separatorRow,
+          columns: dims.columns,
+        };
         const contentLines = buildScrollableContentLines(transcriptRegion.columns);
         const viewport = resolveViewportWindow(
           contentLines.length,
@@ -560,12 +823,17 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
           row += 1;
         }
 
-        const transcriptRows = Math.max(1, Math.ceil(availableContentRows * 0.7));
+        const transcriptRows = Math.max(1, Math.ceil(Math.max(0, availableContentRows - stickyRows) * 0.7));
         embeddedTerminalPane.resize(transcriptRegion.columns, transcriptRows);
         if (embeddedNativeCliSession !== null) {
           embeddedNativeCliSession?.resize(transcriptRegion.columns, transcriptRows);
         }
       } else {
+        const transcriptRegion = {
+          startRow: contentRegionStart,
+          endRow: transcriptRegionEnd,
+          columns: dims.columns,
+        };
         transcriptPanel.render(ctx, transcriptRegion);
       }
 
@@ -658,6 +926,56 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
       // Process text, handling both escape sequences and individual characters
       while (i < text.length) {
         let handled = false;
+
+        if (pendingApprovalPrompt !== null) {
+          const char = text.charAt(i);
+          if (skipApprovalLineFeed) {
+            if (char === "\n") {
+              skipApprovalLineFeed = false;
+              i++;
+              continue;
+            }
+
+            skipApprovalLineFeed = false;
+          }
+
+          if (char === "\x03") {
+            closeEmbeddedNativeCliSession("SIGINT");
+            running = false;
+            needsFullRender = true;
+            i++;
+            continue;
+          }
+
+          if (char === "\r" || char === "\n") {
+            const approvedPrompt = pendingApprovalPrompt;
+            pendingApprovalPrompt = null;
+            skipApprovalLineFeed = false;
+            if (approvedPrompt !== null) {
+              executePrompt(approvedPrompt, activeRunBlock ?? undefined);
+            }
+            i++;
+            continue;
+          }
+
+          if (char === "\x1b") {
+            if (activeRunBlock !== null) {
+              activeRunBlock.status = "cancelled";
+              activeRunBlock.completedAt = Date.now();
+              activeRunBlock.summaryLines = ["실행이 취소되었습니다."];
+              setStickyPromptFromRun(activeRunBlock);
+            }
+            input = pendingApprovalPrompt;
+            pendingApprovalPrompt = null;
+            skipApprovalLineFeed = false;
+            render();
+            i++;
+            continue;
+          }
+
+          i++;
+          continue;
+        }
 
         // Check for escape sequences first (multi-character sequences)
         // Must be processed as atomic units before character-by-character handling
@@ -892,7 +1210,22 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
                       slashAutocompleteSelectedIndex,
                     )?.usage ?? input
                   : input;
-              executePrompt(resolvedPrompt);
+              const normalizedPrompt = resolvedPrompt.trim();
+              const shouldRequestApproval =
+                embeddedPaneMode &&
+                options.executionMode === "real" &&
+                normalizedPrompt.length > 0 &&
+                !normalizedPrompt.startsWith("/");
+
+              if (shouldRequestApproval) {
+                hasExecuted = true;
+                registerRunBlock(resolvedPrompt, "pending-approval");
+                pendingApprovalPrompt = resolvedPrompt;
+                skipApprovalLineFeed = char === "\r";
+                render();
+              } else {
+                executePrompt(resolvedPrompt);
+              }
               input = ""; // Clear input for next prompt
               slashAutocompleteSelectedIndex = 0;
             }
@@ -962,15 +1295,14 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
     };
 
     // Phase 3: Execute prompt function
-    const executePrompt = async (prompt: string): Promise<void> => {
+    const executePrompt = async (prompt: string, runBlock?: TuiRunBlock): Promise<void> => {
       isExecuting = true;
       hasExecuted = true;
-      lastSubmittedPrompt = prompt;
-      scrollViewportState = scrollViewportToBottom();
+      const normalizedPrompt = prompt.trim();
+      let currentRunBlock: TuiRunBlock | null = runBlock ?? null;
       const workspaceBefore = captureWorkspaceSnapshot(executionCwd);
       let receivedLiveAdapterEvents = false;
       try {
-        const normalizedPrompt = prompt.trim();
         if (normalizedPrompt.startsWith("/")) {
           let shouldRestoreMainScreen = false;
           const previousState = {
@@ -1027,13 +1359,18 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
           return;
         }
 
-        // Clear previous results
+        currentRunBlock = runBlock ?? registerRunBlock(prompt, "running");
+        if (currentRunBlock.status !== "running") {
+          updateActiveRunBlockStatus("running");
+        } else {
+          setStickyPromptFromRun(currentRunBlock);
+        }
+
         if (embeddedPaneMode) {
           closeEmbeddedNativeCliSession();
           embeddedTerminalFocus.focusDetoks();
         }
         transcriptPanel.clear();
-        embeddedTerminalPane.clear();
         resultPanel.clear();
         if (embeddedPaneMode) {
           resultPanel.setExecuting(true);
@@ -1124,10 +1461,15 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
         const actionTimeline = buildActionTimeline(result, workspaceDiff);
 
         // Phase 3.4: Display result
-        resultPanel.setResult({
+        const completedResult = {
           ...result,
           ...(actionTimeline.length > 0 ? { actionTimeline } : {}),
-        });
+        };
+        resultPanel.setResult(completedResult);
+        currentRunBlock.summaryLines = resultPanel.getLines();
+        currentRunBlock.status = completedResult.ok ? "completed" : "failed";
+        currentRunBlock.completedAt = Date.now();
+        setStickyPromptFromRun(currentRunBlock);
         if (embeddedPaneMode) {
           closeEmbeddedNativeCliSession();
         }
@@ -1155,6 +1497,16 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
         // Display error
         const errorMsg = formatError(error, currentVerbose);
         resultPanel.clear();
+        if (currentRunBlock !== null) {
+          currentRunBlock.status = "failed";
+          currentRunBlock.completedAt = Date.now();
+          currentRunBlock.summaryLines = [
+            `✗ 실패  어댑터: ${currentAdapter}  세션: ${options.sessionId ?? "new"}`,
+            `요약: ${errorMsg}`,
+            "다음 작업: 입력을 수정한 뒤 다시 시도하세요.",
+          ];
+          setStickyPromptFromRun(currentRunBlock);
+        }
         if (embeddedPaneMode) {
           embeddedTerminalPane.appendFinalAnswer(`\n[ERROR] ${errorMsg}\n`);
         } else {

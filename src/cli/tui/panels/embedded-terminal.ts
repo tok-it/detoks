@@ -120,6 +120,410 @@ const META_LINE_PATTERNS = [
   /^session id:/,
 ] as const;
 
+const TOOL_ACTIVITY_PATTERNS = [
+  /^web search:/i,
+  /^tool_search:/i,
+  /^mcp\b/i,
+  /^todo_list\b/i,
+] as const;
+
+const COMMAND_STATUS_PATTERNS = [
+  /^succeeded in \d+ms:?$/i,
+  /^failed in \d+ms:?$/i,
+  /^exit code \d+$/i,
+] as const;
+
+const COMMAND_LINE_PATTERNS = [
+  /^\/bin\/(zsh|bash|sh)\b/i,
+  /^rg\b/i,
+  /^grep\b/i,
+  /^find\b/i,
+  /^git\b/i,
+  /^npm\b/i,
+  /^npx\b/i,
+  /^node\b/i,
+  /^python(?:3)?\b/i,
+  /^bun\b/i,
+  /^yarn\b/i,
+  /^pnpm\b/i,
+] as const;
+
+const CONVERSATION_ROLE_PATTERNS = [
+  /^codex$/i,
+  /^user$/i,
+  /^tokens used$/i,
+] as const;
+
+interface RenderedRowInfo {
+  cells: TerminalCell[];
+  plainText: string;
+  globalRow: number;
+}
+
+export type EmbeddedActivityKind = "file" | "search" | "tool" | "test" | "git" | "command";
+
+export interface EmbeddedActivitySnapshot {
+  kind: EmbeddedActivityKind;
+  label: string;
+  detail: string;
+  status: "running" | "completed" | "failed";
+}
+
+const isMetaLine = (plainText: string): boolean =>
+  plainText.length > 0 &&
+  (plainText === "--------" || META_LINE_PATTERNS.some((pattern) => pattern.test(plainText)));
+
+const isToolActivityLine = (plainText: string): boolean =>
+  plainText.length > 0 && TOOL_ACTIVITY_PATTERNS.some((pattern) => pattern.test(plainText));
+
+const isCommandStatusLine = (plainText: string): boolean =>
+  plainText.length > 0 && COMMAND_STATUS_PATTERNS.some((pattern) => pattern.test(plainText));
+
+const looksLikeCommandLine = (plainText: string): boolean =>
+  plainText.length > 0 && COMMAND_LINE_PATTERNS.some((pattern) => pattern.test(plainText));
+
+const isConversationRoleLine = (plainText: string): boolean =>
+  plainText.length > 0 && CONVERSATION_ROLE_PATTERNS.some((pattern) => pattern.test(plainText));
+
+const extractCommandName = (commandLine: string): string => {
+  const target = extractShellPayload(commandLine);
+  const firstToken = target.split(/\s+/)[0] ?? target;
+  const basename = firstToken.split("/").pop() ?? firstToken;
+  return basename.length > 0 ? basename : "command";
+};
+
+const extractShellPayload = (commandLine: string): string => {
+  const trimmed = commandLine.trim();
+  const shellMatch = trimmed.match(/\s-lc\s+(?:"((?:\\.|[^"\\])*)"|'([^']*)'|(\S.*?))(?:\s+in\s+\/.*)?$/);
+  if (shellMatch) {
+    return (shellMatch[1] ?? shellMatch[2] ?? shellMatch[3] ?? trimmed)
+      .replace(/\\"/g, "\"")
+      .replace(/\\'/g, "'")
+      .trim();
+  }
+
+  return trimmed.replace(/\s+in\s+\/.*$/, "").trim();
+};
+
+const extractPathCandidate = (commandLine: string): string | null => {
+  const payload = extractShellPayload(commandLine);
+  const pathMatches = payload.match(/(?:~\/|\/|\.\.?\/)[^\s"'`]+/g);
+  if (pathMatches !== null && pathMatches.length > 0) {
+    return pathMatches[pathMatches.length - 1] ?? null;
+  }
+
+  const tokens = payload.split(/\s+/).filter(Boolean);
+  const likelyPath = [...tokens].reverse().find((token) =>
+    /[./]/.test(token) && /\.(?:[cm]?[jt]sx?|json|md|yml|yaml|toml|lock|txt|css|html|py|rs|go|java|swift)$/i.test(token),
+  );
+  return likelyPath?.replace(/[;:,]+$/, "") ?? null;
+};
+
+const extractSearchQuery = (commandLine: string): string | null => {
+  const payload = extractShellPayload(commandLine);
+  const quoted = payload.match(/\b(?:rg|grep)\b(?:\s+-\S+)*\s+(?:"([^"]+)"|'([^']+)')/i);
+  if (quoted) {
+    return quoted[1] ?? quoted[2] ?? null;
+  }
+
+  const tokens = payload.split(/\s+/).filter(Boolean);
+  const commandIndex = tokens.findIndex((token) => /^(rg|grep)$/i.test(token.split("/").pop() ?? token));
+  if (commandIndex >= 0) {
+    return tokens.slice(commandIndex + 1).find((token) => !token.startsWith("-"))?.replace(/[;:,]+$/, "") ?? null;
+  }
+
+  return null;
+};
+
+const describeCommandActivity = (commandLine: string): Omit<EmbeddedActivitySnapshot, "status"> => {
+  const payload = extractShellPayload(commandLine);
+  const commandName = extractCommandName(commandLine);
+  const path = extractPathCandidate(commandLine);
+
+  if (/\b(sed|cat|less|head|tail)\b/i.test(payload) && path !== null) {
+    return { kind: "file", label: "파일 읽기", detail: path };
+  }
+
+  if (/\b(rg|grep|find)\b/i.test(payload)) {
+    const query = extractSearchQuery(commandLine);
+    return { kind: "search", label: "검색", detail: query ?? payload };
+  }
+
+  if (/\b(git)\b/i.test(payload)) {
+    return { kind: "git", label: "Git", detail: payload };
+  }
+
+  if (/\b(npm|npx|pnpm|yarn|node)\b/i.test(payload) && /\b(test|vitest|tsc|build)\b/i.test(payload)) {
+    return { kind: "test", label: "검증", detail: payload };
+  }
+
+  return { kind: "command", label: "명령 실행", detail: commandName };
+};
+
+const statusFromCommandStatusLine = (statusLine: string | null): EmbeddedActivitySnapshot["status"] => {
+  if (statusLine === null) {
+    return "running";
+  }
+
+  if (/^succeeded in/i.test(statusLine)) {
+    return "completed";
+  }
+
+  return "failed";
+};
+
+const summarizeCommandActivity = (
+  commandLine: string,
+  maxWidth: number,
+  status: EmbeddedActivitySnapshot["status"],
+): string => {
+  const activity = describeCommandActivity(commandLine);
+  const statusLabel = status === "running" ? "진행 중" : status === "completed" ? "완료" : "실패";
+  return truncateForSummary(`${activity.label}: ${activity.detail} · ${statusLabel}`, maxWidth);
+};
+
+const truncateForSummary = (text: string, maxWidth: number): string => {
+  if (maxWidth <= 0) {
+    return "";
+  }
+
+  if (text.length <= maxWidth) {
+    return text;
+  }
+
+  if (maxWidth <= 3) {
+    return ".".repeat(maxWidth);
+  }
+
+  return `${text.slice(0, maxWidth - 3)}...`;
+};
+
+const findMetaValue = (rows: RenderedRowInfo[], key: string): string | null => {
+  const matched = rows.find((row) => row.plainText.startsWith(key));
+  if (!matched) {
+    return null;
+  }
+
+  const value = matched.plainText.slice(key.length).trim();
+  return value.length > 0 ? value : null;
+};
+
+const summarizeMetadataBlock = (rows: RenderedRowInfo[], maxWidth: number): string => {
+  const parts: string[] = [];
+  const header = rows.find((row) => /^OpenAI Codex\b/i.test(row.plainText));
+  if (header) {
+    parts.push("OpenAI Codex");
+  }
+
+  const model = findMetaValue(rows, "model:");
+  const provider = findMetaValue(rows, "provider:");
+  const sandbox = findMetaValue(rows, "sandbox:");
+  const approval = findMetaValue(rows, "approval:");
+
+  for (const value of [model, provider, sandbox, approval].filter((item): item is string => Boolean(item))) {
+    parts.push(value);
+  }
+
+  const summary = parts.length > 0 ? `세션 정보: ${parts.join(" · ")}` : "세션 정보";
+  return truncateForSummary(summary, maxWidth);
+};
+
+const summarizeToolActivityBlock = (rows: RenderedRowInfo[], maxWidth: number): string => {
+  const firstLine = rows[0]?.plainText ?? "";
+  const label = firstLine.startsWith("web search:")
+    ? "웹 검색"
+    : firstLine.startsWith("tool_search:")
+      ? "도구 검색"
+      : firstLine.startsWith("todo_list:")
+        ? "할일 도구"
+        : firstLine.startsWith("mcp")
+          ? "MCP 도구"
+          : "도구 활동";
+  const detail = firstLine.includes(":") ? firstLine.slice(firstLine.indexOf(":") + 1).trim() : "";
+  const summary = detail.length > 0
+    ? `${label} ${rows.length}건 · ${detail}`
+    : `${label} ${rows.length}건`;
+  return truncateForSummary(summary, maxWidth);
+};
+
+const summarizeCommandBlock = (rows: RenderedRowInfo[], maxWidth: number): string | null => {
+  if (rows.length < 2) {
+    return null;
+  }
+
+  const commandLine = rows[1]?.plainText.trim() ?? "";
+  if (!looksLikeCommandLine(commandLine)) {
+    return null;
+  }
+
+  const statusLine = rows.find((row, index) => index >= 2 && isCommandStatusLine(row.plainText))?.plainText ?? null;
+  const resultLines = rows
+    .slice(statusLine ? rows.findIndex((row, index) => index >= 2 && isCommandStatusLine(row.plainText)) + 1 : 2)
+    .map((row) => row.plainText)
+    .filter((line) => line.length > 0);
+
+  const commandName = extractCommandName(commandLine);
+  const statusLabel = statusLine === null
+    ? "실행"
+    : /^succeeded in/i.test(statusLine)
+      ? "성공"
+      : /^failed in/i.test(statusLine)
+        ? "실패"
+        : /^exit code\s+(\d+)$/i.test(statusLine)
+          ? `종료 코드 ${statusLine.match(/^exit code\s+(\d+)$/i)?.[1] ?? ""}`.trim()
+          : "실행";
+  const durationMatch = statusLine?.match(/in\s+(\d+)ms/i);
+  const duration = durationMatch?.[1] ? `${durationMatch[1]}ms` : null;
+  const parts = [`명령 실행: ${commandName}`];
+  if (statusLabel.length > 0) {
+    parts.push(statusLabel);
+  }
+  if (duration) {
+    parts.push(duration);
+  }
+  if (resultLines.length > 0) {
+    parts.push(`${resultLines.length}개 결과`);
+  }
+  return truncateForSummary(parts.join(" · "), maxWidth);
+};
+
+const findPendingCommandEnd = (rows: RenderedRowInfo[], startIndex: number): number => {
+  let cursor = startIndex;
+  while (cursor < rows.length) {
+    const text = rows[cursor]?.plainText ?? "";
+    if (
+      text === "exec" ||
+      isMetaLine(text) ||
+      isToolActivityLine(text) ||
+      isConversationRoleLine(text)
+    ) {
+      break;
+    }
+    cursor += 1;
+  }
+  return cursor;
+};
+
+const buildCompactRenderableLines = (
+  rows: RenderedRowInfo[],
+  maxWidth: number,
+  cursorColumn?: number,
+  cursorVisible?: boolean,
+  cursorGlobalRow?: number,
+): EmbeddedTerminalRenderableLine[] => {
+  const output: EmbeddedTerminalRenderableLine[] = [];
+
+  for (let index = 0; index < rows.length; ) {
+    const row = rows[index];
+    if (!row) {
+      index += 1;
+      continue;
+    }
+
+    if (isMetaLine(row.plainText)) {
+      const block: RenderedRowInfo[] = [row];
+      index += 1;
+      while (index < rows.length && rows[index] !== undefined && isMetaLine(rows[index]!.plainText)) {
+        block.push(rows[index]!);
+        index += 1;
+      }
+
+      output.push({
+        text: colors.muted(
+          padDisplayWidth(summarizeMetadataBlock(block, maxWidth), maxWidth),
+        ),
+      });
+      continue;
+    }
+
+    if (row.plainText === "exec") {
+      const commandBlock: RenderedRowInfo[] = [row];
+      if (index + 1 < rows.length && rows[index + 1] !== undefined) {
+        commandBlock.push(rows[index + 1]!);
+      }
+
+      let statusIndex = -1;
+      for (let lookahead = 2; lookahead < Math.min(rows.length - index, 8); lookahead += 1) {
+        const candidate = rows[index + lookahead];
+        if (candidate !== undefined && isCommandStatusLine(candidate.plainText)) {
+          commandBlock.push(candidate);
+          statusIndex = index + lookahead;
+          break;
+        }
+      }
+
+      if (statusIndex !== -1) {
+        let cursor = statusIndex + 1;
+        while (
+          cursor < rows.length &&
+          rows[cursor] !== undefined &&
+          rows[cursor]!.plainText.length > 0 &&
+          !isMetaLine(rows[cursor]!.plainText) &&
+          !isToolActivityLine(rows[cursor]!.plainText) &&
+          rows[cursor]!.plainText !== "exec"
+        ) {
+          commandBlock.push(rows[cursor]!);
+          cursor += 1;
+        }
+
+        const summary = summarizeCommandBlock(commandBlock, maxWidth);
+        if (summary !== null) {
+          output.push({
+            text: colors.header(padDisplayWidth(summary, maxWidth)),
+          });
+          index = cursor;
+          continue;
+        }
+      }
+
+      const commandLine = rows[index + 1]?.plainText.trim() ?? "";
+      if (looksLikeCommandLine(commandLine)) {
+        output.push({
+          text: colors.muted(
+            padDisplayWidth(summarizeCommandActivity(commandLine, maxWidth, "running"), maxWidth),
+          ),
+        });
+        index = findPendingCommandEnd(rows, index + 2);
+        continue;
+      }
+    }
+
+    if (isToolActivityLine(row.plainText)) {
+      const block: RenderedRowInfo[] = [row];
+      index += 1;
+      while (
+        index < rows.length &&
+        rows[index] !== undefined &&
+        isToolActivityLine(rows[index]!.plainText)
+      ) {
+        block.push(rows[index]!);
+        index += 1;
+      }
+
+      output.push({
+        text: colors.muted(
+          padDisplayWidth(summarizeToolActivityBlock(block, maxWidth), maxWidth),
+        ),
+      });
+      continue;
+    }
+
+    const isCursorCell = cursorVisible === true && cursorGlobalRow === row.globalRow && cursorColumn !== undefined;
+    output.push({
+      text: renderCellsToAnsi(
+        row.cells,
+        maxWidth,
+        isCursorCell ? cursorColumn : undefined,
+        cursorVisible,
+        getRowDefaultStyle(row.plainText),
+      ),
+    });
+    index += 1;
+  }
+
+  return output;
+};
+
 const getRowDefaultStyle = (plainText: string): Partial<TerminalCellStyle> | undefined => {
   if (plainText.length === 0) {
     return undefined;
@@ -188,8 +592,8 @@ export interface EmbeddedTerminalRenderableLine {
 export class EmbeddedTerminalPane {
   private readonly buffer = new TerminalEmulatorBuffer(80, 24, EMBEDDED_PANE_SCROLLBACK_LIMIT);
   private scrollOffset = 0;
-  // Cached total row count (scrollback + visible) — updated on every write to avoid
-  // rebuilding the combined array on every scrollUp() keypress.
+  // Cached total renderable line count (after compact summaries are applied) —
+  // updated on every write to avoid rebuilding the combined array on every scrollUp() keypress.
   private cachedTotalRows = 0;
   private currentColumns = 80;
   private currentRows = 24;
@@ -229,7 +633,7 @@ export class EmbeddedTerminalPane {
   }
 
   private updateCachedTotalRows(): void {
-    this.cachedTotalRows = this.buffer.getScrollbackRows().length + this.buffer.getVisibleRows().length;
+    this.cachedTotalRows = this.getRenderableLines(this.currentColumns).length;
   }
 
   addEvent(event: PtyEvent): void {
@@ -263,6 +667,90 @@ export class EmbeddedTerminalPane {
     return this.buffer.hasContent();
   }
 
+  getActivitySnapshot(maxWidth = this.currentColumns): EmbeddedActivitySnapshot | null {
+    if (!this.buffer.hasContent()) {
+      return null;
+    }
+
+    const { rows } = this.getRenderedRows(Math.max(1, maxWidth));
+    for (let index = rows.length - 1; index >= 0; index -= 1) {
+      const row = rows[index];
+      if (row === undefined) {
+        continue;
+      }
+
+      if (row.plainText === "exec") {
+        const commandLine = rows[index + 1]?.plainText.trim() ?? "";
+        if (!looksLikeCommandLine(commandLine)) {
+          continue;
+        }
+
+        let statusLine: string | null = null;
+        for (let lookahead = index + 2; lookahead < Math.min(rows.length, index + 10); lookahead += 1) {
+          const candidate = rows[lookahead]?.plainText ?? "";
+          if (isCommandStatusLine(candidate)) {
+            statusLine = candidate;
+            break;
+          }
+        }
+
+        const activity = describeCommandActivity(commandLine);
+        return {
+          ...activity,
+          status: statusFromCommandStatusLine(statusLine),
+        };
+      }
+
+      if (isToolActivityLine(row.plainText)) {
+        const detail = row.plainText.includes(":")
+          ? row.plainText.slice(row.plainText.indexOf(":") + 1).trim()
+          : row.plainText;
+        return {
+          kind: "tool",
+          label: row.plainText.startsWith("web search:") ? "웹 검색" : "도구 활동",
+          detail: detail.length > 0 ? detail : "진행 중",
+          status: "running",
+        };
+      }
+    }
+
+    return null;
+  }
+
+  private getRenderedRows(maxWidth: number): {
+    rows: RenderedRowInfo[];
+    cursorColumn: number;
+    cursorVisible: boolean;
+    cursorGlobalRow: number;
+  } {
+    const scrollbackRows = this.buffer.getScrollbackCells();
+    const visibleRows = this.buffer.getVisibleCells();
+    const rows = [...scrollbackRows, ...visibleRows];
+    const cursorState = this.buffer.getCursorState();
+    const cursorGlobalRow = scrollbackRows.length + cursorState.row;
+
+    let lastContentIndex = -1;
+    for (let i = rows.length - 1; i >= 0; i -= 1) {
+      const row = rows[i];
+      if (row !== undefined && row.some((cell) => (cell.char ?? "").trim().length > 0)) {
+        lastContentIndex = i;
+        break;
+      }
+    }
+
+    const contentRows = rows.slice(0, lastContentIndex + 1);
+    return {
+      rows: contentRows.map((row, offset) => ({
+        cells: row,
+        plainText: rowToPlainText(row, maxWidth),
+        globalRow: offset,
+      })),
+      cursorColumn: cursorState.column,
+      cursorVisible: cursorState.visible,
+      cursorGlobalRow,
+    };
+  }
+
   getRenderableLines(maxWidth: number, maxRows?: number, scrollOffset = 0): EmbeddedTerminalRenderableLine[] {
     if (maxWidth <= 0) {
       return [];
@@ -274,39 +762,25 @@ export class EmbeddedTerminalPane {
       }));
     }
 
-    const scrollbackRows = this.buffer.getScrollbackCells();
-    const visibleRows = this.buffer.getVisibleCells();
-    const rows = [...scrollbackRows, ...visibleRows];
-    const cursorState = this.buffer.getCursorState();
-    const cursorGlobalRow = scrollbackRows.length + cursorState.row;
-    let lastContentIndex = -1;
-    for (let i = rows.length - 1; i >= 0; i -= 1) {
-      const row = rows[i];
-      if (row !== undefined && row.some((cell) => (cell.char ?? "").trim().length > 0)) {
-        lastContentIndex = i;
-        break;
-      }
-    }
+    const {
+      rows: renderedRows,
+      cursorColumn,
+      cursorVisible,
+      cursorGlobalRow,
+    } = this.getRenderedRows(maxWidth);
 
-    const endIndex = Math.max(0, lastContentIndex + 1 - scrollOffset);
+    const compactLines = buildCompactRenderableLines(
+      renderedRows,
+      maxWidth,
+      cursorColumn,
+      cursorVisible,
+      cursorGlobalRow,
+    );
+
+    const endIndex = Math.max(0, compactLines.length - Math.max(0, scrollOffset));
     const startIndex = Math.max(0, maxRows === undefined ? 0 : endIndex - Math.max(0, maxRows));
-    const renderedRows = rows.slice(startIndex, endIndex);
 
-    return renderedRows.map((row, offset) => {
-      const globalRow = startIndex + offset;
-      const cursorColumn =
-        cursorState.visible && globalRow === cursorGlobalRow ? cursorState.column : undefined;
-      const plainText = rowToPlainText(row, maxWidth);
-      return {
-        text: renderCellsToAnsi(
-          row,
-          maxWidth,
-          cursorColumn,
-          cursorState.visible,
-          getRowDefaultStyle(plainText),
-        ),
-      };
-    });
+    return compactLines.slice(startIndex, endIndex);
   }
 
   render(ctx: RenderContext, region: PanelRegion): void {
