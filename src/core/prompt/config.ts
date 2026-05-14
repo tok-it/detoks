@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
-import { homedir } from "node:os";
 import { join } from "node:path";
 import { z } from "zod";
+import { getDetoksModelDir } from "../model-store.js";
 
 const DEFAULT_REQUEST_TIMEOUT = 30_000;
 const DEFAULT_TRANSLATION_MAX_ATTEMPTS = 5;
@@ -357,7 +357,12 @@ export function loadRole1RuntimeConfig(
 		localLlmReasoning:
 			pickEnv("LOCAL_LLM_REASONING") ?? DEFAULT_LOCAL_LLM_REASONING,
 		localLlmModelDir:
-			pickEnv("LOCAL_LLM_MODEL_DIR") ?? join(homedir(), ".detoks", "models"),
+			pickEnv("LOCAL_LLM_MODEL_DIR") ??
+				getDetoksModelDir({
+					role: "llm",
+					hfRepo: DEFAULT_LOCAL_LLM_HF_REPO,
+					hfFile: DEFAULT_LOCAL_LLM_HF_FILE,
+				}),
 		localLlmModelPath,
 		localLlmModelUrl: pickEnv("LOCAL_LLM_MODEL_URL"),
 		localLlmHfRepo: pickEnv("LOCAL_LLM_HF_REPO") ?? DEFAULT_LOCAL_LLM_HF_REPO,

@@ -4,6 +4,7 @@
 > **결정 사항**: detoks RAG 시스템의 임베딩 모델로 **BGE-M3 (Q8_0 GGUF)** 채택
 > **상태**: 설계 결정 (Phase 2 임베딩 인프라 진입 시 적용)
 > **선행 문서**:
+>
 > - `DETOKS_DIRECTION_AND_RAG_INTEGRATION_PLAN.md` (전략)
 > - `DAG_SESSION_RAG_FEATURES_AND_MVP.md` (MVP 범위)
 
@@ -34,18 +35,19 @@
 ## 2. 결정 사항 명시
 
 ### 채택 모델
-| 항목 | 값 |
-|------|-----|
-| **모델 이름** | BGE-M3 |
-| **개발 주체** | BAAI (Beijing Academy of Artificial Intelligence) |
-| **양자화** | Q8_0 (GGUF 포맷) |
-| **차원** | 1024 (dense vector) |
-| **최대 입력 컨텍스트** | 8192 tokens |
-| **모델 파일 크기** | ~600MB (Q8_0 기준) |
-| **라이선스** | MIT |
-| **출시 시점** | 2024년 (지속 업데이트 중) |
-| **추론 런타임** | node-llama-cpp (기존 Role 1 인프라 재사용) |
-| **벡터 거리 메트릭** | Cosine similarity (벡터 정규화 후) |
+
+| 항목                   | 값                                                |
+| ---------------------- | ------------------------------------------------- |
+| **모델 이름**          | BGE-M3                                            |
+| **개발 주체**          | BAAI (Beijing Academy of Artificial Intelligence) |
+| **양자화**             | Q8_0 (GGUF 포맷)                                  |
+| **차원**               | 1024 (dense vector)                               |
+| **최대 입력 컨텍스트** | 8192 tokens                                       |
+| **모델 파일 크기**     | ~600MB (Q8_0 기준)                                |
+| **라이선스**           | MIT                                               |
+| **출시 시점**          | 2024년 (지속 업데이트 중)                         |
+| **추론 런타임**        | node-llama-cpp (기존 Role 1 인프라 재사용)        |
+| **벡터 거리 메트릭**   | Cosine similarity (벡터 정규화 후)                |
 
 ### 적용 범위 (Phase 2 진입 시점)
 
@@ -63,11 +65,12 @@
 
 ## 3. detoks 고유 요구사항 — 일반 RAG와 다른 점
 
-일반적인 RAG 사용 사례(영어 문서 검색)는 흔한 영어 중심 임베딩 모델로 충분합니다. detoks가 *다른* 이유:
+일반적인 RAG 사용 사례(영어 문서 검색)는 흔한 영어 중심 임베딩 모델로 충분합니다. detoks가 _다른_ 이유:
 
 ### 3.1 Cross-lingual 비대칭 검색 (Korean → English)
 
 **전형적 detoks 시나리오**:
+
 ```
 사용자 입력 (한국어):
   "토큰 검증 로직 어디에 있어?"
@@ -81,6 +84,7 @@
 → **사용자 query는 한국어, 검색 대상은 영어**. 단일 언어 임베딩 모델은 의미를 같은 벡터 공간에 매핑 못 함.
 
 영어 중심 모델 (Stella, nomic, jina-code 등):
+
 ```
 "토큰 검증 로직 어디에 있어?" → [임의의 벡터] (한국어 학습 부재)
 "verifyToken function in auth"  → [정상 영어 벡터]
@@ -88,29 +92,32 @@
 ```
 
 한국어 전용 모델 (ko-sroberta, KR-SBERT):
+
 ```
 "토큰 검증 로직 어디에 있어?" → [정상 한국어 벡터]
 "verifyToken function in auth"  → [임의의 벡터] (영어 의미 학습 부족)
 → similarity 낮음 → 같은 문제
 ```
 
-→ **양쪽 언어를 *같은* 의미 공간에 매핑하는 multilingual 모델 필수**.
+→ **양쪽 언어를 _같은_ 의미 공간에 매핑하는 multilingual 모델 필수**.
 
 ### 3.2 한/영 혼용 문서
 
 `CLAUDE.md`, `AGENTS.md`, detoks의 자체 설계 문서들은 한국어와 영어가 자유롭게 혼재합니다:
 
-```markdown
+````markdown
 ## detoks 방향성 — RAG Memory Layer
 
 The current direction is to leverage `task.input_hash` for **cross-session 캐시**.
 이는 SHA256 hash 기반으로 작동하며, embedding이 필요하지 않다는 점에서…
 
 ```typescript
-function findSuccessfulSessionByInputHash(hash: string): SessionState
+function findSuccessfulSessionByInputHash(hash: string): SessionState;
 ```
+````
 
 세션 데이터는 `.state/sessions/` 디렉토리에 저장됨.
+
 ```
 
 단일 chunk 안에 한국어 + 영어 + 코드가 섞임. 둘 다 동등하게 잘 임베딩해야 함.
@@ -120,8 +127,10 @@ function findSuccessfulSessionByInputHash(hash: string): SessionState
 `task.title`은 Role 1이 한국어를 영어로 번역하고 압축한 결과인데, 그 과정에서 **코드 식별자는 그대로 유지**됩니다:
 
 ```
-원본 (Korean):   "auth.ts의 verifyToken 함수를 JWT 검증으로 바꿔줘"
-Role 1 출력:     "Update verifyToken in auth.ts to use JWT verification"
+
+원본 (Korean): "auth.ts의 verifyToken 함수를 JWT 검증으로 바꿔줘"
+Role 1 출력: "Update verifyToken in auth.ts to use JWT verification"
+
 ```
 
 식별자 `verifyToken`, `auth.ts`, `JWT`는 자연어가 아닌 코드 토큰입니다. 임베딩 모델이 이런 식별자들의 의미 (보존)와 자연어 동사 (변환)를 모두 이해해야 합니다.
@@ -210,12 +219,14 @@ BGE-M3는 같은 forward pass에서 세 종류 벡터를 모두 출력:
 
 detoks 진화 시나리오:
 ```
+
 Phase 2 초기: Dense만 사용 (sqlite-vec에 1024-dim)
-Phase 3:     Dense + Sparse hybrid (정확도 향상)
-Phase 4:     Multi-vector reranking (top-10을 top-3로 재정렬)
+Phase 3: Dense + Sparse hybrid (정확도 향상)
+Phase 4: Multi-vector reranking (top-10을 top-3로 재정렬)
 
 모든 단계가 같은 BGE-M3 모델로 가능 — 추가 모델 도입 없음
-```
+
+````
 
 대안 모델들은 단일 모드만 출력. Hybrid search 도입 시 별도 sparse 모델 (예: SPLADE) 추가 필요 → 메모리·복잡도 증가.
 
@@ -235,7 +246,7 @@ const model = await llama.loadModel({ modelPath: "bge-m3-Q8_0.gguf" });
 const context = await model.createEmbeddingContext();
 const embedding = await context.getEmbeddingFor("text to embed");
 // → { vector: Float32Array(1024) }
-```
+````
 
 → 기존 Role 1 LLM 인프라 코드 패턴 그대로 재사용 가능. 학습 곡선 zero.
 
@@ -249,17 +260,18 @@ const embedding = await context.getEmbeddingFor("text to embed");
 
 다른 후보들과의 디스크 비교:
 
-| 모델 (Q8_0 또는 동급) | 크기 |
-|----------------------|------|
-| Stella-en-1.5B-v5 | ~1.5GB |
-| **BGE-M3** | **~600MB** |
-| multilingual-e5-large | ~560MB |
-| ko-sroberta | ~440MB |
-| gte-multilingual-base | ~330MB |
-| nomic-embed-text | ~280MB |
-| jina-v2-code | ~330MB |
+| 모델 (Q8_0 또는 동급) | 크기       |
+| --------------------- | ---------- |
+| Stella-en-1.5B-v5     | ~1.5GB     |
+| **BGE-M3**            | **~600MB** |
+| multilingual-e5-large | ~560MB     |
+| ko-sroberta           | ~440MB     |
+| gte-multilingual-base | ~330MB     |
+| nomic-embed-text      | ~280MB     |
+| jina-v2-code          | ~330MB     |
 
 600MB는:
+
 - 평균 노트북 디스크(256GB-1TB)의 0.2% 미만
 - 첫 다운로드 ~1-2분 (50Mbps 인터넷 기준)
 - RAM 사용 ~700MB (모델 + KV cache + 임베딩 컨텍스트)
@@ -268,16 +280,16 @@ const embedding = await context.getEmbeddingFor("text to embed");
 
 ### 4.7 합산 평가 — 7개 요구사항 모두 만족
 
-| 요구사항 | BGE-M3 | mE5-large | gte-multi | nomic | ko-sroberta | jina-code |
-|----------|--------|-----------|-----------|-------|-------------|-----------|
-| Cross-lingual ko↔en | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
-| 8192 context | ✅ | ❌ (512) | ✅ | ✅ | ❌ (512) | ✅ |
-| Dense+Sparse+Multi | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| GGUF + node-llama-cpp | ✅ | ✅ | ✅ | ✅ | △ (변환 필요) | ✅ |
-| MIT/Apache | ✅ MIT | ✅ MIT | ✅ Apache | ✅ Apache | ✅ MIT | ✅ Apache |
-| 합리적 크기 (<1GB) | ✅ 600MB | ✅ 560MB | ✅ 330MB | ✅ 280MB | ✅ 440MB | ✅ 330MB |
-| 코드 식별자 이해 | ✅ | △ | △ | ✅ | ❌ | ✅ |
-| **합산** | **7/7** | 4/7 | 5/7 | 5/7 | 2/7 | 5/7 |
+| 요구사항              | BGE-M3   | mE5-large | gte-multi | nomic     | ko-sroberta   | jina-code |
+| --------------------- | -------- | --------- | --------- | --------- | ------------- | --------- |
+| Cross-lingual ko↔en   | ✅       | ✅        | ✅        | ❌        | ❌            | ❌        |
+| 8192 context          | ✅       | ❌ (512)  | ✅        | ✅        | ❌ (512)      | ✅        |
+| Dense+Sparse+Multi    | ✅       | ❌        | ❌        | ❌        | ❌            | ❌        |
+| GGUF + node-llama-cpp | ✅       | ✅        | ✅        | ✅        | △ (변환 필요) | ✅        |
+| MIT/Apache            | ✅ MIT   | ✅ MIT    | ✅ Apache | ✅ Apache | ✅ MIT        | ✅ Apache |
+| 합리적 크기 (<1GB)    | ✅ 600MB | ✅ 560MB  | ✅ 330MB  | ✅ 280MB  | ✅ 440MB      | ✅ 330MB  |
+| 코드 식별자 이해      | ✅       | △         | △         | ✅        | ❌            | ✅        |
+| **합산**              | **7/7**  | 4/7       | 5/7       | 5/7       | 2/7           | 5/7       |
 
 → **BGE-M3만이 7개 요구사항을 모두 만족**.
 
@@ -288,11 +300,13 @@ const embedding = await context.getEmbeddingFor("text to embed");
 ### 5.1 multilingual-e5-large / e5-large-instruct
 
 **장점**:
+
 - 한국어 포함 100+ 언어 지원
 - BGE-M3와 유사한 다국어 학습 데이터
 - E5 시리즈는 instruction tuning으로 query-document 비대칭 최적화 가능
 
 **기각 사유**:
+
 - ❌ **512 token 제한** — detoks 마크다운/긴 prompt에 부적합
 - ❌ Sparse / multi-vector 지원 없음 — 향후 hybrid search 시 별도 모델 필요
 - ❌ Cross-lingual 점수가 BGE-M3보다 5-6%p 낮음 (MIRACL 기준)
@@ -302,6 +316,7 @@ const embedding = await context.getEmbeddingFor("text to embed");
 ### 5.2 gte-multilingual-base (Alibaba)
 
 **장점**:
+
 - 8192 token 컨텍스트
 - 100+ 언어
 - 768-dim (BGE-M3의 1024보다 가벼움)
@@ -309,6 +324,7 @@ const embedding = await context.getEmbeddingFor("text to embed");
 - Apache 2.0
 
 **기각 사유**:
+
 - ❌ **한국어 retrieval 성능이 BGE-M3보다 명확히 낮음** (MIRACL Korean 70 vs 76)
 - ❌ Single-mode (dense only)
 - ❌ 출시 시점이 짧아 long-term 지원 불확실
@@ -318,6 +334,7 @@ const embedding = await context.getEmbeddingFor("text to embed");
 ### 5.3 nomic-embed-text-v1.5
 
 **장점**:
+
 - Matryoshka representation (768→512→256으로 잘라 쓸 수 있음)
 - 8192 context
 - 영어 코드 검색 강함
@@ -325,6 +342,7 @@ const embedding = await context.getEmbeddingFor("text to embed");
 - Apache 2.0
 
 **기각 사유**:
+
 - ❌ **한국어 성능 약함** — 학습 데이터의 95%가 영어
 - ❌ Cross-lingual 거의 학습 안 됨
 - ❌ Single-mode
@@ -334,12 +352,14 @@ const embedding = await context.getEmbeddingFor("text to embed");
 ### 5.4 jina-embeddings-v2-base-code
 
 **장점**:
+
 - 코드 식별자·구조 학습 강화
 - 8192 context
 - 330MB
 - Apache 2.0
 
 **기각 사유**:
+
 - ❌ **한국어 거의 미지원** (영어 중심 학습)
 - ❌ 자연어 docs 검색 약함 (코드 특화)
 - ❌ Cross-lingual 불가
@@ -349,10 +369,12 @@ const embedding = await context.getEmbeddingFor("text to embed");
 ### 5.5 ko-sroberta-multitask / KR-SBERT
 
 **장점**:
+
 - 한국어 단일어 검색 강함 (Korean → Korean)
 - Korean STS 벤치마크 상위
 
 **기각 사유**:
+
 - ❌ **영어 검색 약함** — detoks는 검색 대상의 대부분이 영어
 - ❌ Cross-lingual 불가
 - ❌ 512 token 제한
@@ -363,11 +385,13 @@ const embedding = await context.getEmbeddingFor("text to embed");
 ### 5.6 OpenAI text-embedding-3-large / Cohere embed-multilingual-v3
 
 **장점**:
+
 - 최상위 품질
 - 큰 차원 (3072)
 - 100+ 언어
 
 **기각 사유**:
+
 - ❌ **Cloud API 전용** — 로컬 추론 불가
 - ❌ 사용자 코드/prompt가 외부 서버로 전송됨 — 보안 위험
 - ❌ 토큰 비용 발생 — detoks의 "토큰 절감" 가치 명제 정면 충돌
@@ -378,11 +402,13 @@ const embedding = await context.getEmbeddingFor("text to embed");
 ### 5.7 Stella-en-1.5B-v5
 
 **장점**:
+
 - 영어 MTEB 1위급
 - 1024-dim
 - MIT
 
 **기각 사유**:
+
 - ❌ **영어 전용** — 한국어 학습 거의 없음
 - ❌ 1.5GB로 무거움
 - ❌ 512 context
@@ -394,6 +420,7 @@ const embedding = await context.getEmbeddingFor("text to embed");
 ### 6.1 node-llama-cpp 통합
 
 detoks의 현재 의존성:
+
 ```json
 {
   "dependencies": {
@@ -425,16 +452,23 @@ const ragContext = await ragModel.createEmbeddingContext();
 
 ### 6.2 GGUF 모델 파일 관리
 
-기존 Role 1 모델도 GGUF로 관리됨. 동일 디렉토리 구조에 추가:
+기존 Role 1 모델도 GGUF로 관리됨. `.detoks/models` 아래에서 역할(role) → HF repo slug 단위로 모델 디렉토리를 분리한다:
 
 ```
-.detoks/
+~/.detoks/
 └── models/
-    ├── role1/           ← 기존
-    │   └── Qwen2.5-0.5B-Instruct-Q8_0.gguf
-    └── embedding/       ← 신규
-        └── bge-m3-Q8_0.gguf
+    ├── llm/                                              # 번역·추론 모델
+    │   └── <hf-repo-slug>/                              # e.g. mradermacher-supergemma4-e4b-abliterated-GGUF
+    │       └── <hf-file>                                # e.g. supergemma4-e4b-abliterated.Q4_K_S.gguf
+    ├── embedding/                                        # RAG 임베딩 모델 (BGE-M3 등)
+    │   └── <hf-repo-slug>/                              # e.g. gpustack-bge-m3-GGUF
+    │       └── <hf-file>                                # e.g. bge-m3-Q8_0.gguf
+    └── compress/                                         # 컨텍스트 압축 모델
+        └── <hf-repo-slug>/
+            └── <hf-file>
 ```
+
+`<hf-repo-slug>`는 HuggingFace repo 경로(`author/repo-name`)에서 `/`를 `-`로 치환한 값이다. 파일명은 HuggingFace의 원본 파일명(`hfFile`)을 그대로 사용한다.
 
 ### 6.3 sqlite-vec 통합
 
@@ -458,35 +492,35 @@ ORDER BY distance LIMIT 10;
 
 ### 6.4 메모리 관리 — Role 1과 공존
 
-| 상태 | Role 1 모델 | BGE-M3 | 합산 RAM |
-|------|-------------|--------|----------|
-| Role 1만 로드 (현재) | ~700MB | - | ~700MB |
-| BGE-M3 추가 (always) | ~700MB | ~700MB | **~1.4GB** |
-| BGE-M3 hot-swap | ~700MB | 0 (필요시 +700MB, 후 unload) | **~700MB peak** |
+| 상태                 | Role 1 모델 | BGE-M3                       | 합산 RAM        |
+| -------------------- | ----------- | ---------------------------- | --------------- |
+| Role 1만 로드 (현재) | ~700MB      | -                            | ~700MB          |
+| BGE-M3 추가 (always) | ~700MB      | ~700MB                       | **~1.4GB**      |
+| BGE-M3 hot-swap      | ~700MB      | 0 (필요시 +700MB, 후 unload) | **~700MB peak** |
 
 **권장**: Hot-swap 방식. 임베딩이 필요한 stage(인덱싱, retrieval)만 로드, 끝나면 unload.
 
 ```typescript
 // src/core/rag/embedder.ts 패턴
 class Embedder {
-  private static instance: Embedder | null = null;
-  private static unloadTimer: NodeJS.Timeout | null = null;
-  
-  static async getInstance(): Promise<Embedder> {
-    if (this.unloadTimer) clearTimeout(this.unloadTimer);
-    if (!this.instance) {
-      this.instance = await this.load();
-    }
-    return this.instance;
-  }
-  
-  static scheduleUnload(idleMs = 30_000): void {
-    if (this.unloadTimer) clearTimeout(this.unloadTimer);
-    this.unloadTimer = setTimeout(() => {
-      this.instance?.dispose();
-      this.instance = null;
-    }, idleMs);
-  }
+	private static instance: Embedder | null = null;
+	private static unloadTimer: NodeJS.Timeout | null = null;
+
+	static async getInstance(): Promise<Embedder> {
+		if (this.unloadTimer) clearTimeout(this.unloadTimer);
+		if (!this.instance) {
+			this.instance = await this.load();
+		}
+		return this.instance;
+	}
+
+	static scheduleUnload(idleMs = 30_000): void {
+		if (this.unloadTimer) clearTimeout(this.unloadTimer);
+		this.unloadTimer = setTimeout(() => {
+			this.instance?.dispose();
+			this.instance = null;
+		}, idleMs);
+	}
 }
 ```
 
@@ -496,23 +530,23 @@ class Embedder {
 
 ### 7.1 추론 속도 (Apple Silicon M2 Pro, Metal acceleration)
 
-| 작업 | 처리량 | 단일 latency |
-|------|--------|--------------|
-| 단일 텍스트 (1KB) 임베딩 | - | ~30-50ms |
-| 배치 (32개) 임베딩 | ~600 docs/sec | ~50ms total |
-| 모델 cold start (load) | - | ~2-4초 |
-| 모델 unload | - | ~0.5초 |
+| 작업                     | 처리량        | 단일 latency |
+| ------------------------ | ------------- | ------------ |
+| 단일 텍스트 (1KB) 임베딩 | -             | ~30-50ms     |
+| 배치 (32개) 임베딩       | ~600 docs/sec | ~50ms total  |
+| 모델 cold start (load)   | -             | ~2-4초       |
+| 모델 unload              | -             | ~0.5초       |
 
 비교: 동일 환경에서 e5-large는 ~80 docs/sec, gte-multilingual은 ~120 docs/sec. BGE-M3가 1.5-2배 빠름 (모델 크기 비슷한데 최적화 좋음).
 
 ### 7.2 인덱싱 시간 예상 (detoks 본 프로젝트 기준)
 
-| 대상 | 청크 수 | 시간 |
-|------|---------|------|
-| 코드 (`src/**/*.ts`, ~700 파일) | ~3,500 | ~6초 |
-| 마크다운 (`docs/**/*.md`, ~80 파일) | ~800 | ~1.5초 |
-| 누적 task results (가정 1000개) | ~1,000 | ~1.7초 |
-| **첫 풀 인덱싱** | ~5,300 | **~10초** |
+| 대상                                | 청크 수 | 시간      |
+| ----------------------------------- | ------- | --------- |
+| 코드 (`src/**/*.ts`, ~700 파일)     | ~3,500  | ~6초      |
+| 마크다운 (`docs/**/*.md`, ~80 파일) | ~800    | ~1.5초    |
+| 누적 task results (가정 1000개)     | ~1,000  | ~1.7초    |
+| **첫 풀 인덱싱**                    | ~5,300  | **~10초** |
 
 이후 incremental indexing (변경된 파일만): 통상 1초 미만.
 
@@ -536,36 +570,38 @@ cold:  ~3070ms (첫 prompt만)
 
 ### 7.4 디스크 사용량
 
-| 항목 | 크기 |
-|------|------|
-| BGE-M3 모델 (Q8_0 GGUF) | ~600MB |
-| sqlite-vec 인덱스 (5,300 청크 × 1024 dim × 4 bytes) | ~22MB |
-| 메타데이터 SQLite | ~5MB |
-| **합산** | **~630MB** |
+| 항목                                                | 크기       |
+| --------------------------------------------------- | ---------- |
+| BGE-M3 모델 (Q8_0 GGUF)                             | ~600MB     |
+| sqlite-vec 인덱스 (5,300 청크 × 1024 dim × 4 bytes) | ~22MB      |
+| 메타데이터 SQLite                                   | ~5MB       |
+| **합산**                                            | **~630MB** |
 
 ### 7.5 RAM 사용량 (peak)
 
-| 컴포넌트 | RAM |
-|----------|-----|
-| BGE-M3 가중치 (Q8_0) | ~600MB |
-| KV cache + embedding context | ~100MB |
-| sqlite-vec 메모리 캐시 | ~30MB |
-| **Peak (임베딩 작업 중)** | **~730MB** |
+| 컴포넌트                     | RAM        |
+| ---------------------------- | ---------- |
+| BGE-M3 가중치 (Q8_0)         | ~600MB     |
+| KV cache + embedding context | ~100MB     |
+| sqlite-vec 메모리 캐시       | ~30MB      |
+| **Peak (임베딩 작업 중)**    | **~730MB** |
 
 Hot-swap 끝나면 0으로 환원.
 
 ### 7.6 토큰 절감 ROI
 
 Phase 2 RAG가 작동하면 (`DETOKS_DIRECTION_AND_RAG_INTEGRATION_PLAN.md` 5.4절 추정):
+
 - 평균 사용자: 작업당 **2,000-8,000 adapter 토큰 절감**
 - 가중 평균 절감률: **40-50%**
 - 비용: BGE-M3 추론은 무료 (로컬)
 
 투자 회수:
+
 - BGE-M3 다운로드 1회 (~1분)
 - 첫 인덱싱 (~10초)
 - 이후 무한정 사용
-→ 첫 1-2 prompt 만에 시간 투자 회수.
+  → 첫 1-2 prompt 만에 시간 투자 회수.
 
 ---
 
@@ -574,6 +610,7 @@ Phase 2 RAG가 작동하면 (`DETOKS_DIRECTION_AND_RAG_INTEGRATION_PLAN.md` 5.4�
 ### 8.1 BGE-M3의 약점
 
 #### 8.1.1 순수 코드 검색은 jina-code보다 약함
+
 - 함수 시그니처, 클래스 구조 같은 코드 특화 패턴에서 jina-v2-base-code가 5-10% 우세
 - 자연어 docs 검색은 BGE-M3 우세
 - **detoks 사용 케이스의 다수는 자연어+코드 혼합**이라 BGE-M3가 균형상 우수, 하지만 순수 코드 검색만 한다면 차이 존재
@@ -581,21 +618,25 @@ Phase 2 RAG가 작동하면 (`DETOKS_DIRECTION_AND_RAG_INTEGRATION_PLAN.md` 5.4�
 **완화 방안**: Phase 2 후 코드 검색 정확도 측정 → 부족하면 jina-code를 보조 모델로 추가 (dual-model)
 
 #### 8.1.2 한국어 단일어 검색은 ko-sroberta보다 약함
+
 - Korean STS 벤치마크에서 ko-sroberta가 1-3%p 우세
 - 단, Korean retrieval (MIRACL Korean)은 BGE-M3가 명확히 우세
 
 **완화 방안**: detoks 사용 케이스 중 한국어 단일어 검색(Ko query → Ko doc)이 중요해지면 검토. 현재로선 cross-lingual 비중이 압도적이라 무관.
 
 #### 8.1.3 첫 사용 시 600MB 다운로드
+
 - 사용자가 detoks 첫 설치 시 부담
 - 인터넷 격리 환경에서는 사전 수동 다운로드 필요
 
-**완화 방안**: 
+**완화 방안**:
+
 - Phase 2 진입 시점에만 다운로드 (MVP F1/F2는 임베딩 불필요)
 - 첫 다운로드 시 명확한 안내 + 진행률 표시
 - 오프라인 설치용 별도 가이드 제공
 
 #### 8.1.4 1024 dimension의 저장 비용
+
 - 768 dim 대비 33% 더 큰 인덱스
 - 검색 latency 미미하지만 (sqlite-vec는 1024 dim도 빠름) 디스크 사용 33% 증가
 
@@ -604,25 +645,28 @@ Phase 2 RAG가 작동하면 (`DETOKS_DIRECTION_AND_RAG_INTEGRATION_PLAN.md` 5.4�
 ### 8.2 일반 RAG 시스템의 공통 한계 (BGE-M3 특이 사항 아님)
 
 #### 8.2.1 임베딩 자체의 의미 손실
+
 - 어떤 임베딩 모델이든 텍스트 → 벡터 변환에서 정보 손실 발생
 - 특히 부정문, 시제, 미묘한 의도 등이 비슷한 벡터로 매핑될 수 있음
 
 #### 8.2.2 컨텍스트 의존성
+
 - 같은 텍스트라도 주변 코드/문서 맥락에 따라 의미 달라짐
 - 청크 단위 임베딩은 이 맥락 일부 손실
 
 #### 8.2.3 시간에 따른 drift
+
 - 코드/docs 변경 시 인덱스 stale
 - Incremental 재인덱싱 필요 (git mtime 또는 file watch 기반)
 
 ### 8.3 운영 리스크
 
-| 리스크 | 발생 가능성 | 영향 | 완화 |
-|--------|------------|------|------|
-| HuggingFace 모델 페이지 404 | 낮음 | 중 | 미러 호스팅 또는 사용자 환경에 캐시 |
-| node-llama-cpp 버전 호환성 | 낮음 | 높음 | 의존성 lock 고정, 업그레이드 시 검증 |
-| BGE-M3 학습 데이터 라이선스 분쟁 | 매우 낮음 | 높음 | 발생 시 multilingual-e5로 fallback (1주 작업) |
-| Apple Silicon 외 환경 성능 저하 | 중간 | 중간 | Linux GPU/CPU 벤치마크 별도 수행, x86 사용자에 안내 |
+| 리스크                           | 발생 가능성 | 영향 | 완화                                                |
+| -------------------------------- | ----------- | ---- | --------------------------------------------------- |
+| HuggingFace 모델 페이지 404      | 낮음        | 중   | 미러 호스팅 또는 사용자 환경에 캐시                 |
+| node-llama-cpp 버전 호환성       | 낮음        | 높음 | 의존성 lock 고정, 업그레이드 시 검증                |
+| BGE-M3 학습 데이터 라이선스 분쟁 | 매우 낮음   | 높음 | 발생 시 multilingual-e5로 fallback (1주 작업)       |
+| Apple Silicon 외 환경 성능 저하  | 중간        | 중간 | Linux GPU/CPU 벤치마크 별도 수행, x86 사용자에 안내 |
 
 ---
 
@@ -633,6 +677,7 @@ BGE-M3 채택은 lock-in이 아닙니다. 임베딩 모델 교체가 필요한 �
 ### 9.1 교체 트리거
 
 다음 중 하나라도 발생 시 재평가:
+
 - detoks 사용자 평균 retrieval 정확도 < 70% (3개월 데이터 기반)
 - 모델 추론 latency > 200ms (warm) — 사용자 체감 저하
 - Disk usage 불만 > 사용자 설문 30%
@@ -654,6 +699,7 @@ BGE-M3 채택은 lock-in이 아닙니다. 임베딩 모델 교체가 필요한 �
 ### 9.3 차원 변경 시
 
 다른 차원 모델(예: gte-multilingual 768)로 교체 시:
+
 - 인덱스 schema 변경 필요 (`float[1024]` → `float[768]`)
 - 모든 청크 재임베딩
 
@@ -662,6 +708,7 @@ BGE-M3 채택은 lock-in이 아닙니다. 임베딩 모델 교체가 필요한 �
 ### 9.4 Hybrid retrieval 도입 시
 
 BGE-M3 자체가 sparse도 제공하므로 **같은 모델 그대로** sparse 인덱스 추가:
+
 ```sql
 CREATE TABLE rag_sparse (
   chunk_id INTEGER,
@@ -669,6 +716,7 @@ CREATE TABLE rag_sparse (
   weight REAL
 );
 ```
+
 모델 교체 불필요.
 
 ---
@@ -688,6 +736,7 @@ CREATE TABLE rag_sparse (
 ### 10.2 실패 시그널
 
 다음 중 하나라도 발생 시 재평가:
+
 - Retrieval false-positive 율 > 25%
 - 사용자 "관련 없는 결과 자주 나옴" 불만
 - 메모리 사용 불만
@@ -696,6 +745,7 @@ CREATE TABLE rag_sparse (
 ### 10.3 검증 데이터셋
 
 detoks 자체 사용 사례로 데이터셋 구축:
+
 - 100개 사용자 prompt (한국어)
 - 각각에 대해 "이상적인 retrieval 결과"를 사람이 라벨링
 - BGE-M3 + 대안 모델들로 retrieval 수행 → 정확도 비교
@@ -707,28 +757,34 @@ detoks 자체 사용 사례로 데이터셋 구축:
 ## 11. 참고 자료
 
 ### 11.1 BGE-M3 공식 자료
+
 - 논문: ["BGE M3-Embedding: Multi-Lingual, Multi-Functionality, Multi-Granularity Text Embeddings Through Self-Knowledge Distillation"](https://arxiv.org/abs/2402.03216) (Chen et al., 2024)
 - 공식 repo: [FlagOpen/FlagEmbedding](https://github.com/FlagOpen/FlagEmbedding)
 - HuggingFace 모델 페이지: [BAAI/bge-m3](https://huggingface.co/BAAI/bge-m3)
 - GGUF 변환본: [gpustack/bge-m3-GGUF](https://huggingface.co/gpustack/bge-m3-GGUF)
 
 ### 11.2 벤치마크
+
 - MIRACL: [Multilingual IR benchmark](https://github.com/project-miracl/miracl)
 - MTEB: [Massive Text Embedding Benchmark](https://huggingface.co/spaces/mteb/leaderboard)
 - C-MTEB (Chinese, 한국어 일부 포함): 다국어 비교용
 
 ### 11.3 detoks 관련 문서
+
 - `DETOKS_DIRECTION_AND_RAG_INTEGRATION_PLAN.md` — RAG 전체 전략
 - `DAG_SESSION_RAG_FEATURES_AND_MVP.md` — MVP 정의
 - `EMBEDDED_CLI_PANE_FIDELITY_FIX_PLAN.md` — UI 트랙 (RAG 무관)
 
 ### 11.4 비교 후보 모델 자료
+
 - multilingual-e5: [intfloat/multilingual-e5-large](https://huggingface.co/intfloat/multilingual-e5-large)
+
 - gte-multilingual: [Alibaba-NLP/gte-multilingual-base](https://huggingface.co/Alibaba-NLP/gte-multilingual-base)
 - nomic-embed: [nomic-ai/nomic-embed-text-v1.5](https://huggingface.co/nomic-ai/nomic-embed-text-v1.5)
 - jina-code: [jinaai/jina-embeddings-v2-base-code](https://huggingface.co/jinaai/jina-embeddings-v2-base-code)
 
 ### 11.5 기술 스택
+
 - node-llama-cpp 임베딩 API: [공식 문서](https://node-llama-cpp.withcat.ai)
 - sqlite-vec: [공식 repo](https://github.com/asg017/sqlite-vec)
 

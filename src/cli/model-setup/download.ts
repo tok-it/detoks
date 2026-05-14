@@ -1,10 +1,10 @@
 import { createWriteStream, mkdirSync } from "node:fs";
-import { join } from "node:path";
-import { homedir } from "node:os";
 import { colors } from "../colors.js";
 import type { TranslationModel } from "./models.js";
-
-const getModelsDir = () => join(homedir(), ".detoks", "models");
+import {
+  getDetoksModelDir,
+  getDetoksModelFilePath,
+} from "../../core/model-store.js";
 
 const buildHFUrl = (repo: string, file: string): string => {
   return `https://huggingface.co/${repo}/resolve/main/${file}`;
@@ -23,10 +23,10 @@ const formatSpeed = (bytesPerSec: number): string => {
 };
 
 export const downloadModel = async (model: TranslationModel): Promise<void> => {
-  const modelsDir = getModelsDir();
-  mkdirSync(modelsDir, { recursive: true });
+  const modelDir = getDetoksModelDir(model);
+  mkdirSync(modelDir, { recursive: true });
 
-  const filePath = join(modelsDir, model.hfFile);
+  const filePath = getDetoksModelFilePath(model);
   const url = buildHFUrl(model.hfRepo, model.hfFile);
 
   process.stdout.write(`\n${colors.info(`모델 다운로드 중: ${model.displayName}\n`)}`);
