@@ -2,8 +2,7 @@ import type { SessionState } from "../../schemas/pipeline.js";
 import { CACHE_TTL_DAYS } from "./cache-config.js";
 
 // "auto"   → 모든 조건 통과, 즉시 캐시 반환
-// "advise" → recency 경계 근처 / adapter·git HEAD 불일치 등
-//             결과 반환 X, 구 세션 기록으로만 취급 (P1에서 사용자 안내 추가 예정)
+// "advise" → adapter·git HEAD 불일치 등 — 결과 반환 X, 구 세션 기록으로만 취급
 // "skip"   → 검증 실패, miss 처리
 export type CacheValidity = "auto" | "advise" | "skip";
 
@@ -39,6 +38,22 @@ export function isSessionCacheValid(
   if (expected_git_head && ctx.git_head && ctx.git_head !== expected_git_head) return "advise";
 
   return "auto";
+}
+
+export function deriveAdviseReasons(
+  ctx: Record<string, unknown>,
+  opts: Pick<CacheValidationOpts, "expected_adapter" | "expected_git_head">,
+): string[] {
+  const reasons: string[] = [];
+  if (opts.expected_adapter && ctx.adapter && ctx.adapter !== opts.expected_adapter) {
+    reasons.push(`adapter 불일치: 저장 ${String(ctx.adapter)} → 현재 ${opts.expected_adapter}`);
+  }
+  if (opts.expected_git_head && ctx.git_head && ctx.git_head !== opts.expected_git_head) {
+    const stored = String(ctx.git_head).slice(0, 7);
+    const current = opts.expected_git_head.slice(0, 7);
+    reasons.push(`git HEAD 변경: ${stored} → ${current}`);
+  }
+  return reasons;
 }
 
 export function isTaskCacheValid(

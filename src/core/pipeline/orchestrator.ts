@@ -30,7 +30,7 @@ import { countTokens } from "../utils/tokenMetrics.js";
 import { getLLMModelConfig } from "../llm-client/llm-models.js";
 import { computeProjectId, hashRawInput, hashTaskInputV2 } from "../rag/hash.js";
 import { CACHE_DISABLED, CACHE_TTL_DAYS } from "../cache/cache-config.js";
-import { isSessionCacheValid, isTaskCacheValid } from "../cache/cache-validator.js";
+import { isSessionCacheValid, isTaskCacheValid, deriveAdviseReasons } from "../cache/cache-validator.js";
 import { isRagEnabled, getRagModelPath, getRagVectorDbPath, RAG_EMBEDDING_DIMS } from "../rag/rag-config.js";
 import { EmbeddingService } from "../rag/embedding-service.js";
 import { VectorStore } from "../rag/vector-store.js";
@@ -667,16 +667,29 @@ export const orchestratePipeline = async (
       };
     }
 
-    // "advise": adapter·git HEAD 불일치 — P0에서는 miss로 처리 (P1에서 사용자 안내 추가 예정)
-    await emitActionTimelineWithLogging(
-      createActionTimelineEvent({
-        kind: "cache_miss",
-        source: "pipeline",
-        summary: f1Validity === "advise"
-          ? `F1 캐시 advise — adapter 또는 git HEAD 불일치 (hash ${inputHash})`
-          : `F1 캐시 miss — hash ${inputHash}`,
-      }),
-    );
+    if (f1Validity === "advise") {
+      const adviseCtx = cachedSession!.shared_context as Record<string, unknown>;
+      const adviseReasons = deriveAdviseReasons(adviseCtx, {
+        expected_adapter: request.adapter,
+        ...(gitHead ? { expected_git_head: gitHead } : {}),
+      });
+      await emitActionTimelineWithLogging(
+        createActionTimelineEvent({
+          kind: "cache_advise",
+          source: "pipeline",
+          summary: `F1 캐시 advise — 유사 세션 ${adviseCtx.session_id} 발견 (자동 적용 불가)`,
+          details: [...adviseReasons, "현재 상태로 새로 실행합니다."],
+        }),
+      );
+    } else {
+      await emitActionTimelineWithLogging(
+        createActionTimelineEvent({
+          kind: "cache_miss",
+          source: "pipeline",
+          summary: `F1 캐시 miss — hash ${inputHash}`,
+        }),
+      );
+    }
   }
 
   // ── F3: 미완성 세션 resume 힌트 ──────────────────────────────────────────
@@ -1227,15 +1240,28 @@ export const orchestratePipeline = async (
             };
           }
 
-          await emitActionTimelineWithLogging(
-            createActionTimelineEvent({
-              kind: "cache_miss", source: "pipeline",
-              summary: f2Validity === "advise"
-                ? `F2 캐시 advise — adapter 또는 git HEAD 불일치 (task ${task.id})`
-                : `F2 캐시 miss — task ${task.id} hash ${task.input_hash}`,
-              taskId: task.id,
-            }),
-          );
+          if (f2Validity === "advise") {
+            const f2AdviseReasons = deriveAdviseReasons(cachedTask!.taskResult, {
+              expected_adapter: request.adapter,
+              ...(gitHead ? { expected_git_head: gitHead } : {}),
+            });
+            await emitActionTimelineWithLogging(
+              createActionTimelineEvent({
+                kind: "cache_advise", source: "pipeline",
+                summary: `F2 캐시 advise — task ${task.id} 유사 결과 발견 (자동 적용 불가)`,
+                taskId: task.id,
+                details: [...f2AdviseReasons, "현재 상태로 새로 실행합니다."],
+              }),
+            );
+          } else {
+            await emitActionTimelineWithLogging(
+              createActionTimelineEvent({
+                kind: "cache_miss", source: "pipeline",
+                summary: `F2 캐시 miss — task ${task.id} hash ${task.input_hash}`,
+                taskId: task.id,
+              }),
+            );
+          }
         }
 
         // (4) ExecutionContext 생성
