@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { measureInputLayout } from "../../../../../src/cli/tui/renderer.js";
+import { measureInputLayout, renderInputArea } from "../../../../../src/cli/tui/renderer.js";
 
 describe("Korean Input Handling", () => {
   describe("Display width calculation", () => {
@@ -244,6 +244,28 @@ describe("Korean Input Handling", () => {
       expect(layout.cursorCol).toBe(2);
     });
 
+    it("treats pasted newlines as separate prompt lines instead of literal control characters", () => {
+      const dims = { rows: 24, columns: 80 };
+      const multilineInput = [
+        "프로젝트 루트는 그대로 두고,",
+        "/var/tmp/detoks-approval-check.txt 파일을 새로 만든 뒤",
+        "현재 브랜치명과 현재 시각을 한 줄로 기록해줘.",
+      ].join("\n");
+
+      const layout = measureInputLayout(dims, multilineInput);
+
+      expect(layout.visibleLines.map((line) => line.text)).toEqual([
+        "프로젝트 루트는 그대로 두고,",
+        "/var/tmp/detoks-approval-check.txt 파일을 새로 만든 뒤",
+        "현재 브랜치명과 현재 시각을 한 줄로 기록해줘.",
+      ]);
+      expect(layout.separatorRow).toBe(18);
+      expect(layout.inputStartRow).toBe(19);
+      expect(layout.bottomSeparatorRow).toBe(22);
+      expect(layout.cursorRow).toBe(21);
+      expect(layout.cursorCol).toBeGreaterThan(0);
+    });
+
     it("keeps the separator low when input stays on one line", () => {
       const dims = { rows: 24, columns: 20 };
       const layout = measureInputLayout(dims, "한글");
@@ -254,6 +276,31 @@ describe("Korean Input Handling", () => {
       expect(layout.bottomSeparatorRow).toBe(22);
       expect(layout.cursorRow).toBe(21);
       expect(layout.cursorCol).toBe(6);
+    });
+
+    it("renders pasted multiline input without writing raw newline characters into the prompt rows", () => {
+      const dims = { rows: 24, columns: 80 };
+      const mockScreen = {
+        cursorMoveTo: vi.fn(),
+        write: vi.fn(),
+      };
+      const ctx = { screen: mockScreen, dims } as unknown as Parameters<typeof renderInputArea>[0];
+      const multilineInput = [
+        "프로젝트 루트는 그대로 두고,",
+        "/var/tmp/detoks-approval-check.txt 파일을 새로 만든 뒤",
+        "현재 브랜치명과 현재 시각을 한 줄로 기록해줘.",
+      ].join("\n");
+
+      const layout = renderInputArea(ctx, multilineInput);
+
+      expect(layout.visibleLines.map((line) => line.text)).toEqual([
+        "프로젝트 루트는 그대로 두고,",
+        "/var/tmp/detoks-approval-check.txt 파일을 새로 만든 뒤",
+        "현재 브랜치명과 현재 시각을 한 줄로 기록해줘.",
+      ]);
+      expect(
+        mockScreen.write.mock.calls.some(([value]) => String(value).includes("\n")),
+      ).toBe(false);
     });
   });
 });

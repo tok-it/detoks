@@ -1,6 +1,6 @@
 import type { Adapter, ExecutionMode, InteractionMode } from "../pipeline/types.js";
 import type { RequestCategory } from "../../schemas/pipeline.js";
-import type { PtyEvent, PtyTranscript } from "../../integrations/subprocess/types.js";
+import type { PtyEvent, PtySessionController, PtyTranscript } from "../../integrations/subprocess/types.js";
 import type { ActionTimelineEvent, ActionTimelineSink } from "../timeline/types.js";
 import type { TokenReductionSnapshot } from "../utils/tokenMetrics.js";
 
@@ -29,6 +29,7 @@ export interface ExecutorRequest extends AdapterExecutionRequest {
   executionMode: ExecutionMode;
   presentationMode?: "passthrough" | "embedded-pane";
   onAdapterEvent?: (event: PtyEvent) => void;
+  onPtyController?: (controller: PtySessionController) => void;
   onActionTimelineEvent?: ActionTimelineSink;
 }
 

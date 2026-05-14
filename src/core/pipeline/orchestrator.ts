@@ -1329,6 +1329,7 @@ export const orchestratePipeline = async (
           sessionId, stage: `Executor:${task.id}`, role: "role3", phase: "input",
           dataType: "ExecutionRequest", data: { task_id: task.id, type: task.type, prompt },
         });
+
         PipelineTracer.startStage(`Executor:${task.id}`);
         const execResult = await executeWithAdapter({
           adapter: request.adapter,
@@ -1341,10 +1342,22 @@ export const orchestratePipeline = async (
           ...(request.userRequest.cwd ? { cwd: request.userRequest.cwd } : {}),
           sessionId,
           ...(request.onAdapterEvent ? { onAdapterEvent: request.onAdapterEvent } : {}),
+          ...(request.onPtyController ? { onPtyController: request.onPtyController } : {}),
           onActionTimelineEvent: emitActionTimelineWithLogging,
         });
+        adapterTranscript = mergePtyTranscripts(adapterTranscript, execResult.transcript);
 
         if (!execResult.ok) {
+          // 실패 — Strict 모드에 따라 후속 의존 Task도 차단됨
+          failedTaskIds.add(task.id);
+          state = markTaskFailed(state, task.id, execResult.rawOutput, task.type, task);
+          state = applySessionTokenMetrics(
+            state,
+            request.userRequest.raw_input,
+            compiledPrompt.compressed_prompt,
+          ).state;
+          await SessionStateManager.saveSession(state);
+          taskRecords.push({ taskId: task.id, status: "failed", rawOutput: execResult.rawOutput });
           await PipelineTracer.trace({
             sessionId, stage: `Executor:${task.id}`, role: "role3", phase: "output",
             dataType: "ExecutionResult",

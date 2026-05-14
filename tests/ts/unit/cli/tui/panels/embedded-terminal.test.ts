@@ -168,6 +168,23 @@ describe("EmbeddedTerminalPane", () => {
     });
   });
 
+  it("detects approval prompts as a focused interaction state", () => {
+    pane.addEvent({
+      type: "chunk",
+      timestamp: Date.now(),
+      stream: "stdout",
+      data: "approval required (y/n)\n",
+    });
+
+    pane.render(mockContext, mockRegion);
+
+    expect(pane.getInteractionState(120)).toMatchObject({
+      kind: "approval",
+      label: "Codex 승인 대기",
+      detail: "approval required (y/n)",
+    });
+  });
+
   it("renders the live cursor cell with inverse video when the buffer reports a visible cursor", () => {
     pane.addEvent({ type: "chunk", timestamp: Date.now(), stream: "stdout", data: "hello" });
 
