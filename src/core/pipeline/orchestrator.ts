@@ -44,7 +44,7 @@ import { WorkflowTemplateBuilder } from "../rag/workflow-template-builder.js";
 import { AdapterStatsLearner } from "../rag/adapter-stats-learner.js";
 import { ProjectMemory } from "../rag/project-memory.js";
 import type { PtyTranscript } from "../../integrations/subprocess/types.js";
-import type { SessionState, Task } from "../../schemas/pipeline.js";
+import type { RequestCategory, SessionState, Task } from "../../schemas/pipeline.js";
 import type {
   PipelineProgressEvent,
   PipelineProgressLog,
@@ -86,7 +86,7 @@ function generateSessionId(): string {
 const DETOKS_MAJOR_VERSION = 1;
 
 // per-task semantic retrieval 대상 task 타입. execute/validate는 기본 skip.
-const RAG_ELIGIBLE_TYPES = new Set(["explore", "analyze", "debug", "update", "create"]);
+const RAG_ELIGIBLE_TYPES = new Set<RequestCategory>(["explore", "analyze", "modify", "create"]);
 
 // Budget Gate 상수 — 환경변수로 override 가능. 잘못된 값(NaN)은 기본값으로 복원.
 const COLD_START_THRESHOLD = Math.max(0, parseInt(process.env.DETOKS_COLD_START_THRESHOLD ?? "5", 10) || 5);
