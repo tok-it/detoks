@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { AdapterExecutionRequest } from "../../../../../src/core/executor/types.js";
 import { ClaudeStubAdapter } from "../../../../../src/integrations/adapters/claude/adapter.js";
 import { CodexStubAdapter } from "../../../../../src/integrations/adapters/codex/adapter.js";
 import { GeminiStubAdapter } from "../../../../../src/integrations/adapters/gemini/adapter.js";
@@ -76,13 +77,15 @@ describe("passthrough 모드 prompt 크기 제한 (200,000 bytes)", () => {
       });
 
       it("prompt가 undefined이면 passthrough에서도 오류 없음", () => {
+        const requestWithMissingPrompt = {
+          mode: "run",
+          prompt: undefined,
+          presentationMode: "passthrough",
+          verbose: false,
+        } as unknown as AdapterExecutionRequest;
+
         expect(() =>
-          adapter.buildSubprocessRequest({
-            mode: "run",
-            prompt: undefined,
-            presentationMode: "passthrough",
-            verbose: false,
-          }),
+          adapter.buildSubprocessRequest(requestWithMissingPrompt),
         ).not.toThrow();
       });
     });
