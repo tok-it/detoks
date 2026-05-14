@@ -1,4 +1,8 @@
-import { createHash } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
+import { execSync } from "node:child_process";
+import { promises as fs } from "node:fs";
+import { join } from "node:path";
+import { homedir } from "node:os";
 import { DAGValidator } from "../task-graph/DAGValidator.js";
 import { DependencyResolver } from "../task-graph/DependencyResolver.js";
 import { ParallelClassifier } from "../task-graph/ParallelClassifier.js";
@@ -17,13 +21,16 @@ import { translateVisibleText } from "../utils/visibleText.js";
 import {
   buildTokenMetrics,
   buildTokenReductionSnapshot,
+  computeCostUsd,
   type TokenMetricsSnapshot,
   type TokenReductionSnapshot,
 } from "../utils/tokenMetrics.js";
+import { computeNetTokens, countRagContextTokens } from "../utils/tokenAccounting.js";
+import { countTokens } from "../utils/tokenMetrics.js";
 import { getLLMModelConfig } from "../llm-client/llm-models.js";
-import { computeProjectId, hashRawInput } from "../rag/hash.js";
+import { computeProjectId, hashRawInput, hashTaskInputV2 } from "../rag/hash.js";
 import { CACHE_DISABLED, CACHE_TTL_DAYS } from "../cache/cache-config.js";
-import { isSessionCacheValid, isTaskCacheValid } from "../cache/cache-validator.js";
+import { isSessionCacheValid, isTaskCacheValid, deriveAdviseReasons } from "../cache/cache-validator.js";
 import { isRagEnabled, getRagModelPath, getRagVectorDbPath, RAG_EMBEDDING_DIMS } from "../rag/rag-config.js";
 import { EmbeddingService } from "../rag/embedding-service.js";
 import { VectorStore } from "../rag/vector-store.js";
@@ -37,7 +44,7 @@ import { WorkflowTemplateBuilder } from "../rag/workflow-template-builder.js";
 import { AdapterStatsLearner } from "../rag/adapter-stats-learner.js";
 import { ProjectMemory } from "../rag/project-memory.js";
 import type { PtyTranscript } from "../../integrations/subprocess/types.js";
-import type { SessionState } from "../../schemas/pipeline.js";
+import type { SessionState, Task } from "../../schemas/pipeline.js";
 import type {
   PipelineProgressEvent,
   PipelineProgressLog,
@@ -70,16 +77,129 @@ function resolveModelName(adapter: string, env?: NodeJS.ProcessEnv): string {
 }
 
 function generateSessionId(): string {
-  return createHash("sha256").update(String(Date.now())).digest("hex").slice(0, 12);
+  // randomBytes: 64비트 엔트로피 — 같은 밀리초에 여러 프로세스가 실행돼도 충돌 없음
+  return randomBytes(8).toString("hex");
 }
 
-function initSessionState(sessionId: string, rawInput: string, executionMode: string): SessionState {
+// package.json major 버전 — cache key의 detoksMajorVersion으로 사용.
+// major 버전이 올라갈 때만 기존 캐시가 자동 무효화된다.
+const DETOKS_MAJOR_VERSION = 1;
+
+// per-task semantic retrieval 대상 task 타입. execute/validate는 기본 skip.
+const RAG_ELIGIBLE_TYPES = new Set(["explore", "analyze", "debug", "update", "create"]);
+
+// Budget Gate 상수 — 환경변수로 override 가능. 잘못된 값(NaN)은 기본값으로 복원.
+const COLD_START_THRESHOLD = Math.max(0, parseInt(process.env.DETOKS_COLD_START_THRESHOLD ?? "5", 10) || 5);
+const RAG_BREAK_EVEN_RATIO = parseFloat(process.env.DETOKS_RAG_BREAK_EVEN ?? "0.5") || 0.5;
+const PER_TASK_TOKEN_CAP = Math.max(0, parseInt(process.env.DETOKS_RAG_PER_TASK_CAP ?? "250", 10) || 250);
+const PER_SESSION_TOKEN_CAP = Math.max(0, parseInt(process.env.DETOKS_RAG_PER_SESSION_CAP ?? "500", 10) || 500);
+
+// 같은 stage 내 최대 병렬 LLM 호출 수.
+// 초과 분은 큐에서 대기해 파일 디스크립터·API rate limit 소진을 방지한다.
+const MAX_PARALLEL_TASKS = Math.max(1, parseInt(process.env.DETOKS_MAX_PARALLEL ?? "5", 10) || 5);
+
+function makeConcurrencyLimiter(concurrency: number) {
+  let running = 0;
+  const queue: Array<() => void> = [];
+  return function limit<T>(fn: () => Promise<T>): Promise<T> {
+    return new Promise<T>((resolve, reject) => {
+      const run = () => {
+        running++;
+        fn().then(resolve, reject).finally(() => {
+          running--;
+          queue.shift()?.();
+        });
+      };
+      if (running < concurrency) run();
+      else queue.push(run);
+    });
+  };
+}
+
+function sumCachedTaskTokens(hits: Map<string, Record<string, unknown>>): number {
+  let total = 0;
+  for (const result of hits.values()) {
+    const est = result.token_estimate_total as number | undefined;
+    if (est) total += est;
+  }
+  return total;
+}
+
+async function countPriorSessions(projectId: string | undefined): Promise<number> {
+  try {
+    const sessions = await SessionStateManager.listSessions();
+    if (!projectId) return sessions.length;
+    return sessions.filter((s) => {
+      const pid = (s as unknown as Record<string, unknown>).project_id;
+      return pid === projectId;
+    }).length;
+  } catch {
+    return 0;
+  }
+}
+
+// ~/.detoks/disabled 파일 또는 DETOKS_MEMORY=off 환경변수가 있으면 저장/조회/인덱싱 전체 비활성화.
+async function isMemoryDisabled(): Promise<boolean> {
+  if (process.env.DETOKS_MEMORY === "off" || process.env.DETOKS_MEMORY === "0") return true;
+  try {
+    await fs.access(join(homedir(), ".detoks", "disabled"));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+const NOTICE_SHOWN_FILE = ".state/.detoks-notice-shown";
+
+async function maybeShowFirstRunNotice(cwd: string): Promise<void> {
+  const flagPath = join(cwd, NOTICE_SHOWN_FILE);
+  try {
+    await fs.access(flagPath);
+    return; // 이미 표시했음
+  } catch { /* 파일 없음 → 안내 필요 */ }
+
+  const notice = [
+    "[detoks] DeToks는 실행 메모리를 .state/sessions에 저장합니다.",
+    "[detoks] cross-project store에는 generalize 단계를 거친 익명 패턴만 들어갑니다.",
+    "[detoks] 비활성화: detoks memory disable / 일괄 삭제: detoks memory purge --all",
+  ].join("\n");
+
+  process.stderr.write(`${notice}\n`);
+
+  try {
+    await fs.mkdir(join(cwd, ".state"), { recursive: true });
+    await fs.writeFile(flagPath, new Date().toISOString(), "utf-8");
+  } catch { /* 쓰기 실패는 non-fatal */ }
+}
+
+// git HEAD short SHA (8자). git이 없는 환경이면 undefined.
+function resolveGitHead(cwd: string): string | undefined {
+  try {
+    return execSync("git rev-parse HEAD", {
+      cwd,
+      stdio: ["ignore", "pipe", "ignore"],
+      encoding: "utf8",
+    }).trim().slice(0, 8);
+  } catch {
+    return undefined;
+  }
+}
+
+function initSessionState(
+  sessionId: string,
+  rawInput: string,
+  executionMode: string,
+  stamp: { adapter?: string; adapterModel?: string; gitHead?: string } = {},
+): SessionState {
   return {
     shared_context: {
       session_id: sessionId,
       raw_input: rawInput,
       // stub 모드 세션은 캐시 조회 대상에서 제외 — real 모드가 stub 결과를 캐시 hit으로 받는 오염 방지
       ...(executionMode !== "stub" ? { raw_input_hash: hashRawInput(rawInput) } : {}),
+      ...(stamp.adapter ? { adapter: stamp.adapter } : {}),
+      ...(stamp.adapterModel ? { adapter_model: stamp.adapterModel } : {}),
+      ...(stamp.gitHead ? { git_head: stamp.gitHead } : {}),
     },
     task_results: {},
     current_task_id: null,
@@ -137,6 +257,8 @@ function markTaskCompleted(
   rawOutput: string,
   taskType?: string,
   task?: { title?: string; input_hash?: string; depends_on?: string[] },
+  stamp: { adapter?: string; adapterModel?: string; gitHead?: string } = {},
+  tokenEstimateTotal?: number,
 ): SessionState {
   const now = new Date().toISOString();
   return {
@@ -153,6 +275,10 @@ function markTaskCompleted(
         ...(taskType ? { type: taskType } : {}),
         ...extractRagMeta(task),
         completed_at: now,
+        ...(stamp.adapter ? { adapter: stamp.adapter } : {}),
+        ...(stamp.adapterModel ? { adapter_model: stamp.adapterModel } : {}),
+        ...(stamp.gitHead ? { git_head: stamp.gitHead } : {}),
+        ...(tokenEstimateTotal !== undefined ? { token_estimate_total: tokenEstimateTotal } : {}),
       },
     },
     updated_at: now,
@@ -461,22 +587,51 @@ export const orchestratePipeline = async (
     }
   };
 
+  // ~/.detoks/disabled 또는 DETOKS_MEMORY=off 시 저장/조회/인덱싱 전체 비활성화
+  const memoryDisabled = await isMemoryDisabled();
+  const saveSessionIfEnabled = async (s: SessionState) => {
+    if (memoryDisabled) return;
+    try {
+      await SessionStateManager.saveSession(s);
+    } catch (err) {
+      // 디스크 풀·권한 오류 등은 파이프라인을 중단하지 않는다.
+      // logger.error는 DETOKS_DEBUG 여부와 무관하게 항상 stderr에 출력된다.
+      logger.error(`세션 저장 실패 (non-fatal): ${toErrorMessage(err)}`);
+    }
+  };
+
+  // 첫 실행 1회 안내 (non-fatal, stderr) — 메모리 비활성화 상태면 표시하지 않음
+  if (!memoryDisabled) {
+    await maybeShowFirstRunNotice(request.userRequest.cwd ?? process.cwd());
+  }
+
+  // projectId / gitHead — F1·F3 cache lookup과 hash v2 re-map에서 공통으로 사용
+  const projectId =
+    request.projectInfo?.projectId ??
+    computeProjectId(request.userRequest.cwd ?? process.cwd());
+  const gitHead = resolveGitHead(request.userRequest.cwd ?? process.cwd());
+
   // ── F1: Cross-session input_hash cache bypass ────────────────────────────
   // stub 모드는 테스트/개발용이므로 캐시 우회 대상에서 제외
-  if (!request.noCache && !CACHE_DISABLED && request.executionMode !== "stub") {
+  if (!request.noCache && !CACHE_DISABLED && !memoryDisabled && request.executionMode !== "stub") {
     const inputHash = hashRawInput(request.userRequest.raw_input);
-    const projectId =
-      request.projectInfo?.projectId ??
-      computeProjectId(request.userRequest.cwd ?? process.cwd());
     const cachedSession = await SessionStateManager.findSuccessfulSessionByInputHash(
       inputHash,
-      { project_id: projectId, recencyDays: CACHE_TTL_DAYS },
+      { project_id: projectId, recencyDays: CACHE_TTL_DAYS, adapter: request.adapter },
     );
-    if (cachedSession && isSessionCacheValid(cachedSession, { project_id: projectId })) {
-      const cacheAge = cachedSession.updated_at
-        ? Date.now() - new Date(cachedSession.updated_at).getTime()
+    const f1Validity = cachedSession
+      ? isSessionCacheValid(cachedSession, {
+          project_id: projectId,
+          expected_adapter: request.adapter,
+          ...(gitHead ? { expected_git_head: gitHead } : {}),
+        })
+      : "skip";
+
+    if (f1Validity === "auto") {
+      const cacheAge = cachedSession!.updated_at
+        ? Date.now() - new Date(cachedSession!.updated_at).getTime()
         : 0;
-      const cachedSessionId = cachedSession.shared_context.session_id;
+      const cachedSessionId = cachedSession!.shared_context.session_id;
       await emitActionTimelineWithLogging(
         createActionTimelineEvent({
           kind: "cache_hit",
@@ -484,47 +639,63 @@ export const orchestratePipeline = async (
           summary: `F1 캐시 hit — 세션 ${cachedSessionId} (${Math.round(cacheAge / 86400000)}일 전)`,
         }),
       );
-      const { rawOutputText, summaryText } = collectTaskOutputText(cachedSession);
+      const { rawOutputText, summaryText } = collectTaskOutputText(cachedSession!);
       return {
         ok: true,
         mode: request.mode,
         adapter: request.adapter,
-        summary: cachedSession.last_summary ?? summaryText.slice(0, 200),
-        nextAction: cachedSession.next_action ?? "캐시된 결과를 반환했습니다.",
+        summary: cachedSession!.last_summary ?? summaryText.slice(0, 200),
+        nextAction: cachedSession!.next_action ?? "캐시된 결과를 반환했습니다.",
         originalPrompt: request.userRequest.raw_input,
         stages: buildPipelineStages(true),
         rawOutput: rawOutputText,
         sessionId: cachedSessionId,
-        taskRecords: cachedSession.completed_task_ids.map((id) => ({
+        taskRecords: cachedSession!.completed_task_ids.map((id) => ({
           taskId: id,
           status: "completed" as const,
-          rawOutput: (cachedSession.task_results[id] as Record<string, unknown>)?.raw_output as string ?? "",
+          rawOutput: (cachedSession!.task_results[id] as Record<string, unknown>)?.raw_output as string ?? "",
         })),
         cacheHit: {
           kind: "session" as const,
           sourceSessionId: cachedSessionId,
           cacheAge,
-          tokensSaved: 0,
+          tokensSaved: sumCachedTaskTokens(
+            new Map(Object.entries(cachedSession!.task_results as Record<string, Record<string, unknown>>)),
+          ),
         },
         ...(actionTimeline.length ? { actionTimeline } : {}),
       };
     }
-    await emitActionTimelineWithLogging(
-      createActionTimelineEvent({
-        kind: "cache_miss",
-        source: "pipeline",
-        summary: `F1 캐시 miss — hash ${inputHash}`,
-      }),
-    );
+
+    if (f1Validity === "advise") {
+      const adviseCtx = cachedSession!.shared_context as Record<string, unknown>;
+      const adviseReasons = deriveAdviseReasons(adviseCtx, {
+        expected_adapter: request.adapter,
+        ...(gitHead ? { expected_git_head: gitHead } : {}),
+      });
+      await emitActionTimelineWithLogging(
+        createActionTimelineEvent({
+          kind: "cache_advise",
+          source: "pipeline",
+          summary: `F1 캐시 advise — 유사 세션 ${adviseCtx.session_id} 발견 (자동 적용 불가)`,
+          details: [...adviseReasons, "현재 상태로 새로 실행합니다."],
+        }),
+      );
+    } else {
+      await emitActionTimelineWithLogging(
+        createActionTimelineEvent({
+          kind: "cache_miss",
+          source: "pipeline",
+          summary: `F1 캐시 miss — hash ${inputHash}`,
+        }),
+      );
+    }
   }
 
   // ── F3: 미완성 세션 resume 힌트 ──────────────────────────────────────────
   let resumeHint: ResumeHintInfo | undefined;
-  if (!request.noCache && !CACHE_DISABLED && request.executionMode !== "stub") {
+  if (!request.noCache && !CACHE_DISABLED && !memoryDisabled && request.executionMode !== "stub") {
     const inputHash = hashRawInput(request.userRequest.raw_input);
-    const projectId =
-      request.projectInfo?.projectId ??
-      computeProjectId(request.userRequest.cwd ?? process.cwd());
     const incompleteSession = await SessionStateManager.findIncompleteSessionByInputHash(
       inputHash,
       { project_id: projectId },
@@ -544,47 +715,11 @@ export const orchestratePipeline = async (
     }
   }
 
-  // ── F4~F7: Semantic retrieval (RAG Phase 2A) — BGE-M3 + sqlite-vec ───────
+  // ── F4~F7: 변수 선언 — 실제 retrieval은 DAG 확정 후 (per-task 검색) ──────
   let semanticContext: SemanticContextResult[] | undefined;
-  let ragSnippets: RagSnippet[] = [];
   let ragEmbedder: EmbeddingService | undefined;
   let ragStore: VectorStore | undefined;
-  if (isRagEnabled() && request.executionMode !== "stub") {
-    try {
-      const modelPath = getRagModelPath()!;
-      const cwd = request.userRequest.cwd ?? process.cwd();
-      const dbPath = getRagVectorDbPath(cwd);
-      ragEmbedder = new EmbeddingService(modelPath);
-      await ragEmbedder.init();
-      ragStore = new VectorStore(dbPath, RAG_EMBEDDING_DIMS);
-      ragStore.open();
-      const retriever = new SemanticRetriever(ragStore, ragEmbedder);
-      const hits = await retriever.hybridSearch(request.userRequest.raw_input, 5);
-      if (hits.length > 0) {
-        semanticContext = hits.map((h) => ({
-          id: h.id,
-          distance: h.distance,
-          kind: h.meta.kind as SemanticContextResult["kind"],
-          session_id: h.meta.session_id as string,
-          ...(h.meta.task_id ? { task_id: h.meta.task_id as string } : {}),
-        }));
-        const sessionsDir = resolveSessionsDir(cwd);
-        const loader = new RagContextLoader(sessionsDir);
-        ragSnippets = await loader.load(hits.slice(0, 3));
-        await emitProgressWithLogging({
-          stage: "State Manager",
-          status: "info",
-          message: `RAG: 유사 과거 컨텍스트 ${hits.length}건 발견 (스니펫 ${ragSnippets.length}건 로딩)`,
-        });
-      }
-    } catch (ragErr) {
-      logger.warn(`RAG retrieval 실패 (non-fatal): ${toErrorMessage(ragErr)}`);
-      await ragEmbedder?.dispose().catch(() => {});
-      ragStore?.close();
-      ragEmbedder = undefined;
-      ragStore = undefined;
-    }
-  }
+  const perTaskSnippets = new Map<string, RagSnippet[]>();
 
   // ── Step 1: Prompt compile + Role 2.1 handoff 생성 (Role 1) ──────────────
   let compiledPrompt;
@@ -679,7 +814,22 @@ export const orchestratePipeline = async (
   });
   PipelineTracer.startStage("TaskGraphBuilder");
   const compiledSentences = TaskSentenceSplitter.split(role2PromptInput.compiled_prompt);
-  const graph = TaskGraphProcessor.process(compiledSentences);
+  const rawGraph = TaskGraphProcessor.process(compiledSentences);
+  const adapterModel = request.env?.ADAPTER_MODEL ?? process.env.ADAPTER_MODEL ?? "";
+  const graph = {
+    ...rawGraph,
+    tasks: rawGraph.tasks.map((task) => ({
+      ...task,
+      input_hash: hashTaskInputV2({
+        projectId,
+        type: task.type,
+        normalizedIntent: task.title,
+        adapter: request.adapter,
+        adapterModel,
+        detoksMajorVersion: DETOKS_MAJOR_VERSION,
+      }),
+    })),
+  };
   await PipelineTracer.trace({
     sessionId, stage: "TaskGraphBuilder", role: "role2.1", phase: "output",
     dataType: "TaskGraph", data: graph,
@@ -815,7 +965,11 @@ export const orchestratePipeline = async (
     const loadedFailedIds = (state.shared_context.failed_task_ids as string[]) || [];
     loadedFailedIds.forEach((id) => failedTaskIds.add(id));
   } else {
-    state = initSessionState(sessionId, request.userRequest.raw_input, request.executionMode);
+    state = initSessionState(sessionId, request.userRequest.raw_input, request.executionMode, {
+      adapter: request.adapter,
+      ...(adapterModel ? { adapterModel } : {}),
+      ...(gitHead ? { gitHead } : {}),
+    });
   }
   state = applyProjectInfo(state, request.projectInfo, request.userRequest.cwd);
   // RAG Phase 2: 전체 DAG 보존 (Task의 input_hash, depends_on, priority 등 완전 보존)
@@ -826,8 +980,83 @@ export const orchestratePipeline = async (
     message: "State Manager: 세션 상태 준비 완료",
   });
 
+  // ── [E0] F2 pre-scan + F4~F7: per-task semantic retrieval ────────────────
+  // DAG가 확정된 뒤 실행 필요 task를 먼저 파악하고, 그 task에만 RAG 검색을 수행한다.
+  const f2PreScanHits = new Map<string, Record<string, unknown>>();
+  const tasksNeedingExecution: typeof graph.tasks = [];
+  if (!request.noCache && !CACHE_DISABLED && !memoryDisabled && request.executionMode !== "stub") {
+    const prescanProjectId = state.shared_context.project_id as string | undefined;
+    for (const task of graph.tasks) {
+      if (!task.input_hash) { tasksNeedingExecution.push(task); continue; }
+      const cachedTask = await SessionStateManager.findSuccessfulTaskByHash(
+        task.input_hash,
+        {
+          ...(prescanProjectId ? { project_id: prescanProjectId } : {}),
+          recencyDays: CACHE_TTL_DAYS,
+          adapter: request.adapter,
+          ...(gitHead ? { git_head: gitHead } : {}),
+        },
+      );
+      if (cachedTask) {
+        f2PreScanHits.set(task.id, cachedTask.taskResult);
+      } else {
+        tasksNeedingExecution.push(task);
+      }
+    }
+  } else {
+    tasksNeedingExecution.push(...graph.tasks);
+  }
+
+  if (isRagEnabled() && !memoryDisabled && request.executionMode !== "stub" && tasksNeedingExecution.length > 0) {
+    try {
+      const modelPath = getRagModelPath()!;
+      const cwd = request.userRequest.cwd ?? process.cwd();
+      const dbPath = getRagVectorDbPath(cwd);
+      ragEmbedder = new EmbeddingService(modelPath);
+      await ragEmbedder.init();
+      ragStore = new VectorStore(dbPath, RAG_EMBEDDING_DIMS);
+      ragStore.open();
+      const retriever = new SemanticRetriever(ragStore, ragEmbedder);
+      const sessionsDir = resolveSessionsDir(cwd);
+      const loader = new RagContextLoader(sessionsDir);
+
+      if (!semanticContext) semanticContext = [];
+      for (const task of tasksNeedingExecution) {
+        if (!RAG_ELIGIBLE_TYPES.has(task.type)) continue;
+        const queryText = `${task.type} ${task.title}`;
+        const hits = await retriever.hybridSearch(queryText, 5);
+        if (hits.length > 0) {
+          semanticContext.push(...hits.map((h) => ({
+            id: h.id,
+            distance: h.distance,
+            kind: h.meta.kind as SemanticContextResult["kind"],
+            session_id: h.meta.session_id as string,
+            ...(h.meta.task_id ? { task_id: h.meta.task_id as string } : {}),
+          })));
+          const snippets = await loader.load(hits.slice(0, 1));
+          if (snippets.length > 0) perTaskSnippets.set(task.id, snippets);
+        }
+      }
+
+      const totalSnippets = Array.from(perTaskSnippets.values()).reduce((s, v) => s + v.length, 0);
+      if (totalSnippets > 0) {
+        await emitProgressWithLogging({
+          stage: "State Manager",
+          status: "info",
+          message: `RAG: ${tasksNeedingExecution.length}개 task 중 ${perTaskSnippets.size}개 task에 과거 컨텍스트 발견`,
+        });
+      }
+    } catch (ragErr) {
+      logger.warn(`RAG retrieval 실패 (non-fatal): ${toErrorMessage(ragErr)}`);
+      await ragEmbedder?.dispose().catch(() => {});
+      ragStore?.close();
+      ragEmbedder = undefined;
+      ragStore = undefined;
+    }
+  }
+
   // ── F8~F14: 프로젝트별 패턴 학습 (non-fatal) ─────────────────────────────
-  if (request.executionMode !== "stub") {
+  if (request.executionMode !== "stub" && !memoryDisabled) {
     const cwd = request.userRequest.cwd ?? process.cwd();
     const sessionsDir = resolveSessionsDir(cwd);
     const projectId = state.shared_context.project_id as string | undefined;
@@ -890,248 +1119,298 @@ export const orchestratePipeline = async (
   }
 
   // ── Step 6: 실행 루프 ────────────────────────────────────────────────────
+  let tokensAddedByRagContext = 0;
+  let tokensSavedByCache = 0;
+  let cacheHitCount = 0;
+  let ragContextInjected = false;
+
+  // ── 각 stage의 task 처리 결과 타입
+  type StageTaskOutcome = {
+    task: Task;
+    record: TaskExecutionRecord;
+    // Phase 3에서 순차적으로 호출 — state를 받아 갱신된 state를 반환
+    applyState: (s: SessionState) => SessionState;
+    failed: boolean;
+    tokensSavedDelta: number;
+    ragAddedDelta: number;
+    ragInjected: boolean;
+    cacheHit: boolean;
+    transcript: PtyTranscript | undefined;
+  };
+
+  const stageLimit = makeConcurrencyLimiter(MAX_PARALLEL_TASKS);
+
   for (const { stage, tasks } of stages) {
-    logger.info(`단계 ${stage} 실행 중 — 작업 ${tasks.length}개`);
+    logger.info(`단계 ${stage} 실행 중 — 작업 ${tasks.length}개${tasks.length > 1 ? ` (최대 ${MAX_PARALLEL_TASKS}개 병렬)` : ""}`);
 
-    for (const task of tasks) {
-      // 이미 완료된 작업이면 스킵 (Role 2.2 / Role 3 경계)
-      if (state.completed_task_ids.includes(task.id)) {
-        logger.info(`작업 [${task.id}]는 세션에서 이미 완료되어 건너뜁니다`);
-        await emitProgressWithLogging( {
-          stage: "Executor",
-          status: "skip",
-          taskId: task.id,
-          message: `Executor(${task.id})는 이미 완료되어 건너뜁니다`,
-        });
-        const previousResult = state.task_results[task.id] as any;
-        taskRecords.push({
-          taskId: task.id,
-          status: "completed",
-          rawOutput: previousResult?.raw_output ?? "",
-        });
-        continue;
-      }
+    // Budget Gate: stage 시작 시점의 누적 토큰 스냅샷.
+    // 같은 stage 내 병렬 task들은 이 값을 기준으로 Budget Gate를 계산한다.
+    // stage 완료 후 ragAddedDelta 합산으로 카운터를 보정한다.
+    const tokensAddedAtStageStart = tokensAddedByRagContext;
 
-      // Strict 모드: 의존 Task가 실패했으면 현재 Task 실행 불가
-      const blockedBy = task.depends_on.find((depId) => failedTaskIds.has(depId));
-      if (blockedBy) {
-        failedTaskIds.add(task.id);
-        const skipReason = `의존성 [${blockedBy}] 실패로 건너뜀`;
-        state = markTaskSkipped(state, task.id, blockedBy, task.type, task);
-        state = applySessionTokenMetrics(
-          state,
-          request.userRequest.raw_input,
-          compiledPrompt.compressed_prompt,
-        ).state;
-        await SessionStateManager.saveSession(state);
-        taskRecords.push({ taskId: task.id, status: "skipped", rawOutput: "", blockedBy });
-        await PipelineTracer.trace({
-          sessionId, stage: `Executor:${task.id}`, role: "role3", phase: "output",
-          dataType: "ExecutionResult", data: {
-            task_id: task.id,
-            success: false,
-            raw_output: skipReason,
-            type: task.type,
-          },
-        });
-        logger.warn(`작업 [${task.id}] 건너뜀 — 의존성 [${blockedBy}] 실패`);
-        await emitProgressWithLogging( {
-          stage: "Executor",
-          status: "skip",
-          taskId: task.id,
-          message: `Executor(${task.id})는 의존성 ${blockedBy} 실패로 건너뜁니다`,
-        });
-        continue;
-      }
+    // Phase 2 클로저들은 stage 진입 시점의 state 스냅샷만 읽는다.
+    // Phase 3에서 state를 순차 갱신하므로 클로저 안에서 let state를 직접 참조하면 안 된다.
+    const stageBaseState = state;
 
-      // F2: Task-level input_hash cache bypass (stub 모드 제외)
-      if (!request.noCache && !CACHE_DISABLED && request.executionMode !== "stub" && task.input_hash) {
-        const projectId = state.shared_context.project_id as string | undefined;
-        const cachedTask = await SessionStateManager.findSuccessfulTaskByHash(
-          task.input_hash,
-          { ...(projectId ? { project_id: projectId } : {}), recencyDays: CACHE_TTL_DAYS },
+    // Phase 2: 같은 stage 내 task들은 서로 의존하지 않으므로 병렬 실행 (MAX_PARALLEL_TASKS 제한)
+    const outcomes = await Promise.all(
+      tasks.map((task) => stageLimit(async (): Promise<StageTaskOutcome> => {
+        const noop = (s: SessionState): SessionState => s;
+        const stamp = {
+          adapter: request.adapter,
+          ...(adapterModel ? { adapterModel } : {}),
+          ...(gitHead ? { gitHead } : {}),
+        };
+
+        // (1) 세션 재개 스킵 — 이전 실행에서 이미 완료된 task
+        if (stageBaseState.completed_task_ids.includes(task.id)) {
+          logger.info(`작업 [${task.id}]는 세션에서 이미 완료되어 건너뜁니다`);
+          await emitProgressWithLogging({
+            stage: "Executor", status: "skip", taskId: task.id,
+            message: `Executor(${task.id})는 이미 완료되어 건너뜁니다`,
+          });
+          const prev = stageBaseState.task_results[task.id] as any;
+          return {
+            task, record: { taskId: task.id, status: "completed", rawOutput: prev?.raw_output ?? "" },
+            applyState: noop, failed: false, tokensSavedDelta: 0, ragAddedDelta: 0,
+            ragInjected: false, cacheHit: false, transcript: undefined,
+          };
+        }
+
+        // (2) 의존성 차단 — 앞 stage의 task가 실패한 경우
+        const blockedBy = task.depends_on.find((depId) => failedTaskIds.has(depId));
+        if (blockedBy) {
+          const skipReason = `의존성 [${blockedBy}] 실패로 건너뜀`;
+          await PipelineTracer.trace({
+            sessionId, stage: `Executor:${task.id}`, role: "role3", phase: "output",
+            dataType: "ExecutionResult",
+            data: { task_id: task.id, success: false, raw_output: skipReason, type: task.type },
+          });
+          logger.warn(`작업 [${task.id}] 건너뜀 — 의존성 [${blockedBy}] 실패`);
+          await emitProgressWithLogging({
+            stage: "Executor", status: "skip", taskId: task.id,
+            message: `Executor(${task.id})는 의존성 ${blockedBy} 실패로 건너뜁니다`,
+          });
+          return {
+            task, record: { taskId: task.id, status: "skipped", rawOutput: "", blockedBy },
+            applyState: (s) => markTaskSkipped(s, task.id, blockedBy, task.type, task),
+            failed: true, tokensSavedDelta: 0, ragAddedDelta: 0,
+            ragInjected: false, cacheHit: false, transcript: undefined,
+          };
+        }
+
+        // (3) F2: Task-level input_hash 캐시 bypass (stub 모드 제외)
+        if (!request.noCache && !CACHE_DISABLED && !memoryDisabled && request.executionMode !== "stub" && task.input_hash) {
+          const f2ProjectId = stageBaseState.shared_context.project_id as string | undefined;
+          const cachedTask = await SessionStateManager.findSuccessfulTaskByHash(
+            task.input_hash,
+            {
+              ...(f2ProjectId ? { project_id: f2ProjectId } : {}),
+              recencyDays: CACHE_TTL_DAYS,
+              adapter: request.adapter,
+              ...(gitHead ? { git_head: gitHead } : {}),
+            },
+          );
+          const f2Validity = cachedTask
+            ? isTaskCacheValid(cachedTask.taskResult, {
+                expected_adapter: request.adapter,
+                ...(gitHead ? { expected_git_head: gitHead } : {}),
+              })
+            : "skip";
+
+          if (f2Validity === "auto") {
+            const cachedOutput = (cachedTask!.taskResult.raw_output as string) ?? "";
+            const tokenEst = (cachedTask!.taskResult.token_estimate_total as number | undefined) ?? 0;
+            await emitActionTimelineWithLogging(
+              createActionTimelineEvent({
+                kind: "cache_hit", source: "pipeline",
+                summary: `F2 캐시 hit — task ${task.id} (세션 ${cachedTask!.sessionId})`,
+                taskId: task.id,
+              }),
+            );
+            await emitProgressWithLogging({
+              stage: "Executor", status: "skip", taskId: task.id,
+              message: `Executor(${task.id}) F2 캐시 hit — adapter 호출 생략`,
+            });
+            return {
+              task, record: { taskId: task.id, status: "completed", rawOutput: cachedOutput },
+              applyState: (s) => markTaskCompleted(s, task.id, cachedOutput, task.type, task, stamp),
+              failed: false, tokensSavedDelta: tokenEst, ragAddedDelta: 0,
+              ragInjected: false, cacheHit: true, transcript: undefined,
+            };
+          }
+
+          if (f2Validity === "advise") {
+            const f2AdviseReasons = deriveAdviseReasons(cachedTask!.taskResult, {
+              expected_adapter: request.adapter,
+              ...(gitHead ? { expected_git_head: gitHead } : {}),
+            });
+            await emitActionTimelineWithLogging(
+              createActionTimelineEvent({
+                kind: "cache_advise", source: "pipeline",
+                summary: `F2 캐시 advise — task ${task.id} 유사 결과 발견 (자동 적용 불가)`,
+                taskId: task.id,
+                details: [...f2AdviseReasons, "현재 상태로 새로 실행합니다."],
+              }),
+            );
+          } else {
+            await emitActionTimelineWithLogging(
+              createActionTimelineEvent({
+                kind: "cache_miss", source: "pipeline",
+                summary: `F2 캐시 miss — task ${task.id} hash ${task.input_hash}`,
+                taskId: task.id,
+              }),
+            );
+          }
+        }
+
+        // (4) ExecutionContext 생성
+        await emitProgressWithLogging({
+          stage: "Context Optimizer", status: "start", taskId: task.id,
+          message: `Context Optimizer(${task.id}) 시작`,
+        });
+        PipelineTracer.startStage(`ContextOptimizer:${task.id}`);
+        const modelName = resolveModelName(request.adapter, request.env);
+        const tokensBeforeCompression = ContextCompressor.estimateTokens(stageBaseState, modelName);
+        const context = ContextBuilder.build(stageBaseState, task, modelName);
+        const contextCompression = await compressExecutionContextSummary(context.context_summary, request);
+        const executionContext = { ...context, context_summary: contextCompression.summary };
+        const compressedTaskIds = Object.entries(stageBaseState.task_results)
+          .filter(([, r]) => (r as Record<string, unknown>)._compressed === true)
+          .map(([id]) => id);
+        const keptTaskIds = stageBaseState.completed_task_ids.filter((id) => !compressedTaskIds.includes(id));
+        const contextTokens = ContextCompressor.estimateTokens(
+          { ...stageBaseState, task_results: context.selected_context as typeof stageBaseState.task_results },
+          modelName,
         );
-        if (cachedTask && isTaskCacheValid(cachedTask.taskResult, {})) {
-          const cachedOutput = (cachedTask.taskResult.raw_output as string) ?? "";
-          state = markTaskCompleted(state, task.id, cachedOutput, task.type, task);
+        await PipelineTracer.trace({
+          sessionId, stage: "ContextOptimizer", role: "role2.2", phase: "output",
+          dataType: "ExecutionContext", data: executionContext,
+          durationMs: PipelineTracer.endStage(`ContextOptimizer:${task.id}`),
+        });
+        await emitProgressWithLogging({
+          stage: "Context Optimizer", status: "end", taskId: task.id,
+          message: `Context Optimizer(${task.id}) 완료`,
+          data: { tokensBeforeCompression, contextTokens, contextCompressionRepairActions: contextCompression.repairActions, compressedTaskIds, keptTaskIds },
+        });
+
+        // (5) Budget Gate — stage 시작 시점 스냅샷 기준으로 결정
+        const responseLanguageInstruction = compiledPrompt.language !== "en" ? "Respond entirely in Korean.\n\n" : "";
+        const taskSnippets = perTaskSnippets.get(task.id) ?? [];
+        const ragContextRaw = formatRagSnippetsForPrompt(taskSnippets);
+        const ragTokensForTask = countRagContextTokens(ragContextRaw);
+        let ragContext = "";
+        let ragAddedDelta = 0;
+        let ragInjectedThisTask = false;
+        if (ragContextRaw && ragTokensForTask > 0) {
+          const projectedAdded = tokensAddedAtStageStart + ragTokensForTask;
+          const projectedSaved = sumCachedTaskTokens(f2PreScanHits);
+          const sessionCount = await countPriorSessions(stageBaseState.shared_context.project_id as string | undefined);
+          const inColdStart = sessionCount < COLD_START_THRESHOLD;
+          const block =
+            projectedAdded > PER_SESSION_TOKEN_CAP ||
+            ragTokensForTask > PER_TASK_TOKEN_CAP ||
+            (!inColdStart && projectedAdded > projectedSaved * RAG_BREAK_EVEN_RATIO);
+          if (!block) {
+            ragContext = ragContextRaw;
+            ragAddedDelta = ragTokensForTask;
+            ragInjectedThisTask = true;
+          }
+        }
+
+        // (6) LLM 실행
+        const prompt = `${responseLanguageInstruction}${ragContext ? `${ragContext}\n\n` : ""}[${task.type.toUpperCase()}] ${task.title}\n\nContext: ${executionContext.context_summary}`;
+        logger.info(`작업 [${task.id}] 실행 중 type=${task.type}`);
+        await emitProgressWithLogging({
+          stage: "Executor", status: "start", taskId: task.id,
+          message: `Executor(${task.id}) 실행 중`,
+        });
+        await PipelineTracer.trace({
+          sessionId, stage: `Executor:${task.id}`, role: "role3", phase: "input",
+          dataType: "ExecutionRequest", data: { task_id: task.id, type: task.type, prompt },
+        });
+
+        PipelineTracer.startStage(`Executor:${task.id}`);
+        const execResult = await executeWithAdapter({
+          adapter: request.adapter,
+          mode: request.mode,
+          executionMode: request.executionMode,
+          ...(request.presentationMode ? { presentationMode: request.presentationMode } : {}),
+          prompt,
+          verbose: request.verbose,
+          ...(adapterModel ? { model: adapterModel } : {}),
+          ...(request.userRequest.cwd ? { cwd: request.userRequest.cwd } : {}),
+          sessionId,
+          ...(request.onAdapterEvent ? { onAdapterEvent: request.onAdapterEvent } : {}),
+          ...(request.onPtyController ? { onPtyController: request.onPtyController } : {}),
+          onActionTimelineEvent: emitActionTimelineWithLogging,
+        });
+        if (!execResult.ok) {
+          // 실패 — Strict 모드에 따라 후속 의존 Task도 차단됨
+          failedTaskIds.add(task.id);
+          state = markTaskFailed(state, task.id, execResult.rawOutput, task.type, task);
           state = applySessionTokenMetrics(
             state,
             request.userRequest.raw_input,
             compiledPrompt.compressed_prompt,
           ).state;
           await SessionStateManager.saveSession(state);
-          taskRecords.push({ taskId: task.id, status: "completed", rawOutput: cachedOutput });
-          await emitActionTimelineWithLogging(
-            createActionTimelineEvent({
-              kind: "cache_hit",
-              source: "pipeline",
-              summary: `F2 캐시 hit — task ${task.id} (세션 ${cachedTask.sessionId})`,
-              taskId: task.id,
-            }),
-          );
-          await emitProgressWithLogging({
-            stage: "Executor",
-            status: "skip",
-            taskId: task.id,
-            message: `Executor(${task.id}) F2 캐시 hit — adapter 호출 생략`,
+          await PipelineTracer.trace({
+            sessionId, stage: `Executor:${task.id}`, role: "role3", phase: "output",
+            dataType: "ExecutionResult",
+            data: { task_id: task.id, success: false, raw_output: execResult.rawOutput, type: task.type },
+            durationMs: PipelineTracer.endStage(`Executor:${task.id}`),
           });
-          continue;
+          await emitProgressWithLogging({
+            stage: "Executor", status: "error", taskId: task.id,
+            message: `Executor(${task.id}) 실패`,
+          });
+          logger.error(`작업 [${task.id}] 실패 (exit ${execResult.exitCode}) — 의존 작업은 건너뜁니다`);
+          return {
+            task, record: { taskId: task.id, status: "failed", rawOutput: execResult.rawOutput },
+            applyState: (s) => markTaskFailed(s, task.id, execResult.rawOutput, task.type, task),
+            failed: true, tokensSavedDelta: 0, ragAddedDelta,
+            ragInjected: ragInjectedThisTask, cacheHit: false, transcript: execResult.transcript,
+          };
         }
-        await emitActionTimelineWithLogging(
-          createActionTimelineEvent({
-            kind: "cache_miss",
-            source: "pipeline",
-            summary: `F2 캐시 miss — task ${task.id} hash ${task.input_hash}`,
-            taskId: task.id,
-          }),
-        );
-      }
 
-      // 현재 실행 중인 Task 기록 (Role 2.2)
-      state = { ...state, current_task_id: task.id };
-
-      // ExecutionContext 생성 (Role 2.2 — ContextCompressor → ContextSelector → ContextBuilder)
-      await emitProgressWithLogging({
-        stage: "Context Optimizer",
-        status: "start",
-        taskId: task.id,
-        message: `Context Optimizer(${task.id}) 시작`,
-      });
-      PipelineTracer.startStage(`ContextOptimizer:${task.id}`);
-      const modelName = resolveModelName(request.adapter, request.env);
-      const tokensBeforeCompression = ContextCompressor.estimateTokens(state, modelName);
-      const context = ContextBuilder.build(state, task, modelName);
-      const contextCompression = await compressExecutionContextSummary(
-        context.context_summary,
-        request,
-      );
-      const executionContext = {
-        ...context,
-        context_summary: contextCompression.summary,
-      };
-      const compressedTaskIds = Object.entries(state.task_results)
-        .filter(([, r]) => (r as Record<string, unknown>)._compressed === true)
-        .map(([id]) => id);
-      const keptTaskIds = state.completed_task_ids.filter(
-        (id) => !compressedTaskIds.includes(id),
-      );
-      const contextTokens = ContextCompressor.estimateTokens(
-        { ...state, task_results: context.selected_context as typeof state.task_results },
-        modelName,
-      );
-      await PipelineTracer.trace({
-        sessionId, stage: "ContextOptimizer", role: "role2.2", phase: "output",
-        dataType: "ExecutionContext", data: executionContext,
-        durationMs: PipelineTracer.endStage(`ContextOptimizer:${task.id}`),
-      });
-      await emitProgressWithLogging({
-        stage: "Context Optimizer",
-        status: "end",
-        taskId: task.id,
-        message: `Context Optimizer(${task.id}) 완료`,
-        data: {
-          tokensBeforeCompression,
-          contextTokens,
-          contextCompressionRepairActions: contextCompression.repairActions,
-          compressedTaskIds,
-          keptTaskIds,
-        },
-      });
-
-      // Task 실행 (Role 3)
-      const responseLanguageInstruction =
-        compiledPrompt.language !== "en"
-          ? "Respond entirely in Korean.\n\n"
-          : "";
-      const ragContext = formatRagSnippetsForPrompt(ragSnippets);
-      const prompt = `${responseLanguageInstruction}${ragContext ? `${ragContext}\n\n` : ""}[${task.type.toUpperCase()}] ${task.title}\n\nContext: ${executionContext.context_summary}`;
-      logger.info(`작업 [${task.id}] 실행 중 type=${task.type}`);
-      await emitProgressWithLogging( {
-        stage: "Executor",
-        status: "start",
-        taskId: task.id,
-        message: `Executor(${task.id}) 실행 중`,
-      });
-      await PipelineTracer.trace({
-        sessionId, stage: `Executor:${task.id}`, role: "role3", phase: "input",
-        dataType: "ExecutionRequest", data: { task_id: task.id, type: task.type, prompt },
-      });
-
-      PipelineTracer.startStage(`Executor:${task.id}`);
-      const adapterModel = request.env?.ADAPTER_MODEL ?? process.env.ADAPTER_MODEL;
-      const execResult = await executeWithAdapter({
-        adapter: request.adapter,
-        mode: request.mode,
-        executionMode: request.executionMode,
-        ...(request.presentationMode ? { presentationMode: request.presentationMode } : {}),
-        prompt,
-        verbose: request.verbose,
-        ...(adapterModel ? { model: adapterModel } : {}),
-        ...(request.userRequest.cwd ? { cwd: request.userRequest.cwd } : {}),
-        sessionId,
-        ...(request.onAdapterEvent ? { onAdapterEvent: request.onAdapterEvent } : {}),
-        ...(request.onPtyController ? { onPtyController: request.onPtyController } : {}),
-        onActionTimelineEvent: emitActionTimelineWithLogging,
-      });
-      adapterTranscript = mergePtyTranscripts(adapterTranscript, execResult.transcript);
-      if (!execResult.ok) {
-        // 실패 — Strict 모드에 따라 후속 의존 Task도 차단됨
-        failedTaskIds.add(task.id);
-        state = markTaskFailed(state, task.id, execResult.rawOutput, task.type, task);
-        state = applySessionTokenMetrics(
-          state,
-          request.userRequest.raw_input,
-          compiledPrompt.compressed_prompt,
-        ).state;
-        await SessionStateManager.saveSession(state);
         await PipelineTracer.trace({
           sessionId, stage: `Executor:${task.id}`, role: "role3", phase: "output",
-          dataType: "ExecutionResult", data: { task_id: task.id, success: false, raw_output: execResult.rawOutput, type: task.type },
+          dataType: "ExecutionResult",
+          data: { task_id: task.id, success: true, raw_output: execResult.rawOutput, type: task.type },
           durationMs: PipelineTracer.endStage(`Executor:${task.id}`),
         });
-        await emitProgressWithLogging( {
-          stage: "Executor",
-          status: "error",
-          taskId: task.id,
-          message: `Executor(${task.id}) 실패`,
-        });
-        logger.error(`작업 [${task.id}] 실패 (exit ${execResult.exitCode}) — 의존 작업은 건너뜁니다`);
-      } else {
-        // 성공 — 세션 상태 갱신 및 저장 (Role 2.2)
-        await PipelineTracer.trace({
-          sessionId, stage: `Executor:${task.id}`, role: "role3", phase: "output",
-          dataType: "ExecutionResult", data: { task_id: task.id, success: true, raw_output: execResult.rawOutput, type: task.type },
-          durationMs: PipelineTracer.endStage(`Executor:${task.id}`),
-        });
-        await emitProgressWithLogging( {
-          stage: "Executor",
-          status: "end",
-          taskId: task.id,
+        await emitProgressWithLogging({
+          stage: "Executor", status: "end", taskId: task.id,
           message: `Executor(${task.id}) 완료`,
         });
-        failedTaskIds.delete(task.id);
-        state = markTaskCompleted(state, task.id, execResult.rawOutput, task.type, task);
-        state = applySessionTokenMetrics(
-          state,
-          request.userRequest.raw_input,
-          compiledPrompt.compressed_prompt,
-        ).state;
-        await emitProgressWithLogging( {
-          stage: "State Manager",
-          status: "start",
-          taskId: task.id,
-          message: `State Manager(${task.id}) 저장 중`,
-        });
-        await SessionStateManager.saveSession(state);
-        await emitProgressWithLogging( {
-          stage: "State Manager",
-          status: "end",
-          taskId: task.id,
-          message: `State Manager(${task.id}) 저장 완료`,
-        });
-        taskRecords.push({ taskId: task.id, status: "completed", rawOutput: execResult.rawOutput });
+        const taskTokenEstimate = countTokens(prompt) + countTokens(execResult.rawOutput);
         logger.info(`작업 [${task.id}] 완료`);
+        return {
+          task, record: { taskId: task.id, status: "completed", rawOutput: execResult.rawOutput },
+          applyState: (s) => markTaskCompleted(s, task.id, execResult.rawOutput, task.type, task, stamp, taskTokenEstimate),
+          failed: false, tokensSavedDelta: 0, ragAddedDelta,
+          ragInjected: ragInjectedThisTask, cacheHit: false, transcript: execResult.transcript,
+        };
+      })),
+    );
+
+    // Phase 3: 결과를 순차적으로 state에 적용
+    for (const o of outcomes) {
+      state = o.applyState(state);
+      state = applySessionTokenMetrics(state, request.userRequest.raw_input, compiledPrompt.compressed_prompt).state;
+      if (o.failed) failedTaskIds.add(o.task.id);
+      else failedTaskIds.delete(o.task.id);
+      tokensSavedByCache += o.tokensSavedDelta;
+      tokensAddedByRagContext += o.ragAddedDelta;
+      if (o.ragInjected) ragContextInjected = true;
+      if (o.cacheHit) cacheHitCount++;
+      if (o.transcript) adapterTranscript = mergePtyTranscripts(adapterTranscript, o.transcript);
+      taskRecords.push(o.record);
+      if (o.record.status !== "completed" || !state.completed_task_ids.includes(o.task.id)) {
+        // session_resume(already_done) 케이스는 saveSession 불필요 — 이미 저장된 상태
       }
+      await saveSessionIfEnabled(state);
     }
   }
 
@@ -1170,7 +1449,7 @@ export const orchestratePipeline = async (
     status: "start",
     message: "State Manager: 최종 세션 저장 중",
   });
-  await SessionStateManager.saveSession(state);
+  await saveSessionIfEnabled(state);
   await emitProgressWithLogging( {
     stage: "State Manager",
     status: "end",
@@ -1178,7 +1457,7 @@ export const orchestratePipeline = async (
   });
 
   // ── RAG indexing: 완료된 세션을 벡터 DB에 인덱싱 ─────────────────────────
-  if (ragEmbedder && ragStore) {
+  if (ragEmbedder && ragStore && !memoryDisabled) {
     try {
       const indexer = new EmbeddingIndexer(ragStore, ragEmbedder);
       await indexer.indexSession(state as any);
@@ -1189,6 +1468,26 @@ export const orchestratePipeline = async (
       ragStore.close();
     }
   }
+
+  // ── Token/Cost Accounting 집계 ────────────────────────────────────────────
+  const tokenAccounting = computeNetTokens(tokensSavedByCache, tokensAddedByRagContext);
+  const costEstimate = computeCostUsd({
+    savedInTokens: tokensSavedByCache,
+    savedOutTokens: 0,
+    addedInTokens: tokensAddedByRagContext,
+    adapter: request.adapter,
+    ...(adapterModel ? { adapterModel } : {}),
+  });
+  const costAccounting: import("../utils/tokenAccounting.js").CostAccounting = {
+    costSavedUsd: costEstimate.costSavedUsd,
+    costAddedUsd: costEstimate.costAddedUsd,
+    compressionCostUsd: 0,
+    netCostSavedUsd: costEstimate.netCostSavedUsd,
+  };
+  const lightQuality: import("../utils/tokenAccounting.js").LightQualityCounters = {
+    ragContextInjected,
+    cacheHitRate: graph.tasks.length > 0 ? cacheHitCount / graph.tasks.length : 0,
+  };
 
   return {
     ok: allOk,
@@ -1216,5 +1515,8 @@ export const orchestratePipeline = async (
     progressLog,
     ...(resumeHint ? { resumeHint } : {}),
     ...(semanticContext ? { semanticContext } : {}),
+    tokenAccounting,
+    costAccounting,
+    lightQuality,
   };
 };

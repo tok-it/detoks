@@ -84,6 +84,7 @@ describe("runModelResetCommand", () => {
     vi.stubEnv("HOME", home);
     vi.stubEnv("LOCAL_LLM_MODEL_NAME", "stale-model");
     vi.stubEnv("MODEL_NAME", "legacy-stale-model");
+    vi.stubEnv("LOCAL_LLM_MODEL_DIR", "/custom/models");
     vi.stubEnv("LOCAL_LLM_MODEL_PATH", "/custom/models/stale-model.gguf");
     vi.stubEnv("LOCAL_LLM_HF_REPO", "repo/model");
     vi.stubEnv("LOCAL_LLM_HF_FILE", "stale-model.gguf");
@@ -99,15 +100,18 @@ describe("runModelResetCommand", () => {
     });
     expect(process.env.LOCAL_LLM_MODEL_NAME).toBeUndefined();
     expect(process.env.MODEL_NAME).toBeUndefined();
+    expect(process.env.LOCAL_LLM_MODEL_DIR).toBeUndefined();
     expect(process.env.LOCAL_LLM_MODEL_PATH).toBeUndefined();
     expect(process.env.LOCAL_LLM_HF_REPO).toBeUndefined();
     expect(process.env.LOCAL_LLM_HF_FILE).toBeUndefined();
     expect(readFileSync(envPath, "utf8")).toContain("OTHER_VALUE=kept");
     expect(readFileSync(envPath, "utf8")).not.toContain("LOCAL_LLM_MODEL_NAME");
     expect(readFileSync(envPath, "utf8")).not.toContain("MODEL_NAME");
+    expect(readFileSync(envPath, "utf8")).not.toContain("LOCAL_LLM_MODEL_DIR");
     expect(readFileSync(envPath, "utf8")).not.toContain("LOCAL_LLM_MODEL_PATH");
     expect(readFileSync(envLocalPath, "utf8")).not.toContain("LOCAL_LLM_MODEL_NAME");
     expect(readFileSync(envLocalPath, "utf8")).not.toContain("MODEL_NAME");
+    expect(readFileSync(envLocalPath, "utf8")).not.toContain("LOCAL_LLM_MODEL_DIR");
     expect(readFileSync(envLocalPath, "utf8")).not.toContain("LOCAL_LLM_MODEL_PATH");
     expect(readFileSync(ggufPath, "utf8")).toBe("GGUF");
 

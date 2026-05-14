@@ -3,6 +3,10 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TRANSLATION_MODELS } from "../../../../src/cli/model-setup/models.js";
+import {
+  getDetoksModelDir,
+  getDetoksModelFilePath,
+} from "../../../../src/core/model-store.js";
 
 const mocks = vi.hoisted(() => ({
   selectModel: vi.fn(),
@@ -107,11 +111,11 @@ describe("runModelSetupIfNeeded", () => {
 
       const configPath = join(home, ".detoks", "settings.json");
       const envPath = join(cwd, ".env");
-      const modelDir = join(home, ".detoks", "models");
-      const modelPath = join(modelDir, selectedModel.hfFile);
+      const modelDir = getDetoksModelDir(selectedModel);
+      const modelPath = getDetoksModelFilePath(selectedModel);
 
       expect(mocks.selectModel).toHaveBeenCalledTimes(1);
-      expect(mocks.downloadModel).toHaveBeenCalledTimes(1);
+      expect(mocks.downloadModel).toHaveBeenCalledWith(selectedModel);
       expect(existsSync(configPath)).toBe(true);
       expect(existsSync(envPath)).toBe(true);
       expect(readFileSync(envPath, "utf8")).toContain(`LOCAL_LLM_MODEL_NAME=${selectedModel.modelName}`);
@@ -135,8 +139,8 @@ describe("runModelSetupIfNeeded", () => {
     setTTY(true, true);
     const stdoutWriteSpy = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
     const selectedModel = TRANSLATION_MODELS[0]!;
-    const modelDir = join(home, ".detoks", "models");
-    const modelPath = join(modelDir, selectedModel.hfFile);
+    const modelDir = getDetoksModelDir(selectedModel);
+    const modelPath = getDetoksModelFilePath(selectedModel);
     mkdirSync(modelDir, { recursive: true });
     writeFileSync(modelPath, "GGUFseed", "utf8");
     mocks.selectModel.mockResolvedValue(selectedModel);

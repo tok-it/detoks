@@ -12,6 +12,7 @@ export interface ModelResetOutput {
 const CLEAR_ENV_KEYS = [
   "LOCAL_LLM_MODEL_NAME",
   "MODEL_NAME",
+  "LOCAL_LLM_MODEL_DIR",
   "LOCAL_LLM_MODEL_PATH",
   "LOCAL_LLM_HF_REPO",
   "LOCAL_LLM_HF_FILE",

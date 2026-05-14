@@ -195,7 +195,7 @@ if (recentMatchingSession) {
 
 ### F4. 유사 과거 task 검색
 
-**메커니즘**: `task.title`을 BGE-M3로 임베딩 → 벡터 DB 검색 → 유사 task 발견 → plan 힌트로 prompt에 주입.
+**메커니즘**: `task.title`을 KURE-v1으로 임베딩 → 벡터 DB 검색 → 유사 task 발견 → plan 힌트로 prompt에 주입.
 
 ```typescript
 const similar = await ragRetriever.findSimilarTasks({
@@ -536,7 +536,7 @@ MVP 출시 후 검증된 가치 기반으로 다음 단계 결정.
 ### Phase 2A — 의미 검색 RAG (3-4주)
 - F4, F5, F6 통합 구현
 - sqlite-vec 의존성 추가
-- BGE-M3 임베딩 (node-llama-cpp)
+- KURE-v1 임베딩 (node-llama-cpp, mykor/KURE-v1-gguf)
 - F7 (하이브리드 필터링) 자동 적용
 - markdown 청크 RAG (별도 plan 문서 참고)
 

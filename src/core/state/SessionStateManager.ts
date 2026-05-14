@@ -14,6 +14,18 @@ const STATE_DIR = '.state';
 const SESSIONS_DIR = join(STATE_DIR, 'sessions');
 const CHECKPOINTS_DIR = join(STATE_DIR, 'checkpoints');
 
+// sessionId는 파일 경로로 직접 사용되므로 안전한 형식만 허용한다.
+const SESSION_ID_RE = /^[a-zA-Z0-9_-]{1,64}$/;
+
+function assertSafeSessionId(id: string): void {
+  if (!SESSION_ID_RE.test(id)) {
+    throw new StateIOError(
+      `Invalid session ID "${id}" — only alphanumeric, underscore, hyphen (max 64 chars) are allowed`,
+      { sessionId: id },
+    );
+  }
+}
+
 export function resolveSessionsDir(cwd?: string): string {
   return cwd ? join(cwd, STATE_DIR, 'sessions') : SESSIONS_DIR;
 }
@@ -36,6 +48,15 @@ export class SessionStateManager {
     return join(SESSIONS_DIR, `${sessionId}.tmp.json`);
   }
 
+  private static isProcessAlive(pid: number): boolean {
+    try {
+      process.kill(pid, 0);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   private static async acquireLock(sessionId: string, retryDepth = 0): Promise<void> {
     if (retryDepth > MAX_LOCK_RETRIES) {
       throw new StateLockError(
@@ -49,14 +70,24 @@ export class SessionStateManager {
     try {
       // O_EXCL: 파일이 이미 존재하면 즉시 실패 — atomic check-and-create
       fd = await fs.open(lockFile, 'wx');
-      await fd.writeFile(String(Date.now()));
+      // PID를 기록해 다른 인스턴스가 lock 보유자 생존 여부를 확인할 수 있게 한다.
+      await fd.writeFile(String(process.pid));
     } catch (error: unknown) {
       const nodeError = error as NodeJS.ErrnoException;
       if (nodeError.code === 'EEXIST') {
-        // 잠금 파일 존재 — stale 여부 확인
+        // 잠금 파일 존재 — stale 여부 확인 (PID 우선, mtime 보조)
         try {
-          const stat = await fs.stat(lockFile);
-          if (Date.now() - stat.mtimeMs > LOCK_STALE_TIMEOUT_MS) {
+          const [content, stat] = await Promise.all([
+            fs.readFile(lockFile, 'utf8').catch(() => ''),
+            fs.stat(lockFile),
+          ]);
+          const ownerPid = parseInt(content.trim(), 10);
+          const isStale =
+            // 보유 프로세스가 이미 종료된 경우
+            (!isNaN(ownerPid) && !this.isProcessAlive(ownerPid)) ||
+            // PID를 읽을 수 없거나 타임아웃을 넘긴 경우 (보조 조건)
+            (isNaN(ownerPid) && Date.now() - stat.mtimeMs > LOCK_STALE_TIMEOUT_MS);
+          if (isStale) {
             await fs.unlink(lockFile);
             return this.acquireLock(sessionId, retryDepth + 1);
           }
@@ -101,6 +132,7 @@ export class SessionStateManager {
 
   static async saveSession(state: SessionState): Promise<void> {
     const sessionId = state.shared_context?.session_id as string || 'default';
+    assertSafeSessionId(sessionId);
     await this.ensureDirectories();
     await this.acquireLock(sessionId);
     try {
@@ -155,6 +187,7 @@ export class SessionStateManager {
   }
 
   static async loadSession(sessionId: string): Promise<SessionState> {
+    assertSafeSessionId(sessionId);
     const filePath = join(SESSIONS_DIR, `${sessionId}.json`);
     try {
       const data = await fs.readFile(filePath, 'utf-8');
@@ -186,6 +219,7 @@ export class SessionStateManager {
 
 
   static async sessionExists(sessionId: string): Promise<boolean> {
+    assertSafeSessionId(sessionId);
     try {
       const filePath = join(SESSIONS_DIR, `${sessionId}.json`);
       await fs.access(filePath);
@@ -197,6 +231,8 @@ export class SessionStateManager {
 
 
   static async forkSession(sourceSessionId: string, newSessionId: string): Promise<SessionState> {
+    assertSafeSessionId(sourceSessionId);
+    assertSafeSessionId(newSessionId);
     if (!(await this.sessionExists(sourceSessionId))) {
       throw new StateIOError(`Session file not found [${sourceSessionId}]`, {
         sessionId: sourceSessionId,
@@ -362,9 +398,9 @@ export class SessionStateManager {
 
   static async findSuccessfulSessionByInputHash(
     hash: string,
-    opts: { project_id?: string; recencyDays?: number } = {},
+    opts: { project_id?: string; recencyDays?: number; adapter?: string } = {},
   ): Promise<SessionState | null> {
-    const { project_id, recencyDays = 7 } = opts;
+    const { project_id, recencyDays = 7, adapter } = opts;
     const cutoff = Date.now() - recencyDays * 24 * 60 * 60 * 1000;
 
     let files: string[];
@@ -388,6 +424,10 @@ export class SessionStateManager {
         const failedIds = (state.shared_context.failed_task_ids as string[] | undefined) ?? [];
         if (failedIds.length > 0) continue;
 
+        // 구 세션(adapter stamp 없음)은 필드 자체가 없으므로 비교 없이 통과
+        const ctx = state.shared_context as Record<string, unknown>;
+        if (adapter && ctx.adapter && ctx.adapter !== adapter) continue;
+
         return state;
       } catch {
         continue;
@@ -398,9 +438,9 @@ export class SessionStateManager {
 
   static async findSuccessfulTaskByHash(
     taskHash: string,
-    opts: { project_id?: string; recencyDays?: number } = {},
+    opts: { project_id?: string; recencyDays?: number; adapter?: string; git_head?: string } = {},
   ): Promise<{ taskResult: Record<string, unknown>; sessionId: string } | null> {
-    const { project_id, recencyDays = 7 } = opts;
+    const { project_id, recencyDays = 7, adapter, git_head } = opts;
     const cutoff = Date.now() - recencyDays * 24 * 60 * 60 * 1000;
 
     let files: string[];
@@ -426,6 +466,9 @@ export class SessionStateManager {
           if (typeof res.completed_at === "string") {
             if (new Date(res.completed_at).getTime() < cutoff) continue;
           }
+          // 구 세션(stamp 필드 없음)은 필드 자체가 없으므로 비교 없이 통과
+          if (adapter && res.adapter && res.adapter !== adapter) continue;
+          if (git_head && res.git_head && res.git_head !== git_head) continue;
           return { taskResult: res, sessionId: file.slice(0, -".json".length) };
         }
       } catch {
@@ -470,6 +513,7 @@ export class SessionStateManager {
   }
 
   static async deleteSession(sessionId: string): Promise<void> {
+    assertSafeSessionId(sessionId);
     try {
       const filePath = join(SESSIONS_DIR, `${sessionId}.json`);
       await fs.unlink(filePath);

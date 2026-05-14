@@ -9,6 +9,8 @@ export interface LLMModelConfig {
     safetyMargin: number;
   };
   maxBatchInputTokens?: number;
+  promptCostPerMillion?: number;      // USD per 1M input tokens
+  completionCostPerMillion?: number;  // USD per 1M output tokens
 }
 
 export const LLM_MODELS: Record<string, LLMModelConfig> = {
@@ -20,6 +22,8 @@ export const LLM_MODELS: Record<string, LLMModelConfig> = {
     tokenEncoderType: 'o200k_base',
     reservedTokens: { systemPrompt: 500, outputBuffer: 4000, safetyMargin: 500 },
     maxBatchInputTokens: 180000,
+    promptCostPerMillion: 3.00,
+    completionCostPerMillion: 15.00,
   },
   'claude-opus': {
     modelName: 'claude-3-opus-20250514',
@@ -28,6 +32,8 @@ export const LLM_MODELS: Record<string, LLMModelConfig> = {
     tokenEncoderType: 'o200k_base',
     reservedTokens: { systemPrompt: 500, outputBuffer: 4000, safetyMargin: 500 },
     maxBatchInputTokens: 180000,
+    promptCostPerMillion: 15.00,
+    completionCostPerMillion: 75.00,
   },
   'claude-haiku': {
     modelName: 'claude-3-haiku-20240307',
@@ -36,6 +42,8 @@ export const LLM_MODELS: Record<string, LLMModelConfig> = {
     tokenEncoderType: 'o200k_base',
     reservedTokens: { systemPrompt: 300, outputBuffer: 1000, safetyMargin: 200 },
     maxBatchInputTokens: 180000,
+    promptCostPerMillion: 0.25,
+    completionCostPerMillion: 1.25,
   },
 
   // ── OpenAI GPT

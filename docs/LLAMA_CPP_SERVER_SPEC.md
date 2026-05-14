@@ -48,7 +48,7 @@ This document defines the current detoks runtime contract for the prebuilt `llam
 | ------------------------------ | ----------------------------------------------------- | --------------------------------------------------------------- |
 | `LOCAL_LLM_API_BASE`           | `http://127.0.0.1:12370/v1`                           | TypeScript Role 1 local LLM API base                            |
 | `LOCAL_LLM_API_KEY`            | unset                                                 | Optional Bearer token forwarded by the TypeScript client        |
-| `LOCAL_LLM_MODEL_NAME`         | `mradermacher/gemma-4-e2b-it-heretic-ara-GGUF:Q4_K_S` | Default model id and alias requested by Role 1 clients          |
+| `LOCAL_LLM_MODEL_NAME`         | `unsloth/Qwen3.5-4B-GGUF`                             | Default model id and alias requested by Role 1 clients          |
 | `LOCAL_LLM_AUTO_START`         | `1`                                                   | Auto-start local llama.cpp server for Role 1                    |
 | `LOCAL_LLM_SERVER_BINARY`      | `llama-server`                                        | Prebuilt llama.cpp server executable                            |
 | `LOCAL_LLM_SERVER_HOST`        | `127.0.0.1`                                           | Auto-start bind host                                            |
@@ -61,8 +61,9 @@ This document defines the current detoks runtime contract for the prebuilt `llam
 | `LOCAL_LLM_SLEEP_IDLE_SECONDS` | `1200`                                                | Idle seconds before the local model is unloaded                 |
 | `LOCAL_LLM_MAX_TOKENS`         | `512`                                                 | Maximum generated tokens per Role 1 translation span            |
 | `LOCAL_LLM_REASONING`          | `off`                                                 | llama.cpp reasoning mode for chat templates                     |
-| `LOCAL_LLM_HF_REPO`            | `mradermacher/gemma-4-e2b-it-heretic-ara-GGUF:Q4_K_S` | Hugging Face GGUF repo and quant used when no model path exists |
-| `LOCAL_LLM_HF_FILE`            | `gemma-4-e2b-it-heretic-ara.Q4_K_S.gguf`              | Exact Hugging Face GGUF file                                    |
+| `LOCAL_LLM_HF_REPO`            | `unsloth/Qwen3.5-4B-GGUF:Q4_K_M`                     | Hugging Face GGUF repo and quant used when no model path exists |
+| `LOCAL_LLM_HF_FILE`            | `Qwen3.5-4B-Q4_K_M.gguf`                             | Exact Hugging Face GGUF file                                    |
+| `LOCAL_LLM_MODEL_DIR`          | `~/.detoks/models/<author>/<repo>`                    | Local model folder containing the GGUF file                     |
 | `LOCAL_LLM_MODEL_PATH`         | unset                                                 | Optional local GGUF model path                                  |
 | `LOCAL_LLM_MODEL_URL`          | unset                                                 | Optional download URL when model path is missing                |
 | `REQUEST_TIMEOUT`              | `30000`                                               | Client-side request timeout in milliseconds                     |
@@ -88,6 +89,7 @@ Behavior:
 - If `LOCAL_LLM_MODEL_PATH` exists, start `llama-server -m <path>`
 - If `LOCAL_LLM_MODEL_PATH` is missing and `LOCAL_LLM_MODEL_URL` is set, download the GGUF file first
 - If no local model path is set, start `llama-server -hf <LOCAL_LLM_HF_REPO> --hf-file <LOCAL_LLM_HF_FILE>`
+- Interactive model setup stores each GGUF under `~/.detoks/models/<author>/<repo>/`
 - Pass `--alias <LOCAL_LLM_MODEL_NAME>` so `/v1/models` can be verified against the expected model id
 - Pass `--host`, `--port`, `--ctx-size`, `--top-k`, `--top-p`, `--reasoning`, and `--sleep-idle-seconds` from the current runtime config
 - Pass `--gpu-layers <LOCAL_LLM_GPU_LAYERS>`, default `all`, so Metal or GPU offload is requested on supported builds
@@ -164,7 +166,7 @@ Required request shape:
 
 ```json
 {
-	"model": "mradermacher/gemma-4-e2b-it-heretic-ara-GGUF:Q4_K_S",
+	"model": "unsloth/Qwen3.5-4B-GGUF:Q4_K_M",
 	"messages": [
 		{
 			"role": "user",
@@ -183,7 +185,7 @@ Successful response shape consumed by detoks:
 	"id": "chatcmpl-...",
 	"object": "chat.completion",
 	"created": 1710000000,
-	"model": "mradermacher/gemma-4-e2b-it-heretic-ara-GGUF:Q4_K_S",
+	"model": "unsloth/Qwen3.5-4B-GGUF:Q4_K_M",
 	"choices": [
 		{
 			"index": 0,

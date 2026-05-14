@@ -1,17 +1,21 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { homedir } from "node:os";
 import type { TranslationModel } from "./models.js";
 import { colors } from "../colors.js";
+import {
+  getDetoksModelDir,
+  getDetoksModelFilePath,
+} from "../../core/model-store.js";
 
-const getModelsDir = () => join(homedir(), ".detoks", "models");
 const MODEL_ENV_KEYS = new Set([
   "LOCAL_LLM_MODEL_NAME",
   "MODEL_NAME",
+  "LOCAL_LLM_MODEL_DIR",
   "LOCAL_LLM_MODEL_PATH",
   "LOCAL_LLM_RUNTIME_PROVIDER",
   "LOCAL_LLM_HF_REPO",
   "LOCAL_LLM_HF_FILE",
+  "RAG_EMBEDDING_MODEL_PATH",
 ]);
 
 interface EnvEntry {
@@ -120,8 +124,8 @@ const mutateEnvFile = (
 };
 
 export const updateEnvFile = (model: TranslationModel, cwd: string = process.cwd()): void => {
-  const modelsDir = getModelsDir();
-  const modelFilePath = join(modelsDir, model.hfFile);
+  const modelsDir = getDetoksModelDir(model);
+  const modelFilePath = getDetoksModelFilePath(model);
   const targets = getModelEnvWriteTargets(cwd);
 
   for (const envPath of targets) {
@@ -130,7 +134,7 @@ export const updateEnvFile = (model: TranslationModel, cwd: string = process.cwd
       updateEntry(entries, "LOCAL_LLM_MODEL_DIR", modelsDir);
       updateEntry(entries, "LOCAL_LLM_MODEL_PATH", modelFilePath);
       updateEntry(entries, "LOCAL_LLM_RUNTIME_PROVIDER", "node-llama-cpp");
-      updateEntry(entries, "LOCAL_LLM_HF_REPO", `${model.hfRepo}:Q4_K_S`);
+      updateEntry(entries, "LOCAL_LLM_HF_REPO", `${model.hfRepo}:${model.quantization}`);
       updateEntry(entries, "LOCAL_LLM_HF_FILE", model.hfFile);
       return true;
     });
@@ -159,6 +163,20 @@ export const updateEnvFile = (model: TranslationModel, cwd: string = process.cwd
       "  LOCAL_LLM_RUNTIME_PROVIDER=node-llama-cpp\n",
     ),
   );
+};
+
+export const updateEmbeddingModelEnvFile = (
+  embeddingModelPath: string,
+  cwd: string = process.cwd(),
+): void => {
+  const targets = getModelEnvWriteTargets(cwd);
+
+  for (const envPath of targets) {
+    mutateEnvFile(envPath, (entries) => {
+      updateEntry(entries, "RAG_EMBEDDING_MODEL_PATH", embeddingModelPath);
+      return true;
+    });
+  }
 };
 
 export const resetModelEnvFiles = (cwd: string = process.cwd()): string[] => {
