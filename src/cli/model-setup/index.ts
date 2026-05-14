@@ -31,10 +31,6 @@ export const ensureEmbeddingModelReady = async (cwd: string = process.cwd()): Pr
       colors.info(`\n임베딩 모델 다운로드 중: ${KURE_EMBEDDING_MODEL.displayName}\n`),
     );
     await downloadModel(KURE_EMBEDDING_MODEL);
-  } else {
-    process.stdout.write(
-      colors.info(`임베딩 모델이 이미 다운로드되어 있습니다.\n`),
-    );
   }
 
   updateEmbeddingModelEnvFile(embeddingModelPath, cwd);
@@ -108,7 +104,7 @@ export const runModelSetupIfNeeded = async (cwd: string = process.cwd()): Promis
     );
     process.stdout.write(
       colors.info(
-        "detoks는 node-llama-cpp를 우선 사용합니다. 선택한 모델이 in-process backend와 맞지 않으면 호환되는 GGUF로 바꾸거나 llama-server 경로를 따로 사용하세요.\n",
+        "detoks는 node-llama-cpp in-process runtime을 사용합니다. 선택한 모델이 backend와 맞지 않으면 호환되는 GGUF로 바꿔주세요.\n",
       ),
     );
     process.stdout.write(

@@ -12,8 +12,7 @@ const DEFAULT_LOCAL_LLM_MODEL_NAME =
 const DEFAULT_LOCAL_LLM_HF_REPO =
 	"unsloth/Qwen3.5-4B-GGUF:Q4_K_M";
 const DEFAULT_LOCAL_LLM_HF_FILE = "Qwen3.5-4B-Q4_K_M.gguf";
-const DEFAULT_LOCAL_LLM_RUNTIME_PROVIDER = "llama-server";
-const DEFAULT_LOCAL_LLM_SERVER_BINARY = "llama-server";
+const DEFAULT_LOCAL_LLM_RUNTIME_PROVIDER = "node-llama-cpp";
 const DEFAULT_LOCAL_LLM_SERVER_HOST = "127.0.0.1";
 const DEFAULT_LOCAL_LLM_SERVER_PORT = 12370;
 const DEFAULT_LOCAL_LLM_STARTUP_TIMEOUT = 600_000;
@@ -27,10 +26,7 @@ const DEFAULT_LOCAL_LLM_REASONING = "off";
 const DEFAULT_KOMPRESS_MODEL_ID = "chopratejas/kompress-base";
 
 const PipelineModeSchema = z.enum(["safe", "debug"]);
-const LocalLlmRuntimeProviderSchema = z.enum([
-	"llama-server",
-	"node-llama-cpp",
-]);
+const LocalLlmRuntimeProviderSchema = z.enum(["node-llama-cpp"]);
 
 const Role1RuntimeConfigSchema = z.object({
 	localLlmApiBase: z.string().optional(),
@@ -276,14 +272,7 @@ export function loadRole1RuntimeConfig(
 		"LOCAL_LLM_SERVER_PORT",
 	);
 	const localLlmModelPath = pickEnv("LOCAL_LLM_MODEL_PATH");
-	const localLlmServerBinary = (() => {
-		const value = pickEnv("LOCAL_LLM_SERVER_BINARY");
-		if (!value || value === "node-llama-cpp") {
-			return DEFAULT_LOCAL_LLM_SERVER_BINARY;
-		}
-
-		return value;
-	})();
+	const localLlmServerBinary = pickEnv("LOCAL_LLM_SERVER_BINARY");
 	const apiBaseEnv = findEnv(
 		"LOCAL_LLM_API_BASE",
 		"OPENAI_API_BASE",
@@ -315,7 +304,6 @@ export function loadRole1RuntimeConfig(
 		),
 		localLlmRuntimeProvider:
 			pickEnv("LOCAL_LLM_RUNTIME_PROVIDER") ??
-			(localLlmModelPath ? "node-llama-cpp" : undefined) ??
 			DEFAULT_LOCAL_LLM_RUNTIME_PROVIDER,
 		localLlmAutoStart: parseBoolean(env.LOCAL_LLM_AUTO_START, true),
 		localLlmServerBinary,

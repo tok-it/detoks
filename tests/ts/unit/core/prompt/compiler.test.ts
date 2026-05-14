@@ -1,4 +1,14 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+const nodeRuntimeMocks = vi.hoisted(() => ({
+  completeChatWithNodeLlamaCpp: vi.fn(),
+}));
+
+vi.mock(
+  "../../../../../src/core/llm-client/node-llama-runtime.js",
+  () => nodeRuntimeMocks,
+);
+
 import {
   compilePrompt,
   createRole2PromptInput,
@@ -8,6 +18,10 @@ import {
   PromptCompileResponseSchema,
   Role2PromptInputSchema,
 } from "../../../../../src/schemas/pipeline.js";
+
+afterEach(() => {
+  nodeRuntimeMocks.completeChatWithNodeLlamaCpp.mockReset();
+});
 
 describe("compilePrompt", () => {
   it("Role 1 응답과 Role 2.1 handoff를 공식 스키마로 생성한다", async () => {
@@ -89,6 +103,11 @@ describe("compilePrompt", () => {
   });
 
   it("한국어 입력은 번역 경계를 통해 영문 normalized_input을 만든다", async () => {
+    nodeRuntimeMocks.completeChatWithNodeLlamaCpp.mockResolvedValueOnce({
+      content: "Create a new file",
+      raw_response: { choices: [{ message: { content: "Create a new file" } }] },
+      inference_time_sec: 0.01,
+    });
     const fetchImplementation = vi.fn(async () => {
       return new Response(
         JSON.stringify({
@@ -118,7 +137,7 @@ describe("compilePrompt", () => {
           LOCAL_LLM_API_BASE: "http://127.0.0.1:1234/v1",
           LOCAL_LLM_API_KEY: "test-key",
           LOCAL_LLM_MODEL_NAME: "local-model",
-          LOCAL_LLM_RUNTIME_PROVIDER: "llama-server",
+          LOCAL_LLM_RUNTIME_PROVIDER: "node-llama-cpp",
           TRANSLATION_MAX_ATTEMPTS: "1",
         },
         fetchImplementation,
@@ -130,13 +149,29 @@ describe("compilePrompt", () => {
       },
     );
 
-    expect(fetchImplementation).toHaveBeenCalledOnce();
+    expect(fetchImplementation).not.toHaveBeenCalled();
+    expect(nodeRuntimeMocks.completeChatWithNodeLlamaCpp).toHaveBeenCalledOnce();
     expect(compiled.language).toBe("ko");
     expect(compiled.normalized_input).toBe("Create a new file");
     expect(compiled.compressed_prompt).toBe("Create a new file");
   });
 
   it("검증 실패가 있으면 validation_errors와 repair_actions를 응답에 남긴다", async () => {
+    nodeRuntimeMocks.completeChatWithNodeLlamaCpp
+      .mockResolvedValueOnce({
+        content: "Translation: 새 파일을 생성해",
+        raw_response: {
+          choices: [{ message: { content: "Translation: 새 파일을 생성해" } }],
+        },
+        inference_time_sec: 0.01,
+      })
+      .mockResolvedValueOnce({
+        content: "새 파일을 생성해",
+        raw_response: {
+          choices: [{ message: { content: "새 파일을 생성해" } }],
+        },
+        inference_time_sec: 0.01,
+      });
     const fetchImplementation = vi
       .fn()
       .mockResolvedValueOnce(
@@ -187,7 +222,7 @@ describe("compilePrompt", () => {
           LOCAL_LLM_API_BASE: "http://127.0.0.1:1234/v1",
           LOCAL_LLM_API_KEY: "test-key",
           LOCAL_LLM_MODEL_NAME: "local-model",
-          LOCAL_LLM_RUNTIME_PROVIDER: "llama-server",
+          LOCAL_LLM_RUNTIME_PROVIDER: "node-llama-cpp",
           TRANSLATION_MAX_ATTEMPTS: "1",
         },
         fetchImplementation,
@@ -199,7 +234,8 @@ describe("compilePrompt", () => {
       },
     );
 
-    expect(fetchImplementation).toHaveBeenCalledTimes(2);
+    expect(fetchImplementation).not.toHaveBeenCalled();
+    expect(nodeRuntimeMocks.completeChatWithNodeLlamaCpp).toHaveBeenCalledTimes(2);
     expect(compiled.validation_errors).toContain("korean_text_remaining");
     expect(compiled.compressed_prompt).toBe("새 파일을 생성해");
   });

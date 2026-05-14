@@ -62,9 +62,9 @@ const main = async (): Promise<void> => {
   }
 
   maybeShowRuntimeUpdateNotice();
-  await ensureEmbeddingModelReady();
 
   if (args.mode === "repl") {
+    await ensureEmbeddingModelReady();
     await startRepl(args);
     return;
   }
@@ -86,6 +86,7 @@ const main = async (): Promise<void> => {
   }
 
   if (args.command === "session-continue") {
+    await ensureEmbeddingModelReady();
     const request = toNormalizedRequest(args, {
       prompt: "[session continue]",
       ...(args.sessionId ? { sessionId: args.sessionId } : {}),
@@ -170,12 +171,14 @@ const main = async (): Promise<void> => {
   }
 
   if (args.inputFile) {
+    await ensureEmbeddingModelReady();
     await runModelSetupIfNeeded();
     const result = await runBatchCommand(args);
     console.log(formatBatchSuccess(result, args.verbose));
     return;
   }
 
+  await ensureEmbeddingModelReady();
   await runModelSetupIfNeeded();
   const request = toNormalizedRequest(args);
   const result = await runOneShotCommand(request);

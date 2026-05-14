@@ -1,6 +1,6 @@
 # Project Structure
 
-This scaffold keeps the application runtime in Node.js and TypeScript. Local model serving is handled by the external prebuilt `llama-server` binary through the TypeScript client boundary.
+This scaffold keeps the application runtime in Node.js and TypeScript. Local model inference is handled in-process through `node-llama-cpp` behind the TypeScript client boundary.
 
 ## Tree
 
@@ -56,7 +56,7 @@ detoks/
 - `src/core/translate`: Korean-to-English translation pipeline
 - `src/core/prompt`: prompt normalization and reusable Kompress helpers
 - `src/core/guardrails`: translated output validation and repair
-- `src/core/llm-client`: communication with the local llama.cpp server
+- `src/core/llm-client`: local `node-llama-cpp` runtime lifecycle and chat completion boundary
 - `src/integrations/adapters/*`: target CLI integrations such as Codex and Gemini
 - `src/integrations/subprocess`: process spawning and I/O bridging
 - `src/schemas`: runtime schemas and validation definitions
@@ -68,6 +68,6 @@ detoks/
 
 - Core logic must reside under `src/core`.
 - Translation, prompt processing, and LLM interaction are core pipeline responsibilities.
-- The local llama.cpp serving path must rely on the external prebuilt `llama-server` binary.
+- The local LLM path must use the in-process `node-llama-cpp` runtime.
 - All LLM interaction must go through `src/core/llm-client`.
 - External integrations must remain isolated under `src/integrations`.

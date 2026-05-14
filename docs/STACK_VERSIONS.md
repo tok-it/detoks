@@ -12,12 +12,12 @@ This file defines the runtime and tooling baseline for detoks.
 | Validation | zod | `4.3.6` | Runtime schema validation with full `z.record()` and `z.nullable()` support for complex schemas. |
 | Testing | vitest | `3.2.4` | Fast unit and integration testing for the TypeScript layers. |
 | Node types | `@types/node` | `24.3.1` | Matches the Node 24 runtime family used by this project. |
-| Local LLM server | prebuilt `llama-server` | See `docs/LLAMA_CPP_SERVER_SPEC.md` | Keeps model serving outside the application runtime while preserving an OpenAI-compatible HTTP boundary. |
+| Local LLM runtime | `node-llama-cpp` | `3.18.1` | Loads GGUF models in-process behind the TypeScript LLM client boundary. |
 
 ## Runtime Boundary Rules
 
 - detoks application code runs on Node.js and TypeScript.
-- Local llama.cpp serving uses the external prebuilt `llama-server` binary.
+- Local model inference uses the in-process `node-llama-cpp` runtime.
 - Roles 1, 2.1, 2.2, and 3 use TypeScript under `src`.
 - Translation, prompt processing, guardrails, and LLM client access live under `src/core`.
 - The TypeScript application must talk to llama.cpp through `src/core/llm-client`.

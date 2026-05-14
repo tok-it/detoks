@@ -285,7 +285,7 @@ async function loadRuntimeWithOptions(
 			error.message.includes("Failed to load model")
 		) {
 			throw new Error(
-				"현재 설치된 node-llama-cpp backend가 Gemma 4 계열 GGUF를 직접 로드하지 못했습니다. 이 환경에서는 LOCAL_LLM_RUNTIME_PROVIDER=llama-server를 유지하거나, Gemma 4를 지원하는 더 최신 llama.cpp backend를 준비한 뒤 다시 시도하세요.",
+				"현재 설치된 node-llama-cpp backend가 Gemma 4 계열 GGUF를 직접 로드하지 못했습니다. node-llama-cpp와 호환되는 GGUF로 바꾸거나, Gemma 4를 지원하는 더 최신 backend를 준비한 뒤 다시 시도하세요.",
 			);
 		}
 

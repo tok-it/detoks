@@ -2,6 +2,19 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+const nodeRuntimeMocks = vi.hoisted(() => ({
+  buildNodeLlamaRuntimeSignature: vi.fn(() => "node-runtime-signature"),
+  completeChatWithNodeLlamaCpp: vi.fn(),
+  ensureNodeLlamaCppRuntime: vi.fn(async () => {}),
+  shutdownNodeLlamaCppRuntime: vi.fn(async () => true),
+}));
+
+vi.mock(
+  "../../../../../src/core/llm-client/node-llama-runtime.js",
+  () => nodeRuntimeMocks,
+);
+
 import { orchestratePipeline } from "../../../../../src/core/pipeline/orchestrator.js";
 import { executeWithAdapter } from "../../../../../src/core/executor/execute.js";
 import { SessionStateManager } from "../../../../../src/core/state/SessionStateManager.js";
@@ -31,6 +44,10 @@ describe("orchestratePipeline", () => {
     vi.restoreAllMocks();
     vi.unstubAllEnvs();
     vi.unstubAllGlobals();
+    nodeRuntimeMocks.completeChatWithNodeLlamaCpp.mockReset();
+    nodeRuntimeMocks.buildNodeLlamaRuntimeSignature.mockClear();
+    nodeRuntimeMocks.ensureNodeLlamaCppRuntime.mockClear();
+    nodeRuntimeMocks.shutdownNodeLlamaCppRuntime.mockClear();
   });
 
   it("executes task graph and returns structured result", async () => {
@@ -206,11 +223,11 @@ describe("orchestratePipeline", () => {
 
     expect(result.ok).toBe(false);
     expect(result.summary).toBe(
-      "프롬프트 컴파일 실패: LLM client requires LOCAL_LLM_API_BASE",
+      "프롬프트 컴파일 실패: LLM client requires LOCAL_LLM_MODEL_NAME",
     );
-    expect(result.nextAction).toContain("LOCAL_LLM_API_BASE");
+    expect(result.nextAction).toContain("LOCAL_LLM_MODEL_NAME");
     expect(result.taskRecords).toEqual([]);
-    expect(result.rawOutput).toBe("LLM client requires LOCAL_LLM_API_BASE");
+    expect(result.rawOutput).toBe("LLM client requires LOCAL_LLM_MODEL_NAME");
     expect(executeWithAdapterMock).not.toHaveBeenCalled();
   });
 
@@ -235,7 +252,6 @@ describe("orchestratePipeline", () => {
           LOCAL_LLM_API_BASE: "http://127.0.0.1:12370/v1",
           LOCAL_LLM_MODEL_NAME: "broken-model",
           LOCAL_LLM_MODEL_PATH: modelPath,
-          LOCAL_LLM_SERVER_BINARY: "llama-server",
         },
       });
 
@@ -319,6 +335,13 @@ describe("orchestratePipeline", () => {
   });
 
   it("bridges Korean input through the local LLM request contract when runtime overrides are provided", async () => {
+    nodeRuntimeMocks.completeChatWithNodeLlamaCpp.mockResolvedValueOnce({
+      content: "Create a new file",
+      raw_response: {
+        choices: [{ message: { content: "Create a new file" } }],
+      },
+      inference_time_sec: 0.01,
+    });
     const fetchImplementation = vi.fn(async () => {
       return new Response(
         JSON.stringify({
@@ -351,7 +374,7 @@ describe("orchestratePipeline", () => {
         LOCAL_LLM_API_BASE: "http://127.0.0.1:1234/v1",
         LOCAL_LLM_API_KEY: "test-key",
         LOCAL_LLM_MODEL_NAME: "local-model",
-        LOCAL_LLM_RUNTIME_PROVIDER: "llama-server",
+        LOCAL_LLM_RUNTIME_PROVIDER: "node-llama-cpp",
         TRANSLATION_MAX_ATTEMPTS: "1",
         TEMPERATURE: "0",
       },
@@ -363,33 +386,22 @@ describe("orchestratePipeline", () => {
       })),
     });
 
-    expect(fetchImplementation).toHaveBeenCalledOnce();
-    const fetchCalls = fetchImplementation.mock.calls as unknown as Array<
-      [string | URL | Request, RequestInit?]
-    >;
-    expect(fetchCalls[0]?.[0]).toBe("http://127.0.0.1:1234/v1/chat/completions");
-    const headers = fetchCalls[0]?.[1]?.headers;
-    const authorization =
-      headers && typeof (headers as Headers).get === "function"
-        ? (headers as Headers).get("authorization")
-        : (headers as Record<string, string> | undefined)?.authorization;
-    const contentType =
-      headers && typeof (headers as Headers).get === "function"
-        ? (headers as Headers).get("content-type")
-        : (headers as Record<string, string> | undefined)?.["content-type"];
-    expect(authorization).toBe("Bearer test-key");
-    expect(contentType).toBe("application/json");
-    expect(JSON.parse(String(fetchCalls[0]?.[1]?.body))).toMatchObject({
-      model: "local-model",
-      temperature: 0,
-      messages: [
-        expect.objectContaining({ role: "system" }),
-        expect.objectContaining({
-          role: "user",
-          content: expect.stringContaining("새 파일을 생성해"),
-        }),
-      ],
-    });
+    expect(fetchImplementation).not.toHaveBeenCalled();
+    expect(nodeRuntimeMocks.completeChatWithNodeLlamaCpp).toHaveBeenCalledWith(
+      expect.objectContaining({
+        temperature: 0,
+        messages: [
+          expect.objectContaining({ role: "system" }),
+          expect.objectContaining({
+            role: "user",
+            content: expect.stringContaining("새 파일을 생성해"),
+          }),
+        ],
+      }),
+      expect.objectContaining({
+        localLlmModelName: "local-model",
+      }),
+    );
     expect(result).toMatchObject({
       ok: true,
       summary: "1개 작업을 모두 완료했습니다",
