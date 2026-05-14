@@ -14,7 +14,7 @@ import {
 const getModelFileStatus = (model: TranslationModel) =>
   inspectLocalModelFile(getDetoksModelFilePath(model));
 
-const ensureEmbeddingModel = async (cwd: string): Promise<void> => {
+export const ensureEmbeddingModelReady = async (cwd: string = process.cwd()): Promise<void> => {
   const embeddingModelPath = getDetoksModelFilePath(KURE_EMBEDDING_MODEL);
   const status = inspectLocalModelFile(embeddingModelPath);
 
@@ -131,6 +131,4 @@ export const runModelSetupIfNeeded = async (cwd: string = process.cwd()): Promis
     );
   }
 
-  // 임베딩 모델은 LLM 모델 설정 여부와 무관하게 첫 실행 시 다운로드
-  await ensureEmbeddingModel(cwd);
 };
