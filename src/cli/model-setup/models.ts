@@ -10,7 +10,29 @@ export interface TranslationModel {
   hfFile: string;
   sizeMb: number;
   quantization: string;
+  source?: "builtin" | "custom";
 }
+
+export const CUSTOM_MODEL_MENU_VALUE = "__custom_gguf__";
+export const CUSTOM_MODEL_RECENT_VALUE = "__custom_gguf_recent__";
+
+export const buildCustomTranslationModel = (input: {
+  hfRepo: string;
+  hfFile: string;
+  quantization: string;
+  sizeMb: number;
+}): TranslationModel => ({
+  id: `custom:${input.hfRepo}:${input.quantization}`,
+  displayName: `${input.hfRepo} (사용자 지정${input.sizeMb > 0 ? `, ${input.sizeMb}MB` : ""})`,
+  description: "사용자가 직접 지정한 HuggingFace GGUF 모델",
+  modelName: input.hfRepo,
+  role: "llm",
+  hfRepo: input.hfRepo,
+  hfFile: input.hfFile,
+  sizeMb: input.sizeMb,
+  quantization: input.quantization,
+  source: "custom",
+});
 
 export interface EmbeddingModel {
   id: string;
