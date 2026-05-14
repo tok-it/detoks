@@ -43,9 +43,12 @@ import { FailurePatternAnalyzer } from "../rag/failure-pattern-analyzer.js";
 import { WorkflowTemplateBuilder } from "../rag/workflow-template-builder.js";
 import { AdapterStatsLearner } from "../rag/adapter-stats-learner.js";
 import { ProjectMemory } from "../rag/project-memory.js";
+import { WorkflowGeneralizer } from "../rag/workflow-generalizer.js";
+import { CrossProjectStore } from "../rag/cross-project-store.js";
 import type { PtyTranscript } from "../../integrations/subprocess/types.js";
 import type { RequestCategory, SessionState, Task } from "../../schemas/pipeline.js";
 import type {
+  Adapter,
   PipelineProgressEvent,
   PipelineProgressLog,
   PipelineExecutionRequest,
@@ -1101,6 +1104,18 @@ export const orchestratePipeline = async (
             stage: "Task Graph Builder", status: "info",
             message: `워크플로우 템플릿 매칭: [${suggestion.typeSequence.join(" → ")}] (${suggestion.count}회 사용)`,
           });
+        } else {
+          // F15: cross-project 매칭 (project-local miss일 때만)
+          const crossSuggestion = await new CrossProjectStore().suggest([firstTaskType]);
+          if (crossSuggestion) {
+            await emitProgressWithLogging({
+              stage: "Task Graph Builder",
+              status: "info",
+              message:
+                `크로스 프로젝트 패턴 힌트: [${crossSuggestion.type_sequence.join(" → ")}]`
+                + ` (${crossSuggestion.count}회 관찰)`,
+            });
+          }
         }
       } catch { /* non-fatal */ }
     }
@@ -1456,6 +1471,11 @@ export const orchestratePipeline = async (
     message: "State Manager: 최종 세션 저장 완료",
   });
 
+  // Phase 3 F15: cross-project 기여 (non-fatal, 1회 — 루프 내 saveSession과 달리 최종에만 호출)
+  if (!memoryDisabled && request.executionMode === "real") {
+    void contributeToCrossProject(state, request.adapter).catch(() => undefined);
+  }
+
   // ── RAG indexing: 완료된 세션을 벡터 DB에 인덱싱 ─────────────────────────
   if (ragEmbedder && ragStore && !memoryDisabled) {
     try {
@@ -1520,3 +1540,11 @@ export const orchestratePipeline = async (
     lightQuality,
   };
 };
+
+async function contributeToCrossProject(
+  session: SessionState,
+  adapter: Adapter,
+): Promise<void> {
+  const record = new WorkflowGeneralizer().generalize(session, adapter);
+  if (record) await new CrossProjectStore().contribute(record);
+}
