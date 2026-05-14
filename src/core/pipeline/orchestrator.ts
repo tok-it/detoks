@@ -1357,7 +1357,6 @@ export const orchestratePipeline = async (
             compiledPrompt.compressed_prompt,
           ).state;
           await SessionStateManager.saveSession(state);
-          taskRecords.push({ taskId: task.id, status: "failed", rawOutput: execResult.rawOutput });
           await PipelineTracer.trace({
             sessionId, stage: `Executor:${task.id}`, role: "role3", phase: "output",
             dataType: "ExecutionResult",
