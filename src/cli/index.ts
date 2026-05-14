@@ -160,9 +160,10 @@ const main = async (): Promise<void> => {
   }
 
   if (args.command === "memory-purge-all") {
-    const result = await runMemoryPurgeAllCommand(
-      ...(args.skipConfirm ? [{ skipConfirm: true as const }] : [{}]),
-    );
+    const result = await runMemoryPurgeAllCommand({
+      ...(args.skipConfirm ? { skipConfirm: true as const } : {}),
+      ...(args.keepCrossProject ? { keepCrossProject: true } : {}),
+    });
     console.log(args.human ? result.message : JSON.stringify(result, null, 2));
     if (!result.ok) process.exitCode = 1;
     return;
