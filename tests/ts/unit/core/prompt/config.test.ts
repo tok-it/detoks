@@ -53,8 +53,8 @@ describe("loadRole1RuntimeConfig", () => {
 				homedir(),
 				".detoks",
 				"models",
-				"mradermacher",
-				"gemma-4-e2b-it-heretic-ara-GGUF",
+				"llm",
+				"mradermacher-gemma-4-e2b-it-heretic-ara-GGUF",
 			),
 		);
 		expect(config.localLlmHfRepo).toBe(
