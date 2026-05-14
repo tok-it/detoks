@@ -17,6 +17,8 @@ export interface InputLayout {
   inputEndRow: number;
   bottomSeparatorRow: number;
   visibleStartIndex: number;
+  totalLineCount: number;
+  hiddenLineCount: number;
   visibleLines: WrappedInputLine[];
   cursorRow: number;
   cursorCol: number;
@@ -271,6 +273,8 @@ export const measureInputLayout = (dims: ScreenDimensions, input: string): Input
   const maxVisibleLines = Math.max(1, dims.rows - 3);
   const visibleStartIndex = Math.max(0, allLines.length - maxVisibleLines);
   const visibleLines = allLines.slice(visibleStartIndex);
+  const totalLineCount = allLines.length;
+  const hiddenLineCount = Math.max(0, totalLineCount - visibleLines.length);
   const separatorRow = Math.max(0, dims.rows - visibleLines.length - 3);
   const inputStartRow = separatorRow + 1;
   const bottomSeparatorRow = dims.rows - 2;
@@ -285,6 +289,8 @@ export const measureInputLayout = (dims: ScreenDimensions, input: string): Input
     inputEndRow,
     bottomSeparatorRow,
     visibleStartIndex,
+    totalLineCount,
+    hiddenLineCount,
     visibleLines,
     cursorRow,
     cursorCol,

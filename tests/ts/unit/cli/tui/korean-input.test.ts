@@ -242,6 +242,8 @@ describe("Korean Input Handling", () => {
       expect(layout.bottomSeparatorRow).toBe(22);
       expect(layout.cursorRow).toBe(21);
       expect(layout.cursorCol).toBe(2);
+      expect(layout.totalLineCount).toBe(3);
+      expect(layout.hiddenLineCount).toBe(0);
     });
 
     it("treats pasted newlines as separate prompt lines instead of literal control characters", () => {
@@ -264,6 +266,27 @@ describe("Korean Input Handling", () => {
       expect(layout.bottomSeparatorRow).toBe(22);
       expect(layout.cursorRow).toBe(21);
       expect(layout.cursorCol).toBeGreaterThan(0);
+      expect(layout.totalLineCount).toBe(3);
+      expect(layout.hiddenLineCount).toBe(0);
+    });
+
+    it("tracks hidden prompt lines when input exceeds the visible area", () => {
+      const dims = { rows: 10, columns: 80 };
+      const overflowInput = Array.from({ length: 8 }, (_, index) => `line-${index + 1}`).join("\n");
+
+      const layout = measureInputLayout(dims, overflowInput);
+
+      expect(layout.totalLineCount).toBe(8);
+      expect(layout.hiddenLineCount).toBe(1);
+      expect(layout.visibleLines.map((line) => line.text)).toEqual([
+        "line-2",
+        "line-3",
+        "line-4",
+        "line-5",
+        "line-6",
+        "line-7",
+        "line-8",
+      ]);
     });
 
     it("keeps the separator low when input stays on one line", () => {
