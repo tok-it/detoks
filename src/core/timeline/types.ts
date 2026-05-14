@@ -10,6 +10,7 @@ export const ActionTimelineKinds = [
   "stage_update",
   "cache_hit",
   "cache_miss",
+  "cache_advise",
 ] as const;
 
 export type ActionTimelineKind = (typeof ActionTimelineKinds)[number];
