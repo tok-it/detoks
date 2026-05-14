@@ -29,6 +29,7 @@ describe("orchestratePipeline", () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.unstubAllEnvs();
     vi.unstubAllGlobals();
   });
 
@@ -119,6 +120,7 @@ describe("orchestratePipeline", () => {
   });
 
   it("passes execution mode through to the executor boundary", async () => {
+    vi.stubEnv("DETOKS_MEMORY", "off");
     executeWithAdapterMock.mockImplementationOnce(async (request) => {
       await request.onActionTimelineEvent?.({
         kind: "tool_call",
@@ -166,7 +168,14 @@ describe("orchestratePipeline", () => {
 
     expect(result.ok).toBe(true);
     expect(result.rawOutput).toBe("[mock-real] codex");
-    expect(result.adapterTranscript?.events).toHaveLength(1);
+    expect(result.adapterTranscript?.events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: "chunk",
+          data: "[mock-real] codex",
+        }),
+      ]),
+    );
     expect(result.actionTimeline?.some((event) => event.kind === "tool_call")).toBe(true);
     expect(result.actionTimeline?.some((event) => event.kind === "validation")).toBe(true);
     expect(executeWithAdapterMock).toHaveBeenCalledWith(
