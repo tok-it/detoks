@@ -1345,8 +1345,6 @@ export const orchestratePipeline = async (
           ...(request.onPtyController ? { onPtyController: request.onPtyController } : {}),
           onActionTimelineEvent: emitActionTimelineWithLogging,
         });
-        adapterTranscript = mergePtyTranscripts(adapterTranscript, execResult.transcript);
-
         if (!execResult.ok) {
           // 실패 — Strict 모드에 따라 후속 의존 Task도 차단됨
           failedTaskIds.add(task.id);
