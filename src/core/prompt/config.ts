@@ -8,10 +8,10 @@ const DEFAULT_TRANSLATION_MAX_ATTEMPTS = 5;
 const DEFAULT_TEMPERATURE = 0;
 const DEFAULT_LOCAL_LLM_API_BASE = "http://127.0.0.1:12370/v1";
 const DEFAULT_LOCAL_LLM_MODEL_NAME =
-	"mradermacher/gemma-4-e2b-it-heretic-ara-GGUF:Q4_K_S";
+	"unsloth/Qwen3.5-4B-GGUF";
 const DEFAULT_LOCAL_LLM_HF_REPO =
-	"mradermacher/gemma-4-e2b-it-heretic-ara-GGUF:Q4_K_S";
-const DEFAULT_LOCAL_LLM_HF_FILE = "gemma-4-e2b-it-heretic-ara.Q4_K_S.gguf";
+	"unsloth/Qwen3.5-4B-GGUF:Q4_K_M";
+const DEFAULT_LOCAL_LLM_HF_FILE = "Qwen3.5-4B-Q4_K_M.gguf";
 const DEFAULT_LOCAL_LLM_RUNTIME_PROVIDER = "llama-server";
 const DEFAULT_LOCAL_LLM_SERVER_BINARY = "llama-server";
 const DEFAULT_LOCAL_LLM_SERVER_HOST = "127.0.0.1";

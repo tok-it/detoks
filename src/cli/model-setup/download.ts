@@ -1,10 +1,18 @@
 import { createWriteStream, mkdirSync } from "node:fs";
 import { colors } from "../colors.js";
-import type { TranslationModel } from "./models.js";
+import type { ModelRole } from "../../core/model-store.js";
 import {
   getDetoksModelDir,
   getDetoksModelFilePath,
 } from "../../core/model-store.js";
+
+export interface DownloadableModel {
+  displayName: string;
+  role: ModelRole;
+  hfRepo: string;
+  hfFile: string;
+  sizeMb: number;
+}
 
 const buildHFUrl = (repo: string, file: string): string => {
   return `https://huggingface.co/${repo}/resolve/main/${file}`;
@@ -22,7 +30,7 @@ const formatSpeed = (bytesPerSec: number): string => {
   return `${formatBytes(bytesPerSec)}/s`;
 };
 
-export const downloadModel = async (model: TranslationModel): Promise<void> => {
+export const downloadModel = async (model: DownloadableModel): Promise<void> => {
   const modelDir = getDetoksModelDir(model);
   mkdirSync(modelDir, { recursive: true });
 
