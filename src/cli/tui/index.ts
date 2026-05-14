@@ -9,6 +9,7 @@ import {
   renderFocusArea,
   renderFooter,
   measureInputLayout,
+  type InputLayout,
   padDisplayWidth,
   wrapTextToDisplayWidth,
 } from "./renderer.js";
@@ -45,6 +46,7 @@ import { formatEmbeddedTerminalFocusHint } from "./embedded-terminal.js";
 import { buildExecutionApprovalLines } from "./approval-prompt.js";
 import {
   createPinnedViewportState,
+  formatViewportTrackingHint,
   resolveViewportWindow,
   scrollViewportBy,
   scrollViewportToBottom,
@@ -391,16 +393,25 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
       return lines.slice(0, getEmbeddedStickyRows());
     };
 
-    const buildEmbeddedActivityLines = (width: number): string[] => {
+    const buildEmbeddedActivityLines = (
+      width: number,
+      inputLayout: InputLayout,
+      viewportStatusText: string | null,
+    ): string[] => {
       if (width <= 0) {
         return [];
       }
 
       const interactionState =
         activeRunBlock?.status === "running" ? activeRunBlock.pane.getInteractionState(width) : null;
+      const viewportStatusSuffix =
+        viewportStatusText !== null &&
+        (!scrollViewportState.pinnedToBottom || inputLayout.hiddenLineCount > 0)
+          ? ` · ${viewportStatusText}`
+          : "";
       if (interactionState?.kind === "approval") {
         const approvalLine = truncateToDisplayWidth(
-          `현재 활동: ${interactionState.label} · ${interactionState.detail ?? "승인 대기 중"} · 진행 중`,
+          `현재 활동: ${interactionState.label} · ${interactionState.detail ?? "승인 대기 중"} · 진행 중${viewportStatusSuffix}`,
           width,
         );
         return [
@@ -410,15 +421,35 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
 
       const activity = activeRunBlock?.pane.getActivitySnapshot(width);
       if (activity === null || activity === undefined) {
+        if (inputLayout.hiddenLineCount > 0) {
+          const inputHint = truncateToDisplayWidth(
+            `현재 입력: 붙여넣기 중 · 위 ${inputLayout.hiddenLineCount}줄 숨김 · Enter 실행`,
+            width,
+          );
+          return [
+            colors.muted(padDisplayWidth(inputHint, width)),
+          ].slice(0, getEmbeddedActivityRows());
+        }
+
         return [
-          colors.muted(padDisplayWidth("현재 활동: 대기", width)),
+          colors.muted(
+            padDisplayWidth(
+              truncateToDisplayWidth(
+                viewportStatusText !== null
+                  ? `현재 활동: 대기 · ${viewportStatusText}`
+                  : "현재 활동: 대기",
+                width,
+              ),
+              width,
+            ),
+          ),
         ].slice(0, getEmbeddedActivityRows());
       }
 
       const statusLabel =
         activity.status === "running" ? "진행 중" : activity.status === "completed" ? "완료" : "실패";
       const compactLine = truncateToDisplayWidth(
-        `현재 활동: ${activity.label} · ${activity.detail} · ${statusLabel}`,
+        `현재 활동: ${activity.label} · ${activity.detail} · ${statusLabel}${viewportStatusSuffix}`,
         width,
       );
       return [
@@ -530,13 +561,35 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
       return lines;
     };
 
-    const scrollEmbeddedViewportBy = (deltaRows: number): void => {
-      const dims = screen.getDimensions();
-      const inputLayout = measureInputLayout(dims, input);
+    const getEmbeddedTranscriptHeight = (inputLayout: InputLayout): number => {
       const bannerRows = Math.min(3, Math.max(0, inputLayout.separatorRow));
       const statusRegionStart = bannerRows;
       const statusRegionEnd = Math.min(inputLayout.separatorRow, statusRegionStart + 8);
-      const contentHeight = Math.max(0, inputLayout.separatorRow - statusRegionEnd - getEmbeddedFixedRows());
+      const contentRegionStart = statusRegionEnd;
+      const stickyRows = embeddedPaneMode ? getEmbeddedFixedRows() : 0;
+      const stickyRegionStart = contentRegionStart;
+      const stickyRegionEnd = Math.min(inputLayout.separatorRow, stickyRegionStart + stickyRows);
+      return Math.max(0, inputLayout.separatorRow - stickyRegionEnd);
+    };
+
+    const getEmbeddedViewportStatusText = (width: number, inputLayout: InputLayout): string | null => {
+      if (!embeddedPaneMode) {
+        return null;
+      }
+
+      const transcriptHeight = getEmbeddedTranscriptHeight(inputLayout);
+      if (transcriptHeight <= 0) {
+        return null;
+      }
+
+      const totalLines = buildScrollableContentLines(width).length;
+      return formatViewportTrackingHint(totalLines, transcriptHeight, scrollViewportState);
+    };
+
+    const scrollEmbeddedViewportBy = (deltaRows: number): void => {
+      const dims = screen.getDimensions();
+      const inputLayout = measureInputLayout(dims, input);
+      const contentHeight = getEmbeddedTranscriptHeight(inputLayout);
       const totalLines = buildScrollableContentLines(dims.columns).length;
       scrollViewportState = scrollViewportBy(totalLines, contentHeight, scrollViewportState, deltaRows);
     };
@@ -670,14 +723,19 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
       screen.flush();
     };
 
-    const renderBanner = (): void => {
+    const renderBanner = (viewportStatusText: string | null, inputLayout: InputLayout): void => {
       const dims = screen.getDimensions();
+      const inputOverflowHint =
+        embeddedPaneMode && inputLayout.hiddenLineCount > 0
+          ? `붙여넣기 입력 · 위 ${inputLayout.hiddenLineCount}줄 숨김 · Enter 실행`
+          : null;
       const browsingHistoryHint =
         stickyPrompt?.status === "pending-approval" || pendingApprovalPrompt !== null
           ? "실행 대기 중 · Enter 실행 · Esc 편집 복귀"
-          : embeddedPaneMode && !scrollViewportState.pinnedToBottom
-          ? "기록 탐색 중 · ↑↓ PgUp/PgDn/휠 · End로 최신으로 이동"
-          : "첫 프롬프트를 입력하면 아래 패널이 채워집니다 · /... 자동완성 · q 종료";
+          : inputOverflowHint ??
+            (embeddedPaneMode
+              ? viewportStatusText ?? "첫 프롬프트를 입력하면 아래 패널이 채워집니다 · /... 자동완성 · q 종료"
+              : "첫 프롬프트를 입력하면 아래 패널이 채워집니다 · /... 자동완성 · q 종료");
       const bannerLines = [
         `adapter: ${currentAdapter} | model: ${currentAdapterModel ?? "미설정"} | translate: ${currentTranslationModel ?? "미설정"}`,
         `mode: ${options.executionMode} | session: ${options.sessionId ?? "new"}`,
@@ -727,7 +785,7 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
       if (embeddedPaneMode && embeddedTerminalFocus.focus !== "detoks-input") {
         renderFocusArea(
           ctx,
-          `${formatEmbeddedTerminalFocusHint(embeddedTerminalFocus.focus, currentAdapter)}  ·  Enter returns to detoks`,
+          formatEmbeddedTerminalFocusHint(embeddedTerminalFocus.focus, currentAdapter),
         );
       } else {
         renderInputArea(ctx, input);
@@ -767,6 +825,7 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
         forceFullRender = false;
       }
       const inputLayout = measureInputLayout(dims, input);
+      const viewportStatusText = getEmbeddedViewportStatusText(dims.columns, inputLayout);
       const bannerRows = Math.min(3, Math.max(0, inputLayout.separatorRow));
       const statusRegionStart = bannerRows;
       const statusRegionEnd = Math.min(inputLayout.separatorRow, statusRegionStart + 8);
@@ -786,7 +845,7 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
 
       // Render structure (minimal - no borders)
       renderScreenBorder(ctx);
-      renderBanner();
+      renderBanner(viewportStatusText, inputLayout);
 
       const statusRegion = {
         startRow: statusRegionStart,
@@ -803,7 +862,7 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
         };
         const stickyLines = [
           ...buildStickyPromptLines(stickyRegion.columns),
-          ...buildEmbeddedActivityLines(stickyRegion.columns),
+          ...buildEmbeddedActivityLines(stickyRegion.columns, inputLayout, viewportStatusText),
         ];
         let stickyRow = stickyRegion.startRow;
         for (const line of stickyLines.slice(0, Math.max(0, stickyRegion.endRow - stickyRegion.startRow))) {

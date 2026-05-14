@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   createPinnedViewportState,
+  formatViewportTrackingHint,
   resolveViewportWindow,
   scrollViewportBy,
   scrollViewportToBottom,
@@ -42,5 +43,16 @@ describe("content viewport", () => {
     const top = resolveViewportWindow(20, 5, scrollViewportToTop());
     expect(top.startIndex).toBe(0);
     expect(top.pinnedToBottom).toBe(false);
+  });
+
+  it("describes auto-follow as on while pinned to the bottom", () => {
+    expect(formatViewportTrackingHint(20, 5, createPinnedViewportState())).toBe("최신 따라가기 ON");
+  });
+
+  it("describes auto-follow as browsing when the viewport is scrolled up", () => {
+    const browsing = scrollViewportBy(20, 5, createPinnedViewportState(), -3);
+    expect(formatViewportTrackingHint(20, 5, browsing)).toBe(
+      "최신 따라가기 OFF · 위 3줄 · End 최신으로 이동",
+    );
   });
 });
