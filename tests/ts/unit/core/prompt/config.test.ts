@@ -36,9 +36,9 @@ describe("loadRole1RuntimeConfig", () => {
 		expect(config.localLlmModelName).toBe(
 			"unsloth/Qwen3.5-4B-GGUF",
 		);
-		expect(config.localLlmRuntimeProvider).toBe("llama-server");
+		expect(config.localLlmRuntimeProvider).toBe("node-llama-cpp");
 		expect(config.localLlmAutoStart).toBe(true);
-		expect(config.localLlmServerBinary).toBe("llama-server");
+		expect(config.localLlmServerBinary).toBeUndefined();
 		expect(config.localLlmServerHost).toBe("127.0.0.1");
 		expect(config.localLlmServerPort).toBe(12370);
 		expect(config.localLlmGpuLayers).toBe("all");
@@ -81,7 +81,7 @@ describe("loadRole1RuntimeConfig", () => {
 				"LOCAL_LLM_TOP_K=12",
 				"LOCAL_LLM_TOP_P=0.88",
 				"LOCAL_LLM_SLEEP_IDLE_SECONDS=900",
-				"LOCAL_LLM_RUNTIME_PROVIDER=llama-server",
+				"LOCAL_LLM_RUNTIME_PROVIDER=node-llama-cpp",
 				"LOCAL_LLM_MODEL_DIR=/tmp/detoks-models",
 				"KOMPRESS_MODEL_ID=chopratejas/kompress-small",
 			].join("\n"),
@@ -100,7 +100,7 @@ describe("loadRole1RuntimeConfig", () => {
 		expect(config.localLlmTopK).toBe(12);
 		expect(config.localLlmTopP).toBe(0.88);
 		expect(config.localLlmSleepIdleSeconds).toBe(900);
-		expect(config.localLlmRuntimeProvider).toBe("llama-server");
+		expect(config.localLlmRuntimeProvider).toBe("node-llama-cpp");
 		expect(config.localLlmModelDir).toBe("/tmp/detoks-models");
 		expect(config.kompressModelId).toBe("chopratejas/kompress-small");
 	});
@@ -121,7 +121,7 @@ describe("loadRole1RuntimeConfig", () => {
 		expect(config.localLlmRuntimeProvider).toBe("node-llama-cpp");
 	});
 
-	it("LOCAL_LLM_SERVER_BINARY=node-llama-cpp는 llama-server 기본값으로 정규화한다", () => {
+	it("LOCAL_LLM_SERVER_BINARY=node-llama-cpp는 그대로 읽지만 runtime 선택에는 쓰지 않는다", () => {
 		const cwd = createTempDir();
 		writeFileSync(
 			join(cwd, ".env"),
@@ -131,7 +131,7 @@ describe("loadRole1RuntimeConfig", () => {
 
 		const config = loadRole1RuntimeConfig({ cwd, env: {} });
 
-		expect(config.localLlmServerBinary).toBe("llama-server");
+		expect(config.localLlmServerBinary).toBe("node-llama-cpp");
 	});
 
 	it("LOCAL_LLM_MODEL_PATH가 있으면 node-llama-cpp를 기본 provider로 쓴다", () => {
@@ -150,17 +150,15 @@ describe("loadRole1RuntimeConfig", () => {
 		expect(config.localLlmRuntimeProvider).toBe("node-llama-cpp");
 	});
 
-	it("LOCAL_LLM_SERVER_BINARY=node-llama-cpp는 llama-server 기본값으로 정규화한다", () => {
+	it("llama-server provider 값은 거부한다", () => {
 		const cwd = createTempDir();
 		writeFileSync(
 			join(cwd, ".env"),
-			"LOCAL_LLM_SERVER_BINARY=node-llama-cpp",
+			"LOCAL_LLM_RUNTIME_PROVIDER=llama-server",
 			"utf8",
 		);
 
-		const config = loadRole1RuntimeConfig({ cwd, env: {} });
-
-		expect(config.localLlmServerBinary).toBe("llama-server");
+		expect(() => loadRole1RuntimeConfig({ cwd, env: {} })).toThrow();
 	});
 
 	it("local API base가 기본값일 때 server port를 따라 동적으로 갱신한다", () => {

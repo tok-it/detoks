@@ -62,9 +62,9 @@ User Output
 
 ### 3. LLM Layer
 
-- prebuilt `llama-server` inference server
-- Model loading and endpoint configuration
-<!-- 한국어 설명: LLM Layer는 TypeScript 런처가 직접 관리하는 prebuilt `llama-server`와 그 HTTP 경계로 구성되며, 모델 로딩과 추론 endpoint 구성을 담당합니다. -->
+- in-process `node-llama-cpp` inference runtime
+- Model loading and chat completion configuration
+<!-- 한국어 설명: LLM Layer는 TypeScript가 직접 관리하는 `node-llama-cpp` in-process 런타임으로 구성되며, 모델 로딩과 추론 호출 구성을 담당합니다. -->
 
 ---
 

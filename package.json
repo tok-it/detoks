@@ -37,8 +37,7 @@
     "test:slide20:all": "npm run test:slide20 && npm run test:slide20:report",
     "verify:role1": "tsx scripts/verify-role1.ts",
     "verify:role1:rows": "tsx scripts/verify-role1.ts --file tests/data/row_data.json",
-    "benchmark": "tsx scripts/benchmark-pipeline.ts",
-    "benchmark:llm": "tsx scripts/benchmark-llm-runtime.ts"
+    "benchmark": "tsx scripts/benchmark-pipeline.ts"
   },
   "dependencies": {
     "better-sqlite3": "^12.10.0",

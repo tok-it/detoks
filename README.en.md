@@ -23,7 +23,7 @@ Its goal is to make LLM CLI workflows more stable and reproducible by organizing
 
 - Node.js `>=24.15.0 <26`
 - `codex` or `gemini` CLI when using the corresponding adapter
-- Local `llama-server` binary when using local model inference
+- GGUF model loadable by `node-llama-cpp` when using local model inference
 
 See [STACK_VERSIONS.md](./docs/STACK_VERSIONS.md) and [LLAMA_CPP_SERVER_SPEC.md](./docs/LLAMA_CPP_SERVER_SPEC.md) for version details.
 

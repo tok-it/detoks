@@ -9,7 +9,7 @@ import { OutputAnalyzer } from '../src/core/utils/OutputAnalyzer.js';
 import { promises as fs } from 'fs';
 import { dirname, resolve } from 'path';
 
-type RuntimeProvider = 'llama-server' | 'node-llama-cpp';
+type RuntimeProvider = 'node-llama-cpp';
 
 interface BenchmarkArgs {
   input: string;
@@ -66,7 +66,7 @@ interface BenchmarkResult {
 
 function getUsage(): string {
   return [
-    'Usage: npm run benchmark -- --input "your prompt" [--adapter codex|gemini] [--execution-mode stub|real] [--runtime-provider llama-server|node-llama-cpp] [--output file.json] [--verbose]',
+    'Usage: npm run benchmark -- --input "your prompt" [--adapter codex|gemini] [--execution-mode stub|real] [--runtime-provider node-llama-cpp] [--output file.json] [--verbose]',
   ].join('\n');
 }
 
@@ -112,11 +112,10 @@ export function parseArgs(argv: string[] = process.argv.slice(2)): BenchmarkArgs
 
   if (
     result.runtimeProvider !== undefined &&
-    result.runtimeProvider !== 'llama-server' &&
     result.runtimeProvider !== 'node-llama-cpp'
   ) {
     throw new Error(
-      '--runtime-provider must be one of: llama-server, node-llama-cpp',
+      '--runtime-provider must be: node-llama-cpp',
     );
   }
 
@@ -243,7 +242,7 @@ async function runBenchmark(args: BenchmarkArgs): Promise<BenchmarkResult> {
     adapter: args.adapter,
     executionMode: args.executionMode,
     runtime: {
-      provider: runtimeConfig.localLlmRuntimeProvider ?? 'llama-server',
+      provider: runtimeConfig.localLlmRuntimeProvider ?? 'node-llama-cpp',
       model: runtimeConfig.localLlmModelName ?? '(not set)',
       api_base: resolveRuntimeApiBaseLabel(
         runtimeConfig.localLlmRuntimeProvider,

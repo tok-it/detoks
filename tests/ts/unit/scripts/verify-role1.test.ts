@@ -36,11 +36,11 @@ describe("verify-role1 script", () => {
 
     const env = buildScriptEnv({
       debug: true,
-      runtimeProvider: "llama-server",
+      runtimeProvider: "node-llama-cpp",
     });
 
     expect(env.PIPELINE_MODE).toBe("debug");
-    expect(env.LOCAL_LLM_RUNTIME_PROVIDER).toBe("llama-server");
+    expect(env.LOCAL_LLM_RUNTIME_PROVIDER).toBe("node-llama-cpp");
   });
 
   it("모델 파일이 없으면 huggingface에서 내려받아 경로를 세팅한다", async () => {
@@ -80,7 +80,7 @@ describe("verify-role1 script", () => {
           localLlmModelDir: tempDir,
           localLlmHfRepo: "example/repo",
           localLlmHfFile: "role1-model.gguf",
-          localLlmRuntimeProvider: "llama-server",
+          localLlmRuntimeProvider: "node-llama-cpp",
         },
         env,
       );
@@ -98,7 +98,7 @@ describe("verify-role1 script", () => {
       );
       expect(readFileSync(modelPath, "utf8")).toBe("GGUFmock-model");
       expect(env.LOCAL_LLM_MODEL_PATH).toBe(modelPath);
-      expect(env.LOCAL_LLM_RUNTIME_PROVIDER).toBe("llama-server");
+      expect(env.LOCAL_LLM_RUNTIME_PROVIDER).toBe("node-llama-cpp");
     } finally {
       rmSync(tempDir, { recursive: true, force: true });
     }

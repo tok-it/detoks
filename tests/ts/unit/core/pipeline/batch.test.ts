@@ -1,5 +1,19 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+const nodeRuntimeMocks = vi.hoisted(() => ({
+  completeChatWithNodeLlamaCpp: vi.fn(),
+}));
+
+vi.mock(
+  "../../../../../src/core/llm-client/node-llama-runtime.js",
+  () => nodeRuntimeMocks,
+);
+
 import { runBatchPromptPipeline } from "../../../../../src/core/pipeline/batch.js";
+
+afterEach(() => {
+  nodeRuntimeMocks.completeChatWithNodeLlamaCpp.mockReset();
+});
 
 describe("runBatchPromptPipeline", () => {
   it("item 시작과 완료 progress를 순서대로 보고한다", async () => {
@@ -15,7 +29,7 @@ describe("runBatchPromptPipeline", () => {
       ["Please create a new file", "Please create a new folder"],
       {
         env: {
-          LOCAL_LLM_RUNTIME_PROVIDER: "llama-server",
+          LOCAL_LLM_RUNTIME_PROVIDER: "node-llama-cpp",
           PIPELINE_MODE: "safe",
         },
         onProgress: (info) => {
@@ -63,7 +77,7 @@ describe("runBatchPromptPipeline", () => {
   it("batch 결과에 Role 1 / Role 2 handoff를 기록한다", async () => {
     const result = await runBatchPromptPipeline(["Please create a new file"], {
       env: {
-        LOCAL_LLM_RUNTIME_PROVIDER: "llama-server",
+        LOCAL_LLM_RUNTIME_PROVIDER: "node-llama-cpp",
         PIPELINE_MODE: "safe",
       },
     });
@@ -77,6 +91,13 @@ describe("runBatchPromptPipeline", () => {
   });
 
   it("debug mode에서는 translation debug 메타데이터를 남긴다", async () => {
+    nodeRuntimeMocks.completeChatWithNodeLlamaCpp.mockResolvedValueOnce({
+      content: "Create __PH_0001__ file",
+      raw_response: {
+        choices: [{ message: { content: "Create __PH_0001__ file" } }],
+      },
+      inference_time_sec: 0.01,
+    });
     const fetchImplementation = vi.fn(async () => {
       return new Response(
         JSON.stringify({
@@ -99,7 +120,7 @@ describe("runBatchPromptPipeline", () => {
 
     const result = await runBatchPromptPipeline(["새 `config.ts` 파일을 생성해"], {
       env: {
-        LOCAL_LLM_RUNTIME_PROVIDER: "llama-server",
+        LOCAL_LLM_RUNTIME_PROVIDER: "node-llama-cpp",
         LOCAL_LLM_API_BASE: "http://127.0.0.1:1234/v1",
         LOCAL_LLM_API_KEY: "test-key",
         LOCAL_LLM_MODEL_NAME: "local-model",
@@ -109,6 +130,7 @@ describe("runBatchPromptPipeline", () => {
       fetchImplementation,
     });
 
+    expect(fetchImplementation).not.toHaveBeenCalled();
     expect(result.run_metadata.pipeline_mode).toBe("debug");
     expect(result.results[0]?.debug?.masked_text).toContain("__PH_0001__");
     expect(result.results[0]?.debug?.placeholders).toHaveLength(1);
@@ -116,6 +138,9 @@ describe("runBatchPromptPipeline", () => {
   });
 
   it("실패 item을 drop하지 않고 결과에 남긴다", async () => {
+    nodeRuntimeMocks.completeChatWithNodeLlamaCpp.mockRejectedValueOnce(
+      new Error("Invalid LLM response: missing choices[0]"),
+    );
     const fetchImplementation = vi.fn(async () => {
       return new Response(
         JSON.stringify({
@@ -134,7 +159,7 @@ describe("runBatchPromptPipeline", () => {
       ["Please create a new file", "새 파일을 생성해"],
       {
         env: {
-          LOCAL_LLM_RUNTIME_PROVIDER: "llama-server",
+          LOCAL_LLM_RUNTIME_PROVIDER: "node-llama-cpp",
           LOCAL_LLM_API_BASE: "http://127.0.0.1:1234/v1",
           LOCAL_LLM_API_KEY: "test-key",
           LOCAL_LLM_MODEL_NAME: "local-model",
@@ -146,6 +171,7 @@ describe("runBatchPromptPipeline", () => {
     );
 
     expect(result.results).toHaveLength(2);
+    expect(fetchImplementation).not.toHaveBeenCalled();
     expect(result.results[0]?.status).toBe("completed");
     expect(result.results[1]?.status).toBe("failed");
     expect(result.results[1]?.error).toContain(

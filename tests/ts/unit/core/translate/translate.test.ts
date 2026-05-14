@@ -1,6 +1,30 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+const nodeRuntimeMocks = vi.hoisted(() => ({
+  completeChatWithNodeLlamaCpp: vi.fn(),
+}));
+
+vi.mock(
+  "../../../../../src/core/llm-client/node-llama-runtime.js",
+  () => nodeRuntimeMocks,
+);
+
 import { translate_to_english } from "../../../../../src/core/translate/translate.js";
 import { clean_translation } from "../../../../../src/core/translate/clean.js";
+
+function mockNodeResponses(...contents: string[]): void {
+  for (const content of contents) {
+    nodeRuntimeMocks.completeChatWithNodeLlamaCpp.mockResolvedValueOnce({
+      content,
+      raw_response: { choices: [{ message: { content } }] },
+      inference_time_sec: 0.01,
+    });
+  }
+}
+
+afterEach(() => {
+  nodeRuntimeMocks.completeChatWithNodeLlamaCpp.mockReset();
+});
 
 describe("clean_translation", () => {
   it("meta label, outer quote, code fence를 제거한다", () => {
@@ -15,6 +39,7 @@ describe("clean_translation", () => {
 
 describe("translate_to_english", () => {
   it("placeholder를 보존하면서 한국어 span만 번역한다", async () => {
+    mockNodeResponses('Translation: "Create a file named __PH_0001__"');
     const fetchImplementation = vi.fn(async () => {
       return new Response(
         JSON.stringify({
@@ -53,7 +78,8 @@ describe("translate_to_english", () => {
       fetchImplementation,
     });
 
-    expect(fetchImplementation).toHaveBeenCalledOnce();
+    expect(fetchImplementation).not.toHaveBeenCalled();
+    expect(nodeRuntimeMocks.completeChatWithNodeLlamaCpp).toHaveBeenCalledOnce();
     expect(result.text).toBe("Create a file named `app.ts`");
     expect(result.placeholders[0]!.original).toBe("`app.ts`");
     expect(result.raw_responses).toHaveLength(1);
@@ -84,12 +110,14 @@ describe("translate_to_english", () => {
     });
 
     expect(fetchImplementation).not.toHaveBeenCalled();
+    expect(nodeRuntimeMocks.completeChatWithNodeLlamaCpp).not.toHaveBeenCalled();
     expect(result.text).toBe("Create a file");
     expect(result.span_results[0]!.status).toBe("skipped");
     expect(result.debug).toBeUndefined();
   });
 
   it("검증 실패 span은 fallback으로 재시도하고 성공 metadata를 남긴다", async () => {
+    mockNodeResponses("여기 번역: 파일을 생성해", "Create a file");
     const fetchImplementation = vi
       .fn()
       .mockResolvedValueOnce(
@@ -149,7 +177,8 @@ describe("translate_to_english", () => {
       fetchImplementation,
     });
 
-    expect(fetchImplementation).toHaveBeenCalledTimes(2);
+    expect(fetchImplementation).not.toHaveBeenCalled();
+    expect(nodeRuntimeMocks.completeChatWithNodeLlamaCpp).toHaveBeenCalledTimes(2);
     expect(result.text).toBe("Create a file");
     expect(result.fallback_span_count).toBe(1);
     expect(result.span_results[0]!.status).toBe("fallback_succeeded");
@@ -157,6 +186,7 @@ describe("translate_to_english", () => {
   });
 
   it("재시도 제한을 넘기지 않고 실패 metadata를 남긴다", async () => {
+    mockNodeResponses("파일을 생성해", "파일을 생성해");
     const fetchImplementation = vi.fn(async () => {
       return new Response(
         JSON.stringify({
@@ -195,7 +225,8 @@ describe("translate_to_english", () => {
       fetchImplementation,
     });
 
-    expect(fetchImplementation).toHaveBeenCalledTimes(2);
+    expect(fetchImplementation).not.toHaveBeenCalled();
+    expect(nodeRuntimeMocks.completeChatWithNodeLlamaCpp).toHaveBeenCalledTimes(2);
     expect(result.span_results[0]!.status).toBe("failed");
     expect(result.span_results[0]!.attempts).toBe(1);
     expect(result.span_results[0]!.validation_errors).toContain(
@@ -204,6 +235,7 @@ describe("translate_to_english", () => {
   });
 
   it("debug mode에서는 debug metadata를 남긴다", async () => {
+    mockNodeResponses("Create __PH_0001__ file");
     const fetchImplementation = vi.fn(async () => {
       return new Response(
         JSON.stringify({
@@ -249,6 +281,7 @@ describe("translate_to_english", () => {
   });
 
   it("깨진 placeholder 형식도 repair로 복구하고 최종 validation 오류는 남기지 않는다", async () => {
+    mockNodeResponses("Check PH_0001__ endpoint first");
     const fetchImplementation = vi.fn(async () => {
       return new Response(
         JSON.stringify({
@@ -293,6 +326,10 @@ describe("translate_to_english", () => {
   });
 
   it("placeholder가 포함된 span은 정확한 placeholder 힌트를 프롬프트에 포함한다", async () => {
+    mockNodeResponses(
+      "Let's create an endpoint and expose the metric data externally.",
+      "Let's create __PH_0001__ endpoint and expose the metric data externally.",
+    );
     const fetchImplementation = vi
       .fn()
       .mockResolvedValueOnce(
@@ -355,11 +392,12 @@ describe("translate_to_english", () => {
       },
     );
 
-    expect(fetchImplementation).toHaveBeenCalledTimes(2);
-    const firstCall = fetchImplementation.mock.calls[0]!;
-    const secondCall = fetchImplementation.mock.calls[1]!;
-    const firstBody = JSON.parse(String(firstCall[1]?.body));
-    const secondBody = JSON.parse(String(secondCall[1]?.body));
+    expect(fetchImplementation).not.toHaveBeenCalled();
+    expect(nodeRuntimeMocks.completeChatWithNodeLlamaCpp).toHaveBeenCalledTimes(2);
+    const firstCall = nodeRuntimeMocks.completeChatWithNodeLlamaCpp.mock.calls[0]!;
+    const secondCall = nodeRuntimeMocks.completeChatWithNodeLlamaCpp.mock.calls[1]!;
+    const firstBody = firstCall[0];
+    const secondBody = secondCall[0];
 
     expect(firstBody.messages[0].content).toContain(
       "Exact placeholders that must be preserved verbatim",
@@ -380,6 +418,11 @@ describe("translate_to_english", () => {
   });
 
   it("final retry에서는 cluster된 placeholder를 single-call segmented retry로 복구한다", async () => {
+    mockNodeResponses(
+      "Compare them carefully.",
+      "Compare them carefully.",
+      ["SEG_0001|||PLACEHOLDER|||", "SEG_0002|||TEXT||| Compare them carefully."].join("\n"),
+    );
     const fetchImplementation = vi
       .fn()
       .mockResolvedValueOnce(
@@ -461,10 +504,10 @@ describe("translate_to_english", () => {
       fetchImplementation,
     });
 
-    expect(fetchImplementation).toHaveBeenCalledTimes(3);
-    const segmentedRetryCall = JSON.parse(
-      String(fetchImplementation.mock.calls[2]![1]?.body),
-    );
+    expect(fetchImplementation).not.toHaveBeenCalled();
+    expect(nodeRuntimeMocks.completeChatWithNodeLlamaCpp).toHaveBeenCalledTimes(3);
+    const segmentedRetryCall =
+      nodeRuntimeMocks.completeChatWithNodeLlamaCpp.mock.calls[2]![0];
     expect(segmentedRetryCall.messages[0].content).toContain(
       "Placeholder Segment Recovery Mode",
     );
@@ -476,6 +519,11 @@ describe("translate_to_english", () => {
   });
 
   it("최종 retry는 placeholder를 잃은 결과보다 placeholder를 보존한 결과를 우선한다", async () => {
+    mockNodeResponses(
+      "__PH_0001__ 서비스 뒤가 느려",
+      "The service behind the gateway is slow.",
+      "unstructured retry output",
+    );
     const fetchImplementation = vi
       .fn()
       .mockResolvedValueOnce(
@@ -554,7 +602,8 @@ describe("translate_to_english", () => {
       fetchImplementation,
     });
 
-    expect(fetchImplementation).toHaveBeenCalledTimes(3);
+    expect(fetchImplementation).not.toHaveBeenCalled();
+    expect(nodeRuntimeMocks.completeChatWithNodeLlamaCpp).toHaveBeenCalledTimes(3);
     expect(result.text).toBe("API 서비스 뒤가 느려");
     expect(result.span_results[0]!.validation_errors).not.toContain(
       "placeholder_count_mismatch",
@@ -563,6 +612,10 @@ describe("translate_to_english", () => {
   });
 
   it("placeholder가 통째로 사라지면 item 단위로 재시도한다", async () => {
+    mockNodeResponses(
+      "Create a file named app.ts",
+      "Create a file named __PH_0001__",
+    );
     const fetchImplementation = vi
       .fn()
       .mockResolvedValueOnce(
@@ -622,12 +675,17 @@ describe("translate_to_english", () => {
       fetchImplementation,
     });
 
-    expect(fetchImplementation).toHaveBeenCalledTimes(2);
+    expect(fetchImplementation).not.toHaveBeenCalled();
+    expect(nodeRuntimeMocks.completeChatWithNodeLlamaCpp).toHaveBeenCalledTimes(2);
     expect(result.text).toBe("Create a file named `app.ts`");
     expect(result.validation_errors).toEqual([]);
   });
 
   it("최종 validation에서 literal 누락이 나면 item 단위로 한 번 더 재호출한다", async () => {
+    mockNodeResponses(
+      "Create a file",
+      "Create a file named __PH_0001__",
+    );
     const fetchImplementation = vi
       .fn()
       .mockResolvedValueOnce(
@@ -687,12 +745,14 @@ describe("translate_to_english", () => {
       fetchImplementation,
     });
 
-    expect(fetchImplementation).toHaveBeenCalledTimes(2);
+    expect(fetchImplementation).not.toHaveBeenCalled();
+    expect(nodeRuntimeMocks.completeChatWithNodeLlamaCpp).toHaveBeenCalledTimes(2);
     expect(result.text).toBe("Create a file named `app.ts`");
     expect(result.validation_errors).toEqual([]);
   });
 
   it("저신뢰 placeholder literal은 최종 validation에서 강제하지 않는다", async () => {
+    mockNodeResponses("The services behind the gateway are too slow.");
     const fetchImplementation = vi.fn(async () => {
       return new Response(
         JSON.stringify({

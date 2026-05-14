@@ -33,7 +33,7 @@ import {
 	mask_protected_segments,
 } from "../src/core/translate/masking.js";
 
-type RuntimeProvider = "llama-server" | "node-llama-cpp";
+type RuntimeProvider = "node-llama-cpp";
 
 interface VerifyOptions {
 	prompt?: string;
@@ -120,7 +120,7 @@ function getUsage(): string {
 		"  --limit <n>        앞에서부터 n개만 실행",
 		"  --index <n>        0-based 특정 인덱스 1개만 실행",
 		"  --output <path>    결과 JSON 저장 경로",
-		"  --runtime-provider <llama-server|node-llama-cpp>  Role 1 로컬 LLM 런타임 강제 지정",
+		"  --runtime-provider <node-llama-cpp>  Role 1 로컬 LLM 런타임 강제 지정",
 		"  --debug            PIPELINE_MODE=debug로 실행",
 		"  --help             도움말 출력",
 	].join("\n");
@@ -183,9 +183,9 @@ export function parseArgs(argv: string[]): VerifyOptions {
 
 		if (current === "--runtime-provider") {
 			const value = argv[i + 1];
-			if (value !== "llama-server" && value !== "node-llama-cpp") {
+			if (value !== "node-llama-cpp") {
 				throw new Error(
-					"--runtime-provider must be one of: llama-server, node-llama-cpp",
+					"--runtime-provider must be: node-llama-cpp",
 				);
 			}
 			runtimeProvider = value;
@@ -462,7 +462,7 @@ export async function ensureRole1ModelFile(
 
 	if (scriptEnv.LOCAL_LLM_RUNTIME_PROVIDER === undefined) {
 		scriptEnv.LOCAL_LLM_RUNTIME_PROVIDER =
-			config.localLlmRuntimeProvider ?? "llama-server";
+			config.localLlmRuntimeProvider ?? "node-llama-cpp";
 	}
 
 	scriptEnv.LOCAL_LLM_MODEL_PATH = modelPath;

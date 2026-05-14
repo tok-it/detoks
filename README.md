@@ -34,7 +34,7 @@ detoks는 `codex`, `gemini`, `claude` 같은 LLM CLI 앞단에서 동작하는 *
 
 - Node.js `>=24.15.0 <26`
 - `codex`, `gemini`, 또는 `claude` CLI: 해당 adapter를 사용할 때
-- 로컬 모델 추론 사용 시: local `llama-server` binary
+- 로컬 모델 추론 사용 시: `node-llama-cpp`에서 로드 가능한 GGUF 모델
 
 자세한 버전 기준은 [STACK_VERSIONS.md](./docs/STACK_VERSIONS.md)와 [LLAMA_CPP_SERVER_SPEC.md](./docs/LLAMA_CPP_SERVER_SPEC.md)를 참고하세요.
 
