@@ -27,7 +27,13 @@ import {
   CODEX_REASONING_EFFORT_VALUES,
   type CodexReasoningEffort,
 } from "../config/types.js";
-import { TRANSLATION_MODELS, type TranslationModel } from "../model-setup/models.js";
+import {
+  TRANSLATION_MODELS,
+  CUSTOM_MODEL_MENU_VALUE,
+  CUSTOM_MODEL_RECENT_VALUE,
+  buildCustomTranslationModel,
+  type TranslationModel,
+} from "../model-setup/models.js";
 import { downloadModel } from "../model-setup/download.js";
 import { updateEnvFile } from "../model-setup/env-writer.js";
 import { inspectLocalModelFile, shouldDownloadModelFile } from "../model-setup/file-status.js";
@@ -35,6 +41,9 @@ import {
   getDetoksModelDir,
   getDetoksModelFilePath,
 } from "../../core/model-store.js";
+import { loadLastCustomModel, saveCustomModel } from "../model-setup/custom-store.js";
+import { parseHfRepoInput, listGgufFiles, HfRepoError } from "../model-setup/hf-repo.js";
+import { promptLine } from "../interactive/prompt-line.js";
 
 export interface SlashCommand {
   name: string;
@@ -799,62 +808,9 @@ const getModelAssetStatus = (model: TranslationModel) => {
   return inspectLocalModelFile(getDetoksModelFilePath(model));
 };
 
-const handleTranslationModel = async (streams?: SelectWithArrowsStreams): Promise<boolean> => {
-  output.write(`\n${colors.title("한글→영어 번역 모델 선택\n")}`);
-
-  // 모델 목록 생성
-  const options = TRANSLATION_MODELS.map((model) => {
-    const fileStatus = getModelAssetStatus(model);
-    const status =
-      fileStatus.kind === "ready"
-        ? ` ${colors.success("[설치됨]")}`
-        : fileStatus.kind === "invalid"
-          ? ` ${colors.warning(`[손상됨:${fileStatus.reason}]`)}`
-          : "";
-    return {
-      value: model.id,
-      label: `${model.displayName}${status}`,
-      model,
-    };
-  });
-
-  // 모델 정보 표시
-  for (const opt of options) {
-    const model = opt.model;
-    if (model) {
-      output.write(`${colors.muted(opt.label)}\n`);
-      output.write(`   ${colors.muted(model.description)}\n`);
-      output.write("\n");
-    }
-  }
-
-  output.write(
-    colors.muted("손상된 모델은 선택 후 Enter를 누르면 재설치됩니다.\n\n"),
-  );
-
-  // 모델 선택
-  const selectedId = await selectWithArrows(
-    options.map((opt) => ({
-      value: opt.value,
-      label: opt.label,
-    })),
-    "모델 선택",
-    streams,
-  );
-
-  if (!selectedId) {
-    return true;
-  }
-
-  const selectedModel = TRANSLATION_MODELS.find((m) => m.id === selectedId);
-  if (!selectedModel) {
-    output.write(colors.error("\n✗ 모델을 찾을 수 없습니다.\n\n"));
-    return true;
-  }
-
+const applySelectedModel = async (selectedModel: TranslationModel): Promise<void> => {
   const fileStatus = getModelAssetStatus(selectedModel);
 
-  // 정상 파일은 재사용하고, 손상/누락 파일은 명시적 선택 시 재다운로드
   if (fileStatus.kind === "invalid") {
     output.write(
       colors.warning(
@@ -869,30 +825,16 @@ const handleTranslationModel = async (streams?: SelectWithArrowsStreams): Promis
         `\n⬇️  ${selectedModel.displayName} 다운로드 시작...\n\n`,
       ),
     );
-
-    try {
-      await downloadModel(selectedModel);
-    } catch (error) {
-      output.write(
-        colors.error(
-          `\n✗ 다운로드 실패. 인터넷 연결을 확인하고 다시 시도하세요.\n\n`,
-        ),
-      );
-      return true;
-    }
+    await downloadModel(selectedModel);
   }
 
-  // 환경변수 및 설정 업데이트
   process.env.LOCAL_LLM_MODEL_NAME = selectedModel.modelName;
   process.env.LOCAL_LLM_MODEL_DIR = getDetoksModelDir(selectedModel);
   process.env.LOCAL_LLM_MODEL_PATH = getDetoksModelFilePath(selectedModel);
-  process.env.LOCAL_LLM_HF_REPO = `${selectedModel.hfRepo}:Q4_K_S`;
+  process.env.LOCAL_LLM_HF_REPO = `${selectedModel.hfRepo}:${selectedModel.quantization}`;
   process.env.LOCAL_LLM_HF_FILE = selectedModel.hfFile;
 
-  // .env 파일 업데이트
   updateEnvFile(selectedModel, process.cwd());
-
-  // 설정 저장
   updateTranslationModel(selectedModel.modelName);
 
   output.write(
@@ -900,9 +842,175 @@ const handleTranslationModel = async (streams?: SelectWithArrowsStreams): Promis
       `\n✓ 번역 모델이 '${selectedModel.displayName}'로 변경되었습니다.\n`,
     ),
   );
-  output.write(
-    colors.muted(`  설정 저장됨: ~/.detoks/settings.json\n\n`),
+  output.write(colors.muted(`  설정 저장됨: ~/.detoks/settings.json\n\n`));
+};
+
+const runCustomModelFlow = async (streams?: SelectWithArrowsStreams): Promise<boolean> => {
+  const repoInput = await promptLine(
+    "HuggingFace 레포를 입력하세요 (owner/repo 또는 전체 URL)",
+    {
+      placeholder: "unsloth/Qwen3-14B-GGUF",
+      validate: (value) => {
+        if (!parseHfRepoInput(value)) {
+          return "올바른 형식으로 입력하세요 (예: owner/repo 또는 https://huggingface.co/owner/repo)";
+        }
+        return null;
+      },
+    },
   );
+
+  if (!repoInput) {
+    return true;
+  }
+
+  const ref = parseHfRepoInput(repoInput);
+  if (!ref) {
+    return true;
+  }
+
+  output.write(colors.muted("\n레포 확인 중...\n"));
+
+  let ggufFiles;
+  try {
+    ggufFiles = await listGgufFiles(ref);
+  } catch (err) {
+    const msg = err instanceof HfRepoError ? err.message : String(err);
+    output.write(colors.error(`\n✗ ${msg}\n\n`));
+    return true;
+  }
+
+  output.write(
+    colors.success(`✓ 레포에서 GGUF 파일 ${ggufFiles.length}개를 찾았습니다.\n\n`),
+  );
+
+  const quantOptions = ggufFiles.map((f) => {
+    const quant = f.quantization === "unknown" ? f.filename : f.quantization;
+    const size = f.sizeMb > 0 ? `${f.sizeMb}MB` : "크기 미상";
+    return {
+      value: f.filename,
+      label: `${quant}  (${f.filename}, ${size})`,
+    };
+  });
+
+  const selectedFile = await selectWithArrows(quantOptions, "양자화 선택", streams);
+
+  if (!selectedFile) {
+    return true;
+  }
+
+  const selectedInfo = ggufFiles.find((f) => f.filename === selectedFile);
+  if (!selectedInfo) {
+    return true;
+  }
+
+  const customModel = buildCustomTranslationModel({
+    hfRepo: ref.fullRepo,
+    hfFile: selectedInfo.filename,
+    quantization: selectedInfo.quantization,
+    sizeMb: selectedInfo.sizeMb,
+  });
+
+  try {
+    await applySelectedModel(customModel);
+  } catch {
+    output.write(colors.error(`\n✗ 다운로드 실패. 인터넷 연결을 확인하고 다시 시도하세요.\n\n`));
+    return true;
+  }
+
+  saveCustomModel({
+    hfRepo: customModel.hfRepo,
+    hfFile: customModel.hfFile,
+    quantization: customModel.quantization,
+    sizeMb: customModel.sizeMb,
+    savedAt: new Date().toISOString(),
+  });
+
+  return true;
+};
+
+const handleTranslationModel = async (streams?: SelectWithArrowsStreams): Promise<boolean> => {
+  output.write(`\n${colors.title("한글→영어 번역 모델 선택\n")}`);
+
+  const builtinOptions = TRANSLATION_MODELS.map((model) => {
+    const fileStatus = getModelAssetStatus(model);
+    const status =
+      fileStatus.kind === "ready"
+        ? ` ${colors.success("[설치됨]")}`
+        : fileStatus.kind === "invalid"
+          ? ` ${colors.warning(`[손상됨:${fileStatus.reason}]`)}`
+          : "";
+    return {
+      value: model.id,
+      label: `${model.displayName}${status}`,
+      model,
+    };
+  });
+
+  for (const opt of builtinOptions) {
+    output.write(`${colors.muted(opt.label)}\n`);
+    output.write(`   ${colors.muted(opt.model.description)}\n\n`);
+  }
+
+  output.write(colors.muted("손상된 모델은 선택 후 Enter를 누르면 재설치됩니다.\n\n"));
+
+  // 메뉴 옵션: 빌트인 3개 + 사용자 지정 + 최근 사용자 지정(있을 때만)
+  const menuOptions: SelectOption[] = builtinOptions.map((opt) => ({
+    value: opt.value,
+    label: opt.label,
+  }));
+
+  menuOptions.push({
+    value: CUSTOM_MODEL_MENU_VALUE,
+    label: "사용자 지정 모델 설정 (GGUF)",
+  });
+
+  const lastCustom = loadLastCustomModel();
+  if (lastCustom) {
+    const tempModel = buildCustomTranslationModel(lastCustom);
+    const fileStatus = getModelAssetStatus(tempModel);
+    const statusLabel =
+      fileStatus.kind === "ready"
+        ? ` ${colors.success("[설치됨]")}`
+        : fileStatus.kind === "invalid"
+          ? ` ${colors.warning("[손상됨]")}`
+          : "";
+    menuOptions.push({
+      value: CUSTOM_MODEL_RECENT_VALUE,
+      label: `이전 사용자 지정: ${lastCustom.hfRepo}:${lastCustom.quantization}${statusLabel}`,
+    });
+  }
+
+  const selectedId = await selectWithArrows(menuOptions, "모델 선택", streams);
+
+  if (!selectedId) {
+    return true;
+  }
+
+  if (selectedId === CUSTOM_MODEL_MENU_VALUE) {
+    return runCustomModelFlow(streams);
+  }
+
+  if (selectedId === CUSTOM_MODEL_RECENT_VALUE && lastCustom) {
+    const recentModel = buildCustomTranslationModel(lastCustom);
+    try {
+      await applySelectedModel(recentModel);
+    } catch {
+      output.write(colors.error(`\n✗ 다운로드 실패. 인터넷 연결을 확인하고 다시 시도하세요.\n\n`));
+    }
+    return true;
+  }
+
+  const selectedModel = TRANSLATION_MODELS.find((m) => m.id === selectedId);
+  if (!selectedModel) {
+    output.write(colors.error("\n✗ 모델을 찾을 수 없습니다.\n\n"));
+    return true;
+  }
+
+  try {
+    await applySelectedModel(selectedModel);
+  } catch {
+    output.write(colors.error(`\n✗ 다운로드 실패. 인터넷 연결을 확인하고 다시 시도하세요.\n\n`));
+  }
 
   return true;
 };
