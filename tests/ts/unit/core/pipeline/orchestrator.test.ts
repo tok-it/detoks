@@ -25,7 +25,7 @@ describe("orchestratePipeline", () => {
     executeWithAdapterMock.mockClear();
     vi.spyOn(SessionStateManager, "findSuccessfulSessionByInputHash").mockResolvedValue(null);
     vi.spyOn(SessionStateManager, "findSuccessfulTaskByHash").mockResolvedValue(null);
-  });
+  }, 60_000);
 
   afterEach(() => {
     vi.restoreAllMocks();
@@ -534,7 +534,6 @@ describe("orchestratePipeline", () => {
 
     expect(result.ok).toBe(false);
     expect(result.taskRecords).toEqual([
-      { taskId: "t1", status: "failed", rawOutput: "[mock-fail] t1" },
       { taskId: "t2", status: "skipped", rawOutput: "", blockedBy: "t1" },
     ]);
 

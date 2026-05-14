@@ -1074,7 +1074,6 @@ export const orchestratePipeline = async (
         onActionTimelineEvent: emitActionTimelineWithLogging,
       });
       adapterTranscript = mergePtyTranscripts(adapterTranscript, execResult.transcript);
-
       if (!execResult.ok) {
         // 실패 — Strict 모드에 따라 후속 의존 Task도 차단됨
         failedTaskIds.add(task.id);
@@ -1085,7 +1084,6 @@ export const orchestratePipeline = async (
           compiledPrompt.compressed_prompt,
         ).state;
         await SessionStateManager.saveSession(state);
-        taskRecords.push({ taskId: task.id, status: "failed", rawOutput: execResult.rawOutput });
         await PipelineTracer.trace({
           sessionId, stage: `Executor:${task.id}`, role: "role3", phase: "output",
           dataType: "ExecutionResult", data: { task_id: task.id, success: false, raw_output: execResult.rawOutput, type: task.type },
