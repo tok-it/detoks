@@ -34,7 +34,7 @@ describe("loadRole1RuntimeConfig", () => {
 		expect(config.localLlmApiBase).toBe("http://127.0.0.1:12370/v1");
 		expect(config.localLlmApiKey).toBeUndefined();
 		expect(config.localLlmModelName).toBe(
-			"mradermacher/gemma-4-e2b-it-heretic-ara-GGUF:Q4_K_S",
+			"unsloth/Qwen3.5-4B-GGUF",
 		);
 		expect(config.localLlmRuntimeProvider).toBe("llama-server");
 		expect(config.localLlmAutoStart).toBe(true);
@@ -54,14 +54,14 @@ describe("loadRole1RuntimeConfig", () => {
 				".detoks",
 				"models",
 				"llm",
-				"mradermacher-gemma-4-e2b-it-heretic-ara-GGUF",
+				"unsloth-Qwen3.5-4B-GGUF",
 			),
 		);
 		expect(config.localLlmHfRepo).toBe(
-			"mradermacher/gemma-4-e2b-it-heretic-ara-GGUF:Q4_K_S",
+			"unsloth/Qwen3.5-4B-GGUF:Q4_K_M",
 		);
 		expect(config.localLlmHfFile).toBe(
-			"gemma-4-e2b-it-heretic-ara.Q4_K_S.gguf",
+			"Qwen3.5-4B-Q4_K_M.gguf",
 		);
 		expect(config.kompressModelId).toBe("chopratejas/kompress-base");
 	});
