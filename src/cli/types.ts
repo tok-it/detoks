@@ -57,6 +57,7 @@ export interface CliArgs {
     | "checkpoint-restore";
   memoryPurgeAll?: boolean;
   skipConfirm?: boolean;
+  keepCrossProject?: boolean;
 }
 
 export type NormalizedCliRequest = PipelineExecutionRequest;

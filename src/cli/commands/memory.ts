@@ -36,6 +36,7 @@ export async function runMemoryDisableCommand(): Promise<MemoryCommandResult> {
 // .state/sessions/*.json + .state/rag/vectors.db 일괄 삭제 (확인 프롬프트 포함).
 export async function runMemoryPurgeAllCommand(opts: {
   skipConfirm?: boolean;
+  keepCrossProject?: boolean;
 } = {}): Promise<MemoryCommandResult> {
   if (!opts.skipConfirm) {
     const confirmed = await promptConfirm(
@@ -73,6 +74,26 @@ export async function runMemoryPurgeAllCommand(opts: {
     deletedCount++;
   } catch {
     // 벡터 DB가 없으면 통과
+  }
+
+  // 3. cross-project 패턴 삭제 (--keep-cross-project 없을 때)
+  if (!opts.keepCrossProject) {
+    const crossProjectDir = join(homedir(), ".detoks", "cross-project");
+    let countLabel = "알 수 없음";
+    try {
+      const indexRaw = await fs.readFile(join(crossProjectDir, "index.json"), "utf-8");
+      const index = JSON.parse(indexRaw) as { total_contributions?: number };
+      if (typeof index.total_contributions === "number") {
+        countLabel = `${index.total_contributions}건`;
+      }
+    } catch { /* index.json 없으면 "알 수 없음" */ }
+
+    console.log(`[detoks] cross-project 패턴도 삭제합니다 (~/.detoks/cross-project/): ${countLabel}`);
+    console.log(`[detoks] --keep-cross-project 플래그로 유지할 수 있습니다.`);
+
+    try {
+      await fs.rm(crossProjectDir, { recursive: true, force: true });
+    } catch { /* 디렉토리 없으면 통과 */ }
   }
 
   if (errors.length > 0) {

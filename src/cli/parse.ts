@@ -296,6 +296,7 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
   let noCache = false;
   let memoryPurgeAll = false;
   let skipConfirm = false;
+  let keepCrossProject = false;
   let tui: CliArgs["tui"] = undefined;
   let presentationMode: CliArgs["presentationMode"] = undefined;
 
@@ -332,6 +333,11 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
 
     if (current === "--yes" && positionals[0] === "memory") {
       skipConfirm = true;
+      continue;
+    }
+
+    if (current === "--keep-cross-project" && positionals[0] === "memory") {
+      keepCrossProject = true;
       continue;
     }
 
@@ -700,6 +706,7 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
         command: "memory-purge-all",
         memoryPurgeAll,
         skipConfirm,
+        keepCrossProject,
       };
     }
     throw new Error(`알 수 없는 memory 하위 명령: ${sub ?? "(없음)"}. detoks memory disable | purge --all`);
