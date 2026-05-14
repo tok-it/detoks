@@ -24,7 +24,7 @@ afterEach(() => {
 });
 
 describe("downloadModel", () => {
-  it("downloads a GGUF file into ~/.detoks/models/{author}/{repo}", async () => {
+  it("downloads a GGUF file into ~/.detoks/models/{role}/{hf-repo-slug}/model.gguf", async () => {
     const { home } = createWorkspace();
     vi.stubEnv("HOME", home);
     const fetchMock = vi.fn(async () => {
@@ -46,6 +46,7 @@ describe("downloadModel", () => {
         displayName: "Test Model",
         description: "download smoke test",
         modelName: "test/model",
+        role: "llm",
         hfRepo: "test/repo",
         hfFile: "test-model.gguf",
         sizeMb: 1,
@@ -54,7 +55,7 @@ describe("downloadModel", () => {
       stdoutWriteSpy.mockRestore();
     }
 
-    const modelDir = join(home, ".detoks", "models", "test", "repo");
+    const modelDir = join(home, ".detoks", "models", "llm", "test-repo");
     const downloadedPath = join(modelDir, "test-model.gguf");
 
     expect(fetchMock).toHaveBeenCalledWith(

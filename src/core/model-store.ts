@@ -1,26 +1,16 @@
 import { homedir } from "node:os";
 import { join } from "node:path";
 
+export type ModelRole = "llm" | "embedding" | "compress";
+
 export interface DetoksModelDescriptor {
+  role: ModelRole;
   hfRepo: string;
   hfFile: string;
 }
 
 export const getDetoksModelsRootDir = (): string =>
   join(homedir(), ".detoks", "models");
-
-const getRepoPathParts = (hfRepo: string): [string, string] => {
-  const repoWithoutRevision = hfRepo.trim().split(":")[0]?.trim() || "";
-  const [author, repoName] = repoWithoutRevision
-    .replace(/\\/gu, "/")
-    .split("/")
-    .filter(Boolean);
-
-  return [
-    sanitizePathSegment(author ?? "unknown-author"),
-    sanitizePathSegment(repoName ?? "unknown-model"),
-  ];
-};
 
 const sanitizePathSegment = (value: string): string => {
   const sanitized = value
@@ -30,8 +20,14 @@ const sanitizePathSegment = (value: string): string => {
   return sanitized || "unknown-model";
 };
 
+const getHfRepoSlug = (hfRepo: string): string => {
+  const repoWithoutRevision = hfRepo.trim().split(":")[0]?.trim() || "";
+  const slug = repoWithoutRevision.replace(/\\/gu, "/").replace(/\//gu, "-");
+  return sanitizePathSegment(slug) || "unknown-model";
+};
+
 export const getDetoksModelDir = (model: DetoksModelDescriptor): string =>
-  join(getDetoksModelsRootDir(), ...getRepoPathParts(model.hfRepo));
+  join(getDetoksModelsRootDir(), model.role, getHfRepoSlug(model.hfRepo));
 
 export const getDetoksModelFilePath = (model: DetoksModelDescriptor): string =>
   join(getDetoksModelDir(model), model.hfFile);

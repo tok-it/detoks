@@ -359,6 +359,7 @@ export function loadRole1RuntimeConfig(
 		localLlmModelDir:
 			pickEnv("LOCAL_LLM_MODEL_DIR") ??
 				getDetoksModelDir({
+					role: "llm",
 					hfRepo: DEFAULT_LOCAL_LLM_HF_REPO,
 					hfFile: DEFAULT_LOCAL_LLM_HF_FILE,
 				}),
