@@ -550,7 +550,7 @@ describe.skipIf(Boolean(process.env.CI))("detoks CLI smoke", () => {
       const replRun = runCliWithInputFromCwdEnvAndTimeout(
         tempDir,
         ["repl", "--tui", "--embedded-cli-ui", "--execution-mode", "real"],
-        "hello detoks\n\u0007/exit\n",
+        "hello detoks\n\n/exit\n",
         {
           PATH: `${tempDir}:${process.env.PATH ?? ""}`,
         },
@@ -558,11 +558,12 @@ describe.skipIf(Boolean(process.env.CI))("detoks CLI smoke", () => {
       );
 
       expect(replRun.stderr).not.toContain("ReferenceError");
-      expect(replRun.stdout).toContain("원본 CLI 출력이 이 영역에 표시됩니다.");
-      expect(replRun.stdout).toContain("[fake:codex]");
       expect(replRun.stdout).toContain("hello detoks");
-      expect(replRun.stdout).toContain("실행 결과가 아직 없습니다.");
-      expect(replRun.stdout).toContain("작업 타임라인");
+      expect(replRun.stdout).toContain("Sticky Prompt");
+      expect(replRun.stdout).toContain("실행 확인 대기");
+      expect(replRun.stdout).toContain("실행 중");
+      expect(replRun.stdout).toContain("완료");
+      expect(replRun.stdout).toContain("Summary #1");
       expect(replRun.stdout).toContain("detoks 압축 지표");
     } finally {
       rmSync(tempDir, { force: true, recursive: true });
@@ -577,7 +578,7 @@ describe.skipIf(Boolean(process.env.CI))("detoks CLI smoke", () => {
       const replRun = runCliWithInputFromCwdEnvAndTimeout(
         tempDir,
         ["repl", "--tui", "--embedded-cli-ui", "--execution-mode", "real"],
-        "hello detoks\n\u0007hello again\n\u0007/exit\n",
+        "hello detoks\n\nhello again\n\n/exit\n",
         {
           PATH: `${tempDir}:${process.env.PATH ?? ""}`,
           DETOKS_CACHE_DISABLED: "1",
@@ -586,13 +587,39 @@ describe.skipIf(Boolean(process.env.CI))("detoks CLI smoke", () => {
       );
 
       expect(replRun.stderr).not.toContain("ReferenceError");
-      expect(replRun.stdout).toContain("[fake:codex]");
       expect(replRun.stdout).toContain("hello detoks");
       expect(replRun.stdout).toContain("hello again");
+      expect(replRun.stdout).toContain("Sticky Prompt");
+      expect(replRun.stdout).toContain("실행 중");
+      expect(replRun.stdout).toContain("완료");
     } finally {
       rmSync(tempDir, { force: true, recursive: true });
     }
   }, 30_000);
+
+  it("does not auto-execute the approval prompt when the initial Enter arrives as CRLF", () => {
+    const tempDir = mkdtempSync(join(tmpdir(), "detoks-cli-embedded-repl-"));
+
+    try {
+      createFakeBinary(tempDir, "codex");
+      const replRun = runCliWithInputFromCwdEnvAndTimeout(
+        tempDir,
+        ["repl", "--tui", "--embedded-cli-ui", "--execution-mode", "real"],
+        "hello detoks\r\n",
+        {
+          PATH: `${tempDir}:${process.env.PATH ?? ""}`,
+          DETOKS_CACHE_DISABLED: "1",
+        },
+        4_000,
+      );
+
+      expect(replRun.stdout).toContain("실행 확인 대기");
+      expect(replRun.stdout).not.toContain("[fake:codex]");
+      expect(replRun.stdout).not.toContain("실행 중");
+    } finally {
+      rmSync(tempDir, { force: true, recursive: true });
+    }
+  }, 10_000);
 
   it("keeps default stderr concise and verbose stderr stacked on errors", () => {
     const defaultRun = runCli(["--unknown"]);

@@ -71,7 +71,7 @@ describe("EmbeddedTerminalPane", () => {
     expect(output).toContain("world");
   });
 
-  it("renders codex metadata lines with a muted gray tone for readability", () => {
+  it("compresses codex metadata lines into a short summary", () => {
     pane.addEvent({
       type: "chunk",
       timestamp: Date.now(),
@@ -82,10 +82,90 @@ describe("EmbeddedTerminalPane", () => {
     pane.render(mockContext, mockRegion);
 
     const output = mockScreen.write.mock.calls.map((call: any) => call[0]).join("\n");
-    expect(output).toContain("\x1b[38;5;250m");
-    expect(output).toContain("\x1b[2;38;5;244m");
+    expect(output).toContain("세션 정보");
     expect(output).toContain("OpenAI Codex");
-    expect(output).toContain("workdir:");
+    expect(output).not.toContain("workdir:");
+    expect(output).not.toContain("--------");
+  });
+
+  it("compresses exec command blocks into a short summary", () => {
+    pane.addEvent({
+      type: "chunk",
+      timestamp: Date.now(),
+      stream: "stdout",
+      data: [
+        "exec",
+        `/bin/zsh -lc "rg -n \"new ProjectMemory\" src tests"`,
+        "succeeded in 0ms:",
+        "src/core/pipeline/orchestrator.ts:34:import { ProjectMemory } from \"../rag/project-memory.js\";",
+        "src/core/rag/project-memory.ts:5:import { TaskSequenceMiner } from \"./task-sequence-miner.js\";",
+        "",
+      ].join("\n"),
+    });
+
+    pane.render(mockContext, mockRegion);
+
+    const output = mockScreen.write.mock.calls.map((call: any) => call[0]).join("\n");
+    expect(output).toContain("명령 실행");
+    expect(output).toContain("rg");
+    expect(output).not.toContain("succeeded in 0ms");
+    expect(output).not.toContain("TaskSequenceMiner");
+  });
+
+  it("keeps an in-progress file read compact and exposes it as current activity", () => {
+    mockRegion.columns = 140;
+    pane.addEvent({
+      type: "chunk",
+      timestamp: Date.now(),
+      stream: "stdout",
+      data: [
+        "exec",
+        `/bin/zsh -lc "sed -n '1,220p' /Users/choi/.codex/RTK.md" in /Users/choi/Desktop/workspace/detoks`,
+        "# verbose file contents",
+        "line that should not fill the pane",
+      ].join("\n"),
+    });
+
+    pane.render(mockContext, mockRegion);
+
+    const output = mockScreen.write.mock.calls.map((call: any) => call[0]).join("\n");
+    expect(output).toContain("파일 읽기");
+    expect(output).toContain("/Users/choi/.codex/RTK.md");
+    expect(output).not.toContain("line that should not fill the pane");
+    expect(pane.getActivitySnapshot(120)).toMatchObject({
+      kind: "file",
+      label: "파일 읽기",
+      detail: "/Users/choi/.codex/RTK.md",
+      status: "running",
+    });
+  });
+
+  it("summarizes an in-progress search without streaming every match line", () => {
+    mockRegion.columns = 140;
+    pane.addEvent({
+      type: "chunk",
+      timestamp: Date.now(),
+      stream: "stdout",
+      data: [
+        "exec",
+        `/bin/zsh -lc "rg -n \\"ProjectMemory\\" src tests"`,
+        "src/core/pipeline/orchestrator.ts:34:import { ProjectMemory } from \"../rag/project-memory.js\";",
+        "tests/ts/unit/core/rag/project-memory.test.ts:1:import { ProjectMemory } from \"x\";",
+      ].join("\n"),
+    });
+
+    pane.render(mockContext, mockRegion);
+
+    const output = mockScreen.write.mock.calls.map((call: any) => call[0]).join("\n");
+    expect(output).toContain("검색");
+    expect(output).toContain("ProjectMemory");
+    expect(output).not.toContain("orchestrator.ts:34");
+    expect(pane.getActivitySnapshot(120)).toMatchObject({
+      kind: "search",
+      label: "검색",
+      detail: "ProjectMemory",
+      status: "running",
+    });
   });
 
   it("renders the live cursor cell with inverse video when the buffer reports a visible cursor", () => {
