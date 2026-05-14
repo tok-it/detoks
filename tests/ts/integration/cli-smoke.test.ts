@@ -1,6 +1,7 @@
 import { spawnSync } from "node:child_process";
 import {
   chmodSync,
+  existsSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -458,6 +459,57 @@ describe.skipIf(Boolean(process.env.CI))("detoks CLI smoke", () => {
     expect(withCache.status).toBe(0);
     expect(withoutCache.status).toBe(0);
     expect(withCache.stdout).toBe(withoutCache.stdout);
+  });
+
+  it("prints human output for memory disable without touching the real home directory", () => {
+    const tempDir = mkdtempSync(join(tmpdir(), "detoks-cli-memory-disable-"));
+    const tempHome = mkdtempSync(join(tmpdir(), "detoks-cli-memory-home-"));
+
+    try {
+      const run = runCliFromCwdWithEnv(tempDir, ["memory", "disable", "--human"], {
+        HOME: tempHome,
+      });
+
+      expect(run.error).toBeUndefined();
+      expect(run.status).toBe(0);
+      expect(run.stderr).toBe("");
+      expect(run.stdout).toContain("DeToks 메모리 기능이 비활성화되었습니다.");
+      expect(run.stdout).toContain(join(tempHome, ".detoks", "disabled"));
+      expect(run.stdout.trimStart()).not.toMatch(/^\{/);
+      expect(existsSync(join(tempHome, ".detoks", "disabled"))).toBe(true);
+    } finally {
+      rmSync(tempDir, { force: true, recursive: true });
+      rmSync(tempHome, { force: true, recursive: true });
+    }
+  });
+
+  it("purges session files and vector db with memory purge --all --yes", () => {
+    const tempDir = mkdtempSync(join(tmpdir(), "detoks-cli-memory-purge-"));
+    const sessionDir = join(tempDir, ".state", "sessions");
+    const ragDir = join(tempDir, ".state", "rag");
+    const sessionPath = join(sessionDir, "test-session.json");
+    const vectorDbPath = join(ragDir, "vectors.db");
+
+    try {
+      mkdirSync(sessionDir, { recursive: true });
+      mkdirSync(ragDir, { recursive: true });
+      writeFileSync(sessionPath, "{}", "utf8");
+      writeFileSync(vectorDbPath, "x", "utf8");
+
+      const run = runCliFromCwd(tempDir, ["memory", "purge", "--all", "--yes"]);
+
+      expect(run.error).toBeUndefined();
+      expect(run.status).toBe(0);
+      expect(run.stderr).toBe("");
+      expect(parseCliJson(run.stdout)).toMatchObject({
+        ok: true,
+        action: "purge-all",
+      });
+      expect(existsSync(sessionPath)).toBe(false);
+      expect(existsSync(vectorDbPath)).toBe(false);
+    } finally {
+      rmSync(tempDir, { force: true, recursive: true });
+    }
   });
 
   it("enters repl when detoks runs without arguments", () => {

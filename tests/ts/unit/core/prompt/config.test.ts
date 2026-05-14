@@ -1,7 +1,6 @@
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { tmpdir } from "node:os";
-import { homedir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { afterEach, describe, expect, it } from "vitest";
 import {
 	loadRole1Policies,
@@ -35,7 +34,7 @@ describe("loadRole1RuntimeConfig", () => {
 		expect(config.localLlmApiBase).toBe("http://127.0.0.1:12370/v1");
 		expect(config.localLlmApiKey).toBeUndefined();
 		expect(config.localLlmModelName).toBe(
-			"mradermacher/gemma-4-e2b-it-heretic-ara-GGUF:Q4_K_S",
+			"unsloth/Qwen3.5-4B-GGUF",
 		);
 		expect(config.localLlmRuntimeProvider).toBe("llama-server");
 		expect(config.localLlmAutoStart).toBe(true);
@@ -49,12 +48,20 @@ describe("loadRole1RuntimeConfig", () => {
 		expect(config.localLlmSleepIdleSeconds).toBe(1200);
 		expect(config.localLlmMaxTokens).toBe(512);
 		expect(config.localLlmReasoning).toBe("off");
-		expect(config.localLlmModelDir).toBe(join(homedir(), ".detoks", "models"));
+		expect(config.localLlmModelDir).toBe(
+			join(
+				homedir(),
+				".detoks",
+				"models",
+				"llm",
+				"unsloth-Qwen3.5-4B-GGUF",
+			),
+		);
 		expect(config.localLlmHfRepo).toBe(
-			"mradermacher/gemma-4-e2b-it-heretic-ara-GGUF:Q4_K_S",
+			"unsloth/Qwen3.5-4B-GGUF:Q4_K_M",
 		);
 		expect(config.localLlmHfFile).toBe(
-			"gemma-4-e2b-it-heretic-ara.Q4_K_S.gguf",
+			"Qwen3.5-4B-Q4_K_M.gguf",
 		);
 		expect(config.kompressModelId).toBe("chopratejas/kompress-base");
 	});

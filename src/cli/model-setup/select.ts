@@ -1,17 +1,12 @@
-import { join } from "node:path";
-import { homedir } from "node:os";
 import { stdout as output } from "node:process";
 import { colors } from "../colors.js";
 import { TRANSLATION_MODELS, type TranslationModel } from "./models.js";
 import { selectWithArrows } from "../interactive/select-with-arrows.js";
 import { inspectLocalModelFile } from "./file-status.js";
-
-const getModelsDir = () => join(homedir(), ".detoks", "models");
+import { getDetoksModelsRootDir, getDetoksModelFilePath } from "../../core/model-store.js";
 
 const getModelStatusLabel = (model: TranslationModel): string => {
-  const modelsDir = getModelsDir();
-  const filePath = join(modelsDir, model.hfFile);
-  const status = inspectLocalModelFile(filePath);
+  const status = inspectLocalModelFile(getDetoksModelFilePath(model));
 
   if (status.kind === "ready") {
     return ` ${colors.success("[설치됨]")}`;
@@ -33,7 +28,7 @@ export const selectModel = async (): Promise<TranslationModel> => {
   );
   output.write("\n");
 
-  const modelsDir = getModelsDir();
+  const modelsDir = getDetoksModelsRootDir();
 
   // 옵션 생성
   const options = TRANSLATION_MODELS.map((model) => {

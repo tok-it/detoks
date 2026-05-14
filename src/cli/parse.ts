@@ -41,6 +41,8 @@ const CLI_USAGE_MAIN = [
   "  detoks checkpoint list <session-id>",
   "  detoks checkpoint show <checkpoint-id>",
   "  detoks checkpoint restore <checkpoint-id>",
+  "  detoks memory disable                DeToks 메모리 기능 전체 비활성화",
+  "  detoks memory purge --all            세션 파일 및 벡터 DB 일괄 삭제",
   "  detoks repl --help",
   "  detoks --help",
   "",
@@ -292,6 +294,8 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
   let verbose = false;
   let trace = false;
   let noCache = false;
+  let memoryPurgeAll = false;
+  let skipConfirm = false;
   let tui: CliArgs["tui"] = undefined;
   let presentationMode: CliArgs["presentationMode"] = undefined;
 
@@ -318,6 +322,16 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
 
     if (current === "--human") {
       human = true;
+      continue;
+    }
+
+    if (current === "--all" && positionals[0] === "memory") {
+      memoryPurgeAll = true;
+      continue;
+    }
+
+    if (current === "--yes" && positionals[0] === "memory") {
+      skipConfirm = true;
       continue;
     }
 
@@ -652,6 +666,43 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
     }
 
     throw new Error(`지원하지 않는 체크포인트 명령입니다. ${topicHelpHint("detoks checkpoint list --help")}, ${topicHelpHint("detoks checkpoint show --help")}, ${topicHelpHint("detoks checkpoint restore --help")}를 확인하세요.`);
+  }
+
+  if (first === "memory") {
+    const sub = positionals[1];
+    if (sub === "disable") {
+      if (memoryPurgeAll || skipConfirm) {
+        throw new Error("memory disable은 --all 또는 --yes를 지원하지 않습니다. detoks memory disable [--human]");
+      }
+      return {
+        mode: "run",
+        adapter,
+        executionMode,
+        verbose,
+        trace,
+        ...(human ? { human } : {}),
+        showHelp: false,
+        command: "memory-disable",
+      };
+    }
+    if (sub === "purge") {
+      if (!memoryPurgeAll) {
+        throw new Error("memory purge에는 --all 플래그가 필요합니다. detoks memory purge --all");
+      }
+      return {
+        mode: "run",
+        adapter,
+        executionMode,
+        verbose,
+        trace,
+        ...(human ? { human } : {}),
+        showHelp: false,
+        command: "memory-purge-all",
+        memoryPurgeAll,
+        skipConfirm,
+      };
+    }
+    throw new Error(`알 수 없는 memory 하위 명령: ${sub ?? "(없음)"}. detoks memory disable | purge --all`);
   }
 
   if (first === "repl") {

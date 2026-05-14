@@ -2,7 +2,6 @@ import { stdout as output } from "node:process";
 import { createInterface } from "node:readline/promises";
 import { spawnSync } from "node:child_process";
 import { join } from "node:path";
-import { homedir } from "node:os";
 import type { Adapter } from "../../core/pipeline/types.js";
 import { colors } from "../colors.js";
 import {
@@ -28,10 +27,14 @@ import {
   CODEX_REASONING_EFFORT_VALUES,
   type CodexReasoningEffort,
 } from "../config/types.js";
-import { TRANSLATION_MODELS } from "../model-setup/models.js";
+import { TRANSLATION_MODELS, type TranslationModel } from "../model-setup/models.js";
 import { downloadModel } from "../model-setup/download.js";
 import { updateEnvFile } from "../model-setup/env-writer.js";
 import { inspectLocalModelFile, shouldDownloadModelFile } from "../model-setup/file-status.js";
+import {
+  getDetoksModelDir,
+  getDetoksModelFilePath,
+} from "../../core/model-store.js";
 
 export interface SlashCommand {
   name: string;
@@ -792,14 +795,8 @@ const handleLogout = async (adapter: Adapter): Promise<boolean> => {
   return true;
 };
 
-const getModelsDir = (): string => {
-  return join(homedir(), ".detoks", "models");
-};
-
-const getModelFileStatus = (hfFile: string) => {
-  const modelsDir = getModelsDir();
-  const filePath = join(modelsDir, hfFile);
-  return inspectLocalModelFile(filePath);
+const getModelAssetStatus = (model: TranslationModel) => {
+  return inspectLocalModelFile(getDetoksModelFilePath(model));
 };
 
 const handleTranslationModel = async (streams?: SelectWithArrowsStreams): Promise<boolean> => {
@@ -807,7 +804,7 @@ const handleTranslationModel = async (streams?: SelectWithArrowsStreams): Promis
 
   // 모델 목록 생성
   const options = TRANSLATION_MODELS.map((model) => {
-    const fileStatus = getModelFileStatus(model.hfFile);
+    const fileStatus = getModelAssetStatus(model);
     const status =
       fileStatus.kind === "ready"
         ? ` ${colors.success("[설치됨]")}`
@@ -855,7 +852,7 @@ const handleTranslationModel = async (streams?: SelectWithArrowsStreams): Promis
     return true;
   }
 
-  const fileStatus = getModelFileStatus(selectedModel.hfFile);
+  const fileStatus = getModelAssetStatus(selectedModel);
 
   // 정상 파일은 재사용하고, 손상/누락 파일은 명시적 선택 시 재다운로드
   if (fileStatus.kind === "invalid") {
@@ -887,6 +884,8 @@ const handleTranslationModel = async (streams?: SelectWithArrowsStreams): Promis
 
   // 환경변수 및 설정 업데이트
   process.env.LOCAL_LLM_MODEL_NAME = selectedModel.modelName;
+  process.env.LOCAL_LLM_MODEL_DIR = getDetoksModelDir(selectedModel);
+  process.env.LOCAL_LLM_MODEL_PATH = getDetoksModelFilePath(selectedModel);
   process.env.LOCAL_LLM_HF_REPO = `${selectedModel.hfRepo}:Q4_K_S`;
   process.env.LOCAL_LLM_HF_FILE = selectedModel.hfFile;
 

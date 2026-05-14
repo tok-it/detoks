@@ -26,7 +26,9 @@ export interface CliArgs {
     | "model-reset"
     | "checkpoint-list"
     | "checkpoint-show"
-    | "checkpoint-restore";
+    | "checkpoint-restore"
+    | "memory-disable"
+    | "memory-purge-all";
   prompt?: string;
   sessionId?: string;
   newSessionId?: string;
@@ -53,6 +55,8 @@ export interface CliArgs {
     | "checkpoint-list"
     | "checkpoint-show"
     | "checkpoint-restore";
+  memoryPurgeAll?: boolean;
+  skipConfirm?: boolean;
 }
 
 export type NormalizedCliRequest = PipelineExecutionRequest;

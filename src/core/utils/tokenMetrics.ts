@@ -1,4 +1,6 @@
 import { get_encoding } from "tiktoken";
+import type { LLMModelConfig } from "../llm-client/llm-models.js";
+import { LLM_MODELS } from "../llm-client/llm-models.js";
 
 export const TOKEN_METRIC_MODEL = "o200k_base" as const;
 
@@ -124,4 +126,38 @@ export function formatTokenReductionSnapshot(
     `→ ${formatCount(reduction.optimizedTokens)}토큰`,
     `(절감 ${formatCount(reduction.savedTokens)}토큰, ${reduction.savedPercent.toFixed(1)}%)`,
   ].join(" ");
+}
+
+// ── USD 비용 계산 ─────────────────────────────────────────────────────────────
+
+export interface CostEstimate {
+  costSavedUsd: number;
+  costAddedUsd: number;
+  netCostSavedUsd: number;
+}
+
+function resolveModelConfig(adapter: string, adapterModel?: string): LLMModelConfig | undefined {
+  const key = adapterModel ?? adapter;
+  return LLM_MODELS[key] ?? Object.values(LLM_MODELS).find((m) => m.provider === adapter);
+}
+
+export function computeCostUsd(params: {
+  savedInTokens: number;
+  savedOutTokens: number;
+  addedInTokens: number;
+  adapter: string;
+  adapterModel?: string;
+}): CostEstimate {
+  const config = resolveModelConfig(params.adapter, params.adapterModel);
+  if (!config) {
+    return { costSavedUsd: 0, costAddedUsd: 0, netCostSavedUsd: 0 };
+  }
+
+  const priceIn = config.promptCostPerMillion ?? 0;
+  const priceOut = config.completionCostPerMillion ?? 0;
+
+  const costSavedUsd = (params.savedInTokens * priceIn + params.savedOutTokens * priceOut) / 1_000_000;
+  const costAddedUsd = (params.addedInTokens * priceIn) / 1_000_000;
+
+  return { costSavedUsd, costAddedUsd, netCostSavedUsd: costSavedUsd - costAddedUsd };
 }
