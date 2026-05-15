@@ -64,6 +64,50 @@ describe("parseCliArgs", () => {
     });
   });
 
+  it("parses one-shot mode with --cwd", () => {
+    const parsed = parseCliArgs(["--cwd", "video-demo/book-rental-service", "연체료는 어떻게 계산돼?"]);
+    expect(parsed).toEqual({
+      mode: "run",
+      prompt: "연체료는 어떻게 계산돼?",
+      cwd: "video-demo/book-rental-service",
+      adapter: "codex",
+      executionMode: "real",
+      verbose: false,
+      trace: false,
+      showHelp: false,
+      helpTopic: "main",
+    });
+  });
+
+  it("parses repl mode with --cwd", () => {
+    const parsed = parseCliArgs(["repl", "--cwd=video-demo/book-rental-service"]);
+    expect(parsed).toEqual({
+      mode: "repl",
+      cwd: "video-demo/book-rental-service",
+      adapter: "codex",
+      executionMode: "real",
+      verbose: false,
+      trace: false,
+      showHelp: false,
+      helpTopic: "repl",
+    });
+  });
+
+  it("parses batch file mode with --cwd", () => {
+    const parsed = parseCliArgs(["--cwd", "video-demo/book-rental-service", "--file", "input.json"]);
+    expect(parsed).toEqual({
+      mode: "run",
+      inputFile: "input.json",
+      cwd: "video-demo/book-rental-service",
+      adapter: "codex",
+      executionMode: "real",
+      verbose: false,
+      trace: false,
+      showHelp: false,
+      helpTopic: "main",
+    });
+  });
+
   it("parses session list as the read-only session entrypoint", () => {
     const parsed = parseCliArgs(["session", "list"]);
     expect(parsed).toEqual({

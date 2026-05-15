@@ -75,6 +75,7 @@ interface TuiRunOptions {
   adapter: CliArgs["adapter"];
   executionMode: CliArgs["executionMode"];
   verbose: boolean;
+  cwd?: string;
   sessionId?: string;
   translationModel?: string;
   adapterModel?: string;
@@ -129,6 +130,7 @@ const formatCacheHitBadge = (cacheHit: import("../../core/pipeline/types.js").Ca
 export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
   const screen = createScreenManager(stdout, stdin);
   const decoder = new StringDecoder("utf8");
+  const executionCwd = options.cwd ?? process.cwd();
   let currentAdapter = options.adapter;
   let currentAdapterModel = options.adapterModel ?? getAdapterModel(currentAdapter);
     let currentTranslationModel = options.translationModel ?? getTranslationModel();
@@ -192,12 +194,12 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
 
     const hasInitialConfig = hasConfigFile();
     const hasRole1Model = Boolean(
-      readRole1ModelName({ cwd: process.cwd() }),
+      readRole1ModelName({ cwd: executionCwd }),
     );
 
     if (!hasInitialConfig || !hasRole1Model) {
       leaveTuiDisplay();
-      await runModelSetupIfNeeded();
+      await runModelSetupIfNeeded(executionCwd);
       refreshRuntimeState();
 
       if (!hasInitialConfig) {
@@ -215,7 +217,7 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
 
     // Warm up local LLM runtime eagerly so the first prompt doesn't stall.
     if (options.executionMode === "real") {
-      const warmupConfig = loadRole1RuntimeConfig();
+      const warmupConfig = loadRole1RuntimeConfig({ cwd: executionCwd });
       if (warmupConfig.localLlmAutoStart !== false) {
         ensureLocalLlmRuntime(warmupConfig).catch(() => {
           // Error will surface when the first prompt tries to use the runtime.
@@ -236,7 +238,6 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
     let hasExecuted = false;
     let lastInputSeparatorRow = -1;
     let slashAutocompleteSelectedIndex = 0;
-    const executionCwd = process.cwd();
     let currentTokenSavingsLabel: string | undefined;
     let isInputSuspended = false;
     let isPasting = false;

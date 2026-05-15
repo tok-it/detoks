@@ -9,15 +9,16 @@ const BatchInputFileSchema = z.object({
 });
 
 export const runBatchCommand = async (
-  args: Pick<CliArgs, "inputFile">,
+  args: Pick<CliArgs, "inputFile" | "cwd">,
 ): Promise<CliBatchExecutionResult> => {
-  const filePath = resolve(process.cwd(), args.inputFile ?? "");
+  const executionCwd = args.cwd ?? process.cwd();
+  const filePath = resolve(executionCwd, args.inputFile ?? "");
   const parsed = BatchInputFileSchema.parse(
     JSON.parse(readFileSync(filePath, "utf8")),
   );
 
   return runBatchPromptPipeline(parsed.data, {
-    cwd: process.cwd(),
+    cwd: executionCwd,
     env: process.env,
   });
 };
