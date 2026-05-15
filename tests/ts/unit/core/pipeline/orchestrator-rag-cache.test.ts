@@ -214,8 +214,8 @@ describe("orchestratePipeline — RAG 캐시 통합", () => {
     // F2 pre-scan이 모든 task를 hit → tasksNeedingExecution 빈 배열
     // → isRagEnabled()가 true여도 EmbeddingService 생성 안 됨
     expect(vi.mocked(EmbeddingService)).not.toHaveBeenCalled();
-    expect(result.tokenAccounting.tokensAddedByRagContext).toBe(0);
-    expect(result.lightQuality.cacheHitRate).toBe(1.0);
+    expect(result.tokenAccounting!.tokensAddedByRagContext).toBe(0);
+    expect(result.lightQuality!.cacheHitRate).toBe(1.0);
   }, 30_000);
 
   it("RAG 활성화 + F2 전체 miss → EmbeddingService.init 호출됨", async () => {
@@ -246,8 +246,8 @@ describe("orchestratePipeline — RAG 캐시 통합", () => {
       const result = await orchestratePipeline(baseRequest);
 
       expect(result.ok).toBe(true);
-      expect(result.lightQuality.ragContextInjected).toBe(false);
-      expect(result.tokenAccounting.tokensAddedByRagContext).toBe(0);
+      expect(result.lightQuality!.ragContextInjected).toBe(false);
+      expect(result.tokenAccounting!.tokensAddedByRagContext).toBe(0);
     }, 30_000);
 
     it("cold start(2세션) · 100토큰 → RAG 주입 허용, ragContextInjected=true, tokensAdded=100", async () => {
@@ -260,8 +260,8 @@ describe("orchestratePipeline — RAG 캐시 통합", () => {
       const result = await orchestratePipeline(baseRequest);
 
       expect(result.ok).toBe(true);
-      expect(result.lightQuality.ragContextInjected).toBe(true);
-      expect(result.tokenAccounting.tokensAddedByRagContext).toBe(100);
+      expect(result.lightQuality!.ragContextInjected).toBe(true);
+      expect(result.tokenAccounting!.tokensAddedByRagContext).toBe(100);
     }, 30_000);
 
     it("not cold start(6세션) · projectedSaved=0 · projectedAdded=100 → break-even 조건 위반 → RAG 주입 차단", async () => {
@@ -275,8 +275,8 @@ describe("orchestratePipeline — RAG 캐시 통합", () => {
       const result = await orchestratePipeline(baseRequest);
 
       expect(result.ok).toBe(true);
-      expect(result.lightQuality.ragContextInjected).toBe(false);
-      expect(result.tokenAccounting.tokensAddedByRagContext).toBe(0);
+      expect(result.lightQuality!.ragContextInjected).toBe(false);
+      expect(result.tokenAccounting!.tokensAddedByRagContext).toBe(0);
     }, 30_000);
   });
 });
