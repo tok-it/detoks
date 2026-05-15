@@ -90,6 +90,23 @@ export interface SemanticContextResult {
   task_id?: string;
 }
 
+export interface RagContextDisplayItem {
+  sourceType: "previous_request" | "previous_task" | "previous_output";
+  sessionId: string;
+  taskId?: string;
+  preview: string;
+  relevance: "high" | "medium" | "low";
+  injected: boolean;
+}
+
+export interface RagContextSummary {
+  found: number;
+  injected: number;
+  skipped: number;
+  skipReason?: "budget" | "empty_content" | "disabled" | "error";
+  items: RagContextDisplayItem[];
+}
+
 export interface PipelineExecutionResult {
   ok: boolean;
   mode: InteractionMode;
@@ -119,6 +136,7 @@ export interface PipelineExecutionResult {
   cacheHit?: CacheHitInfo;
   resumeHint?: ResumeHintInfo;
   semanticContext?: SemanticContextResult[];
+  ragContextSummary?: RagContextSummary;
   tokenAccounting?: TokenAccounting;
   costAccounting?: CostAccounting;
   lightQuality?: LightQualityCounters;
