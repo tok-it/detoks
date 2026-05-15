@@ -1,10 +1,10 @@
 import { createHash, randomBytes } from "node:crypto";
 import { appendFile, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
-import { homedir } from "node:os";
 import { join } from "node:path";
 import { RequestCategoryValues, type RequestCategory } from "../../schemas/pipeline.js";
 import { AdapterValues, type Adapter } from "../pipeline/types.js";
 import type { GeneralizedContribution } from "./workflow-generalizer.js";
+import { resolveSharedCrossProjectDir } from "../state/storage-paths.js";
 
 interface CrossProjectPattern {
   id: string;
@@ -42,7 +42,7 @@ export function isValidContribution(value: unknown): value is GeneralizedContrib
 export class CrossProjectStore {
   private readonly dir: string;
 
-  constructor(dir = join(homedir(), ".detoks", "cross-project")) {
+  constructor(dir = resolveSharedCrossProjectDir()) {
     this.dir = dir;
   }
 

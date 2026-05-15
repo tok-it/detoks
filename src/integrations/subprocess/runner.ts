@@ -437,14 +437,13 @@ const runWithNodePty = (
   if (request.input !== undefined) {
     emitEvent({ type: "prompt", data: request.input });
     ptyProcess.write(request.input);
-    // One-shot PTY prompts need an explicit submit/EOF signal so terminal
-    // applications that read stdin can finish instead of waiting forever.
+    // PTY stdin prompts need an explicit EOF so commands like `codex exec -`
+    // stop reading the prompt and start executing. The PTY remains usable for
+    // later interactive approval input.
     if (!request.input.endsWith("\r") && !request.input.endsWith("\n")) {
       ptyProcess.write("\r");
     }
-    if (request.interactiveAfterInput !== true) {
-      ptyProcess.write("\x04");
-    }
+    ptyProcess.write("\x04");
   }
 
   return result;

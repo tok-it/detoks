@@ -20,8 +20,9 @@ export interface CheckpointListOutput {
 
 export const runCheckpointListCommand = async (
   sessionId: string,
+  cwd?: string,
 ): Promise<CheckpointListOutput> => {
-  const checkpoints = await SessionStateManager.listCheckpoints(sessionId);
+  const checkpoints = await SessionStateManager.listCheckpoints(sessionId, cwd);
   const checkpointCount = checkpoints.length;
 
   return {

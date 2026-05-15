@@ -3,12 +3,15 @@ import type { AdapterExecutionContext, CliAdapter } from "../interface.js";
 import { getCodexReasoningEffortOverride } from "../../../cli/config/config-manager.js";
 import { executeAdapterViaSubprocess } from "../real.js";
 import { buildStubRawOutput } from "../stub.js";
+import { buildWorkspaceCommandArgs, buildWorkspaceIsolationEnv } from "../workspace-env.js";
 
 export class CodexStubAdapter implements CliAdapter {
   readonly target = "codex" as const;
 
   buildSubprocessRequest(request: AdapterExecutionRequest) {
     const reasoningEffort = getCodexReasoningEffortOverride();
+    const workspaceEnv = buildWorkspaceIsolationEnv(request.cwd);
+    const workspaceArgs = buildWorkspaceCommandArgs(this.target, request.cwd);
 
     if (request.presentationMode === "passthrough") {
       const promptBytes = Buffer.byteLength(request.prompt ?? "", "utf8");
@@ -21,6 +24,7 @@ export class CodexStubAdapter implements CliAdapter {
       return {
         command: "codex",
         args: [
+          ...workspaceArgs,
           ...(reasoningEffort ? ["-c", `model_reasoning_effort=${reasoningEffort}`] : []),
           ...(request.model ? ["--model", request.model] : []),
           "--sandbox",
@@ -28,6 +32,7 @@ export class CodexStubAdapter implements CliAdapter {
           ...(request.prompt ? [request.prompt] : []),
         ],
         ...(request.cwd !== undefined ? { cwd: request.cwd } : {}),
+        ...(workspaceEnv !== undefined ? { env: workspaceEnv } : {}),
       };
     }
 
@@ -38,6 +43,7 @@ export class CodexStubAdapter implements CliAdapter {
           "--ask-for-approval",
           "on-request",
           "exec",
+          ...workspaceArgs,
           ...(reasoningEffort ? ["-c", `model_reasoning_effort=${reasoningEffort}`] : []),
           ...(request.model ? ["--model", request.model] : []),
           "-",
@@ -46,6 +52,7 @@ export class CodexStubAdapter implements CliAdapter {
           "--skip-git-repo-check",
         ],
         ...(request.cwd !== undefined ? { cwd: request.cwd } : {}),
+        ...(workspaceEnv !== undefined ? { env: workspaceEnv } : {}),
         input: request.prompt,
         interactiveAfterInput: true,
       };
@@ -55,6 +62,7 @@ export class CodexStubAdapter implements CliAdapter {
       command: "codex",
       args: [
         "exec",
+        ...workspaceArgs,
         ...(reasoningEffort ? ["-c", `model_reasoning_effort=${reasoningEffort}`] : []),
         ...(request.model ? ["--model", request.model] : []),
         "-",
@@ -65,6 +73,7 @@ export class CodexStubAdapter implements CliAdapter {
         "never",
       ],
       ...(request.cwd !== undefined ? { cwd: request.cwd } : {}),
+      ...(workspaceEnv !== undefined ? { env: workspaceEnv } : {}),
       input: request.prompt,
     };
   }

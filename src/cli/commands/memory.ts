@@ -1,10 +1,15 @@
 import { promises as fs } from "node:fs";
 import { join } from "node:path";
-import { homedir } from "node:os";
 import { resolveSessionsDir } from "../../core/state/SessionStateManager.js";
 import { getRagVectorDbPath } from "../../core/rag/rag-config.js";
+import {
+  getDetoksHomeDir,
+  resolveLegacyRagDir,
+  resolveLegacySessionsDir,
+  resolveSharedCrossProjectDir,
+} from "../../core/state/storage-paths.js";
 
-const DISABLED_FLAG_FILE = join(homedir(), ".detoks", "disabled");
+const DISABLED_FLAG_FILE = join(getDetoksHomeDir(), "disabled");
 
 export interface MemoryCommandResult {
   ok: boolean;
@@ -16,7 +21,7 @@ export interface MemoryCommandResult {
 // ~/.detoks/disabled 파일을 생성. 다음 실행부터 저장/조회/인덱싱 모두 OFF.
 export async function runMemoryDisableCommand(): Promise<MemoryCommandResult> {
   try {
-    await fs.mkdir(join(homedir(), ".detoks"), { recursive: true });
+    await fs.mkdir(getDetoksHomeDir(), { recursive: true });
     await fs.writeFile(DISABLED_FLAG_FILE, "", { flag: "w" });
     return {
       ok: true,
@@ -33,14 +38,16 @@ export async function runMemoryDisableCommand(): Promise<MemoryCommandResult> {
 }
 
 // detoks memory purge --all
-// .state/sessions/*.json + .state/rag/vectors.db 일괄 삭제 (확인 프롬프트 포함).
+// 현재 작업 디렉터리에 대응하는 세션 저장소 + RAG 벡터 DB를 일괄 삭제한다.
 export async function runMemoryPurgeAllCommand(opts: {
   skipConfirm?: boolean;
   keepCrossProject?: boolean;
+  cwd?: string;
 } = {}): Promise<MemoryCommandResult> {
+  const cwd = opts.cwd ?? process.cwd();
   if (!opts.skipConfirm) {
     const confirmed = await promptConfirm(
-      "⚠️  .state/sessions/ 전체와 벡터 DB를 영구 삭제합니다. 계속하시겠습니까? (yes/N): ",
+      "⚠️  현재 작업 디렉터리의 세션 저장소와 벡터 DB를 영구 삭제합니다. 계속하시겠습니까? (yes/N): ",
     );
     if (!confirmed) {
       return { ok: true, action: "purge-all", message: "취소되었습니다." };
@@ -50,35 +57,45 @@ export async function runMemoryPurgeAllCommand(opts: {
   const errors: string[] = [];
   let deletedCount = 0;
 
-  // 1. session 파일 삭제
-  const sessionsDir = resolveSessionsDir(process.cwd());
-  try {
-    const files = await fs.readdir(sessionsDir);
-    for (const file of files) {
-      if (!file.endsWith(".json")) continue;
-      try {
-        await fs.unlink(join(sessionsDir, file));
-        deletedCount++;
-      } catch (e) {
-        errors.push(`${file}: ${e instanceof Error ? e.message : String(e)}`);
+  // 1. session 파일 삭제 (신규 경로 + legacy 경로)
+  const sessionDirs = Array.from(new Set([
+    resolveSessionsDir(cwd),
+    resolveLegacySessionsDir(cwd),
+  ]));
+  for (const sessionsDir of sessionDirs) {
+    try {
+      const files = await fs.readdir(sessionsDir);
+      for (const file of files) {
+        if (!file.endsWith(".json")) continue;
+        try {
+          await fs.unlink(join(sessionsDir, file));
+          deletedCount++;
+        } catch (e) {
+          errors.push(`${file}: ${e instanceof Error ? e.message : String(e)}`);
+        }
       }
+    } catch {
+      // sessionsDir이 없으면 그냥 통과
     }
-  } catch {
-    // sessionsDir이 없으면 그냥 통과
   }
 
-  // 2. 벡터 DB 삭제
-  try {
-    const dbPath = getRagVectorDbPath(process.cwd());
-    await fs.unlink(dbPath);
-    deletedCount++;
-  } catch {
-    // 벡터 DB가 없으면 통과
+  // 2. 벡터 DB 삭제 (신규 경로 + legacy 경로)
+  const dbPaths = [
+    getRagVectorDbPath(cwd),
+    join(resolveLegacyRagDir(cwd), "vectors.db"),
+  ];
+  for (const dbPath of dbPaths) {
+    try {
+      await fs.unlink(dbPath);
+      deletedCount++;
+    } catch {
+      // 벡터 DB가 없으면 통과
+    }
   }
 
   // 3. cross-project 패턴 삭제 (--keep-cross-project 없을 때)
   if (!opts.keepCrossProject) {
-    const crossProjectDir = join(homedir(), ".detoks", "cross-project");
+    const crossProjectDir = resolveSharedCrossProjectDir();
     let countLabel = "알 수 없음";
     try {
       const indexRaw = await fs.readFile(join(crossProjectDir, "index.json"), "utf-8");
@@ -88,7 +105,7 @@ export async function runMemoryPurgeAllCommand(opts: {
       }
     } catch { /* index.json 없으면 "알 수 없음" */ }
 
-    console.log(`[detoks] cross-project 패턴도 삭제합니다 (~/.detoks/cross-project/): ${countLabel}`);
+    console.log(`[detoks] cross-project 패턴도 삭제합니다 (${crossProjectDir}/): ${countLabel}`);
     console.log(`[detoks] --keep-cross-project 플래그로 유지할 수 있습니다.`);
 
     try {

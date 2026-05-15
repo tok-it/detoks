@@ -2,10 +2,8 @@ import { mkdtempSync, rmSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { describe, expect, it, beforeEach, afterEach, vi } from "vitest";
-import { SessionStateManager } from "../../../../../src/core/state/SessionStateManager.js";
+import { SessionStateManager, resolveSessionsDir } from "../../../../../src/core/state/SessionStateManager.js";
 import { StateLockError } from "../../../../../src/core/errors/StateErrors.js";
-
-const SESSIONS_SUBDIR = ".state/sessions";
 const LOCK_STALE_MS = 5_000;
 
 function makeMinimalSession(sessionId: string) {
@@ -27,7 +25,7 @@ function makeMinimalSession(sessionId: string) {
 }
 
 function sessionsDir(tmpDir: string) {
-  return join(tmpDir, SESSIONS_SUBDIR);
+  return resolveSessionsDir(tmpDir);
 }
 
 function writeLock(tmpDir: string, sessionId: string, content: string, mtimeOffset = 0) {
@@ -46,22 +44,30 @@ function writeLock(tmpDir: string, sessionId: string, content: string, mtimeOffs
 describe("lock PID 스테일 감지", () => {
   let tmpDir: string;
   let origCwd: string;
+  let origDetoksHome: string | undefined;
 
   beforeEach(() => {
     tmpDir = mkdtempSync(join(tmpdir(), "detoks-lock-test-"));
     origCwd = process.cwd();
+    origDetoksHome = process.env.DETOKS_HOME;
+    process.env.DETOKS_HOME = join(tmpDir, ".detoks-home");
     process.chdir(tmpDir);
   });
 
   afterEach(() => {
     process.chdir(origCwd);
+    if (origDetoksHome === undefined) {
+      delete process.env.DETOKS_HOME;
+    } else {
+      process.env.DETOKS_HOME = origDetoksHome;
+    }
     rmSync(tmpDir, { recursive: true, force: true });
     vi.restoreAllMocks();
   });
 
   it("잠금 없는 경우 saveSession이 정상 완료", async () => {
     const state = makeMinimalSession("sess-no-lock") as any;
-    await expect(SessionStateManager.saveSession(state)).resolves.toBeUndefined();
+    await expect(SessionStateManager.saveSession(state, tmpDir)).resolves.toBeUndefined();
   });
 
   it("죽은 PID가 잠금 파일에 있으면 스테일로 처리 — saveSession 성공", async () => {
@@ -79,7 +85,7 @@ describe("lock PID 스테일 감지", () => {
     });
 
     const state = makeMinimalSession("sess-stale") as any;
-    await expect(SessionStateManager.saveSession(state)).resolves.toBeUndefined();
+    await expect(SessionStateManager.saveSession(state, tmpDir)).resolves.toBeUndefined();
   });
 
   it("현재 프로세스 PID가 잠금 파일에 있으면 StateLockError", async () => {
@@ -95,7 +101,7 @@ describe("lock PID 스테일 감지", () => {
     });
 
     const state = makeMinimalSession("sess-live") as any;
-    await expect(SessionStateManager.saveSession(state)).rejects.toBeInstanceOf(StateLockError);
+    await expect(SessionStateManager.saveSession(state, tmpDir)).rejects.toBeInstanceOf(StateLockError);
   });
 
   it("PID를 읽을 수 없는 잠금 + mtime이 오래된 경우 스테일로 처리 — saveSession 성공", async () => {
@@ -104,7 +110,7 @@ describe("lock PID 스테일 감지", () => {
     writeLock(tmpDir, "sess-no-pid", "not-a-number", staleOffset);
 
     const state = makeMinimalSession("sess-no-pid") as any;
-    await expect(SessionStateManager.saveSession(state)).resolves.toBeUndefined();
+    await expect(SessionStateManager.saveSession(state, tmpDir)).resolves.toBeUndefined();
   });
 
   it("PID를 읽을 수 없는 잠금 + mtime이 최근이면 StateLockError", async () => {
@@ -112,6 +118,6 @@ describe("lock PID 스테일 감지", () => {
     writeLock(tmpDir, "sess-fresh-no-pid", "not-a-number"); // 현재 시간 → 최신
 
     const state = makeMinimalSession("sess-fresh-no-pid") as any;
-    await expect(SessionStateManager.saveSession(state)).rejects.toBeInstanceOf(StateLockError);
+    await expect(SessionStateManager.saveSession(state, tmpDir)).rejects.toBeInstanceOf(StateLockError);
   });
 });

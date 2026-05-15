@@ -2,11 +2,13 @@ import type { AdapterExecutionRequest, AdapterExecutionResult } from "../../../c
 import type { AdapterExecutionContext, CliAdapter } from "../interface.js";
 import { executeAdapterViaSubprocess } from "../real.js";
 import { buildStubRawOutput } from "../stub.js";
+import { buildWorkspaceIsolationEnv } from "../workspace-env.js";
 
 export class GeminiStubAdapter implements CliAdapter {
   readonly target = "gemini" as const;
 
   buildSubprocessRequest(request: AdapterExecutionRequest) {
+    const workspaceEnv = buildWorkspaceIsolationEnv(request.cwd);
     if (request.presentationMode === "passthrough") {
       const promptBytes = Buffer.byteLength(request.prompt ?? "", "utf8");
       if (promptBytes > 200_000) {
@@ -22,6 +24,7 @@ export class GeminiStubAdapter implements CliAdapter {
           ...(request.prompt ? [request.prompt] : []),
         ],
         ...(request.cwd !== undefined ? { cwd: request.cwd } : {}),
+        ...(workspaceEnv !== undefined ? { env: workspaceEnv } : {}),
       };
     }
 
@@ -30,6 +33,7 @@ export class GeminiStubAdapter implements CliAdapter {
         command: "gemini",
         args: request.model ? ["--model", request.model] : [],
         ...(request.cwd !== undefined ? { cwd: request.cwd } : {}),
+        ...(workspaceEnv !== undefined ? { env: workspaceEnv } : {}),
         input: request.prompt,
       };
     }
@@ -38,6 +42,7 @@ export class GeminiStubAdapter implements CliAdapter {
       command: "gemini",
       args: request.model ? ["--model", request.model] : [],
       ...(request.cwd !== undefined ? { cwd: request.cwd } : {}),
+      ...(workspaceEnv !== undefined ? { env: workspaceEnv } : {}),
       input: request.prompt,
     };
   }

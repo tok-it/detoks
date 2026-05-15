@@ -3,11 +3,10 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { describe, expect, it, beforeEach, afterEach, vi } from "vitest";
 import { SessionStateManager } from "../../../../../src/core/state/SessionStateManager.js";
-
-const SESSIONS_SUBDIR = ".state/sessions";
+import { resolveLegacySessionsDir } from "../../../../../src/core/state/storage-paths.js";
 
 function writeSession(dir: string, id: string, content: object) {
-  const sessionsDir = join(dir, SESSIONS_SUBDIR);
+  const sessionsDir = resolveLegacySessionsDir(dir);
   mkdirSync(sessionsDir, { recursive: true });
   writeFileSync(join(sessionsDir, `${id}.json`), JSON.stringify(content, null, 2));
 }

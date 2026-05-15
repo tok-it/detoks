@@ -86,22 +86,25 @@ describe("runCheckpointRestoreCommand", () => {
       message: "세션 session_restore를 체크포인트 session_restore_checkpoint_001 시점으로 복원했습니다.",
     });
 
-    expect(saveSpy).toHaveBeenCalledWith({
-      shared_context: {
-        session_id: "session_restore",
-      },
-      task_results: {
-        task_001: {
-          task_id: "task_001",
-          success: true,
-          summary: "First",
-          raw_output: "first",
+    expect(saveSpy).toHaveBeenCalledWith(
+      {
+        shared_context: {
+          session_id: "session_restore",
         },
+        task_results: {
+          task_001: {
+            task_id: "task_001",
+            success: true,
+            summary: "First",
+            raw_output: "first",
+          },
+        },
+        current_task_id: null,
+        completed_task_ids: ["task_001"],
+        next_action: "나중에 이어서 진행하세요",
+        updated_at: "2026-04-27T12:34:56.000Z",
       },
-      current_task_id: null,
-      completed_task_ids: ["task_001"],
-      next_action: "나중에 이어서 진행하세요",
-      updated_at: "2026-04-27T12:34:56.000Z",
-    });
+      undefined,
+    );
   });
 });

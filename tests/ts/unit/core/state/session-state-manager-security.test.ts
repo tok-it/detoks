@@ -4,8 +4,7 @@ import { tmpdir } from "node:os";
 import { describe, expect, it, beforeEach, afterEach } from "vitest";
 import { SessionStateManager } from "../../../../../src/core/state/SessionStateManager.js";
 import { StateIOError } from "../../../../../src/core/errors/StateErrors.js";
-
-const SESSIONS_SUBDIR = ".state/sessions";
+import { resolveLegacySessionsDir } from "../../../../../src/core/state/storage-paths.js";
 
 function makeMinimalSession(sessionId: string) {
   return {
@@ -26,7 +25,7 @@ function makeMinimalSession(sessionId: string) {
 }
 
 function writeSession(dir: string, id: string) {
-  const sessDir = join(dir, SESSIONS_SUBDIR);
+  const sessDir = resolveLegacySessionsDir(dir);
   mkdirSync(sessDir, { recursive: true });
   writeFileSync(join(sessDir, `${id}.json`), JSON.stringify(makeMinimalSession(id)));
 }
@@ -34,15 +33,23 @@ function writeSession(dir: string, id: string) {
 describe("sessionId 패턴 검증 (assertSafeSessionId)", () => {
   let tmpDir: string;
   let origCwd: string;
+  let origDetoksHome: string | undefined;
 
   beforeEach(() => {
     tmpDir = mkdtempSync(join(tmpdir(), "detoks-sid-sec-"));
     origCwd = process.cwd();
+    origDetoksHome = process.env.DETOKS_HOME;
+    process.env.DETOKS_HOME = join(tmpDir, ".detoks-home");
     process.chdir(tmpDir);
   });
 
   afterEach(() => {
     process.chdir(origCwd);
+    if (origDetoksHome === undefined) {
+      delete process.env.DETOKS_HOME;
+    } else {
+      process.env.DETOKS_HOME = origDetoksHome;
+    }
     rmSync(tmpDir, { recursive: true, force: true });
   });
 

@@ -1,7 +1,6 @@
 import { stdout as output } from "node:process";
 import { createInterface } from "node:readline/promises";
 import { spawnSync } from "node:child_process";
-import { join } from "node:path";
 import type { Adapter } from "../../core/pipeline/types.js";
 import { colors } from "../colors.js";
 import {
@@ -17,6 +16,7 @@ import type { SelectOption, SelectWithArrowsStreams } from "../interactive/selec
 import { invalidateCache } from "../cache/cache-manager.js";
 import { getCacheStats, clearExpiredSessions, formatCacheStats } from "./cache-command.js";
 import { CACHE_TTL_DAYS } from "../../core/cache/cache-config.js";
+import { resolveSessionsDir } from "../../core/state/SessionStateManager.js";
 import {
   getCodexReasoningEffortOverride,
   updateAdapterModel,
@@ -532,7 +532,7 @@ export const handleSlashCommand = async (
     }
 
     case "cache": {
-      const sessionsDir = join(process.cwd(), ".state", "sessions");
+      const sessionsDir = resolveSessionsDir(process.cwd());
       const sub = input.trim().split(/\s+/)[1]?.toLowerCase();
 
       if (sub === "clear") {

@@ -805,6 +805,8 @@ export class EmbeddedTerminalPane {
           detail: row.plainText,
         };
       }
+
+      return null;
     }
 
     return null;

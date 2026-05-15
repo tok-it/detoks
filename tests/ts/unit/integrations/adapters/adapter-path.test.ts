@@ -95,6 +95,9 @@ describe("adapter subprocess path", () => {
       command: "gemini",
       args: ["--model", "gemini-2.5-pro"],
       cwd: "/tmp",
+      env: {
+        GIT_CEILING_DIRECTORIES: "/",
+      },
       input: "hello gemini",
     });
   });
@@ -114,6 +117,9 @@ describe("adapter subprocess path", () => {
       command: "gemini",
       args: ["--model", "gemini-2.5-pro", "hello gemini"],
       cwd: "/tmp",
+      env: {
+        GIT_CEILING_DIRECTORIES: "/",
+      },
     });
   });
 
@@ -139,6 +145,9 @@ describe("adapter subprocess path", () => {
         "claude-sonnet-4-6",
       ],
       cwd: "/tmp",
+      env: {
+        GIT_CEILING_DIRECTORIES: "/",
+      },
       input: "hello claude",
     });
   });
@@ -164,6 +173,9 @@ describe("adapter subprocess path", () => {
         "hello claude",
       ],
       cwd: "/tmp",
+      env: {
+        GIT_CEILING_DIRECTORIES: "/",
+      },
     });
   });
 
@@ -184,6 +196,8 @@ describe("adapter subprocess path", () => {
         "--ask-for-approval",
         "on-request",
         "exec",
+        "-C",
+        "/tmp",
         "--model",
         "gpt-5",
         "-",
@@ -191,8 +205,11 @@ describe("adapter subprocess path", () => {
         "workspace-write",
         "--skip-git-repo-check",
       ],
-      cwd: "/tmp",
-      input: "",
+        cwd: "/tmp",
+        env: {
+          GIT_CEILING_DIRECTORIES: "/",
+        },
+        input: "",
       interactiveAfterInput: true,
     });
   });
@@ -220,6 +237,9 @@ describe("adapter subprocess path", () => {
         "claude-sonnet-4-6",
       ],
       cwd: "/tmp",
+      env: {
+        GIT_CEILING_DIRECTORIES: "/",
+      },
       input: "",
     });
   });
@@ -239,6 +259,9 @@ describe("adapter subprocess path", () => {
       command: "gemini",
       args: ["--model", "gemini-2.5-pro"],
       cwd: "/tmp",
+      env: {
+        GIT_CEILING_DIRECTORIES: "/",
+      },
       input: "",
     });
   });

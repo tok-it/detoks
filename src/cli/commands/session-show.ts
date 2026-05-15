@@ -34,13 +34,14 @@ export type SessionShowOutput =
 
 export interface SessionShowCommandOptions {
   includeRawOutput?: boolean;
+  cwd?: string;
 }
 
 export const runSessionShowCommand = async (
   sessionId: string,
   options: SessionShowCommandOptions = {},
 ): Promise<SessionShowOutput> => {
-  const exists = await SessionStateManager.sessionExists(sessionId);
+  const exists = await SessionStateManager.sessionExists(sessionId, options.cwd);
   if (!exists) {
     return {
       ok: true,
@@ -54,7 +55,7 @@ export const runSessionShowCommand = async (
     };
   }
 
-  const state = await SessionStateManager.loadSession(sessionId);
+  const state = await SessionStateManager.loadSession(sessionId, options.cwd);
   return {
     ok: true,
     mode: "session-show",

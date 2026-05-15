@@ -185,6 +185,23 @@ describe("EmbeddedTerminalPane", () => {
     });
   });
 
+  it("does not keep a stale approval prompt after later output arrives", () => {
+    pane.addEvent({
+      type: "chunk",
+      timestamp: Date.now(),
+      stream: "stdout",
+      data: "approval required (y/n)\n",
+    });
+    pane.addEvent({
+      type: "chunk",
+      timestamp: Date.now(),
+      stream: "stdout",
+      data: "approved, executing now\n",
+    });
+
+    expect(pane.getInteractionState(120)).toBeNull();
+  });
+
   it("renders the live cursor cell with inverse video when the buffer reports a visible cursor", () => {
     pane.addEvent({ type: "chunk", timestamp: Date.now(), stream: "stdout", data: "hello" });
 

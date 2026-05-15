@@ -96,6 +96,8 @@ describe("adapter execution modes", () => {
         command: "codex",
         args: [
           "exec",
+          "-C",
+          "/workspace",
           "--model",
           "gpt-5",
           "-",
@@ -106,6 +108,9 @@ describe("adapter execution modes", () => {
           "never",
         ],
         cwd: "/workspace",
+        env: {
+          GIT_CEILING_DIRECTORIES: "/",
+        },
         input: "real prompt",
       },
     ]);
@@ -141,6 +146,9 @@ describe("adapter execution modes", () => {
         command: "gemini",
         args: ["--model", "gemini-2.5-pro"],
         cwd: "/tmp",
+        env: {
+          GIT_CEILING_DIRECTORIES: "/",
+        },
         input: "real prompt",
       },
     ]);
@@ -179,6 +187,9 @@ describe("adapter execution modes", () => {
           "claude-sonnet-4-6",
         ],
         cwd: "/workspace",
+        env: {
+          GIT_CEILING_DIRECTORIES: "/",
+        },
         input: "real prompt",
       },
     ]);
