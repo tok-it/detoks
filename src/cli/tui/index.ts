@@ -328,6 +328,17 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
       setStickyPromptFromRun(activeRunBlock);
     };
 
+    const markActiveRunCancelled = (): void => {
+      if (activeRunBlock === null) {
+        return;
+      }
+
+      activeRunBlock.status = "cancelled";
+      activeRunBlock.completedAt = Date.now();
+      activeRunBlock.summaryLines = ["실행이 취소되었습니다."];
+      setStickyPromptFromRun(activeRunBlock);
+    };
+
     const buildSectionDivider = (label: string, width: number): string => {
       if (width <= 0) {
         return "";
@@ -446,10 +457,13 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
         `현재 활동: ${activity.label} · ${activity.detail} · ${statusLabel}${viewportStatusSuffix}`,
         width,
       );
+      const runningLine = activity.status === "running"
+        ? truncateToDisplayWidth(`${compactLine} · Ctrl+C 중단`, width)
+        : compactLine;
       return [
         activity.status === "failed"
           ? colors.error(padDisplayWidth(compactLine, width))
-          : colors.muted(padDisplayWidth(compactLine, width)),
+          : colors.muted(padDisplayWidth(runningLine, width)),
       ].slice(0, getEmbeddedActivityRows());
     };
 
@@ -765,10 +779,7 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
       const statusRegionEnd = Math.min(inputLayout.separatorRow, statusRegionStart + 8);
       const contentRegionStart = statusRegionEnd;
       const availableContentRows = Math.max(0, inputLayout.separatorRow - contentRegionStart);
-      const transcriptRows =
-        availableContentRows > 0
-          ? Math.max(1, Math.floor(availableContentRows * 0.7))
-          : 0;
+      const transcriptRows = availableContentRows > 0 ? availableContentRows : 0;
       const transcriptRegionEnd = Math.min(
         inputLayout.separatorRow,
         contentRegionStart + transcriptRows,
@@ -881,13 +892,12 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
           endRow: inputLayout.separatorRow,
           columns: dims.columns,
         };
-        embeddedTerminalPane.render(ctx, transcriptRegion);
-
-        const transcriptRows = Math.max(1, Math.ceil(Math.max(0, availableContentRows - stickyRows) * 0.7));
+        const transcriptRows = Math.max(1, transcriptRegion.endRow - transcriptRegion.startRow);
         embeddedTerminalPane.resize(transcriptRegion.columns, transcriptRows);
         if (embeddedNativeCliSession !== null) {
           embeddedNativeCliSession?.resize(transcriptRegion.columns, transcriptRows);
         }
+        embeddedTerminalPane.render(ctx, transcriptRegion);
       } else {
         const transcriptRegion = {
           startRow: contentRegionStart,
@@ -944,6 +954,14 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
       }
 
       if (isExecuting) {
+        if (text === "\x03") {
+          closeExecutionControllers("SIGINT");
+          markActiveRunCancelled();
+          embeddedTerminalFocus.focusDetoks();
+          render();
+          return;
+        }
+
         if (embeddedPaneMode && embeddedTerminalFocus.focus !== "adapter-terminal") {
           if (text === "\x1b[A") {
             scrollEmbeddedViewportBy(-1);

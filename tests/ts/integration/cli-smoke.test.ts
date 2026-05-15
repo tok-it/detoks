@@ -356,6 +356,27 @@ process.stdin.resume();
   return binaryPath;
 };
 
+const createFakeHangingBinary = (dir: string) => {
+  const binaryPath = join(dir, "codex");
+  writeFileSync(
+    binaryPath,
+    `#!/usr/bin/env node
+process.stdout.write("starting long run\\n");
+process.stdin.resume();
+process.on("SIGINT", () => {
+  process.stdout.write("interrupted\\n");
+  process.exit(130);
+});
+setInterval(() => {
+  process.stdout.write("still running\\n");
+}, 200);
+`,
+    "utf8",
+  );
+  chmodSync(binaryPath, 0o755);
+  return binaryPath;
+};
+
 const runInstalledRealAdapterSmoke = (
   adapter: "codex" | "gemini" | "claude",
 ) => {
@@ -801,6 +822,69 @@ describe.skipIf(Boolean(process.env.CI))("detoks CLI smoke", () => {
       rmSync(tempDir, { force: true, recursive: true });
     }
   }, 30_000);
+
+  it("cancels an embedded run with Ctrl+C without exiting the repl", async () => {
+    const tempDir = mkdtempSync(join(tmpdir(), "detoks-cli-embedded-cancel-"));
+
+    try {
+      createFakeHangingBinary(tempDir);
+      const child = spawn(process.execPath, ["--import", tsxLoader, cliEntry, "repl", "--tui", "--embedded-cli-ui", "--execution-mode", "real"], {
+        cwd: tempDir,
+        env: {
+          ...process.env,
+          PATH: `${tempDir}:${process.env.PATH ?? ""}`,
+          DETOKS_CACHE_DISABLED: "1",
+        },
+        stdio: ["pipe", "pipe", "pipe"],
+      });
+
+      child.stdin.setDefaultEncoding("utf8");
+      child.stdout.setEncoding("utf8");
+      child.stderr.setEncoding("utf8");
+
+      const stdoutState = { value: "" };
+      const stderrState = { value: "" };
+      child.stdout.on("data", (chunk: string) => {
+        stdoutState.value += chunk;
+      });
+      child.stderr.on("data", (chunk: string) => {
+        stderrState.value += chunk;
+      });
+
+      child.stdin.write("hello detoks\n");
+      await waitForOutput(stdoutState, "실행 확인 대기", 10_000);
+      child.stdin.write("\n");
+
+      await waitForOutput(stdoutState, "starting long run", 20_000);
+      child.stdin.write("\x03");
+      await waitForOutput(stdoutState, "실행이 취소되었습니다.", 20_000);
+      child.stdin.write("/exit\n");
+
+      const exitCode = await new Promise<number>((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          child.kill("SIGKILL");
+          reject(new Error(`detoks repl did not exit in time\nstdout:\n${stdoutState.value}\nstderr:\n${stderrState.value}`));
+        }, 10_000);
+
+        child.on("error", (error) => {
+          clearTimeout(timeout);
+          reject(error);
+        });
+        child.on("close", (code) => {
+          clearTimeout(timeout);
+          resolve(code ?? -1);
+        });
+      });
+
+      expect(exitCode).toBe(0);
+      expect(stderrState.value).not.toContain("ReferenceError");
+      expect(stdoutState.value).toContain("starting long run");
+      expect(stdoutState.value).toContain("실행이 취소되었습니다.");
+      expect(stdoutState.value).toContain("detoks repl 종료.");
+    } finally {
+      rmSync(tempDir, { force: true, recursive: true });
+    }
+  }, 40_000);
 
   it("keeps default stderr concise and verbose stderr stacked on errors", () => {
     const defaultRun = runCli(["--unknown"]);
