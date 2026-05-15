@@ -30,6 +30,7 @@ export interface CliArgs {
     | "memory-disable"
     | "memory-purge-all";
   prompt?: string;
+  cwd?: string;
   sessionId?: string;
   newSessionId?: string;
   checkpointId?: string;

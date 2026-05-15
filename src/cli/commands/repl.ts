@@ -441,6 +441,8 @@ const resolveReplMode = (args: CliArgs): ReplModeResolution => {
 };
 
 export const runReplCommand = async (baseArgs: CliArgs): Promise<void> => {
+  const executionCwd = baseArgs.cwd ?? process.cwd();
+
   // 저장된 설정 로드 및 환경변수 적용 (CLI adapter에 맞는 모델만 로드)
   loadAndApplyConfig(baseArgs.adapter);
 
@@ -462,6 +464,7 @@ export const runReplCommand = async (baseArgs: CliArgs): Promise<void> => {
         adapter: baseArgs.adapter,
         executionMode: baseArgs.executionMode,
         verbose: baseArgs.verbose,
+        cwd: executionCwd,
         translationModel: getTranslationModel(),
         ...(baseArgs.presentationMode ? { presentationMode: baseArgs.presentationMode } : {}),
       };
@@ -486,7 +489,7 @@ export const runReplCommand = async (baseArgs: CliArgs): Promise<void> => {
     }
   }
 
-  await runModelSetupIfNeeded();
+  await runModelSetupIfNeeded(executionCwd);
 
   const rl = createInterface({ input, output });
   const sessionId = `repl-${Date.now()}`;
@@ -494,7 +497,7 @@ export const runReplCommand = async (baseArgs: CliArgs): Promise<void> => {
   let cacheDisabled = false;
   let currentAdapter = baseArgs.adapter;
   let useAnimatedFirstPrompt = Boolean(output.isTTY);
-  const runtimeConfig = loadRole1RuntimeConfig();
+  const runtimeConfig = loadRole1RuntimeConfig({ cwd: executionCwd });
   const llmPort = runtimeConfig.localLlmServerPort ?? 12370;
   const llmModel = runtimeConfig.localLlmModelName?.split(":")[0] || "unknown";
 
@@ -608,7 +611,7 @@ export const runReplCommand = async (baseArgs: CliArgs): Promise<void> => {
       try {
         const request = toNormalizedRequest(
           { ...baseArgs, mode: "run", prompt: line, noCache: cacheDisabled || (baseArgs.noCache ?? false) },
-          { mode: "repl", sessionId },
+          { cwd: executionCwd, mode: "repl", sessionId },
         );
         const spinner = startSpinner(Boolean(output.isTTY), output);
         const onProgress = async (event: PipelineProgressEvent): Promise<void> => {

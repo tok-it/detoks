@@ -68,6 +68,7 @@ const CLI_USAGE_MAIN = [
   "옵션:",
   `  --adapter ${ADAPTER_HELP}        대상 어댑터(기본값: codex)`,
   "  --execution-mode stub|real    실행 모드(기본값: real)",
+  "  --cwd <path>                  실행 위치와 별개로 분석 대상 작업 디렉터리를 지정합니다",
   "  --file <path>                 JSON 파일로 일괄 프롬프트 컴파일을 실행합니다",
   SESSION_FLAG_HELP,
   EXECUTION_MODE_HELP,
@@ -260,6 +261,7 @@ const CLI_USAGE_REPL = [
   "옵션:",
   `  --adapter ${ADAPTER_HELP}        대상 어댑터(기본값: codex)`,
   "  --execution-mode stub|real    실행 모드(기본값: real)",
+  "  --cwd <path>                  실행 위치와 별개로 분석 대상 작업 디렉터리를 지정합니다",
   SESSION_FLAG_HELP,
   EXECUTION_MODE_HELP,
   "  --tui                         TUI 모드를 강제(TTY 자동 감지 무시)",
@@ -289,6 +291,7 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
   let adapter: CliArgs["adapter"] = DEFAULT_ADAPTER;
   let executionMode: CliArgs["executionMode"] = DEFAULT_EXECUTION_MODE;
   let sessionId: string | undefined;
+  let cwd: string | undefined;
   let inputFile: string | undefined;
   let human = false;
   let verbose = false;
@@ -483,6 +486,24 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
       continue;
     }
 
+    if (current === "--cwd") {
+      const next = argv[i + 1];
+      if (!next) {
+        throw new Error(`--cwd에는 경로가 필요합니다. ${MAIN_HELP_HINT}`);
+      }
+      cwd = next;
+      i += 1;
+      continue;
+    }
+
+    if (current.startsWith("--cwd=")) {
+      cwd = current.split("=")[1] ?? "";
+      if (!cwd) {
+        throw new Error(`--cwd에는 경로가 필요합니다. ${MAIN_HELP_HINT}`);
+      }
+      continue;
+    }
+
     if (current.startsWith("--")) {
       throw new Error(`알 수 없는 플래그: ${current}. ${MAIN_HELP_HINT}`);
     }
@@ -503,6 +524,7 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
       return {
         mode: "run",
         command: "session-list",
+        ...(cwd ? { cwd } : {}),
         ...(human ? { human: true } : {}),
         adapter,
         executionMode,
@@ -522,6 +544,7 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
         mode: "run",
         command: "session-show",
         sessionId: sessionIdToShow,
+        ...(cwd ? { cwd } : {}),
         ...(human ? { human: true } : {}),
         adapter,
         executionMode,
@@ -541,6 +564,7 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
         mode: "run",
         command: "session-continue",
         sessionId: sessionIdFromPos,
+        ...(cwd ? { cwd } : {}),
         adapter,
         executionMode,
         verbose,
@@ -559,6 +583,7 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
         mode: "run",
         command: "session-reset",
         sessionId: sessionIdToReset,
+        ...(cwd ? { cwd } : {}),
         adapter,
         executionMode,
         verbose,
@@ -579,6 +604,7 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
         command: "session-fork",
         sessionId: sourceSessionId,
         newSessionId,
+        ...(cwd ? { cwd } : {}),
         adapter,
         executionMode,
         verbose,
@@ -603,6 +629,7 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
     return {
       mode: "run",
       command: "model-reset",
+      ...(cwd ? { cwd } : {}),
       adapter,
       executionMode,
       verbose,
@@ -626,6 +653,7 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
         mode: "run",
         command: "checkpoint-list",
         sessionId,
+        ...(cwd ? { cwd } : {}),
         adapter,
         executionMode,
         verbose,
@@ -644,6 +672,7 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
         mode: "run",
         command: "checkpoint-show",
         checkpointId,
+        ...(cwd ? { cwd } : {}),
         adapter,
         executionMode,
         verbose,
@@ -662,6 +691,7 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
         mode: "run",
         command: "checkpoint-restore",
         checkpointId,
+        ...(cwd ? { cwd } : {}),
         adapter,
         executionMode,
         verbose,
@@ -682,6 +712,7 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
       }
       return {
         mode: "run",
+        ...(cwd ? { cwd } : {}),
         adapter,
         executionMode,
         verbose,
@@ -697,6 +728,7 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
       }
       return {
         mode: "run",
+        ...(cwd ? { cwd } : {}),
         adapter,
         executionMode,
         verbose,
@@ -723,6 +755,7 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
     }
       return {
         mode: "repl",
+        ...(cwd ? { cwd } : {}),
         adapter,
         executionMode,
         verbose,
@@ -741,6 +774,7 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
     return {
       mode: "run",
       inputFile,
+      ...(cwd ? { cwd } : {}),
       adapter,
       executionMode,
       verbose,
@@ -754,6 +788,7 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
   return {
     mode: "run",
     prompt,
+    ...(cwd ? { cwd } : {}),
     ...(sessionId ? { sessionId } : {}),
     adapter,
     executionMode,
@@ -829,7 +864,7 @@ export const toNormalizedRequest = (
     ...(args.noCache ? { noCache: true } : {}),
     userRequest: UserRequestSchema.parse({
       raw_input: prompt,
-      cwd: options?.cwd ?? process.cwd(),
+      cwd: options?.cwd ?? args.cwd ?? process.cwd(),
       session_id: sessionId,
       timestamp: new Date().toISOString(),
     }),
