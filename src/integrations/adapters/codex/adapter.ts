@@ -62,7 +62,11 @@ export class CodexStubAdapter implements CliAdapter {
       command: "codex",
       args: [
         "exec",
+<<<<<<< HEAD
         ...workspaceArgs,
+=======
+        ...(request.cwd ? ["-C", request.cwd] : []),
+>>>>>>> 23ef343 (Route caches through project-local detoks storage)
         ...(reasoningEffort ? ["-c", `model_reasoning_effort=${reasoningEffort}`] : []),
         ...(request.model ? ["--model", request.model] : []),
         "-",
