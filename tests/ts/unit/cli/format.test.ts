@@ -131,6 +131,70 @@ describe("formatSuccess", () => {
     expect(formatted).toContain("로그인 오류 원인을 분석해줘");
     expect(formatted).not.toContain("Analyze the cause of the login error");
   });
+
+  it("renders readable RAG context summary without raw distance values", () => {
+    const formatted = formatSuccess(
+      {
+        ...result,
+        ragContextSummary: {
+          found: 2,
+          injected: 1,
+          skipped: 1,
+          skipReason: "budget" as const,
+          items: [
+            {
+              sourceType: "previous_task" as const,
+              sessionId: "a13f9c2b",
+              taskId: "t2",
+              preview: "로그인 토큰 갱신 로직 수정",
+              relevance: "high" as const,
+              injected: true,
+            },
+            {
+              sourceType: "previous_request" as const,
+              sessionId: "8b72d10e",
+              preview: "OAuth 콜백 에러 분석",
+              relevance: "medium" as const,
+              injected: false,
+            },
+          ],
+        },
+        semanticContext: [
+          { id: "task::a13f9c2b::t2", kind: "task" as const, session_id: "a13f9c2b", task_id: "t2", distance: 0.123 },
+        ],
+      },
+      false,
+    );
+
+    expect(formatted).toContain("관련 과거 컨텍스트");
+    expect(formatted).toContain("이전 작업 t2");
+    expect(formatted).toContain("로그인 토큰 갱신 로직 수정 내용을 참고했습니다");
+    expect(formatted).toContain("이전 요청");
+    expect(formatted).toContain("이번 프롬프트에는 넣지 않았습니다");
+    expect(formatted).toContain("관련도 높음");
+    expect(formatted).toContain("관련도 중간");
+    expect(formatted).toContain("미사용 이유:");
+    expect(formatted).toContain("컨텍스트 예산 초과");
+    expect(formatted).not.toContain("dist:");
+    expect(formatted).not.toContain("0.123");
+    expect(formatted).not.toContain("task::a13f9c2b::t2");
+  });
+
+  it("falls back to semanticContext when RAG display summary is absent", () => {
+    const formatted = formatSuccess(
+      {
+        ...result,
+        semanticContext: [
+          { id: "task::s1::t1", kind: "task" as const, session_id: "s1", task_id: "t1", distance: 0.456 },
+        ],
+      },
+      false,
+    );
+
+    expect(formatted).toContain("관련 과거 작업");
+    expect(formatted).toContain("task::s1::t1");
+    expect(formatted).toContain("dist: 0.456");
+  });
 });
 
 describe("formatError", () => {

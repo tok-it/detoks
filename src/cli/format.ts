@@ -96,6 +96,58 @@ function formatTaskStatusLabel(status: CliExecutionResult["taskRecords"][number]
   return "건너뜀";
 }
 
+function formatRagSourceLabel(sourceType: NonNullable<CliExecutionResult["ragContextSummary"]>["items"][number]["sourceType"]): string {
+  if (sourceType === "previous_request") return "이전 요청";
+  if (sourceType === "previous_output") return "이전 출력";
+  return "이전 작업";
+}
+
+function formatRagRelevanceLabel(relevance: NonNullable<CliExecutionResult["ragContextSummary"]>["items"][number]["relevance"]): string {
+  if (relevance === "high") return "높음";
+  if (relevance === "medium") return "중간";
+  return "낮음";
+}
+
+function formatRagSkipReason(reason: NonNullable<CliExecutionResult["ragContextSummary"]>["skipReason"]): string | null {
+  if (reason === "budget") return "컨텍스트 예산 초과";
+  if (reason === "empty_content") return "표시할 내용 없음";
+  if (reason === "disabled") return "메모리 비활성화";
+  if (reason === "error") return "검색 오류";
+  return null;
+}
+
+function buildRagContextLines(result: CliExecutionResult): string[] {
+  const summary = result.ragContextSummary;
+  if (!summary || summary.items.length === 0) {
+    return [];
+  }
+
+  const lines = ["", colors.header("관련 과거 컨텍스트")];
+  const skipReason = formatRagSkipReason(summary.skipReason);
+
+  for (const item of summary.items.slice(0, 3)) {
+    const sourceLabel = formatRagSourceLabel(item.sourceType);
+    const taskLabel = item.taskId ? ` ${item.taskId}` : "";
+    const action = item.injected
+      ? "내용을 참고했습니다"
+      : "비슷한 내용을 찾았지만 이번 프롬프트에는 넣지 않았습니다";
+    lines.push(`  ${colors.muted("·")} ${sourceLabel}${taskLabel}: ${translateVisibleText(item.preview)} ${action}`);
+    lines.push(
+      `    ${colors.muted("세션:")} ${item.sessionId} ${colors.muted("·")} ${colors.muted("관련도")} ${formatRagRelevanceLabel(item.relevance)}`,
+    );
+  }
+
+  if (summary.items.length > 3) {
+    lines.push(`    ${colors.muted(`외 ${summary.items.length - 3}개 관련 컨텍스트 생략`)}`);
+  }
+
+  if (summary.skipped > 0 && skipReason) {
+    lines.push(`    ${colors.muted("미사용 이유:")} ${skipReason}`);
+  }
+
+  return lines;
+}
+
 function buildKoreanExecutionSummary(result: CliExecutionResult): string[] {
   const lines: string[] = [];
   const requestText =
@@ -206,7 +258,10 @@ function formatResultHuman(result: CliExecutionResult, ok: boolean): string {
     );
   }
 
-  if (result.semanticContext && result.semanticContext.length > 0) {
+  const ragContextLines = buildRagContextLines(result);
+  if (ragContextLines.length > 0) {
+    lines.push(...ragContextLines);
+  } else if (result.semanticContext && result.semanticContext.length > 0) {
     lines.push("", colors.header("관련 과거 작업"));
     for (const item of result.semanticContext.slice(0, 3)) {
       const label = item.task_id ? `${item.kind}::${item.session_id}::${item.task_id}` : `${item.kind}::${item.session_id}`;

@@ -82,6 +82,10 @@ export const invalidateCache = (namespace: string, key: string): void => {
   const filePath = getCacheFilePath(namespace, key);
 
   if (existsSync(filePath)) {
-    unlinkSync(filePath);
+    try {
+      unlinkSync(filePath);
+    } catch {
+      // Best-effort invalidation only: cache removal should never break auth flows.
+    }
   }
 };
