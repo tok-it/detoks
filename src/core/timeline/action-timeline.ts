@@ -171,6 +171,14 @@ const getTimelinePhase = (event: ActionTimelineEvent): string => {
 };
 
 export const deriveActionWorkState = (event: ActionTimelineEvent): string | null => {
+  if (event.kind === "cache_hit") {
+    return "캐시 적중";
+  }
+
+  if (event.kind === "cache_advise") {
+    return "캐시 참고";
+  }
+
   if (event.kind === "validation") {
     return "Validating";
   }

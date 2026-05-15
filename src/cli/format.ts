@@ -180,6 +180,21 @@ function formatResultHuman(result: CliExecutionResult, ok: boolean): string {
     );
   }
 
+  if (result.tokenAccounting || result.lightQuality) {
+    const saved = result.tokenAccounting?.tokensSavedByCache ?? 0;
+    const added = result.tokenAccounting?.tokensAddedByRagContext ?? 0;
+    const hitRate = result.lightQuality ? `${(result.lightQuality.cacheHitRate * 100).toFixed(0)}%` : null;
+    const ragInjected = result.lightQuality?.ragContextInjected ?? false;
+    const parts = [
+      hitRate ? `캐시 hit ${hitRate}` : null,
+      saved > 0 ? `절감 ${saved}토큰` : null,
+      ragInjected ? `RAG +${added}토큰` : null,
+    ].filter((p): p is string => p !== null);
+    if (parts.length > 0) {
+      lines.push("", colors.header("캐시 · RAG"), `${colors.bullet} ${parts.join(colors.muted(" · "))}`);
+    }
+  }
+
   if (result.resumeHint) {
     const { sessionId, completedTaskIds, currentTaskId } = result.resumeHint;
     lines.push(
