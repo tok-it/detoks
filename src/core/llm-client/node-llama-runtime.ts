@@ -22,6 +22,12 @@ import {
 } from "./gguf-file.js";
 import { logger } from "../utils/logger.js";
 
+function suppressStderr(): () => void {
+	const orig = process.stderr.write.bind(process.stderr);
+	(process.stderr as { write: (...a: unknown[]) => boolean }).write = () => true;
+	return () => { process.stderr.write = orig; };
+}
+
 type NodeLlamaRuntimeConfig = Pick<
 	Role1RuntimeConfig,
 	| "localLlmModelName"
@@ -224,6 +230,7 @@ async function loadRuntimeWithOptions(
 ): Promise<LoadedNodeLlamaRuntime> {
 	const modelPath = resolveNodeLlamaModelPath(config);
 	const signature = buildNodeLlamaRuntimeSignature(config);
+	const restoreStderr = suppressStderr();
 	const llama = await (async (): Promise<Llama> => {
 		const baseOpts = {
 			gpu: gpuEnabled ? ("auto" as const) : (false as const),
@@ -241,7 +248,7 @@ async function loadRuntimeWithOptions(
 				emitLlamaBuildPhase("ready");
 			}
 		}
-	})();
+	})().finally(restoreStderr);
 	let model: LlamaModel | null = null;
 	let context: LlamaContext | null = null;
 	let session: LlamaChatSession | null = null;
