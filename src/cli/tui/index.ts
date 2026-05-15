@@ -996,7 +996,7 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
 
         // Embedded pane: forward raw bytes to child while adapter-terminal is focused
         if (embeddedPaneMode && embeddedTerminalFocus.focus === "adapter-terminal") {
-          if (text === "\x07") {
+          if (isEmbeddedTerminalReturnToDetoksKey(text)) {
             clearNativeEscapeTimer();
             embeddedTerminalFocus.focusDetoks();
             renderInteractiveInput();

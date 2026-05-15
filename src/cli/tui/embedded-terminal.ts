@@ -133,11 +133,11 @@ export const formatEmbeddedTerminalFocusHint = (
   adapter: string,
 ): string => {
   if (focus === "adapter-terminal") {
-    return `[native: ${adapter}] keys go to ${adapter} CLI · Ctrl+G returns to detoks · Ctrl+C forwards interrupt`;
+    return `[native: ${adapter}] keys go to ${adapter} CLI · Esc/Ctrl+G returns to detoks · Ctrl+C forwards interrupt`;
   }
 
   if (focus === "summary") {
-    return `[summary] detoks recap focused · Enter to return to native CLI · Ctrl+G returns to detoks`;
+    return `[summary] detoks recap focused · Enter to return to native CLI · Esc/Ctrl+G returns to detoks`;
   }
 
   return "[detoks] / command autocomplete enabled · Enter runs detoks prompt · Ctrl+T focuses native CLI";

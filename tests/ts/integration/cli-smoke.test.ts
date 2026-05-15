@@ -1,4 +1,4 @@
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import {
   chmodSync,
   existsSync,
@@ -92,6 +92,38 @@ const runCliWithInputFromCwdEnvAndTimeout = (
     input,
     timeout,
     env: { ...process.env, ...env },
+  });
+
+const waitForOutput = (
+  stream: { value: string },
+  pattern: string | RegExp,
+  timeoutMs: number,
+): Promise<void> =>
+  new Promise((resolve, reject) => {
+    const matches = (): boolean =>
+      typeof pattern === "string" ? stream.value.includes(pattern) : pattern.test(stream.value);
+
+    if (matches()) {
+      resolve();
+      return;
+    }
+
+    const startedAt = Date.now();
+    const poll = (): void => {
+      if (matches()) {
+        resolve();
+        return;
+      }
+
+      if (Date.now() - startedAt >= timeoutMs) {
+        reject(new Error(`Timed out waiting for output: ${String(pattern)}\n\n${stream.value}`));
+        return;
+      }
+
+      setTimeout(poll, 25);
+    };
+
+    poll();
   });
 
 const parseCliJson = (output: string) => {
@@ -271,6 +303,52 @@ process.stdin.on("end", finish);
 process.stdin.on("error", finish);
 process.stdin.resume();
 scheduleFinish();
+`,
+    "utf8",
+  );
+  chmodSync(binaryPath, 0o755);
+  return binaryPath;
+};
+
+const createFakeApprovalBinary = (dir: string) => {
+  const binaryPath = join(dir, "codex");
+  writeFileSync(
+    binaryPath,
+    `#!/usr/bin/env node
+let prompt = "";
+let approvalPromptShown = false;
+let resolved = false;
+let approvalReply = "";
+process.stdin.setEncoding("utf8");
+process.stdin.on("data", (chunk) => {
+  prompt += chunk;
+  if (!approvalPromptShown) {
+    approvalPromptShown = true;
+    process.stdout.write("approval required (y/n)\\n");
+    return;
+  }
+
+  if (resolved) {
+    return;
+  }
+
+  approvalReply += chunk;
+  const normalized = approvalReply.replace(/\\s+/g, "").toLowerCase();
+  if (normalized.includes("y") || normalized.includes("yes")) {
+    resolved = true;
+    process.stdout.write("approved\\n");
+    process.stdout.write(\`[fake:codex-approved] \${prompt}\`);
+    process.exit(0);
+    return;
+  }
+
+  if (normalized.includes("n") || normalized.includes("no")) {
+    resolved = true;
+    process.stdout.write("denied\\n");
+    process.exit(1);
+  }
+});
+process.stdin.resume();
 `,
     "utf8",
   );
@@ -672,6 +750,57 @@ describe.skipIf(Boolean(process.env.CI))("detoks CLI smoke", () => {
       rmSync(tempDir, { force: true, recursive: true });
     }
   }, 10_000);
+
+  it("shows the embedded approval prompt and switches focus to the native Codex pane", async () => {
+    const tempDir = mkdtempSync(join(tmpdir(), "detoks-cli-embedded-approval-"));
+
+    try {
+      createFakeApprovalBinary(tempDir);
+      const child = spawn(process.execPath, ["--import", tsxLoader, cliEntry, "repl", "--tui", "--embedded-cli-ui", "--execution-mode", "real"], {
+        cwd: tempDir,
+        env: {
+          ...process.env,
+          PATH: `${tempDir}:${process.env.PATH ?? ""}`,
+          DETOKS_CACHE_DISABLED: "1",
+        },
+        stdio: ["pipe", "pipe", "pipe"],
+      });
+
+      child.stdin.setDefaultEncoding("utf8");
+      child.stdout.setEncoding("utf8");
+      child.stderr.setEncoding("utf8");
+
+      const stdoutState = { value: "" };
+      const stderrState = { value: "" };
+      child.stdout.on("data", (chunk: string) => {
+        stdoutState.value += chunk;
+      });
+      child.stderr.on("data", (chunk: string) => {
+        stderrState.value += chunk;
+      });
+
+      child.stdin.write("hello detoks\n");
+      await waitForOutput(stdoutState, "실행 확인 대기", 10_000);
+      child.stdin.write("\n");
+
+      await waitForOutput(stdoutState, "approval required (y/n)", 25_000);
+      await waitForOutput(stdoutState, "Codex 승인 대기", 25_000);
+      await waitForOutput(stdoutState, "Esc/Ctrl+G returns to detoks", 25_000);
+      child.kill("SIGKILL");
+      const exitCode = await new Promise<number>((resolve, reject) => {
+        child.on("error", reject);
+        child.on("close", (code) => resolve(code ?? -1));
+      });
+
+      expect(exitCode).not.toBe(0);
+      expect(stderrState.value).not.toContain("ReferenceError");
+      expect(stdoutState.value).toContain("approval required (y/n)");
+      expect(stdoutState.value).toContain("Codex 승인 대기");
+      expect(stdoutState.value).toContain("Waiting for adapter CLI to finish");
+    } finally {
+      rmSync(tempDir, { force: true, recursive: true });
+    }
+  }, 30_000);
 
   it("keeps default stderr concise and verbose stderr stacked on errors", () => {
     const defaultRun = runCli(["--unknown"]);
