@@ -36,7 +36,7 @@ export const isEmbeddedTerminalNativeFocusToggleKey = (char: string): boolean =>
   char === "\x14"; // Ctrl+T
 
 export const isEmbeddedTerminalReturnToDetoksKey = (char: string): boolean =>
-  char === "\x07"; // Ctrl+G
+  char === "\x07" || char === "\x1b"; // Ctrl+G or Esc
 
 export const isEmbeddedTerminalInterruptKey = (char: string): boolean =>
   char === "\x03"; // Ctrl+C

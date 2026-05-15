@@ -44,7 +44,7 @@ describe("embedded-terminal", () => {
 
   it("formats focus hints for detoks and native adapter focus", () => {
     expect(formatEmbeddedTerminalFocusHint("detoks-input", "codex")).toContain("/ command autocomplete");
-    expect(formatEmbeddedTerminalFocusHint("adapter-terminal", "codex")).toContain("Ctrl+G returns to detoks");
+    expect(formatEmbeddedTerminalFocusHint("adapter-terminal", "codex")).toContain("Esc/Ctrl+G returns to detoks");
     expect(formatEmbeddedTerminalFocusHint("summary", "codex")).toContain("[summary]");
   });
 });

@@ -27,6 +27,7 @@ describe("embedded-terminal focus manager", () => {
   it("detects native focus control keys", () => {
     expect(isEmbeddedTerminalNativeFocusToggleKey("\x14")).toBe(true);
     expect(isEmbeddedTerminalReturnToDetoksKey("\x07")).toBe(true);
+    expect(isEmbeddedTerminalReturnToDetoksKey("\x1b")).toBe(true);
     expect(isEmbeddedTerminalInterruptKey("\x03")).toBe(true);
   });
 
