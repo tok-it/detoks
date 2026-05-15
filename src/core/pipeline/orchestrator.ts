@@ -57,6 +57,8 @@ import type {
   TaskExecutionRecord,
   ResumeHintInfo,
   SemanticContextResult,
+  RagContextDisplayItem,
+  RagContextSummary,
 } from "./types.js";
 import { createActionTimelineEvent } from "../timeline/types.js";
 import type { ActionTimelineEvent } from "../timeline/types.js";
@@ -251,6 +253,37 @@ function extractRagMeta(task?: { title?: string; input_hash?: string; depends_on
     ...(task.title !== undefined ? { title: task.title } : {}),
     ...(task.input_hash !== undefined ? { input_hash: task.input_hash } : {}),
     ...(task.depends_on !== undefined ? { depends_on: task.depends_on } : {}),
+  };
+}
+
+function normalizeRagPreview(content: string, maxLength = 80): string {
+  const normalized = content.replace(/\s+/g, " ").trim();
+  if (normalized.length <= maxLength) {
+    return normalized;
+  }
+  return `${normalized.slice(0, Math.max(0, maxLength - 3)).trimEnd()}...`;
+}
+
+function toRagDisplaySourceType(kind: RagSnippet["kind"]): RagContextDisplayItem["sourceType"] {
+  if (kind === "prompt") return "previous_request";
+  if (kind === "output") return "previous_output";
+  return "previous_task";
+}
+
+function toRagRelevance(distance: number): RagContextDisplayItem["relevance"] {
+  if (distance <= 0.35) return "high";
+  if (distance <= 0.65) return "medium";
+  return "low";
+}
+
+function toRagDisplayItem(snippet: RagSnippet): RagContextDisplayItem {
+  return {
+    sourceType: toRagDisplaySourceType(snippet.kind),
+    sessionId: snippet.session_id,
+    ...(snippet.task_id ? { taskId: snippet.task_id } : {}),
+    preview: normalizeRagPreview(snippet.content),
+    relevance: toRagRelevance(snippet.distance),
+    injected: false,
   };
 }
 
@@ -723,6 +756,8 @@ export const orchestratePipeline = async (
   let ragEmbedder: EmbeddingService | undefined;
   let ragStore: VectorStore | undefined;
   const perTaskSnippets = new Map<string, RagSnippet[]>();
+  const ragDisplayItemsByTask = new Map<string, RagContextDisplayItem[]>();
+  let ragSkipReason: RagContextSummary["skipReason"] | undefined;
 
   // ── Step 1: Prompt compile + Role 2.1 handoff 생성 (Role 1) ──────────────
   let compiledPrompt;
@@ -1037,7 +1072,10 @@ export const orchestratePipeline = async (
             ...(h.meta.task_id ? { task_id: h.meta.task_id as string } : {}),
           })));
           const snippets = await loader.load(hits.slice(0, 1));
-          if (snippets.length > 0) perTaskSnippets.set(task.id, snippets);
+          if (snippets.length > 0) {
+            perTaskSnippets.set(task.id, snippets);
+            ragDisplayItemsByTask.set(task.id, snippets.map(toRagDisplayItem));
+          }
         }
       }
 
@@ -1330,6 +1368,11 @@ export const orchestratePipeline = async (
             ragContext = ragContextRaw;
             ragAddedDelta = ragTokensForTask;
             ragInjectedThisTask = true;
+            for (const item of ragDisplayItemsByTask.get(task.id) ?? []) {
+              item.injected = true;
+            }
+          } else {
+            ragSkipReason = "budget";
           }
         }
 
@@ -1508,6 +1551,16 @@ export const orchestratePipeline = async (
     ragContextInjected,
     cacheHitRate: graph.tasks.length > 0 ? cacheHitCount / graph.tasks.length : 0,
   };
+  const ragContextItems = Array.from(ragDisplayItemsByTask.values()).flat();
+  const ragContextSummary: RagContextSummary | undefined = ragContextItems.length > 0
+    ? {
+        found: ragContextItems.length,
+        injected: ragContextItems.filter((item) => item.injected).length,
+        skipped: ragContextItems.filter((item) => !item.injected).length,
+        ...(ragSkipReason ? { skipReason: ragSkipReason } : {}),
+        items: ragContextItems,
+      }
+    : undefined;
 
   return {
     ok: allOk,
@@ -1535,6 +1588,7 @@ export const orchestratePipeline = async (
     progressLog,
     ...(resumeHint ? { resumeHint } : {}),
     ...(semanticContext ? { semanticContext } : {}),
+    ...(ragContextSummary ? { ragContextSummary } : {}),
     tokenAccounting,
     costAccounting,
     lightQuality,
