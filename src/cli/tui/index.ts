@@ -45,12 +45,7 @@ import {
 import { formatEmbeddedTerminalFocusHint } from "./embedded-terminal.js";
 import { buildExecutionApprovalLines } from "./approval-prompt.js";
 import {
-  createPinnedViewportState,
   formatViewportTrackingHint,
-  resolveViewportWindow,
-  scrollViewportBy,
-  scrollViewportToBottom,
-  scrollViewportToTop,
 } from "./content-viewport.js";
 import { consumeMouseReportingInput } from "./mouse-reporting.js";
 import {
@@ -252,7 +247,6 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
     let executionClockStartedAt: number | null = null;
     let executionClockTimer: NodeJS.Timeout | undefined;
     let forceFullRender = false;
-    let scrollViewportState = createPinnedViewportState();
     let pendingApprovalPrompt: string | null = null;
     let skipApprovalLineFeed = false;
     let pendingMouseInputSequence = "";
@@ -406,7 +400,7 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
         activeRunBlock?.status === "running" ? activeRunBlock.pane.getInteractionState(width) : null;
       const viewportStatusSuffix =
         viewportStatusText !== null &&
-        (!scrollViewportState.pinnedToBottom || inputLayout.hiddenLineCount > 0)
+        (viewportStatusText !== "최신 따라가기 ON" || inputLayout.hiddenLineCount > 0)
           ? ` · ${viewportStatusText}`
           : "";
       if (interactionState?.kind === "approval") {
@@ -582,16 +576,19 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
         return null;
       }
 
-      const totalLines = buildScrollableContentLines(width).length;
-      return formatViewportTrackingHint(totalLines, transcriptHeight, scrollViewportState);
+      const tracking = embeddedTerminalPane.getViewportTrackingInfo(width, transcriptHeight);
+      return formatViewportTrackingHint(
+        tracking.totalLines,
+        transcriptHeight,
+        {
+          pinnedToBottom: tracking.pinnedToBottom,
+          topRow: Math.max(0, tracking.totalLines - transcriptHeight - tracking.distanceFromBottom),
+        },
+      );
     };
 
     const scrollEmbeddedViewportBy = (deltaRows: number): void => {
-      const dims = screen.getDimensions();
-      const inputLayout = measureInputLayout(dims, input);
-      const contentHeight = getEmbeddedTranscriptHeight(inputLayout);
-      const totalLines = buildScrollableContentLines(dims.columns).length;
-      scrollViewportState = scrollViewportBy(totalLines, contentHeight, scrollViewportState, deltaRows);
+      embeddedTerminalPane.scrollBy(deltaRows);
     };
 
     const applyMouseWheelEvents = (
@@ -884,31 +881,7 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
           endRow: inputLayout.separatorRow,
           columns: dims.columns,
         };
-        const contentLines = buildScrollableContentLines(transcriptRegion.columns);
-        const viewport = resolveViewportWindow(
-          contentLines.length,
-          Math.max(0, transcriptRegion.endRow - transcriptRegion.startRow),
-          scrollViewportState,
-        );
-        scrollViewportState = {
-          pinnedToBottom: viewport.pinnedToBottom,
-          topRow: viewport.topRow,
-        };
-
-        let row = transcriptRegion.startRow;
-        for (const line of contentLines.slice(viewport.startIndex, viewport.endIndex)) {
-          if (row >= transcriptRegion.endRow) {
-            break;
-          }
-          screen.cursorMoveTo(row, 0);
-          screen.write(line);
-          row += 1;
-        }
-        while (row < transcriptRegion.endRow) {
-          screen.cursorMoveTo(row, 0);
-          screen.write(" ".repeat(transcriptRegion.columns));
-          row += 1;
-        }
+        embeddedTerminalPane.render(ctx, transcriptRegion);
 
         const transcriptRows = Math.max(1, Math.ceil(Math.max(0, availableContentRows - stickyRows) * 0.7));
         embeddedTerminalPane.resize(transcriptRegion.columns, transcriptRows);
@@ -985,10 +958,12 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
             scrollEmbeddedViewportBy(Math.max(1, Math.floor(screen.getDimensions().rows / 3)));
             render();
           } else if (text === "\x1b[H" || text === "\x1b[1~") {
-            scrollViewportState = scrollViewportToTop();
+            const dims = screen.getDimensions();
+            const inputLayout = measureInputLayout(dims, input);
+            embeddedTerminalPane.scrollToTop(dims.columns, getEmbeddedTranscriptHeight(inputLayout));
             render();
           } else if (text === "\x1b[F" || text === "\x1b[4~") {
-            scrollViewportState = scrollViewportToBottom();
+            embeddedTerminalPane.scrollToBottom();
             render();
           }
           return;
@@ -1101,9 +1076,11 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
             } else if (matchedScrollSequence === "\x1b[6~") {
               scrollEmbeddedViewportBy(Math.max(1, Math.floor(screen.getDimensions().rows / 3)));
             } else if (matchedScrollSequence === "\x1b[H" || matchedScrollSequence === "\x1b[1~") {
-              scrollViewportState = scrollViewportToTop();
+              const dims = screen.getDimensions();
+              const inputLayout = measureInputLayout(dims, input);
+              embeddedTerminalPane.scrollToTop(dims.columns, getEmbeddedTranscriptHeight(inputLayout));
             } else {
-              scrollViewportState = scrollViewportToBottom();
+              embeddedTerminalPane.scrollToBottom();
             }
             needsFullRender = true;
             i += matchedScrollSequence.length;

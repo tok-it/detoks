@@ -622,6 +622,12 @@ export interface EmbeddedTerminalRenderableLine {
   text: string;
 }
 
+export interface EmbeddedTerminalViewportTrackingInfo {
+  pinnedToBottom: boolean;
+  distanceFromBottom: number;
+  totalLines: number;
+}
+
 export class EmbeddedTerminalPane {
   private readonly buffer = new TerminalEmulatorBuffer(80, 24, EMBEDDED_PANE_SCROLLBACK_LIMIT);
   private scrollOffset = 0;
@@ -663,6 +669,32 @@ export class EmbeddedTerminalPane {
 
   scrollToBottom(): void {
     this.scrollOffset = 0;
+  }
+
+  scrollBy(deltaRows: number): void {
+    if (deltaRows < 0) {
+      this.scrollOffset = Math.min(this.scrollOffset + Math.abs(deltaRows), Math.max(0, this.cachedTotalRows - 1));
+      return;
+    }
+
+    this.scrollOffset = Math.max(this.scrollOffset - deltaRows, 0);
+  }
+
+  scrollToTop(maxWidth: number, viewportHeight: number): void {
+    const totalLines = this.getRenderableLines(Math.max(1, maxWidth)).length;
+    this.scrollOffset = Math.max(0, totalLines - Math.max(0, viewportHeight));
+  }
+
+  getViewportTrackingInfo(maxWidth: number, viewportHeight: number): EmbeddedTerminalViewportTrackingInfo {
+    const totalLines = this.getRenderableLines(Math.max(1, maxWidth)).length;
+    const maxTopRow = Math.max(0, totalLines - Math.max(0, viewportHeight));
+    const distanceFromBottom = Math.min(this.scrollOffset, maxTopRow);
+
+    return {
+      pinnedToBottom: distanceFromBottom === 0,
+      distanceFromBottom,
+      totalLines,
+    };
   }
 
   private updateCachedTotalRows(): void {

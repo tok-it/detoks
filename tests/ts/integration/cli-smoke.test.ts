@@ -693,8 +693,8 @@ describe.skipIf(Boolean(process.env.CI))("detoks CLI smoke", () => {
       expect(replRun.stdout).toContain("실행 확인 대기");
       expect(replRun.stdout).toContain("실행 중");
       expect(replRun.stdout).toContain("완료");
-      expect(replRun.stdout).toContain("Summary #1");
-      expect(replRun.stdout).toContain("detoks 압축 지표");
+      expect(replRun.stdout).toContain("[fake:codex]");
+      expect(replRun.stdout).toContain("tok -");
     } finally {
       rmSync(tempDir, { force: true, recursive: true });
     }
@@ -796,7 +796,7 @@ describe.skipIf(Boolean(process.env.CI))("detoks CLI smoke", () => {
       expect(stderrState.value).not.toContain("ReferenceError");
       expect(stdoutState.value).toContain("approval required (y/n)");
       expect(stdoutState.value).toContain("Codex 승인 대기");
-      expect(stdoutState.value).toContain("Waiting for adapter CLI to finish");
+      expect(stdoutState.value).toContain("Esc/Ctrl+G returns to detoks");
     } finally {
       rmSync(tempDir, { force: true, recursive: true });
     }
