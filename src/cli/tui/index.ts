@@ -892,10 +892,13 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
           endRow: inputLayout.separatorRow,
           columns: dims.columns,
         };
-        const transcriptRows = Math.max(1, transcriptRegion.endRow - transcriptRegion.startRow);
-        embeddedTerminalPane.resize(transcriptRegion.columns, transcriptRows);
+        const transcriptPtyRows = Math.max(
+          1,
+          Math.ceil(Math.max(0, availableContentRows - stickyRows) * 0.7),
+        );
+        embeddedTerminalPane.resize(transcriptRegion.columns, transcriptPtyRows);
         if (embeddedNativeCliSession !== null) {
-          embeddedNativeCliSession?.resize(transcriptRegion.columns, transcriptRows);
+          embeddedNativeCliSession?.resize(transcriptRegion.columns, transcriptPtyRows);
         }
         embeddedTerminalPane.render(ctx, transcriptRegion);
       } else {
