@@ -57,6 +57,7 @@ import { orchestratePipeline } from "../../core/pipeline/orchestrator.js";
 import { buildActionTimeline } from "../../core/timeline/action-timeline.js";
 import { readRole1ModelName, loadRole1RuntimeConfig } from "../../core/prompt/config.js";
 import { ensureLocalLlmRuntime } from "../../core/llm-client/local-runtime.js";
+import { onLlamaBuildPhase } from "../../core/llm-client/llama-build-events.js";
 import type { TokenReductionSnapshot } from "../../core/utils/tokenMetrics.js";
 import { colors } from "../colors.js";
 import { formatError } from "../format.js";
@@ -248,6 +249,10 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
     let executionClockStartedAt: number | null = null;
     let executionClockTimer: NodeJS.Timeout | undefined;
     let forceFullRender = false;
+    let localLlmBuildHint: string | null = null;
+    let buildSpinnerTimer: NodeJS.Timeout | undefined;
+    let buildSpinnerFrame = 0;
+    const SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"] as const;
     let pendingApprovalPrompt: string | null = null;
     let skipApprovalLineFeed = false;
     let pendingMouseInputSequence = "";
@@ -745,6 +750,7 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
         stickyPrompt?.status === "pending-approval" || pendingApprovalPrompt !== null
           ? "실행 대기 중 · Enter 실행 · Esc 편집 복귀"
           : inputOverflowHint ??
+            localLlmBuildHint ??
             (embeddedPaneMode
               ? viewportStatusText ?? "첫 프롬프트를 입력하면 아래 패널이 채워집니다 · /... 자동완성 · q 종료"
               : "첫 프롬프트를 입력하면 아래 패널이 채워집니다 · /... 자동완성 · q 종료");
@@ -913,6 +919,31 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
 
       renderInteractiveInput();
     };
+
+    const startBuildSpinner = (): void => {
+      buildSpinnerFrame = 0;
+      localLlmBuildHint = `${SPINNER_FRAMES[0]} 첫 실행 준비 중...`;
+      buildSpinnerTimer = setInterval(() => {
+        buildSpinnerFrame = (buildSpinnerFrame + 1) % SPINNER_FRAMES.length;
+        localLlmBuildHint = `${SPINNER_FRAMES[buildSpinnerFrame]} 첫 실행 준비 중...`;
+        render();
+      }, 100);
+      render();
+    };
+
+    const stopBuildSpinner = (): void => {
+      if (buildSpinnerTimer !== undefined) {
+        clearInterval(buildSpinnerTimer);
+        buildSpinnerTimer = undefined;
+      }
+      localLlmBuildHint = null;
+      render();
+    };
+
+    const unsubBuildEvents = onLlamaBuildPhase((phase) => {
+      if (phase === "building") startBuildSpinner();
+      else stopBuildSpinner();
+    });
 
     // Phase 3.2: Create onProgress callback
     let lastProgressRenderAt = 0;
@@ -1644,6 +1675,10 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
     }
 
     stdin.removeListener("data", onData);
+    unsubBuildEvents();
+    if (buildSpinnerTimer !== undefined) {
+      clearInterval(buildSpinnerTimer);
+    }
 
     stdout.write("\n" + colors.info("TUI REPL이 종료되었습니다.\n") + "\n");
   } finally {

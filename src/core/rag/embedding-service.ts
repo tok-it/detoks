@@ -1,4 +1,4 @@
-import { getLlama } from "node-llama-cpp";
+import { getLlama, LlamaLogLevel } from "node-llama-cpp";
 import type { Llama, LlamaModel, LlamaEmbeddingContext } from "node-llama-cpp";
 
 export class EmbeddingService {
@@ -11,7 +11,7 @@ export class EmbeddingService {
 
   async init(): Promise<void> {
     if (this.ctx) return;
-    this.llama = await getLlama({ gpu: false });
+    this.llama = await getLlama({ gpu: false, logLevel: LlamaLogLevel.fatal, progressLogs: false });
     this.model = await this.llama.loadModel({ modelPath: this.modelPath });
     this.ctx = await this.model.createEmbeddingContext();
   }

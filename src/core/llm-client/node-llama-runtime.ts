@@ -1,5 +1,7 @@
 import {
 	getLlama,
+	LlamaLogLevel,
+	NoBinaryFoundError,
 	type LlamaContext,
 	LlamaChatSession,
 	QwenChatWrapper,
@@ -7,6 +9,7 @@ import {
 	type Llama,
 	type LlamaModel,
 } from "node-llama-cpp";
+import { emitLlamaBuildPhase } from "./llama-build-events.js";
 import type {
 	LlmCompletionRequest,
 	LlmCompletionResponse,
@@ -221,9 +224,24 @@ async function loadRuntimeWithOptions(
 ): Promise<LoadedNodeLlamaRuntime> {
 	const modelPath = resolveNodeLlamaModelPath(config);
 	const signature = buildNodeLlamaRuntimeSignature(config);
-	const llama = await getLlama({
-		gpu: gpuEnabled ? "auto" : false,
-	});
+	const llama = await (async (): Promise<Llama> => {
+		const baseOpts = {
+			gpu: gpuEnabled ? ("auto" as const) : (false as const),
+			logLevel: LlamaLogLevel.fatal,
+			progressLogs: false,
+		};
+		try {
+			return await getLlama({ ...baseOpts, build: "never" });
+		} catch (e) {
+			if (!(e instanceof NoBinaryFoundError)) throw e;
+			emitLlamaBuildPhase("building");
+			try {
+				return await getLlama(baseOpts);
+			} finally {
+				emitLlamaBuildPhase("ready");
+			}
+		}
+	})();
 	let model: LlamaModel | null = null;
 	let context: LlamaContext | null = null;
 	let session: LlamaChatSession | null = null;

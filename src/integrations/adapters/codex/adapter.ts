@@ -3,7 +3,7 @@ import type { AdapterExecutionContext, CliAdapter } from "../interface.js";
 import { getCodexReasoningEffortOverride } from "../../../cli/config/config-manager.js";
 import { executeAdapterViaSubprocess } from "../real.js";
 import { buildStubRawOutput } from "../stub.js";
-import { buildWorkspaceIsolationEnv } from "../workspace-env.js";
+import { buildWorkspaceCommandArgs, buildWorkspaceIsolationEnv } from "../workspace-env.js";
 
 export class CodexStubAdapter implements CliAdapter {
   readonly target = "codex" as const;
@@ -11,6 +11,7 @@ export class CodexStubAdapter implements CliAdapter {
   buildSubprocessRequest(request: AdapterExecutionRequest) {
     const reasoningEffort = getCodexReasoningEffortOverride();
     const workspaceEnv = buildWorkspaceIsolationEnv(request.cwd);
+    const workspaceArgs = buildWorkspaceCommandArgs(this.target, request.cwd);
 
     if (request.presentationMode === "passthrough") {
       const promptBytes = Buffer.byteLength(request.prompt ?? "", "utf8");
@@ -23,7 +24,7 @@ export class CodexStubAdapter implements CliAdapter {
       return {
         command: "codex",
         args: [
-          ...(request.cwd ? ["-C", request.cwd] : []),
+          ...workspaceArgs,
           ...(reasoningEffort ? ["-c", `model_reasoning_effort=${reasoningEffort}`] : []),
           ...(request.model ? ["--model", request.model] : []),
           "--sandbox",
@@ -42,7 +43,7 @@ export class CodexStubAdapter implements CliAdapter {
           "--ask-for-approval",
           "on-request",
           "exec",
-          ...(request.cwd ? ["-C", request.cwd] : []),
+          ...workspaceArgs,
           ...(reasoningEffort ? ["-c", `model_reasoning_effort=${reasoningEffort}`] : []),
           ...(request.model ? ["--model", request.model] : []),
           "-",
@@ -61,7 +62,7 @@ export class CodexStubAdapter implements CliAdapter {
       command: "codex",
       args: [
         "exec",
-        ...(request.cwd ? ["-C", request.cwd] : []),
+        ...workspaceArgs,
         ...(reasoningEffort ? ["-c", `model_reasoning_effort=${reasoningEffort}`] : []),
         ...(request.model ? ["--model", request.model] : []),
         "-",
