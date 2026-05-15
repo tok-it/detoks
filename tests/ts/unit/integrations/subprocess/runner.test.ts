@@ -162,10 +162,10 @@ describe("createRealSubprocessRunner", () => {
     });
 
     await new Promise((resolve) => setTimeout(resolve, 50));
-    capturedController?.write("y\r");
+    expect(capturedController).not.toBeNull();
+    capturedController!.write("y\r");
     const result = await resultPromise;
 
-    expect(capturedController).not.toBeNull();
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain("approval required");
     expect(result.stdout).toContain("approved");
