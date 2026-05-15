@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -100,6 +100,16 @@ describe("claude adapter info", () => {
       "claude auth logout 2>&1",
       { encoding: "utf-8" },
     );
+  });
+
+  it("keeps Claude logout successful even when cache invalidation cannot delete entries", () => {
+    childProcessMocks.execSync.mockReturnValueOnce("");
+
+    const cacheRoot = join(process.env.HOME ?? "", ".detoks", "cache");
+    mkdirSync(join(cacheRoot, "adapter-status", "claude.json"), { recursive: true });
+    mkdirSync(join(cacheRoot, "adapter-models", "claude.json"), { recursive: true });
+
+    expect(claudeLogout()).toBe(true);
   });
 
   it("returns false when Claude logout fails", () => {
