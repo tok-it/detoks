@@ -113,7 +113,7 @@ describe("createRealSubprocessRunner", () => {
     10_000,
   );
 
-  it("keeps the PTY open after prompt submission when interactiveAfterInput is enabled", async () => {
+  it("keeps the PTY open after prompt submission and forwards later approval replies", async () => {
     const dir = tempDirs.at(-1)!;
     const codexScript = join(dir, "codex");
     writeFileSync(
@@ -121,18 +121,23 @@ describe("createRealSubprocessRunner", () => {
       [
         "#!/usr/bin/env node",
         'let input = "";',
+        'let approvalShown = false;',
         'process.stdin.setEncoding("utf8");',
         'process.stdin.on("data", (chunk) => {',
         "  input += chunk;",
-        "  process.stdout.write('approval required\\n');",
+        "  if (!approvalShown) {",
+        "    approvalShown = true;",
+        "    process.stdout.write('approval required\\n');",
+        "    return;",
+        "  }",
+        "  if (chunk.replace(/\\s+/g, '').toLowerCase().includes('y')) {",
+        "    process.stdout.write('approved\\n');",
+        "    process.exit(0);",
+        "  }",
         "});",
         'process.stdin.on("end", () => {',
         "  process.stdout.write('stdin-ended\\n');",
         "});",
-        "setTimeout(() => {",
-        "  process.stdout.write(input);",
-        "  process.exit(0);",
-        "}, 60);",
         "process.stdin.resume();",
       ].join("\n"),
       "utf8",
@@ -145,7 +150,7 @@ describe("createRealSubprocessRunner", () => {
         capturedController = controller;
       },
     });
-    const result = await runner.runWithTranscript({
+    const resultPromise = runner.runWithTranscript({
       command: "codex",
       args: ["exec", "-", "--sandbox", "workspace-write"],
       input: "hello\n",
@@ -156,9 +161,14 @@ describe("createRealSubprocessRunner", () => {
       },
     });
 
+    await new Promise((resolve) => setTimeout(resolve, 50));
     expect(capturedController).not.toBeNull();
+    capturedController!.write("y\r");
+    const result = await resultPromise;
+
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain("approval required");
+    expect(result.stdout).toContain("approved");
     expect(result.stdout).not.toContain("stdin-ended");
   }, 10_000);
 
