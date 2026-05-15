@@ -4,8 +4,8 @@ import type { PipelineProgressEvent, PipelineProgressStatus } from "../../../cor
 import type { ActionTimelineEvent } from "../../../core/timeline/types.js";
 import { deriveActionWorkState } from "../../../core/timeline/action-timeline.js";
 import { getContentArea } from "../layout-manager.js";
-import { padDisplayWidth } from "../renderer.js";
-import { colors } from "../../colors.js";
+import { fillRemaining, writePaddedLine } from "./base.js";
+import { glyph, statusColor, width as widthTokens, type Style } from "../design/tokens.js";
 
 interface StageStatus {
   status: PipelineProgressStatus;
@@ -14,19 +14,19 @@ interface StageStatus {
 }
 
 const STATUS_ICONS: Record<PipelineProgressStatus, string> = {
-  end: "●",
-  error: "●",
-  skip: "○",
-  start: "●",
-  info: "●",
+  end: glyph.done,
+  error: glyph.error,
+  skip: glyph.skipped,
+  start: glyph.active,
+  info: glyph.info,
 };
 
-const STATUS_STYLES: Record<PipelineProgressStatus, (text: string) => string> = {
-  end: colors.statusBlue,
-  error: colors.statusRed,
-  skip: colors.info,
-  start: colors.statusOrange,
-  info: colors.statusOrange,
+const STATUS_STYLES: Record<PipelineProgressStatus, Style> = {
+  end: statusColor.pipelineDone,
+  error: statusColor.error,
+  skip: statusColor.info,
+  start: statusColor.active,
+  info: statusColor.active,
 };
 
 const STAGE_ORDER = [
@@ -44,7 +44,6 @@ export class PipelineStatusPanel {
   private executionStartedAt: number | null = null;
 
   constructor() {
-    // Initialize all known stages
     for (const stageName of STAGE_ORDER) {
       this.stages.set(stageName, {
         status: "start",
@@ -90,13 +89,11 @@ export class PipelineStatusPanel {
   }
 
   render(ctx: RenderContext, region: PanelRegion): void {
-    const { screen } = ctx;
     const { usableWidth } = getContentArea(region);
     const stageStatuses = [...this.stages.values()];
     const allStagesSuccessful = stageStatuses.length > 0 && stageStatuses.every((stage) => stage.status === "end");
     const anyStageFailed = stageStatuses.some((stage) => stage.status === "error");
 
-    // Stage lines
     let currentRow = region.startRow;
     if (currentRow < region.endRow) {
       if (this.executionStartedAt !== null) {
@@ -104,20 +101,35 @@ export class PipelineStatusPanel {
         const totalSeconds = Math.floor(elapsedMs / 1000);
         const minutes = String(Math.floor(totalSeconds / 60)).padStart(2, "0");
         const seconds = String(totalSeconds % 60).padStart(2, "0");
-        const spinnerFrames = ["|", "/", "-", "\\"];
-        const spinner = spinnerFrames[Math.floor(elapsedMs / 250) % spinnerFrames.length] ?? "|";
-        screen.cursorMoveTo(currentRow, 0);
-        screen.write(colors.statusOrange(padDisplayWidth(`● 작업 진행 중 ${spinner} ${minutes}:${seconds}`, usableWidth)));
+        const spinnerFrames = glyph.spinner;
+        const spinner = spinnerFrames[Math.floor(elapsedMs / widthTokens.spinnerFrameMs) % spinnerFrames.length] ?? spinnerFrames[0];
+        writePaddedLine(
+          ctx,
+          currentRow,
+          `${glyph.active} 작업 진행 중 ${spinner} ${minutes}:${seconds}`,
+          usableWidth,
+          statusColor.active,
+        );
         currentRow += 1;
       } else if (allStagesSuccessful) {
-        screen.cursorMoveTo(currentRow, 0);
-        screen.write(colors.statusBlue(padDisplayWidth("● ALL BLUE ✓", usableWidth)));
+        writePaddedLine(
+          ctx,
+          currentRow,
+          `${glyph.done} ALL BLUE ${glyph.success}`,
+          usableWidth,
+          statusColor.pipelineDone,
+        );
         currentRow += 1;
       } else if (this.latestWorkState) {
         const detail = this.latestWorkStateDetail ? ` · ${this.latestWorkStateDetail}` : "";
-        const style = anyStageFailed ? colors.statusRed : colors.statusOrange;
-        screen.cursorMoveTo(currentRow, 0);
-        screen.write(style(padDisplayWidth(`● ${this.latestWorkState}${detail}`, usableWidth)));
+        const style = anyStageFailed ? statusColor.error : statusColor.active;
+        writePaddedLine(
+          ctx,
+          currentRow,
+          `${glyph.active} ${this.latestWorkState}${detail}`,
+          usableWidth,
+          style,
+        );
         currentRow += 1;
       }
     }
@@ -129,18 +141,16 @@ export class PipelineStatusPanel {
       if (!stageStatus) continue;
 
       const icon = STATUS_ICONS[stageStatus.status];
-      const styledLine = STATUS_STYLES[stageStatus.status](padDisplayWidth(`${icon} ${stageName}`, usableWidth));
-
-      screen.cursorMoveTo(currentRow, 0);
-      screen.write(styledLine);
+      writePaddedLine(
+        ctx,
+        currentRow,
+        `${icon} ${stageName}`,
+        usableWidth,
+        STATUS_STYLES[stageStatus.status],
+      );
       currentRow += 1;
     }
 
-    // Fill remaining rows
-    while (currentRow < region.endRow) {
-      screen.cursorMoveTo(currentRow, 0);
-      screen.write(" ".repeat(usableWidth));
-      currentRow += 1;
-    }
+    fillRemaining(ctx, region, currentRow);
   }
 }
