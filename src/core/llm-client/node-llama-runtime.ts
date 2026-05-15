@@ -24,7 +24,10 @@ import { logger } from "../utils/logger.js";
 
 function suppressStderr(): () => void {
 	const orig = process.stderr.write.bind(process.stderr);
-	(process.stderr as { write: (...a: unknown[]) => boolean }).write = () => true;
+	process.stderr.write = ((_buf: unknown, cbOrEnc?: unknown, cb?: () => void): boolean => {
+		(typeof cbOrEnc === "function" ? (cbOrEnc as () => void) : cb)?.();
+		return true;
+	}) as unknown as typeof process.stderr.write;
 	return () => { process.stderr.write = orig; };
 }
 
