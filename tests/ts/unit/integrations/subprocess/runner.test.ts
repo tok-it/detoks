@@ -117,26 +117,11 @@ describe("createRealSubprocessRunner", () => {
 		writeFileSync(
 			codexScript,
 			[
-				"#!/usr/bin/env node",
-				'let input = "";',
-				"let approvalShown = false;",
-				'process.stdin.setEncoding("utf8");',
-				'process.stdin.on("data", (chunk) => {',
-				"  input += chunk;",
-				"  if (!approvalShown) {",
-				"    approvalShown = true;",
-				"    process.stdout.write('approval required\\n');",
-				"    return;",
-				"  }",
-				"  if (chunk.replace(/\\s+/g, '').toLowerCase().includes('y')) {",
-				"    process.stdout.write('approved\\n');",
-				"    process.exit(0);",
-				"  }",
-				"});",
-				'process.stdin.on("end", () => {',
-				"  process.stdout.write('stdin-ended\\n');",
-				"});",
-				"process.stdin.resume();",
+				"#!/bin/sh",
+				"prompt=$(cat)",
+				"printf 'approval required\\n'",
+				"IFS= read -r answer < /dev/tty",
+				"printf 'prompt:%s\\nanswer:%s\\n' \"$prompt\" \"$answer\"",
 			].join("\n"),
 			"utf8",
 		);
@@ -159,7 +144,7 @@ describe("createRealSubprocessRunner", () => {
 				}
 			},
 		});
-		const resultPromise = runner.runWithTranscript({
+		const result = await runner.runWithTranscript({
 			command: "codex",
 			args: ["exec", "-", "--sandbox", "workspace-write"],
 			input: "hello",
@@ -170,15 +155,10 @@ describe("createRealSubprocessRunner", () => {
 			},
 		});
 
-		await new Promise((resolve) => setTimeout(resolve, 50));
-		expect(capturedController).not.toBeNull();
-		capturedController!.write("y\r");
-		const result = await resultPromise;
-
 		expect(result.exitCode).toBe(0);
 		expect(result.stdout).toContain("approval required");
-		expect(result.stdout).toContain("approved");
-		expect(result.stdout).not.toContain("stdin-ended");
+		expect(result.stdout).toContain("prompt:hello");
+		expect(result.stdout).toContain("answer:y");
 	}, 10_000);
 
 	it("streams Codex JSON output without waiting for a PTY wrapper", async () => {

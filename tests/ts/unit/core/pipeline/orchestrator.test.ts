@@ -474,6 +474,7 @@ describe("orchestratePipeline", () => {
       expect.objectContaining({
         completed_task_ids: ["t1", "t2"],
       }),
+      undefined,
     );
   });
 

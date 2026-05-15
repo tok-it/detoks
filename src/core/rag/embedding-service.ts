@@ -11,7 +11,19 @@ export class EmbeddingService {
 
   async init(): Promise<void> {
     if (this.ctx) return;
-    this.llama = await getLlama({ gpu: false, logLevel: LlamaLogLevel.fatal, progressLogs: false });
+    const restoreStderr = (() => {
+      const orig = process.stderr.write.bind(process.stderr);
+      process.stderr.write = ((_buf: unknown, cbOrEnc?: unknown, cb?: () => void): boolean => {
+        (typeof cbOrEnc === "function" ? (cbOrEnc as () => void) : cb)?.();
+        return true;
+      }) as unknown as typeof process.stderr.write;
+      return () => { process.stderr.write = orig; };
+    })();
+    try {
+      this.llama = await getLlama({ gpu: false, logLevel: LlamaLogLevel.fatal, progressLogs: false });
+    } finally {
+      restoreStderr();
+    }
     this.model = await this.llama.loadModel({ modelPath: this.modelPath });
     this.ctx = await this.model.createEmbeddingContext();
   }

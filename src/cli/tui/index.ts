@@ -342,6 +342,7 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
       activeRunBlock.status = "cancelled";
       activeRunBlock.completedAt = Date.now();
       activeRunBlock.summaryLines = ["실행이 취소되었습니다."];
+      activeRunBlock.pane.appendFinalAnswer("\n실행이 취소되었습니다.\n");
       setStickyPromptFromRun(activeRunBlock);
     };
 

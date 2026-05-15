@@ -19,6 +19,9 @@ vi.mock("node-llama-cpp", () => {
   };
   return {
     getLlama: vi.fn().mockResolvedValue(mockLlama),
+    LlamaLogLevel: {
+      fatal: "fatal",
+    },
   };
 });
 

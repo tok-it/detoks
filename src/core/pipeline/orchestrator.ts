@@ -152,21 +152,26 @@ async function isMemoryDisabled(): Promise<boolean> {
   }
 }
 
-async function maybeShowFirstRunNotice(cwd: string): Promise<void> {
+async function maybeShowFirstRunNotice(
+  cwd: string,
+  onProgress: (event: PipelineProgressEvent) => Promise<void>,
+): Promise<void> {
   const flagPath = resolveProjectNoticeFlagPath(cwd);
   try {
     await fs.access(flagPath);
     return; // 이미 표시했음
   } catch { /* 파일 없음 → 안내 필요 */ }
 
-  const notice = [
-    `[detoks] DeToks는 실행 메모리를 ${resolveSessionsDir(cwd)} 에 저장합니다.`,
-    `[detoks] 프로젝트별 RAG DB는 ${join(resolveProjectRagDir(cwd), "vectors.db")} 에 저장합니다.`,
-    "[detoks] cross-project store에는 generalize 단계를 거친 익명 패턴만 들어갑니다.",
-    "[detoks] 비활성화: detoks memory disable / 일괄 삭제: detoks memory purge --all",
-  ].join("\n");
+  const noticeLines = [
+    `DeToks는 실행 메모리를 ${resolveSessionsDir(cwd)} 에 저장합니다.`,
+    `프로젝트별 RAG DB는 ${join(resolveProjectRagDir(cwd), "vectors.db")} 에 저장합니다.`,
+    "cross-project store에는 generalize 단계를 거친 익명 패턴만 들어갑니다.",
+    "비활성화: detoks memory disable / 일괄 삭제: detoks memory purge --all",
+  ];
 
-  process.stderr.write(`${notice}\n`);
+  for (const message of noticeLines) {
+    await onProgress({ stage: "detoks", status: "info", message });
+  }
 
   try {
     await fs.mkdir(join(getDetoksHomeDir(), "projects"), { recursive: true });
@@ -635,7 +640,10 @@ export const orchestratePipeline = async (
 
   // 첫 실행 1회 안내 (non-fatal, stderr) — 메모리 비활성화 상태면 표시하지 않음
   if (!memoryDisabled) {
-    await maybeShowFirstRunNotice(request.userRequest.cwd ?? process.cwd());
+    await maybeShowFirstRunNotice(
+      request.userRequest.cwd ?? process.cwd(),
+      (event) => emitProgress(request, event),
+    );
   }
 
   // projectId / gitHead — F1·F3 cache lookup과 hash v2 re-map에서 공통으로 사용
