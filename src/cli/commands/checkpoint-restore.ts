@@ -23,9 +23,10 @@ export interface CheckpointRestoreOutput {
 
 export const runCheckpointRestoreCommand = async (
   checkpointId: string,
+  cwd?: string,
 ): Promise<CheckpointRestoreOutput> => {
   try {
-    const checkpoint = await SessionStateManager.loadCheckpoint(checkpointId);
+    const checkpoint = await SessionStateManager.loadCheckpoint(checkpointId, cwd);
     const sessionId = parseSessionIdFromCheckpointId(checkpoint.id);
     if (!sessionId) {
       return {
@@ -40,7 +41,7 @@ export const runCheckpointRestoreCommand = async (
     }
     
     // Check if session exists
-    if (!(await SessionStateManager.sessionExists(sessionId))) {
+    if (!(await SessionStateManager.sessionExists(sessionId, cwd))) {
         return {
             ok: false,
             mode: "checkpoint-restore",
@@ -52,7 +53,7 @@ export const runCheckpointRestoreCommand = async (
         };
     }
 
-    const state = await SessionStateManager.loadSession(sessionId);
+    const state = await SessionStateManager.loadSession(sessionId, cwd);
     
     // Find index of task that created this checkpoint
     const taskIndex = state.completed_task_ids.indexOf(checkpoint.task_id);
@@ -86,7 +87,7 @@ export const runCheckpointRestoreCommand = async (
         updated_at: new Date().toISOString()
     };
 
-    await SessionStateManager.saveSession(newState);
+    await SessionStateManager.saveSession(newState, cwd);
 
     return {
       ok: true,

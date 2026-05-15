@@ -1,3 +1,4 @@
+import { resolve } from "node:path";
 import { UserRequestSchema } from "../schemas/pipeline.js";
 import {
   AdapterValues,
@@ -491,13 +492,13 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
       if (!next) {
         throw new Error(`--cwd에는 경로가 필요합니다. ${MAIN_HELP_HINT}`);
       }
-      cwd = next;
+      cwd = resolve(next);
       i += 1;
       continue;
     }
 
     if (current.startsWith("--cwd=")) {
-      cwd = current.split("=")[1] ?? "";
+      cwd = resolve(current.split("=")[1] ?? "");
       if (!cwd) {
         throw new Error(`--cwd에는 경로가 필요합니다. ${MAIN_HELP_HINT}`);
       }

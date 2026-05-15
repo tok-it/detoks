@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { getDetoksModelFilePath } from "../model-store.js";
 import { KURE_EMBEDDING_MODEL } from "../../cli/model-setup/models.js";
+import { resolveProjectRagDir } from "../state/storage-paths.js";
 
 export const RAG_EMBEDDING_DIMS = 1024; // KURE-v1 dense vector dimension
 
@@ -15,7 +16,7 @@ export const getRagModelPath = (): string | undefined => {
 };
 
 export const getRagVectorDbPath = (cwd: string = process.cwd()): string =>
-  join(cwd, ".state", "rag", "vectors.db");
+  join(resolveProjectRagDir(cwd), "vectors.db");
 
 export const isEmbeddingModelPresent = (): boolean => {
   const modelPath = getRagModelPath();

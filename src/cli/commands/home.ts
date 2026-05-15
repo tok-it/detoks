@@ -33,9 +33,9 @@ const loadHomeSessionPreview = async (session: {
   completedTaskCount: number;
   taskResultCount: number;
   nextAction: string | null;
-}): Promise<HomeSessionPreview> => {
+}, cwd?: string): Promise<HomeSessionPreview> => {
   try {
-    const state = await SessionStateManager.loadSession(session.id);
+    const state = await SessionStateManager.loadSession(session.id, cwd);
     return {
       ...session,
       lastWorkSummary: deriveLastWorkSummary(state),
@@ -50,10 +50,10 @@ const loadHomeSessionPreview = async (session: {
   }
 };
 
-export const runHomeCommand = async (): Promise<HomeDashboardOutput> => {
-  const sessions = await SessionStateManager.listSessions();
+export const runHomeCommand = async (cwd?: string): Promise<HomeDashboardOutput> => {
+  const sessions = await SessionStateManager.listSessions(cwd);
   const recentSessions = await Promise.all(
-    sessions.slice(0, RECENT_SESSION_LIMIT).map((session) => loadHomeSessionPreview(session)),
+    sessions.slice(0, RECENT_SESSION_LIMIT).map((session) => loadHomeSessionPreview(session, cwd)),
   );
 
   return {

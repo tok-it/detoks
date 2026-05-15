@@ -71,7 +71,9 @@ const main = async (): Promise<void> => {
 
   if (args.command === "session-list") {
     const result = await runSessionListCommand(
-      args.human ? { includeLastWorkSummary: true } : undefined,
+      args.human
+        ? { includeLastWorkSummary: true, ...(args.cwd ? { cwd: args.cwd } : {}) }
+        : { ...(args.cwd ? { cwd: args.cwd } : {}) },
     );
     console.log(args.human ? formatSessionListHuman(result) : JSON.stringify(result, null, 2));
     return;
@@ -80,6 +82,7 @@ const main = async (): Promise<void> => {
   if (args.command === "session-show") {
     const result = await runSessionShowCommand(args.sessionId ?? "", {
       includeRawOutput: args.verbose,
+      ...(args.cwd ? { cwd: args.cwd } : {}),
     });
     console.log(args.human ? formatSessionShowHuman(result) : JSON.stringify(result, null, 2));
     return;
@@ -106,7 +109,7 @@ const main = async (): Promise<void> => {
   }
 
   if (args.command === "session-reset") {
-    const result = await runSessionResetCommand(args.sessionId ?? "");
+    const result = await runSessionResetCommand(args.sessionId ?? "", args.cwd);
     console.log(JSON.stringify(result, null, 2));
     if (!result.ok) {
       process.exitCode = 1;
@@ -124,7 +127,7 @@ const main = async (): Promise<void> => {
   }
 
   if (args.command === "session-fork") {
-    const result = await runSessionForkCommand(args.sessionId ?? "", args.newSessionId ?? "");
+    const result = await runSessionForkCommand(args.sessionId ?? "", args.newSessionId ?? "", args.cwd);
     console.log(JSON.stringify(result, null, 2));
     if (!result.ok) {
       process.exitCode = 1;
@@ -133,19 +136,19 @@ const main = async (): Promise<void> => {
   }
 
   if (args.command === "checkpoint-list") {
-    const result = await runCheckpointListCommand(args.sessionId ?? "");
+    const result = await runCheckpointListCommand(args.sessionId ?? "", args.cwd);
     console.log(JSON.stringify(result, null, 2));
     return;
   }
 
   if (args.command === "checkpoint-show") {
-    const result = await runCheckpointShowCommand(args.checkpointId ?? "");
+    const result = await runCheckpointShowCommand(args.checkpointId ?? "", args.cwd);
     console.log(JSON.stringify(result, null, 2));
     return;
   }
 
   if (args.command === "checkpoint-restore") {
-    const result = await runCheckpointRestoreCommand(args.checkpointId ?? "");
+    const result = await runCheckpointRestoreCommand(args.checkpointId ?? "", args.cwd);
     console.log(JSON.stringify(result, null, 2));
     if (!result.ok) {
       process.exitCode = 1;
@@ -164,6 +167,7 @@ const main = async (): Promise<void> => {
     const result = await runMemoryPurgeAllCommand({
       ...(args.skipConfirm ? { skipConfirm: true as const } : {}),
       ...(args.keepCrossProject ? { keepCrossProject: true } : {}),
+      ...(args.cwd ? { cwd: args.cwd } : {}),
     });
     console.log(args.human ? result.message : JSON.stringify(result, null, 2));
     if (!result.ok) process.exitCode = 1;

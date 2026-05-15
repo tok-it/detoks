@@ -11,8 +11,9 @@ export interface SessionResetOutput {
 
 export const runSessionResetCommand = async (
   sessionId: string,
+  cwd?: string,
 ): Promise<SessionResetOutput> => {
-  const exists = await SessionStateManager.sessionExists(sessionId);
+  const exists = await SessionStateManager.sessionExists(sessionId, cwd);
 
   if (!exists) {
     return {
@@ -26,7 +27,7 @@ export const runSessionResetCommand = async (
   }
 
   try {
-    await SessionStateManager.deleteSession(sessionId);
+    await SessionStateManager.deleteSession(sessionId, cwd);
     return {
       ok: true,
       mode: "session-reset",

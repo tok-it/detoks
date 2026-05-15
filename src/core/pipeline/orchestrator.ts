@@ -14,6 +14,7 @@ import { compress_prompt } from "../prompt/compression.js";
 import { ContextBuilder } from "../context/ContextBuilder.js";
 import { ContextCompressor } from "../context/ContextCompressor.js";
 import { SessionStateManager, resolveSessionsDir } from "../state/SessionStateManager.js";
+import { getDetoksHomeDir, resolveProjectNoticeFlagPath, resolveProjectRagDir } from "../state/storage-paths.js";
 import { executeWithAdapter } from "../executor/execute.js";
 import { logger } from "../utils/logger.js";
 import { PipelineTracer } from "../utils/PipelineTracer.js";
@@ -130,14 +131,11 @@ function sumCachedTaskTokens(hits: Map<string, Record<string, unknown>>): number
   return total;
 }
 
-async function countPriorSessions(projectId: string | undefined): Promise<number> {
+async function countPriorSessions(projectId: string | undefined, cwd?: string): Promise<number> {
   try {
-    const sessions = await SessionStateManager.listSessions();
+    const sessions = await SessionStateManager.listSessions(cwd);
     if (!projectId) return sessions.length;
-    return sessions.filter((s) => {
-      const pid = (s as unknown as Record<string, unknown>).project_id;
-      return pid === projectId;
-    }).length;
+    return sessions.length;
   } catch {
     return 0;
   }
@@ -147,24 +145,23 @@ async function countPriorSessions(projectId: string | undefined): Promise<number
 async function isMemoryDisabled(): Promise<boolean> {
   if (process.env.DETOKS_MEMORY === "off" || process.env.DETOKS_MEMORY === "0") return true;
   try {
-    await fs.access(join(homedir(), ".detoks", "disabled"));
+    await fs.access(join(getDetoksHomeDir(), "disabled"));
     return true;
   } catch {
     return false;
   }
 }
 
-const NOTICE_SHOWN_FILE = ".state/.detoks-notice-shown";
-
 async function maybeShowFirstRunNotice(cwd: string): Promise<void> {
-  const flagPath = join(cwd, NOTICE_SHOWN_FILE);
+  const flagPath = resolveProjectNoticeFlagPath(cwd);
   try {
     await fs.access(flagPath);
     return; // 이미 표시했음
   } catch { /* 파일 없음 → 안내 필요 */ }
 
   const notice = [
-    "[detoks] DeToks는 실행 메모리를 .state/sessions에 저장합니다.",
+    `[detoks] DeToks는 실행 메모리를 ${resolveSessionsDir(cwd)} 에 저장합니다.`,
+    `[detoks] 프로젝트별 RAG DB는 ${join(resolveProjectRagDir(cwd), "vectors.db")} 에 저장합니다.`,
     "[detoks] cross-project store에는 generalize 단계를 거친 익명 패턴만 들어갑니다.",
     "[detoks] 비활성화: detoks memory disable / 일괄 삭제: detoks memory purge --all",
   ].join("\n");
@@ -172,7 +169,7 @@ async function maybeShowFirstRunNotice(cwd: string): Promise<void> {
   process.stderr.write(`${notice}\n`);
 
   try {
-    await fs.mkdir(join(cwd, ".state"), { recursive: true });
+    await fs.mkdir(join(getDetoksHomeDir(), "projects"), { recursive: true });
     await fs.writeFile(flagPath, new Date().toISOString(), "utf-8");
   } catch { /* 쓰기 실패는 non-fatal */ }
 }
@@ -628,7 +625,7 @@ export const orchestratePipeline = async (
   const saveSessionIfEnabled = async (s: SessionState) => {
     if (memoryDisabled) return;
     try {
-      await SessionStateManager.saveSession(s);
+      await SessionStateManager.saveSession(s, request.userRequest.cwd);
     } catch (err) {
       // 디스크 풀·권한 오류 등은 파이프라인을 중단하지 않는다.
       // logger.error는 DETOKS_DEBUG 여부와 무관하게 항상 stderr에 출력된다.
@@ -653,7 +650,12 @@ export const orchestratePipeline = async (
     const inputHash = hashRawInput(request.userRequest.raw_input);
     const cachedSession = await SessionStateManager.findSuccessfulSessionByInputHash(
       inputHash,
-      { project_id: projectId, recencyDays: CACHE_TTL_DAYS, adapter: request.adapter },
+      {
+        project_id: projectId,
+        recencyDays: CACHE_TTL_DAYS,
+        adapter: request.adapter,
+        ...(request.userRequest.cwd ? { cwd: request.userRequest.cwd } : {}),
+      },
     );
     const f1Validity = cachedSession
       ? isSessionCacheValid(cachedSession, {
@@ -734,7 +736,10 @@ export const orchestratePipeline = async (
     const inputHash = hashRawInput(request.userRequest.raw_input);
     const incompleteSession = await SessionStateManager.findIncompleteSessionByInputHash(
       inputHash,
-      { project_id: projectId },
+      {
+        project_id: projectId,
+        ...(request.userRequest.cwd ? { cwd: request.userRequest.cwd } : {}),
+      },
     );
     if (incompleteSession && incompleteSession.current_task_id) {
       resumeHint = {
@@ -979,9 +984,9 @@ export const orchestratePipeline = async (
   const taskRecords: TaskExecutionRecord[] = [];
   const failedTaskIds = new Set<string>();
 
-  if (await SessionStateManager.sessionExists(sessionId)) {
+  if (await SessionStateManager.sessionExists(sessionId, request.userRequest.cwd)) {
     logger.info(`기존 세션을 불러옵니다: ${sessionId}`);
-    state = await SessionStateManager.loadSession(sessionId);
+    state = await SessionStateManager.loadSession(sessionId, request.userRequest.cwd);
     const resolvedRawInput =
       typeof state.shared_context.raw_input === "string" &&
       state.shared_context.raw_input.trim().length > 0
@@ -1033,6 +1038,7 @@ export const orchestratePipeline = async (
           recencyDays: CACHE_TTL_DAYS,
           adapter: request.adapter,
           ...(gitHead ? { git_head: gitHead } : {}),
+          ...(request.userRequest.cwd ? { cwd: request.userRequest.cwd } : {}),
         },
       );
       if (cachedTask) {
@@ -1262,6 +1268,7 @@ export const orchestratePipeline = async (
               recencyDays: CACHE_TTL_DAYS,
               adapter: request.adapter,
               ...(gitHead ? { git_head: gitHead } : {}),
+              ...(request.userRequest.cwd ? { cwd: request.userRequest.cwd } : {}),
             },
           );
           const f2Validity = cachedTask
@@ -1358,7 +1365,10 @@ export const orchestratePipeline = async (
         if (ragContextRaw && ragTokensForTask > 0) {
           const projectedAdded = tokensAddedAtStageStart + ragTokensForTask;
           const projectedSaved = sumCachedTaskTokens(f2PreScanHits);
-          const sessionCount = await countPriorSessions(stageBaseState.shared_context.project_id as string | undefined);
+          const sessionCount = await countPriorSessions(
+            stageBaseState.shared_context.project_id as string | undefined,
+            request.userRequest.cwd,
+          );
           const inColdStart = sessionCount < COLD_START_THRESHOLD;
           const block =
             projectedAdded > PER_SESSION_TOKEN_CAP ||
@@ -1412,7 +1422,7 @@ export const orchestratePipeline = async (
             request.userRequest.raw_input,
             compiledPrompt.compressed_prompt,
           ).state;
-          await SessionStateManager.saveSession(state);
+          await SessionStateManager.saveSession(state, request.userRequest.cwd);
           await PipelineTracer.trace({
             sessionId, stage: `Executor:${task.id}`, role: "role3", phase: "output",
             dataType: "ExecutionResult",

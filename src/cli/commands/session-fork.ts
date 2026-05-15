@@ -14,8 +14,9 @@ export interface SessionForkOutput {
 export const runSessionForkCommand = async (
   sourceSessionId: string,
   newSessionId: string,
+  cwd?: string,
 ): Promise<SessionForkOutput> => {
-  const sourceExists = await SessionStateManager.sessionExists(sourceSessionId);
+  const sourceExists = await SessionStateManager.sessionExists(sourceSessionId, cwd);
 
   if (!sourceExists) {
     return {
@@ -30,7 +31,7 @@ export const runSessionForkCommand = async (
     };
   }
 
-  const targetExists = await SessionStateManager.sessionExists(newSessionId);
+  const targetExists = await SessionStateManager.sessionExists(newSessionId, cwd);
 
   if (targetExists) {
     return {
@@ -45,7 +46,7 @@ export const runSessionForkCommand = async (
     };
   }
 
-  const forkedSession = await SessionStateManager.forkSession(sourceSessionId, newSessionId);
+  const forkedSession = await SessionStateManager.forkSession(sourceSessionId, newSessionId, cwd);
 
   return {
     ok: true,

@@ -9,10 +9,12 @@ import { ContextCompressor } from '../context/ContextCompressor.js';
 import { StateIOError, StateValidationError, StateLockError } from '../errors/StateErrors.js';
 import { logger } from '../utils/logger.js';
 import { translateVisibleText } from '../utils/visibleText.js';
-
-const STATE_DIR = '.state';
-const SESSIONS_DIR = join(STATE_DIR, 'sessions');
-const CHECKPOINTS_DIR = join(STATE_DIR, 'checkpoints');
+import {
+  resolveCheckpointsDir as resolveProjectCheckpointsDir,
+  resolveLegacyCheckpointsDir,
+  resolveLegacySessionsDir,
+  resolveSessionsDir as resolveProjectSessionsDir,
+} from './storage-paths.js';
 
 // sessionId는 파일 경로로 직접 사용되므로 안전한 형식만 허용한다.
 const SESSION_ID_RE = /^[a-zA-Z0-9_-]{1,64}$/;
@@ -27,7 +29,7 @@ function assertSafeSessionId(id: string): void {
 }
 
 export function resolveSessionsDir(cwd?: string): string {
-  return cwd ? join(cwd, STATE_DIR, 'sessions') : SESSIONS_DIR;
+  return resolveProjectSessionsDir(cwd);
 }
 
 const LOCK_STALE_TIMEOUT_MS = 5_000;
@@ -40,12 +42,87 @@ export interface ProjectInfo {
 }
 
 export class SessionStateManager {
-  private static lockPath(sessionId: string): string {
-    return join(SESSIONS_DIR, `${sessionId}.lock`);
+  private static sessionDir(cwd?: string): string {
+    return resolveProjectSessionsDir(cwd);
   }
 
-  private static tmpPath(sessionId: string): string {
-    return join(SESSIONS_DIR, `${sessionId}.tmp.json`);
+  private static checkpointDir(cwd?: string): string {
+    return resolveProjectCheckpointsDir(cwd);
+  }
+
+  private static lockPath(sessionId: string, cwd?: string): string {
+    return join(this.sessionDir(cwd), `${sessionId}.lock`);
+  }
+
+  private static tmpPath(sessionId: string, cwd?: string): string {
+    return join(this.sessionDir(cwd), `${sessionId}.tmp.json`);
+  }
+
+  private static sessionFilePath(sessionId: string, cwd?: string): string {
+    return join(this.sessionDir(cwd), `${sessionId}.json`);
+  }
+
+  private static checkpointFilePath(checkpointId: string, cwd?: string): string {
+    return join(this.checkpointDir(cwd), `${checkpointId}.json`);
+  }
+
+  private static uniqueDirs(directories: string[]): string[] {
+    return Array.from(new Set(directories));
+  }
+
+  private static sessionDirCandidates(cwd?: string): string[] {
+    return this.uniqueDirs([
+      this.sessionDir(cwd),
+      resolveLegacySessionsDir(cwd),
+    ]);
+  }
+
+  private static checkpointDirCandidates(cwd?: string): string[] {
+    return this.uniqueDirs([
+      this.checkpointDir(cwd),
+      resolveLegacyCheckpointsDir(cwd),
+    ]);
+  }
+
+  private static async resolveExistingFilePath(
+    fileName: string,
+    directories: string[],
+  ): Promise<string | null> {
+    for (const dir of directories) {
+      const filePath = join(dir, fileName);
+      try {
+        await fs.access(filePath);
+        return filePath;
+      } catch {
+        continue;
+      }
+    }
+    return null;
+  }
+
+  private static async listExistingFilePaths(
+    directories: string[],
+    suffix = '.json',
+  ): Promise<string[]> {
+    const fileMap = new Map<string, string>();
+
+    for (const dir of directories) {
+      try {
+        const files = await fs.readdir(dir);
+        for (const file of files) {
+          if (!file.endsWith(suffix)) continue;
+          if (!fileMap.has(file)) {
+            fileMap.set(file, join(dir, file));
+          }
+        }
+      } catch (error: unknown) {
+        const nodeError = error as NodeJS.ErrnoException;
+        if (nodeError.code === 'ENOENT') continue;
+        throw error;
+      }
+    }
+
+    return Array.from(fileMap.values());
   }
 
   private static isProcessAlive(pid: number): boolean {
@@ -57,7 +134,7 @@ export class SessionStateManager {
     }
   }
 
-  private static async acquireLock(sessionId: string, retryDepth = 0): Promise<void> {
+  private static async acquireLock(sessionId: string, cwd?: string, retryDepth = 0): Promise<void> {
     if (retryDepth > MAX_LOCK_RETRIES) {
       throw new StateLockError(
         `Lock acquisition failed for session [${sessionId}] after ${MAX_LOCK_RETRIES} retries`,
@@ -65,7 +142,7 @@ export class SessionStateManager {
       );
     }
 
-    const lockFile = this.lockPath(sessionId);
+    const lockFile = this.lockPath(sessionId, cwd);
     let fd: fs.FileHandle | undefined;
     try {
       // O_EXCL: 파일이 이미 존재하면 즉시 실패 — atomic check-and-create
@@ -89,11 +166,11 @@ export class SessionStateManager {
             (isNaN(ownerPid) && Date.now() - stat.mtimeMs > LOCK_STALE_TIMEOUT_MS);
           if (isStale) {
             await fs.unlink(lockFile);
-            return this.acquireLock(sessionId, retryDepth + 1);
+            return this.acquireLock(sessionId, cwd, retryDepth + 1);
           }
         } catch {
           // stat 사이에 잠금 파일이 사라진 경우 — 재시도
-          return this.acquireLock(sessionId, retryDepth + 1);
+          return this.acquireLock(sessionId, cwd, retryDepth + 1);
         }
         throw new StateLockError(
           `Session [${sessionId}] is locked by another process`,
@@ -110,31 +187,31 @@ export class SessionStateManager {
     }
   }
 
-  private static async releaseLock(sessionId: string): Promise<void> {
+  private static async releaseLock(sessionId: string, cwd?: string): Promise<void> {
     try {
-      await fs.unlink(this.lockPath(sessionId));
+      await fs.unlink(this.lockPath(sessionId, cwd));
     } catch {
       // 이미 해제된 잠금 — 무시
     }
   }
 
-  private static ensureDirectories = async () => {
+  private static ensureDirectories = async (cwd?: string) => {
     try {
-      await fs.mkdir(SESSIONS_DIR, { recursive: true });
-      await fs.mkdir(CHECKPOINTS_DIR, { recursive: true });
+      await fs.mkdir(this.sessionDir(cwd), { recursive: true });
+      await fs.mkdir(this.checkpointDir(cwd), { recursive: true });
     } catch (error: any) {
       throw new StateIOError(`Failed to create state directories`, {
-        path: STATE_DIR,
+        path: this.sessionDir(cwd),
         originalError: error.message
       });
     }
   };
 
-  static async saveSession(state: SessionState): Promise<void> {
+  static async saveSession(state: SessionState, cwd?: string): Promise<void> {
     const sessionId = state.shared_context?.session_id as string || 'default';
     assertSafeSessionId(sessionId);
-    await this.ensureDirectories();
-    await this.acquireLock(sessionId);
+    await this.ensureDirectories(cwd);
+    await this.acquireLock(sessionId, cwd);
     try {
       // 1. 자동 정규화: task_results의 원시 데이터를 표준 스키마로 보정
       for (const [taskId, result] of Object.entries(state.task_results)) {
@@ -159,8 +236,8 @@ export class SessionStateManager {
       const validated = StateValidator.validate(compressedState);
 
       // 5. tmp→rename atomic write: 덮어쓰기 도중 crash나도 기존 파일 보존
-      const tmpFile = this.tmpPath(sessionId);
-      const finalFile = join(SESSIONS_DIR, `${sessionId}.json`);
+      const tmpFile = this.tmpPath(sessionId, cwd);
+      const finalFile = this.sessionFilePath(sessionId, cwd);
       try {
         await fs.writeFile(tmpFile, JSON.stringify(validated, null, 2));
         await fs.rename(tmpFile, finalFile);
@@ -182,13 +259,15 @@ export class SessionStateManager {
         originalError: e.message,
       });
     } finally {
-      await this.releaseLock(sessionId);
+      await this.releaseLock(sessionId, cwd);
     }
   }
 
-  static async loadSession(sessionId: string): Promise<SessionState> {
+  static async loadSession(sessionId: string, cwd?: string): Promise<SessionState> {
     assertSafeSessionId(sessionId);
-    const filePath = join(SESSIONS_DIR, `${sessionId}.json`);
+    const filePath =
+      await this.resolveExistingFilePath(`${sessionId}.json`, this.sessionDirCandidates(cwd))
+      ?? this.sessionFilePath(sessionId, cwd);
     try {
       const data = await fs.readFile(filePath, 'utf-8');
       const parsed = JSON.parse(data);
@@ -218,36 +297,34 @@ export class SessionStateManager {
   }
 
 
-  static async sessionExists(sessionId: string): Promise<boolean> {
+  static async sessionExists(sessionId: string, cwd?: string): Promise<boolean> {
     assertSafeSessionId(sessionId);
-    try {
-      const filePath = join(SESSIONS_DIR, `${sessionId}.json`);
-      await fs.access(filePath);
-      return true;
-    } catch {
-      return false;
-    }
+    const filePath = await this.resolveExistingFilePath(
+      `${sessionId}.json`,
+      this.sessionDirCandidates(cwd),
+    );
+    return filePath !== null;
   }
 
 
-  static async forkSession(sourceSessionId: string, newSessionId: string): Promise<SessionState> {
+  static async forkSession(sourceSessionId: string, newSessionId: string, cwd?: string): Promise<SessionState> {
     assertSafeSessionId(sourceSessionId);
     assertSafeSessionId(newSessionId);
-    if (!(await this.sessionExists(sourceSessionId))) {
+    if (!(await this.sessionExists(sourceSessionId, cwd))) {
       throw new StateIOError(`Session file not found [${sourceSessionId}]`, {
         sessionId: sourceSessionId,
         errorCode: 'ENOENT'
       });
     }
 
-    if (await this.sessionExists(newSessionId)) {
+    if (await this.sessionExists(newSessionId, cwd)) {
       throw new StateIOError(`Session already exists [${newSessionId}]`, {
         sessionId: newSessionId,
         errorCode: 'EEXIST'
       });
     }
 
-    const source = await this.loadSession(sourceSessionId);
+    const source = await this.loadSession(sourceSessionId, cwd);
     const forked = SessionStateSchema.parse({
       ...JSON.parse(JSON.stringify(source)),
       shared_context: {
@@ -256,11 +333,11 @@ export class SessionStateManager {
       },
     });
 
-    await this.saveSession(forked);
+    await this.saveSession(forked, cwd);
     return forked;
   }
 
-  static async listSessions(): Promise<Array<{
+  static async listSessions(cwd?: string): Promise<Array<{
     id: string;
     updatedAt: string | null;
     currentTaskId: string | null;
@@ -269,7 +346,6 @@ export class SessionStateManager {
     nextAction: string | null;
   }>> {
     try {
-      const files = await fs.readdir(SESSIONS_DIR);
       const sessions: Array<{
         id: string;
         updatedAt: string | null;
@@ -279,14 +355,14 @@ export class SessionStateManager {
         nextAction: string | null;
       }> = [];
 
-      for (const file of files) {
-        if (!file.endsWith('.json')) continue;
-
+      const files = await this.listExistingFilePaths(this.sessionDirCandidates(cwd));
+      for (const filePath of files) {
+        const fileName = filePath.split('/').pop() ?? filePath;
         try {
-          const data = await fs.readFile(join(SESSIONS_DIR, file), 'utf-8');
+          const data = await fs.readFile(filePath, 'utf-8');
           const state = SessionStateSchema.parse(JSON.parse(data));
           sessions.push({
-            id: file.slice(0, -'.json'.length),
+            id: fileName.slice(0, -'.json'.length),
             updatedAt: state.updated_at ?? null,
             currentTaskId: state.current_task_id ?? null,
             completedTaskCount: state.completed_task_ids.length,
@@ -295,7 +371,7 @@ export class SessionStateManager {
           });
         } catch (e) {
           logger.info(
-            `세션 파일 [${file}]을 불러오지 못해 건너뜁니다. ${translateVisibleText(e instanceof Error ? e.message : String(e))}`,
+            `세션 파일 [${fileName}]을 불러오지 못해 건너뜁니다. ${translateVisibleText(e instanceof Error ? e.message : String(e))}`,
           );
         }
       }
@@ -316,11 +392,11 @@ export class SessionStateManager {
     }
   }
 
-  static async createCheckpoint(checkpoint: Checkpoint): Promise<void> {
+  static async createCheckpoint(checkpoint: Checkpoint, cwd?: string): Promise<void> {
     try {
-      await this.ensureDirectories();
+      await this.ensureDirectories(cwd);
       const validated = CheckpointSchema.parse(checkpoint);
-      const filePath = join(CHECKPOINTS_DIR, `${validated.id}.json`);
+      const filePath = this.checkpointFilePath(validated.id, cwd);
       await fs.writeFile(filePath, JSON.stringify(validated, null, 2));
     } catch (error: unknown) {
       if (error instanceof ZodError) {
@@ -336,8 +412,10 @@ export class SessionStateManager {
     }
   }
 
-  static async loadCheckpoint(checkpointId: string): Promise<Checkpoint> {
-    const filePath = join(CHECKPOINTS_DIR, `${checkpointId}.json`);
+  static async loadCheckpoint(checkpointId: string, cwd?: string): Promise<Checkpoint> {
+    const filePath =
+      await this.resolveExistingFilePath(`${checkpointId}.json`, this.checkpointDirCandidates(cwd))
+      ?? this.checkpointFilePath(checkpointId, cwd);
     try {
       const data = await fs.readFile(filePath, 'utf-8');
       const parsed = JSON.parse(data);
@@ -361,27 +439,25 @@ export class SessionStateManager {
     }
   }
 
-  static async listCheckpoints(sessionId: string): Promise<Checkpoint[]> {
+  static async listCheckpoints(sessionId: string, cwd?: string): Promise<Checkpoint[]> {
     try {
-      await this.ensureDirectories();
-      const files = await fs.readdir(CHECKPOINTS_DIR);
       const checkpoints: Checkpoint[] = [];
+      const filePaths = await this.listExistingFilePaths(this.checkpointDirCandidates(cwd));
 
-      for (const file of files) {
-        if (file.endsWith('.json')) {
-          try {
-            const data = await fs.readFile(join(CHECKPOINTS_DIR, file), 'utf-8');
-            const parsed = JSON.parse(data);
-            const checkpoint = CheckpointSchema.parse(parsed);
-            if (checkpoint.id.startsWith(sessionId)) {
-              checkpoints.push(checkpoint);
-            }
-          } catch (e) {
-            logger.warn(
-              `체크포인트 파일 [${file}]을 불러오지 못해 건너뜁니다. ${translateVisibleText(e instanceof Error ? e.message : String(e))}`,
-            );
-            continue;
+      for (const filePath of filePaths) {
+        try {
+          const data = await fs.readFile(filePath, 'utf-8');
+          const parsed = JSON.parse(data);
+          const checkpoint = CheckpointSchema.parse(parsed);
+          if (checkpoint.id.startsWith(sessionId)) {
+            checkpoints.push(checkpoint);
           }
+        } catch (e) {
+          const file = filePath.split('/').pop() ?? filePath;
+          logger.warn(
+            `체크포인트 파일 [${file}]을 불러오지 못해 건너뜁니다. ${translateVisibleText(e instanceof Error ? e.message : String(e))}`,
+          );
+          continue;
         }
       }
 
@@ -398,124 +474,118 @@ export class SessionStateManager {
 
   static async findSuccessfulSessionByInputHash(
     hash: string,
-    opts: { project_id?: string; recencyDays?: number; adapter?: string } = {},
+    opts: { project_id?: string; recencyDays?: number; adapter?: string; cwd?: string } = {},
   ): Promise<SessionState | null> {
-    const { project_id, recencyDays = 7, adapter } = opts;
+    const { project_id, recencyDays = 7, adapter, cwd } = opts;
     const cutoff = Date.now() - recencyDays * 24 * 60 * 60 * 1000;
 
-    let files: string[];
     try {
-      files = await fs.readdir(SESSIONS_DIR);
+      const files = await this.listExistingFilePaths(this.sessionDirCandidates(cwd));
+      for (const filePath of files) {
+        try {
+          const data = await fs.readFile(filePath, "utf-8");
+          const state = SessionStateSchema.parse(JSON.parse(data));
+
+          if (state.shared_context.raw_input_hash !== hash) continue;
+          if (project_id && state.shared_context.project_id !== project_id) continue;
+          if (state.updated_at && new Date(state.updated_at).getTime() < cutoff) continue;
+          if (state.completed_task_ids.length === 0) continue;
+
+          const failedIds = (state.shared_context.failed_task_ids as string[] | undefined) ?? [];
+          if (failedIds.length > 0) continue;
+
+          // 구 세션(adapter stamp 없음)은 필드 자체가 없으므로 비교 없이 통과
+          const ctx = state.shared_context as Record<string, unknown>;
+          if (adapter && ctx.adapter && ctx.adapter !== adapter) continue;
+
+          return state;
+        } catch {
+          continue;
+        }
+      }
     } catch {
       return null;
-    }
-
-    for (const file of files) {
-      if (!file.endsWith(".json")) continue;
-      try {
-        const data = await fs.readFile(join(SESSIONS_DIR, file), "utf-8");
-        const state = SessionStateSchema.parse(JSON.parse(data));
-
-        if (state.shared_context.raw_input_hash !== hash) continue;
-        if (project_id && state.shared_context.project_id !== project_id) continue;
-        if (state.updated_at && new Date(state.updated_at).getTime() < cutoff) continue;
-        if (state.completed_task_ids.length === 0) continue;
-
-        const failedIds = (state.shared_context.failed_task_ids as string[] | undefined) ?? [];
-        if (failedIds.length > 0) continue;
-
-        // 구 세션(adapter stamp 없음)은 필드 자체가 없으므로 비교 없이 통과
-        const ctx = state.shared_context as Record<string, unknown>;
-        if (adapter && ctx.adapter && ctx.adapter !== adapter) continue;
-
-        return state;
-      } catch {
-        continue;
-      }
     }
     return null;
   }
 
   static async findSuccessfulTaskByHash(
     taskHash: string,
-    opts: { project_id?: string; recencyDays?: number; adapter?: string; git_head?: string } = {},
+    opts: { project_id?: string; recencyDays?: number; adapter?: string; git_head?: string; cwd?: string } = {},
   ): Promise<{ taskResult: Record<string, unknown>; sessionId: string } | null> {
-    const { project_id, recencyDays = 7, adapter, git_head } = opts;
+    const { project_id, recencyDays = 7, adapter, git_head, cwd } = opts;
     const cutoff = Date.now() - recencyDays * 24 * 60 * 60 * 1000;
 
-    let files: string[];
     try {
-      files = await fs.readdir(SESSIONS_DIR);
+      const files = await this.listExistingFilePaths(this.sessionDirCandidates(cwd));
+      for (const filePath of files) {
+        try {
+          const data = await fs.readFile(filePath, "utf-8");
+          const state = SessionStateSchema.parse(JSON.parse(data));
+
+          if (project_id && state.shared_context.project_id !== project_id) continue;
+          if (state.updated_at && new Date(state.updated_at).getTime() < cutoff) continue;
+
+          for (const taskResult of Object.values(state.task_results)) {
+            const res = taskResult as Record<string, unknown>;
+            if (res.input_hash !== taskHash) continue;
+            if (res.success !== true) continue;
+            if (typeof res.completed_at === "string") {
+              if (new Date(res.completed_at).getTime() < cutoff) continue;
+            }
+            // 구 세션(stamp 필드 없음)은 필드 자체가 없으므로 비교 없이 통과
+            if (adapter && res.adapter && res.adapter !== adapter) continue;
+            if (git_head && res.git_head && res.git_head !== git_head) continue;
+            const file = filePath.split('/').pop() ?? filePath;
+            return { taskResult: res, sessionId: file.slice(0, -".json".length) };
+          }
+        } catch {
+          continue;
+        }
+      }
     } catch {
       return null;
-    }
-
-    for (const file of files) {
-      if (!file.endsWith(".json")) continue;
-      try {
-        const data = await fs.readFile(join(SESSIONS_DIR, file), "utf-8");
-        const state = SessionStateSchema.parse(JSON.parse(data));
-
-        if (project_id && state.shared_context.project_id !== project_id) continue;
-        if (state.updated_at && new Date(state.updated_at).getTime() < cutoff) continue;
-
-        for (const taskResult of Object.values(state.task_results)) {
-          const res = taskResult as Record<string, unknown>;
-          if (res.input_hash !== taskHash) continue;
-          if (res.success !== true) continue;
-          if (typeof res.completed_at === "string") {
-            if (new Date(res.completed_at).getTime() < cutoff) continue;
-          }
-          // 구 세션(stamp 필드 없음)은 필드 자체가 없으므로 비교 없이 통과
-          if (adapter && res.adapter && res.adapter !== adapter) continue;
-          if (git_head && res.git_head && res.git_head !== git_head) continue;
-          return { taskResult: res, sessionId: file.slice(0, -".json".length) };
-        }
-      } catch {
-        continue;
-      }
     }
     return null;
   }
 
   static async findIncompleteSessionByInputHash(
     hash: string,
-    opts: { project_id?: string; recencyHours?: number } = {},
+    opts: { project_id?: string; recencyHours?: number; cwd?: string } = {},
   ): Promise<SessionState | null> {
-    const { project_id, recencyHours = 24 } = opts;
+    const { project_id, recencyHours = 24, cwd } = opts;
     const cutoff = Date.now() - recencyHours * 60 * 60 * 1000;
 
-    let files: string[];
     try {
-      files = await fs.readdir(SESSIONS_DIR);
+      const files = await this.listExistingFilePaths(this.sessionDirCandidates(cwd));
+      for (const filePath of files) {
+        try {
+          const data = await fs.readFile(filePath, "utf-8");
+          const state = SessionStateSchema.parse(JSON.parse(data));
+
+          if (state.shared_context.raw_input_hash !== hash) continue;
+          if (project_id && state.shared_context.project_id !== project_id) continue;
+          if (state.updated_at && new Date(state.updated_at).getTime() < cutoff) continue;
+          if (state.current_task_id === null) continue;
+          if (state.completed_task_ids.length === 0) continue;
+
+          return state;
+        } catch {
+          continue;
+        }
+      }
     } catch {
       return null;
-    }
-
-    for (const file of files) {
-      if (!file.endsWith(".json")) continue;
-      try {
-        const data = await fs.readFile(join(SESSIONS_DIR, file), "utf-8");
-        const state = SessionStateSchema.parse(JSON.parse(data));
-
-        if (state.shared_context.raw_input_hash !== hash) continue;
-        if (project_id && state.shared_context.project_id !== project_id) continue;
-        if (state.updated_at && new Date(state.updated_at).getTime() < cutoff) continue;
-        if (state.current_task_id === null) continue;       // 이미 완료
-        if (state.completed_task_ids.length === 0) continue; // 아무것도 완료 안 됨
-
-        return state;
-      } catch {
-        continue;
-      }
     }
     return null;
   }
 
-  static async deleteSession(sessionId: string): Promise<void> {
+  static async deleteSession(sessionId: string, cwd?: string): Promise<void> {
     assertSafeSessionId(sessionId);
     try {
-      const filePath = join(SESSIONS_DIR, `${sessionId}.json`);
+      const filePath =
+        await this.resolveExistingFilePath(`${sessionId}.json`, this.sessionDirCandidates(cwd))
+        ?? this.sessionFilePath(sessionId, cwd);
       await fs.unlink(filePath);
     } catch (error: any) {
       throw new StateIOError(`Failed to delete session [${sessionId}]`, {
@@ -525,9 +595,9 @@ export class SessionStateManager {
     }
   }
 
-  static async getLatestCheckpoint(sessionId: string): Promise<Checkpoint | undefined> {
+  static async getLatestCheckpoint(sessionId: string, cwd?: string): Promise<Checkpoint | undefined> {
     try {
-      const checkpoints = await this.listCheckpoints(sessionId);
+      const checkpoints = await this.listCheckpoints(sessionId, cwd);
       return checkpoints.length > 0 ? checkpoints[checkpoints.length - 1] : undefined;
     } catch (error: any) {
       if (error instanceof StateIOError) throw error;

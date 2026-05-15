@@ -53,7 +53,7 @@ export const runSessionContinueCommand = async (
   options: SessionContinueCommandOptions = {},
 ): Promise<SessionContinueOutput> => {
   const sessionId = request.userRequest.session_id ?? "";
-  const exists = await SessionStateManager.sessionExists(sessionId);
+  const exists = await SessionStateManager.sessionExists(sessionId, request.userRequest.cwd);
 
   if (!exists) {
     return {
@@ -69,7 +69,7 @@ export const runSessionContinueCommand = async (
     };
   }
 
-  const session = await SessionStateManager.loadSession(sessionId);
+  const session = await SessionStateManager.loadSession(sessionId, request.userRequest.cwd);
   const resumeOverview = deriveSessionResumeOverview(session);
   options.onResumeOverview?.(resumeOverview);
   const nextAction = session.next_action ?? null;

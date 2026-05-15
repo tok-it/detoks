@@ -2,6 +2,7 @@ import type { AdapterExecutionRequest, AdapterExecutionResult } from "../../../c
 import type { AdapterExecutionContext, CliAdapter } from "../interface.js";
 import { executeAdapterViaSubprocess } from "../real.js";
 import { buildStubRawOutput } from "../stub.js";
+import { buildWorkspaceIsolationEnv } from "../workspace-env.js";
 
 const CLAUDE_PERMISSION_MODE = "default" as const;
 
@@ -9,6 +10,7 @@ export class ClaudeStubAdapter implements CliAdapter {
   readonly target = "claude" as const;
 
   buildSubprocessRequest(request: AdapterExecutionRequest) {
+    const workspaceEnv = buildWorkspaceIsolationEnv(request.cwd);
     if (request.presentationMode === "passthrough") {
       // passthrough 모드는 prompt를 CLI 인자로 전달하므로 OS ARG_MAX 제한을 받는다.
       const promptBytes = Buffer.byteLength(request.prompt ?? "", "utf8");
@@ -27,6 +29,7 @@ export class ClaudeStubAdapter implements CliAdapter {
           ...(request.prompt ? [request.prompt] : []),
         ],
         ...(request.cwd !== undefined ? { cwd: request.cwd } : {}),
+        ...(workspaceEnv !== undefined ? { env: workspaceEnv } : {}),
       };
     }
 
@@ -42,6 +45,7 @@ export class ClaudeStubAdapter implements CliAdapter {
           ...(request.model ? ["--model", request.model] : []),
         ],
         ...(request.cwd !== undefined ? { cwd: request.cwd } : {}),
+        ...(workspaceEnv !== undefined ? { env: workspaceEnv } : {}),
         input: request.prompt,
       };
     }
@@ -57,6 +61,7 @@ export class ClaudeStubAdapter implements CliAdapter {
         ...(request.model ? ["--model", request.model] : []),
       ],
       ...(request.cwd !== undefined ? { cwd: request.cwd } : {}),
+      ...(workspaceEnv !== undefined ? { env: workspaceEnv } : {}),
       input: request.prompt,
     };
   }

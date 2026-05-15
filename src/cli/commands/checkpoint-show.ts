@@ -17,8 +17,9 @@ export interface CheckpointShowOutput {
 
 export const runCheckpointShowCommand = async (
   checkpointId: string,
+  cwd?: string,
 ): Promise<CheckpointShowOutput> => {
-  const checkpoint = await SessionStateManager.loadCheckpoint(checkpointId);
+  const checkpoint = await SessionStateManager.loadCheckpoint(checkpointId, cwd);
 
   return {
     ok: true,

@@ -35,6 +35,6 @@ describe("runSessionResetCommand", () => {
       message: "세션 session_to_reset를 초기화(삭제)했습니다.",
     });
 
-    expect(deleteSpy).toHaveBeenCalledWith("session_to_reset");
+    expect(deleteSpy).toHaveBeenCalledWith("session_to_reset", undefined);
   });
 });

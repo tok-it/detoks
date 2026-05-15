@@ -26,14 +26,15 @@ export interface SessionListOutput {
 
 export interface SessionListCommandOptions {
   includeLastWorkSummary?: boolean;
+  cwd?: string;
 }
 
-const loadSessionInsights = async (sessionId: string): Promise<{
+const loadSessionInsights = async (sessionId: string, cwd?: string): Promise<{
   lastWorkSummary: string | null;
   tokenMetrics: TokenMetricsSnapshot | null;
 }> => {
   try {
-    const state = await SessionStateManager.loadSession(sessionId);
+    const state = await SessionStateManager.loadSession(sessionId, cwd);
     return {
       lastWorkSummary: deriveLastWorkSummary(state),
       tokenMetrics: deriveTokenMetricsSummary(state),
@@ -49,13 +50,13 @@ const loadSessionInsights = async (sessionId: string): Promise<{
 export const runSessionListCommand = async (
   options: SessionListCommandOptions = {},
 ): Promise<SessionListOutput> => {
-  const sessions = await SessionStateManager.listSessions();
+  const sessions = await SessionStateManager.listSessions(options.cwd);
   const sessionCount = sessions.length;
   const includeLastWorkSummary = options.includeLastWorkSummary ?? false;
   const lastWorkSummaryBySession = includeLastWorkSummary
     ? new Map(
         await Promise.all(
-          sessions.map(async (session) => [session.id, await loadSessionInsights(session.id)] as const),
+          sessions.map(async (session) => [session.id, await loadSessionInsights(session.id, options.cwd)] as const),
         ),
       )
     : undefined;

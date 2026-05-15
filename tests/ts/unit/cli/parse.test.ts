@@ -1,3 +1,4 @@
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { getCliUsage, parseCliArgs } from "../../../../src/cli/parse.js";
 
@@ -69,7 +70,7 @@ describe("parseCliArgs", () => {
     expect(parsed).toEqual({
       mode: "run",
       prompt: "연체료는 어떻게 계산돼?",
-      cwd: "video-demo/book-rental-service",
+      cwd: resolve("video-demo/book-rental-service"),
       adapter: "codex",
       executionMode: "real",
       verbose: false,
@@ -83,7 +84,7 @@ describe("parseCliArgs", () => {
     const parsed = parseCliArgs(["repl", "--cwd=video-demo/book-rental-service"]);
     expect(parsed).toEqual({
       mode: "repl",
-      cwd: "video-demo/book-rental-service",
+      cwd: resolve("video-demo/book-rental-service"),
       adapter: "codex",
       executionMode: "real",
       verbose: false,
@@ -98,7 +99,7 @@ describe("parseCliArgs", () => {
     expect(parsed).toEqual({
       mode: "run",
       inputFile: "input.json",
-      cwd: "video-demo/book-rental-service",
+      cwd: resolve("video-demo/book-rental-service"),
       adapter: "codex",
       executionMode: "real",
       verbose: false,
