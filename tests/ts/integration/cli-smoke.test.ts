@@ -9,9 +9,14 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { resolve } from "node:path";
-import { describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import {
+  resolveCheckpointsDir,
+  resolveProjectNoticeFlagPath,
+  resolveSessionsDir,
+} from "../../../src/core/state/storage-paths.js";
 
 const repoRoot = new URL("../../..", import.meta.url).pathname.replace(/\/$/, "");
 const packageJson = JSON.parse(
@@ -22,11 +27,47 @@ const packageJson = JSON.parse(
 const packageName = packageJson.name ?? "detoks";
 const cliEntry = resolve(repoRoot, "src/cli/index.ts");
 const tsxLoader = resolve(repoRoot, "node_modules/tsx/dist/loader.mjs");
+const testDetoksHome = mkdtempSync(join(tmpdir(), "detoks-cli-home-"));
+const originalDetoksHome = process.env.DETOKS_HOME;
+
+beforeAll(() => {
+  process.env.DETOKS_HOME = testDetoksHome;
+  const noticeFlagPath = resolveProjectNoticeFlagPath(repoRoot);
+  mkdirSync(dirname(noticeFlagPath), { recursive: true });
+  writeFileSync(noticeFlagPath, "test", "utf8");
+});
+
+afterAll(() => {
+  if (originalDetoksHome === undefined) {
+    delete process.env.DETOKS_HOME;
+  } else {
+    process.env.DETOKS_HOME = originalDetoksHome;
+  }
+  rmSync(testDetoksHome, { force: true, recursive: true });
+});
+
+const buildCliEnv = (env: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv => {
+  const nextEnv: NodeJS.ProcessEnv = {
+    ...process.env,
+    DETOKS_HOME: testDetoksHome,
+  };
+
+  for (const [key, value] of Object.entries(env)) {
+    if (value === undefined) {
+      delete nextEnv[key];
+    } else {
+      nextEnv[key] = value;
+    }
+  }
+
+  return nextEnv;
+};
 
 const runCli = (args: string[]) =>
   spawnSync(process.execPath, ["--import", "tsx", cliEntry, ...args], {
     cwd: repoRoot,
     encoding: "utf8",
+    env: buildCliEnv(),
   });
 
 const runCliWithInput = (args: string[], input: string) =>
@@ -34,13 +75,14 @@ const runCliWithInput = (args: string[], input: string) =>
     cwd: repoRoot,
     encoding: "utf8",
     input,
+    env: buildCliEnv(),
   });
 
 const runCliWithEnv = (args: string[], env: NodeJS.ProcessEnv) =>
   spawnSync(process.execPath, ["--import", "tsx", cliEntry, ...args], {
     cwd: repoRoot,
     encoding: "utf8",
-    env: { ...process.env, ...env },
+    env: buildCliEnv(env),
   });
 
 const runCliWithEnvAndTimeout = (
@@ -51,7 +93,7 @@ const runCliWithEnvAndTimeout = (
   spawnSync(process.execPath, ["--import", "tsx", cliEntry, ...args], {
     cwd: repoRoot,
     encoding: "utf8",
-    env: { ...process.env, ...env },
+    env: buildCliEnv(env),
     timeout,
   });
 
@@ -59,6 +101,7 @@ const runCliFromCwd = (cwd: string, args: string[]) =>
   spawnSync(process.execPath, ["--import", tsxLoader, cliEntry, ...args], {
     cwd,
     encoding: "utf8",
+    env: buildCliEnv(),
   });
 
 const runCliFromCwdWithEnv = (
@@ -69,7 +112,7 @@ const runCliFromCwdWithEnv = (
   spawnSync(process.execPath, ["--import", tsxLoader, cliEntry, ...args], {
     cwd,
     encoding: "utf8",
-    env: { ...process.env, ...env },
+    env: buildCliEnv(env),
   });
 
 const runCliWithInputFromCwd = (cwd: string, args: string[], input: string) =>
@@ -77,6 +120,7 @@ const runCliWithInputFromCwd = (cwd: string, args: string[], input: string) =>
     cwd,
     encoding: "utf8",
     input,
+    env: buildCliEnv(),
   });
 
 const runCliWithInputFromCwdEnvAndTimeout = (
@@ -91,7 +135,7 @@ const runCliWithInputFromCwdEnvAndTimeout = (
     encoding: "utf8",
     input,
     timeout,
-    env: { ...process.env, ...env },
+    env: buildCliEnv(env),
   });
 
 const waitForOutput = (
@@ -566,6 +610,7 @@ describe.skipIf(Boolean(process.env.CI))("detoks CLI smoke", () => {
 
     try {
       const run = runCliFromCwdWithEnv(tempDir, ["memory", "disable", "--human"], {
+        DETOKS_HOME: undefined,
         HOME: tempHome,
       });
 
@@ -858,9 +903,8 @@ describe.skipIf(Boolean(process.env.CI))("detoks CLI smoke", () => {
       await waitForOutput(stdoutState, "starting long run", 20_000);
       child.stdin.write("\x03");
       await waitForOutput(stdoutState, "실행이 취소되었습니다.", 20_000);
-      child.stdin.write("/exit\n");
-
-      const exitCode = await new Promise<number>((resolve, reject) => {
+      await waitForOutput(stdoutState, "상태: 실패", 20_000);
+      const exitPromise = new Promise<number>((resolve, reject) => {
         const timeout = setTimeout(() => {
           child.kill("SIGKILL");
           reject(new Error(`detoks repl did not exit in time\nstdout:\n${stdoutState.value}\nstderr:\n${stderrState.value}`));
@@ -875,12 +919,14 @@ describe.skipIf(Boolean(process.env.CI))("detoks CLI smoke", () => {
           resolve(code ?? -1);
         });
       });
+      child.stdin.end("q");
 
+      const exitCode = await exitPromise;
       expect(exitCode).toBe(0);
       expect(stderrState.value).not.toContain("ReferenceError");
       expect(stdoutState.value).toContain("starting long run");
       expect(stdoutState.value).toContain("실행이 취소되었습니다.");
-      expect(stdoutState.value).toContain("detoks repl 종료.");
+      expect(stdoutState.value).toContain("TUI REPL이 종료되었습니다.");
     } finally {
       rmSync(tempDir, { force: true, recursive: true });
     }
@@ -1019,7 +1065,7 @@ describe.skipIf(Boolean(process.env.CI))("detoks CLI smoke", () => {
   it("prints explicit checkpoint list JSON for empty and populated sessions", () => {
     const sessionId = `session_cli_smoke_${Date.now()}`;
     const checkpointId = `${sessionId}_checkpoint_001`;
-    const checkpointDir = join(repoRoot, ".state", "checkpoints");
+    const checkpointDir = resolveCheckpointsDir(repoRoot);
     const checkpointPath = join(checkpointDir, `${checkpointId}.json`);
 
     try {
@@ -1121,7 +1167,7 @@ describe.skipIf(Boolean(process.env.CI))("detoks CLI smoke", () => {
 
   it("shows a saved session with JSON and human-readable outputs", () => {
     const sessionId = `session_cli_show_${Date.now()}`;
-    const sessionDir = join(repoRoot, ".state", "sessions");
+    const sessionDir = resolveSessionsDir(repoRoot);
     const sessionPath = join(sessionDir, `${sessionId}.json`);
 
     try {
@@ -1205,7 +1251,7 @@ describe.skipIf(Boolean(process.env.CI))("detoks CLI smoke", () => {
 
   it("resumes a saved session and skips already completed tasks", () => {
     const sessionId = `session_cli_resume_${Date.now()}`;
-    const sessionDir = join(repoRoot, ".state", "sessions");
+    const sessionDir = resolveSessionsDir(repoRoot);
     const sessionPath = join(sessionDir, `${sessionId}.json`);
 
     try {
@@ -1290,7 +1336,7 @@ describe.skipIf(Boolean(process.env.CI))("detoks CLI smoke", () => {
   it("forks a saved session without starting resume execution", () => {
     const sourceSessionId = `session_cli_source_${Date.now()}`;
     const newSessionId = `${sourceSessionId}_fork`;
-    const sessionDir = join(repoRoot, ".state", "sessions");
+    const sessionDir = resolveSessionsDir(repoRoot);
     const sourcePath = join(sessionDir, `${sourceSessionId}.json`);
     const forkPath = join(sessionDir, `${newSessionId}.json`);
 
@@ -1372,7 +1418,7 @@ describe.skipIf(Boolean(process.env.CI))("detoks CLI smoke", () => {
   it("resets a saved session and removes its persisted state file", () => {
     const missingSessionId = `session_cli_missing_reset_${Date.now()}`;
     const sessionId = `session_cli_reset_${Date.now()}`;
-    const sessionDir = join(repoRoot, ".state", "sessions");
+    const sessionDir = resolveSessionsDir(repoRoot);
     const sessionPath = join(sessionDir, `${sessionId}.json`);
 
     try {
@@ -1428,8 +1474,8 @@ describe.skipIf(Boolean(process.env.CI))("detoks CLI smoke", () => {
   it("restores a session to checkpoint state and truncates later task history", () => {
     const sessionId = `session_cli_restore_${Date.now()}`;
     const checkpointId = `${sessionId}_checkpoint_001`;
-    const sessionDir = join(repoRoot, ".state", "sessions");
-    const checkpointDir = join(repoRoot, ".state", "checkpoints");
+    const sessionDir = resolveSessionsDir(repoRoot);
+    const checkpointDir = resolveCheckpointsDir(repoRoot);
     const sessionPath = join(sessionDir, `${sessionId}.json`);
     const checkpointPath = join(checkpointDir, `${checkpointId}.json`);
 
@@ -1505,7 +1551,7 @@ describe.skipIf(Boolean(process.env.CI))("detoks CLI smoke", () => {
 
   it("prints minimal session list JSON for saved sessions", () => {
     const sessionId = `session_cli_smoke_${Date.now()}`;
-    const sessionDir = join(repoRoot, ".state", "sessions");
+    const sessionDir = resolveSessionsDir(repoRoot);
     const sessionPath = join(sessionDir, `${sessionId}.json`);
 
     try {
@@ -1618,7 +1664,7 @@ describe.skipIf(Boolean(process.env.CI))("detoks CLI smoke", () => {
 
   it("prints explicit checkpoint show JSON for a saved checkpoint", () => {
     const checkpointId = `session_cli_smoke_${Date.now()}_checkpoint_001`;
-    const checkpointDir = join(repoRoot, ".state", "checkpoints");
+    const checkpointDir = resolveCheckpointsDir(repoRoot);
     const checkpointPath = join(checkpointDir, `${checkpointId}.json`);
 
     try {

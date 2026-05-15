@@ -76,6 +76,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 	vi.mock("node-llama-cpp", () => ({
 		getLlama: nodeLlamaMocks.getLlama,
+		LlamaLogLevel: {
+			fatal: "fatal",
+		},
 		LlamaChatSession: nodeLlamaMocks.LlamaChatSession,
 		QwenChatWrapper: nodeLlamaMocks.QwenChatWrapper,
 	}));
