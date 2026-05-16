@@ -1,0 +1,29 @@
+{
+  "data": [
+    {
+      "index": 0,
+      "source": "아니 근데 이 레거시 코드베이스에서 사용자 권한 체크하는 부분이 너무 복잡해서 말인데, 혹시 지금 돌아가는 거 말고 새로 추가할 기능 때문에 건드려야 할 부분이 어디쯤인지 대충이라도 찍어줄 수 있음? 일단은 성공적으로 돌아가는 건 유지하면서 말이야.",
+      "reference": "The user permission check logic in this legacy codebase is too complex. Could you roughly point out which areas may need to be touched for the new feature, while keeping the currently working behavior intact?"
+    },
+    {
+      "index": 1,
+      "source": "우리 서비스가 갑자기 느려졌는데, 로그 보니까 DB 쿼리 쪽에서 병목 걸린 것 같긴 한데, 이 PostgreSQL 쿼리가 혹시 최적화할 부분이 있을까? 아니면 인덱스라도 새로 잡아야 하는 건지 모르겠음.",
+      "reference": "Our service suddenly became slow, and the logs suggest a bottleneck around DB queries. Is there anything in this PostgreSQL query that can be optimized, or should we add a new index?"
+    },
+    {
+      "index": 2,
+      "source": "새로 만든 이 비동기 작업 큐(Kafka 쓰는 거) 있잖아. 근데 가끔 메시지 유실되는 것 같기도 하고, 아니면 처리 지연되는 건지도 모르겠는데, 이 두 가지 케이스를 체크할 만한 코드가 있을까? 일단은 안정성이 제일 궁금함.",
+      "reference": "For this newly created asynchronous job queue that uses Kafka, messages sometimes seem to be lost or delayed. Is there code we can use to check both cases? Stability is the main concern for now."
+    },
+    {
+      "index": 3,
+      "source": "프론트엔드에서 Next.js로 만든 거인데, 서버 사이드 렌더링(SSR)으로 찍어내는데 초기 로딩 속도가 너무 느리다는 피드백이 왔거든. 혹시 이 데이터 페칭 로직 자체에 병목 있을까? 아니면 번들 사이즈 문제일 수도 있고.",
+      "reference": "This frontend was built with Next.js and rendered through server-side rendering (SSR), but we received feedback that the initial load is too slow. Could there be a bottleneck in the data fetching logic, or could it be a bundle size issue?"
+    },
+    {
+      "index": 4,
+      "source": "OAuth2로 새로 붙인 이 인증 모듈 있잖아. JWT 토큰 자체는 잘 떠오는데, 리프레시 토큰 검증 로직이 서버 부하를 많이 주는 것 같아. 이 부분을 좀 가볍게 만들 방법 없을까? 아니면 Redis에 캐싱이라도 해야 돼?",
+      "reference": "For this authentication module newly added with OAuth2, the JWT token itself is issued correctly, but the refresh token validation logic seems to put a lot of load on the server. Is there a way to make this lighter, or should we cache it in Redis?"
+    }
+  ]
+}
