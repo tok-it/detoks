@@ -15,10 +15,19 @@ interface StageStatus {
   endedAt?: number;
 }
 
+interface CacheCounters {
+  hit: number;
+  miss: number;
+  advise: number;
+}
+
 const formatStageDuration = (durationMs: number): string => {
   if (durationMs < 1000) return `${durationMs}ms`;
   return `${(durationMs / 1000).toFixed(1)}s`;
 };
+
+const isZeroCacheCounters = (c: CacheCounters): boolean =>
+  c.hit === 0 && c.miss === 0 && c.advise === 0;
 
 const STATUS_ICONS: Record<PipelineProgressStatus, string> = {
   end: glyph.done,
@@ -49,6 +58,8 @@ export class PipelineStatusPanel {
   private latestWorkState: string | null = null;
   private latestWorkStateDetail: string | null = null;
   private executionStartedAt: number | null = null;
+  private cacheCounters: CacheCounters = { hit: 0, miss: 0, advise: 0 };
+  private latestCacheEvent: { kind: "hit" | "miss" | "advise"; summary: string } | null = null;
 
   constructor() {
     for (const stageName of STAGE_ORDER) {
@@ -80,6 +91,18 @@ export class PipelineStatusPanel {
   }
 
   updateActionTimelineEvent(event: ActionTimelineEvent): void {
+    // Track cache lifecycle events for the cache summary line.
+    if (event.kind === "cache_hit") {
+      this.cacheCounters.hit += 1;
+      this.latestCacheEvent = { kind: "hit", summary: event.summary };
+    } else if (event.kind === "cache_miss") {
+      this.cacheCounters.miss += 1;
+      this.latestCacheEvent = { kind: "miss", summary: event.summary };
+    } else if (event.kind === "cache_advise") {
+      this.cacheCounters.advise += 1;
+      this.latestCacheEvent = { kind: "advise", summary: event.summary };
+    }
+
     const workState = deriveActionWorkState(event);
     if (!workState) {
       return;
@@ -105,6 +128,8 @@ export class PipelineStatusPanel {
     this.latestWorkState = null;
     this.latestWorkStateDetail = null;
     this.executionStartedAt = null;
+    this.cacheCounters = { hit: 0, miss: 0, advise: 0 };
+    this.latestCacheEvent = null;
   }
 
   render(ctx: RenderContext, region: PanelRegion): void {
@@ -170,6 +195,18 @@ export class PipelineStatusPanel {
         usableWidth,
         STATUS_STYLES[stageStatus.status],
       );
+      currentRow += 1;
+    }
+
+    // Cache summary line — only render when at least one cache event was seen.
+    if (currentRow < region.endRow && !isZeroCacheCounters(this.cacheCounters)) {
+      const c = this.cacheCounters;
+      const parts: string[] = [];
+      if (c.hit > 0) parts.push(`${glyph.cacheHit} ${c.hit} hit`);
+      if (c.miss > 0) parts.push(`${glyph.cacheMiss} ${c.miss} miss`);
+      if (c.advise > 0) parts.push(`${glyph.cacheAdvise} ${c.advise} advise`);
+      const summary = `캐시  ${parts.join("  ")}`;
+      writePaddedLine(ctx, currentRow, summary, usableWidth, statusColor.muted);
       currentRow += 1;
     }
 
