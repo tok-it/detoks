@@ -235,6 +235,7 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
     const pipelinePanel = new PipelineStatusPanel();
     const transcriptPanel = new TranscriptPanel();
     const resultPanel = new ResultSummaryPanel();
+    resultPanel.setVerbose(currentVerbose);
     let embeddedTerminalPane = new EmbeddedTerminalPane();
     const eventRouter = new TuiEventRouter({
       pipelinePanel,
@@ -1453,6 +1454,7 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
             cacheDisabled: currentCacheDisabled,
             onVerboseToggle: (enabled) => {
               currentVerbose = enabled;
+              resultPanel.setVerbose(enabled);
             },
             onCacheDisableToggle: (disabled) => {
               currentCacheDisabled = disabled;
