@@ -466,4 +466,40 @@ describe("TranscriptPanel", () => {
       expect(output).toContain("파이프라인이 완료되었습니다.");
     });
   });
+
+  describe("truncation markers", () => {
+    it("shows '↓ N줄 아래' marker when scrolled up away from the bottom", () => {
+      // Region holds 10 rows (startRow 11..endRow 21). Add 30 entries so >10 hidden.
+      for (let i = 0; i < 30; i += 1) {
+        panel.append(`line ${i}`);
+      }
+      // Scroll up 5 entries so 5 lines remain hidden below.
+      for (let i = 0; i < 5; i += 1) panel.scrollUp();
+      mockScreen.write.mockClear();
+      panel.render(mockContext, mockRegion);
+      const output = mockScreen.write.mock.calls.map((c: any) => c[0]).join("\n");
+      expect(output).toContain("↓ 5줄 아래");
+    });
+
+    it("shows '↑ N줄 위' marker when entries overflow above visible range", () => {
+      // Region holds 10 rows. Add 30 entries — viewport at bottom shows last 10,
+      // so 20 lines remain hidden above.
+      for (let i = 0; i < 30; i += 1) {
+        panel.append(`line ${i}`);
+      }
+      mockScreen.write.mockClear();
+      panel.render(mockContext, mockRegion);
+      const output = mockScreen.write.mock.calls.map((c: any) => c[0]).join("\n");
+      expect(output).toContain("↑ 20줄 위");
+    });
+
+    it("shows no markers when content fits entirely in the viewport", () => {
+      panel.append("only line");
+      mockScreen.write.mockClear();
+      panel.render(mockContext, mockRegion);
+      const output = mockScreen.write.mock.calls.map((c: any) => c[0]).join("\n");
+      expect(output).not.toContain("↑");
+      expect(output).not.toContain("↓");
+    });
+  });
 });

@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   fillRemaining,
+  formatHiddenAboveMarker,
+  formatHiddenBelowMarker,
   renderEmptyState,
   truncateByDisplayWidth,
   truncateByLength,
@@ -115,6 +117,26 @@ describe("panel base helpers", () => {
       const text = "한국어테스트"; // 12 display cells
       const result = truncateByDisplayWidth(text, 5);
       expect(result.endsWith("…")).toBe(true);
+    });
+  });
+
+  describe("hidden-line markers", () => {
+    it("formats above marker with count", () => {
+      expect(formatHiddenAboveMarker(5)).toBe("… ↑ 5줄 위");
+    });
+
+    it("formats below marker with count", () => {
+      expect(formatHiddenBelowMarker(12)).toBe("… ↓ 12줄 아래");
+    });
+
+    it("returns empty string when count is zero", () => {
+      expect(formatHiddenAboveMarker(0)).toBe("");
+      expect(formatHiddenBelowMarker(0)).toBe("");
+    });
+
+    it("returns empty string when count is negative", () => {
+      expect(formatHiddenAboveMarker(-3)).toBe("");
+      expect(formatHiddenBelowMarker(-1)).toBe("");
     });
   });
 });

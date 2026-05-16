@@ -52,6 +52,14 @@ describe("design tokens", () => {
         expect(typeof frame).toBe("string");
       }
     });
+
+    it("provides cache + RAG markers for upcoming P1 panels", () => {
+      expect(glyph.cacheHit).toBe("▣");
+      expect(glyph.cacheMiss).toBe("▢");
+      expect(glyph.cacheAdvise).toBe("⚠");
+      expect(glyph.ragInjected).toBe("ⓘ");
+      expect(glyph.ragSkipped).toBe("○");
+    });
   });
 
   describe("spacing & width", () => {

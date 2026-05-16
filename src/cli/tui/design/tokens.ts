@@ -53,6 +53,13 @@ export const glyph = {
   changeDelete: "-",
   changeRename: "→",
   changeUpdate: "~",
+  // Cache lifecycle markers — used by upcoming P1 cache live stream.
+  cacheHit: "▣",
+  cacheMiss: "▢",
+  cacheAdvise: "⚠",
+  // RAG markers — used by upcoming P1 RAG context summary in result panel.
+  ragInjected: "ⓘ",
+  ragSkipped: "○",
 } as const;
 
 export const spacing = {

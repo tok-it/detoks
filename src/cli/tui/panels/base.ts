@@ -100,3 +100,11 @@ export const truncateByDisplayWidth = (
   line: string,
   maxWidth: number,
 ): string => ellipsisRight(line, maxWidth, glyph.ellipsisOneChar);
+
+// Marker text for hidden lines above/below a scrolled viewport.
+// Returns empty string when count <= 0; callers should skip rendering in that case.
+export const formatHiddenAboveMarker = (count: number): string =>
+  count > 0 ? `${glyph.ellipsisOneChar} ↑ ${count}줄 위` : "";
+
+export const formatHiddenBelowMarker = (count: number): string =>
+  count > 0 ? `${glyph.ellipsisOneChar} ↓ ${count}줄 아래` : "";

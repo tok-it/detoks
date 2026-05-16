@@ -4,13 +4,19 @@ import type { PtyEvent } from "../../../integrations/subprocess/types.js";
 import type { ActionTimelineEvent } from "../../../core/timeline/types.js";
 import { getContentArea, getPanelHeight } from "../layout-manager.js";
 import { padDisplayWidth } from "../renderer.js";
-import { fillRemaining, truncateByLength } from "./base.js";
+import {
+  fillRemaining,
+  formatHiddenAboveMarker,
+  formatHiddenBelowMarker,
+  truncateByLength,
+} from "./base.js";
 import { statusColor } from "../design/tokens.js";
 
 const EMPTY_TRANSCRIPT_LINES = [
   "실행 기록이 아직 없습니다.",
   "명령을 실행하면 원본 CLI 출력이 이 영역에 표시됩니다.",
-  "↑/↓ 로 이전 출력 스크롤",
+  "",
+  "↑/↓ 이전 출력 스크롤  ·  PageUp/Down 빠른 이동  ·  /help 로 명령 보기",
 ] as const;
 
 const CODEX_LIFECYCLE_TYPES = new Set([
@@ -52,7 +58,7 @@ const sanitizeText = (value: string): string => stripControlSequences(value).rep
 
 const truncateLine = truncateByLength;
 
-type TranscriptEntryKind = "tool" | "validation" | "git" | "edit" | "final" | "diagnostic" | "recap" | "raw";
+type TranscriptEntryKind = "tool" | "validation" | "git" | "edit" | "final" | "diagnostic" | "recap" | "raw" | "marker";
 
 interface TranscriptEntry {
   kind: TranscriptEntryKind;
@@ -701,7 +707,25 @@ export class TranscriptPanel {
     );
     const endIdx = sourceEntries.length - effectiveScrollOffset;
     const startIdx = Math.max(0, endIdx - usableHeight);
-    const visibleEntries = sourceEntries.slice(startIdx, endIdx);
+    let visibleEntries = sourceEntries.slice(startIdx, endIdx);
+
+    // Truncation markers — only when content overflows (not in empty state).
+    if (!isEmptyState) {
+      const hiddenAbove = startIdx;
+      const hiddenBelow = sourceEntries.length - endIdx;
+      if (hiddenAbove > 0 && visibleEntries.length > 1) {
+        visibleEntries = [
+          { kind: "marker" as const, text: formatHiddenAboveMarker(hiddenAbove) },
+          ...visibleEntries.slice(1),
+        ];
+      }
+      if (hiddenBelow > 0 && visibleEntries.length > 1) {
+        visibleEntries = [
+          ...visibleEntries.slice(0, -1),
+          { kind: "marker" as const, text: formatHiddenBelowMarker(hiddenBelow) },
+        ];
+      }
+    }
 
     let currentRow = region.startRow;
     for (const entry of visibleEntries) {
@@ -717,11 +741,13 @@ export class TranscriptPanel {
       const paddedLine = padDisplayWidth(line, usableWidth);
       const displayLine = isEmptyState
         ? statusColor.muted(paddedLine)
-        : entry.kind === "diagnostic"
-          ? statusColor.error(paddedLine)
-          : entry.kind === "recap"
-            ? statusColor.info(paddedLine)
-            : paddedLine;
+        : entry.kind === "marker"
+          ? statusColor.muted(paddedLine)
+          : entry.kind === "diagnostic"
+            ? statusColor.error(paddedLine)
+            : entry.kind === "recap"
+              ? statusColor.info(paddedLine)
+              : paddedLine;
 
       screen.cursorMoveTo(currentRow, 0);
       screen.write(displayLine);

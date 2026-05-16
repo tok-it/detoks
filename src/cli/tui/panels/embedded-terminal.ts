@@ -14,6 +14,8 @@ const EMBEDDED_PANE_SCROLLBACK_LIMIT = 500;
 const EMPTY_PANE_LINES = [
   "원본 CLI 출력이 이 영역에 표시됩니다.",
   "PTY 이벤트가 들어오면 버퍼를 이 패널에 렌더링합니다.",
+  "",
+  "Ctrl+T 어댑터 터미널 포커스 전환  ·  Esc / Ctrl+G detoks 입력으로 복귀",
 ] as const;
 
 const truncateToWidth = (line: string, maxWidth: number): string => {
