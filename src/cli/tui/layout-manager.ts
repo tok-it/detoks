@@ -139,8 +139,11 @@ export const computeLayoutRegions = (
   return result;
 };
 
-export const computeLayout = (dims: ScreenDimensions): LayoutConfig => {
-  const regions = computeLayoutRegions(dims);
+export const computeLayout = (
+  dims: ScreenDimensions,
+  schema: readonly PanelDef[] = DEFAULT_LAYOUT_SCHEMA,
+): LayoutConfig => {
+  const regions = computeLayoutRegions(dims, schema);
   return {
     rows: dims.rows,
     columns: dims.columns,

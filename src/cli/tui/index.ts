@@ -54,6 +54,16 @@ import {
   setInput,
 } from "./input-cursor.js";
 import {
+  computeShiftedOverrides,
+  getEffectiveWeights,
+  isEmptyOverrides,
+  loadLayoutOverrides,
+  parseLayoutCommand,
+  resolveLayoutOverridesPath,
+  saveLayoutOverrides,
+  type RuntimeLayoutOverrides,
+} from "./runtime-layout.js";
+import {
   createEmbeddedTerminalFocusManager,
   isEmbeddedTerminalInterruptKey,
   isEmbeddedTerminalNativeFocusToggleKey,
@@ -267,6 +277,15 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
     void loadHistoryFromDisk(historyPath)
       .then((entries) => inputHistory.load(entries))
       .catch(() => undefined);
+
+    // P3-1: Runtime layout overrides — load applied below after render() is defined.
+    let layoutOverrides: RuntimeLayoutOverrides = {};
+    const layoutOverridesPath = resolveLayoutOverridesPath(executionCwd);
+    const getTranscriptRatio = (): number => {
+      const { transcriptWeight, resultWeight } = getEffectiveWeights(layoutOverrides);
+      const total = transcriptWeight + resultWeight;
+      return total > 0 ? transcriptWeight / total : 0.7;
+    };
     let embeddedTerminalPane = new EmbeddedTerminalPane();
     const eventRouter = new TuiEventRouter({
       pipelinePanel,
@@ -887,7 +906,7 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
       const availableContentRows = Math.max(0, inputLayout.separatorRow - contentRegionStart);
       const transcriptRows =
         availableContentRows > 0
-          ? Math.max(1, Math.floor(availableContentRows * 0.7))
+          ? Math.max(1, Math.floor(availableContentRows * getTranscriptRatio()))
           : 0;
       const transcriptRegionEnd = Math.min(
         inputLayout.separatorRow,
@@ -940,7 +959,7 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
         };
         const transcriptPtyRows = Math.max(
           1,
-          Math.ceil(Math.max(0, availableContentRows - stickyRows) * 0.7),
+          Math.ceil(Math.max(0, availableContentRows - stickyRows) * getTranscriptRatio()),
         );
         embeddedTerminalPane.resize(transcriptRegion.columns, transcriptPtyRows);
         if (embeddedNativeCliSession !== null) {
@@ -1196,6 +1215,21 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
               handled = true;
               continue;
             }
+          }
+
+          // P3-1: Alt+↑/↓ (xterm SGR \x1b[1;3A / \x1b[1;3B) shifts transcript
+          // weight ±1. Detect BEFORE the 3-char arrow dispatch since these
+          // are 6-char sequences.
+          if (text.startsWith("\x1b[1;3A", i) || text.startsWith("\x1b[1;3B", i)) {
+            const delta = text.charAt(i + 5) === "A" ? 1 : -1;
+            layoutOverrides = computeShiftedOverrides(layoutOverrides, delta);
+            void saveLayoutOverrides(layoutOverridesPath, layoutOverrides).catch(
+              () => undefined,
+            );
+            needsFullRender = true;
+            i += 6;
+            handled = true;
+            continue;
           }
 
           const sequence = text.substring(i, i + 3);
@@ -1559,6 +1593,37 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
             onExit: async () => {
               running = false;
             },
+            onLayoutCommand: (args) => {
+              const action = parseLayoutCommand(args);
+              if (action.kind === "show") {
+                const w = getEffectiveWeights(layoutOverrides);
+                return `현재 transcript=${w.transcriptWeight}  result=${w.resultWeight} (기본값 7/3, 사용법: /layout reset | transcript=N result=N | + | -)`;
+              }
+              if (action.kind === "unknown") {
+                return `알 수 없는 인자: ${action.arg}. 사용법: /layout reset | transcript=N result=N | + | -`;
+              }
+              if (action.kind === "reset") {
+                layoutOverrides = {};
+              } else if (action.kind === "shift") {
+                layoutOverrides = computeShiftedOverrides(layoutOverrides, action.transcriptDelta);
+              } else {
+                layoutOverrides = {
+                  ...layoutOverrides,
+                  ...(action.transcriptWeight !== undefined
+                    ? { transcriptWeight: action.transcriptWeight }
+                    : {}),
+                  ...(action.resultWeight !== undefined
+                    ? { resultWeight: action.resultWeight }
+                    : {}),
+                };
+              }
+              void saveLayoutOverrides(layoutOverridesPath, layoutOverrides).catch(
+                () => undefined,
+              );
+              forceFullRender = true;
+              const w = getEffectiveWeights(layoutOverrides);
+              return `레이아웃 조정: transcript=${w.transcriptWeight} result=${w.resultWeight}`;
+            },
           });
 
           refreshRuntimeState();
@@ -1782,6 +1847,18 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
         isExecuting = false;
       }
     };
+
+    // P3-1: kick off layout overrides load (non-fatal) — once it resolves,
+    // future renders pick up the new ratio.
+    void loadLayoutOverrides(layoutOverridesPath)
+      .then((loaded) => {
+        if (!isEmptyOverrides(loaded)) {
+          layoutOverrides = loaded;
+          forceFullRender = true;
+          render();
+        }
+      })
+      .catch(() => undefined);
 
     stdin.on("data", onData);
     stdin.on("end", () => {
