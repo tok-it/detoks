@@ -19,6 +19,9 @@ Current rental status:
 - `Designing Friendly Systems` is currently rented by `Taylor` until `2026-05-20` and is still within the due date.
 - `Clean Code Basics` is available.
 
+Summary:
+- 2 books are currently rented out: one overdue rental and one active rental that is still within the due date.
+
 Useful questions for demos:
 - Where is the overdue fee calculated?
 - Where are overdue reminder messages created?
