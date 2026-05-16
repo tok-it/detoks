@@ -35,6 +35,71 @@ describe("clean_translation", () => {
 
     expect(cleaned).toBe("Create a file");
   });
+
+  it("'Okay, I'll translate...' 메타 프리앰블 단락을 제거한다", () => {
+    const raw = [
+      "Okay, I'll translate the user's query into English while strictly adhering to the critical rules provided.",
+      "",
+      "When using fetch.max.wait.ms in a Kafka consumer, the latency increases.",
+    ].join("\n");
+
+    const cleaned = clean_translation("음, Kafka consumer에서...", raw);
+
+    expect(cleaned).toBe(
+      "When using fetch.max.wait.ms in a Kafka consumer, the latency increases.",
+    );
+  });
+
+  it("'The user wants to know...' 메타 단락을 제거한다", () => {
+    const raw = [
+      "The user wants to know how the fetch.max.wait.ms configuration affects latency.",
+      "",
+      "Configure fetch.max.wait.ms to balance throughput and latency.",
+    ].join("\n");
+
+    const cleaned = clean_translation("Kafka 설정...", raw);
+
+    expect(cleaned).toBe(
+      "Configure fetch.max.wait.ms to balance throughput and latency.",
+    );
+  });
+
+  it("'Here's the translation:' 단일 라벨을 제거한다", () => {
+    const cleaned = clean_translation(
+      "안녕",
+      "Here's the translation:\n\nHello world",
+    );
+
+    expect(cleaned).toBe("Hello world");
+  });
+
+  it("연속된 메타 단락을 모두 제거한다", () => {
+    const raw = [
+      "Sure, I will translate this carefully.",
+      "",
+      "Here's the English translation:",
+      "",
+      "Deploy the service.",
+    ].join("\n");
+
+    const cleaned = clean_translation("서비스를 배포해", raw);
+
+    expect(cleaned).toBe("Deploy the service.");
+  });
+
+  it("strip 결과가 비거나 한국어가 남으면 원본을 유지한다", () => {
+    const onlyPreamble = "Okay, I will translate.";
+    expect(clean_translation("안녕", onlyPreamble)).toBe(onlyPreamble);
+
+    const koreanRemaining =
+      "Okay, here is the translation:\n\n번역하지 못함";
+    expect(clean_translation("안녕", koreanRemaining)).toBe(koreanRemaining);
+  });
+
+  it("메타가 아닌 일반 영어 출력은 그대로 둔다", () => {
+    const raw = "Create a new file named app.ts.";
+    expect(clean_translation("app.ts 파일 만들어", raw)).toBe(raw);
+  });
 });
 
 describe("translate_to_english", () => {
