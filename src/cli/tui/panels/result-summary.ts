@@ -133,6 +133,7 @@ export class ResultSummaryPanel {
   private result: PipelineExecutionResult | null = null;
   private executing = false;
   private verbose = false;
+  private savedTranscriptPath: string | null = null;
 
   setResult(result: PipelineExecutionResult): void {
     this.result = result;
@@ -147,9 +148,14 @@ export class ResultSummaryPanel {
     this.verbose = verbose;
   }
 
+  setSavedTranscriptPath(path: string | null): void {
+    this.savedTranscriptPath = path;
+  }
+
   clear(): void {
     this.result = null;
     this.executing = false;
+    this.savedTranscriptPath = null;
   }
 
   private formatTokenReduction(tokens: TokenReductionSnapshot): string {
@@ -250,6 +256,15 @@ export class ResultSummaryPanel {
       for (const text of formatCostAccountingLines(this.result.costAccounting)) {
         lines.push({ text, style: statusColor.muted });
       }
+    }
+
+    // P3-4: Saved transcript path (only when DETOKS_SAVE_TRANSCRIPTS=1 produced one).
+    if (this.savedTranscriptPath) {
+      lines.push({ text: "" });
+      lines.push({
+        text: `전사 저장: ${this.savedTranscriptPath}`,
+        style: statusColor.muted,
+      });
     }
 
     return lines;
