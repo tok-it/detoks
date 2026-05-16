@@ -508,6 +508,17 @@ async function translate_span(
 		);
 	}
 
+	const isFallbackPass = promptType === "fallback" || promptType === "final_retry";
+	const passTemperature = isFallbackPass
+		? Math.max(0.3, options.config.temperature)
+		: options.config.temperature;
+	const passMaxTokens = isFallbackPass
+		? Math.min(
+			estimateTranslationMaxTokens(span.text, options.config),
+			Math.max(96, Math.ceil(span.text.length * 2.5)),
+		)
+		: estimateTranslationMaxTokens(span.text, options.config);
+
 	return complete_chat(
 		{
 			messages: [
@@ -520,8 +531,8 @@ async function translate_span(
 					content: `${TRANSLATION_USER_PROMPT_PREFIX}${span.text}`,
 				},
 			],
-			temperature: options.config.temperature,
-			max_tokens: estimateTranslationMaxTokens(span.text, options.config),
+			temperature: passTemperature,
+			max_tokens: passMaxTokens,
 			timeout_ms: options.config.requestTimeout,
 		},
 		{
