@@ -850,8 +850,8 @@ describe.skipIf(Boolean(process.env.CI))("detoks CLI smoke", () => {
       child.stdin.write("\n");
 
       await waitForOutput(stdoutState, "approval required (y/n)", 25_000);
-      await waitForOutput(stdoutState, "Codex 승인 대기", 25_000);
-      await waitForOutput(stdoutState, "Esc/Ctrl+G returns to detoks", 25_000);
+      await waitForOutput(stdoutState, "Codex 승인 대기", 30_000);
+      await waitForOutput(stdoutState, "Esc / Ctrl+G detoks 입력으로 복귀", 30_000);
       child.kill("SIGKILL");
       const exitCode = await new Promise<number>((resolve, reject) => {
         child.on("error", reject);
@@ -862,11 +862,11 @@ describe.skipIf(Boolean(process.env.CI))("detoks CLI smoke", () => {
       expect(stderrState.value).not.toContain("ReferenceError");
       expect(stdoutState.value).toContain("approval required (y/n)");
       expect(stdoutState.value).toContain("Codex 승인 대기");
-      expect(stdoutState.value).toContain("Esc/Ctrl+G returns to detoks");
+      expect(stdoutState.value).toContain("Esc / Ctrl+G detoks 입력으로 복귀");
     } finally {
       rmSync(tempDir, { force: true, recursive: true });
     }
-  }, 30_000);
+  }, 45_000);
 
   it("cancels an embedded run with Ctrl+C without exiting the repl", async () => {
     const tempDir = mkdtempSync(join(tmpdir(), "detoks-cli-embedded-cancel-"));

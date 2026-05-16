@@ -634,11 +634,24 @@ export interface EmbeddedTerminalViewportTrackingInfo {
 export class EmbeddedTerminalPane {
   private readonly buffer = new TerminalEmulatorBuffer(80, 24, EMBEDDED_PANE_SCROLLBACK_LIMIT);
   private scrollOffset = 0;
-  // Cached total renderable line count (after compact summaries are applied) —
-  // updated on every write to avoid rebuilding the combined array on every scrollUp() keypress.
+  // Cached total renderable line count (after compact summaries are applied).
+  // Mark dirty on writes and rebuild lazily during render/scroll queries so
+  // high-frequency PTY chunks do not repeatedly compact the whole scrollback.
   private cachedTotalRows = 0;
   private currentColumns = 80;
   private currentRows = 24;
+  private renderCacheDirty = true;
+  private renderCache:
+    | {
+        width: number;
+        rows: RenderedRowInfo[];
+        cursorColumn: number;
+        cursorVisible: boolean;
+        cursorGlobalRow: number;
+        compactLines: EmbeddedTerminalRenderableLine[];
+      }
+    | null = null;
+  private renderCacheRebuildCount = 0;
 
   clear(): void {
     this.buffer.reset();
@@ -646,6 +659,8 @@ export class EmbeddedTerminalPane {
     this.cachedTotalRows = 0;
     this.currentColumns = 80;
     this.currentRows = 24;
+    this.renderCacheDirty = true;
+    this.renderCache = null;
   }
 
   resize(columns: number, rows: number): void {
@@ -659,10 +674,11 @@ export class EmbeddedTerminalPane {
     this.currentColumns = nextColumns;
     this.currentRows = nextRows;
     this.buffer.resize(nextColumns, nextRows);
-    this.updateCachedTotalRows();
+    this.markRenderCacheDirty();
   }
 
   scrollUp(): void {
+    this.ensureCachedTotalRows();
     this.scrollOffset = Math.min(this.scrollOffset + 1, Math.max(0, this.cachedTotalRows - 1));
   }
 
@@ -675,6 +691,7 @@ export class EmbeddedTerminalPane {
   }
 
   scrollBy(deltaRows: number): void {
+    this.ensureCachedTotalRows();
     if (deltaRows < 0) {
       this.scrollOffset = Math.min(this.scrollOffset + Math.abs(deltaRows), Math.max(0, this.cachedTotalRows - 1));
       return;
@@ -684,12 +701,12 @@ export class EmbeddedTerminalPane {
   }
 
   scrollToTop(maxWidth: number, viewportHeight: number): void {
-    const totalLines = this.getRenderableLines(Math.max(1, maxWidth)).length;
+    const totalLines = this.getTotalRenderableLineCount(Math.max(1, maxWidth));
     this.scrollOffset = Math.max(0, totalLines - Math.max(0, viewportHeight));
   }
 
   getViewportTrackingInfo(maxWidth: number, viewportHeight: number): EmbeddedTerminalViewportTrackingInfo {
-    const totalLines = this.getRenderableLines(Math.max(1, maxWidth)).length;
+    const totalLines = this.getTotalRenderableLineCount(Math.max(1, maxWidth));
     const maxTopRow = Math.max(0, totalLines - Math.max(0, viewportHeight));
     const distanceFromBottom = Math.min(this.scrollOffset, maxTopRow);
 
@@ -700,8 +717,28 @@ export class EmbeddedTerminalPane {
     };
   }
 
-  private updateCachedTotalRows(): void {
-    this.cachedTotalRows = this.getRenderableLines(this.currentColumns).length;
+  private markRenderCacheDirty(): void {
+    this.renderCacheDirty = true;
+    this.renderCache = null;
+  }
+
+  private ensureCachedTotalRows(): void {
+    this.cachedTotalRows = this.getTotalRenderableLineCount(this.currentColumns);
+  }
+
+  private getTotalRenderableLineCount(maxWidth: number): number {
+    if (maxWidth <= 0) {
+      return 0;
+    }
+
+    if (!this.buffer.hasContent()) {
+      this.cachedTotalRows = EMPTY_PANE_LINES.length;
+      return this.cachedTotalRows;
+    }
+
+    const cache = this.ensureRenderCache(maxWidth);
+    this.cachedTotalRows = cache.compactLines.length;
+    return this.cachedTotalRows;
   }
 
   addEvent(event: PtyEvent): void {
@@ -717,7 +754,7 @@ export class EmbeddedTerminalPane {
     }
 
     this.buffer.write(event.data);
-    this.updateCachedTotalRows();
+    this.markRenderCacheDirty();
     this.scrollOffset = 0;
   }
 
@@ -727,7 +764,7 @@ export class EmbeddedTerminalPane {
     }
 
     this.buffer.write(text.endsWith("\n") ? text : `${text}\n`);
-    this.updateCachedTotalRows();
+    this.markRenderCacheDirty();
     this.scrollOffset = 0;
   }
 
@@ -740,7 +777,7 @@ export class EmbeddedTerminalPane {
       return null;
     }
 
-    const { rows } = this.getRenderedRows(Math.max(1, maxWidth));
+    const { rows } = this.ensureRenderCache(Math.max(1, maxWidth));
     for (let index = rows.length - 1; index >= 0; index -= 1) {
       const row = rows[index];
       if (row === undefined) {
@@ -790,7 +827,7 @@ export class EmbeddedTerminalPane {
       return null;
     }
 
-    const { rows } = this.getRenderedRows(Math.max(1, maxWidth));
+    const { rows } = this.ensureRenderCache(Math.max(1, maxWidth));
     for (let index = rows.length - 1; index >= 0; index -= 1) {
       const row = rows[index];
       if (row === undefined || row.plainText.length === 0) {
@@ -849,6 +886,52 @@ export class EmbeddedTerminalPane {
     };
   }
 
+  private ensureRenderCache(maxWidth: number): NonNullable<EmbeddedTerminalPane["renderCache"]> {
+    const width = Math.max(1, maxWidth);
+    if (
+      this.renderCache !== null &&
+      !this.renderCacheDirty &&
+      this.renderCache.width === width
+    ) {
+      return this.renderCache;
+    }
+
+    const {
+      rows: renderedRows,
+      cursorColumn,
+      cursorVisible,
+      cursorGlobalRow,
+    } = this.getRenderedRows(width);
+
+    const compactLines = buildCompactRenderableLines(
+      renderedRows,
+      width,
+      cursorColumn,
+      cursorVisible,
+      cursorGlobalRow,
+    );
+
+    this.renderCache = {
+      width,
+      rows: renderedRows,
+      cursorColumn,
+      cursorVisible,
+      cursorGlobalRow,
+      compactLines,
+    };
+    this.renderCacheDirty = false;
+    this.cachedTotalRows = compactLines.length;
+    this.renderCacheRebuildCount += 1;
+    return this.renderCache;
+  }
+
+  getDebugStats(): { renderCacheRebuildCount: number; cachedTotalRows: number } {
+    return {
+      renderCacheRebuildCount: this.renderCacheRebuildCount,
+      cachedTotalRows: this.cachedTotalRows,
+    };
+  }
+
   getRenderableLines(maxWidth: number, maxRows?: number, scrollOffset = 0): EmbeddedTerminalRenderableLine[] {
     if (maxWidth <= 0) {
       return [];
@@ -860,20 +943,7 @@ export class EmbeddedTerminalPane {
       }));
     }
 
-    const {
-      rows: renderedRows,
-      cursorColumn,
-      cursorVisible,
-      cursorGlobalRow,
-    } = this.getRenderedRows(maxWidth);
-
-    const compactLines = buildCompactRenderableLines(
-      renderedRows,
-      maxWidth,
-      cursorColumn,
-      cursorVisible,
-      cursorGlobalRow,
-    );
+    const { compactLines } = this.ensureRenderCache(maxWidth);
 
     const endIndex = Math.max(0, compactLines.length - Math.max(0, scrollOffset));
     const startIndex = Math.max(0, maxRows === undefined ? 0 : endIndex - Math.max(0, maxRows));

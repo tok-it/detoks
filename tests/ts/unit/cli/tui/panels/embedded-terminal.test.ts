@@ -276,6 +276,23 @@ describe("EmbeddedTerminalPane", () => {
     expect(output).toContain("line");
   });
 
+  it("rebuilds compact render lines lazily and reuses them for the same width", () => {
+    pane.addEvent({ type: "chunk", timestamp: Date.now(), stream: "stdout", data: "line1\n" });
+    pane.addEvent({ type: "chunk", timestamp: Date.now(), stream: "stdout", data: "line2\n" });
+
+    expect(pane.getDebugStats().renderCacheRebuildCount).toBe(0);
+
+    expect(pane.getRenderableLines(80).length).toBeGreaterThan(0);
+    expect(pane.getDebugStats().renderCacheRebuildCount).toBe(1);
+
+    pane.getRenderableLines(80);
+    pane.getViewportTrackingInfo(80, 10);
+    expect(pane.getDebugStats().renderCacheRebuildCount).toBe(1);
+
+    pane.getRenderableLines(100);
+    expect(pane.getDebugStats().renderCacheRebuildCount).toBe(2);
+  });
+
   it("scrollUp clamps at total row count and does not crash on empty buffer", () => {
     // Scrolling on empty pane must not throw
     expect(() => {
