@@ -38,6 +38,12 @@ import {
   saveTranscript,
 } from "./transcript-export.js";
 import {
+  InputHistory,
+  loadHistoryFromDisk,
+  resolveHistoryPath,
+  saveHistoryToDisk,
+} from "./input-history.js";
+import {
   createEmbeddedTerminalFocusManager,
   isEmbeddedTerminalInterruptKey,
   isEmbeddedTerminalNativeFocusToggleKey,
@@ -242,6 +248,13 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
     const transcriptPanel = new TranscriptPanel();
     const resultPanel = new ResultSummaryPanel();
     resultPanel.setVerbose(currentVerbose);
+
+    // P3-3: Input history — load existing on init, persist on each submit.
+    const inputHistory = new InputHistory();
+    const historyPath = resolveHistoryPath(executionCwd);
+    void loadHistoryFromDisk(historyPath)
+      .then((entries) => inputHistory.load(entries))
+      .catch(() => undefined);
     let embeddedTerminalPane = new EmbeddedTerminalPane();
     const eventRouter = new TuiEventRouter({
       pipelinePanel,
@@ -1177,12 +1190,14 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
                 getSlashAutocompleteCommands(currentAdapter, slashAutocompleteQuery).length,
               );
               renderInteractiveInput();
-            } else if (embeddedPaneMode) {
-              scrollEmbeddedViewportBy(-1);
-              needsFullRender = true;
             } else {
-              transcriptPanel.scrollUp();
-              needsFullRender = true;
+              // P3-3: ↑ recalls older history entry (replaces scroll-by-1).
+              // PageUp still scrolls the viewport.
+              const recalled = inputHistory.recallOlder(input);
+              if (recalled !== null) {
+                input = recalled;
+                renderInteractiveInput();
+              }
             }
             i += 3;
             handled = true;
@@ -1195,12 +1210,13 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
                 getSlashAutocompleteCommands(currentAdapter, slashAutocompleteQuery).length,
               );
               renderInteractiveInput();
-            } else if (embeddedPaneMode) {
-              scrollEmbeddedViewportBy(1);
-              needsFullRender = true;
             } else {
-              transcriptPanel.scrollDown();
-              needsFullRender = true;
+              // P3-3: ↓ recalls newer history (or exits recall and restores draft).
+              const recalled = inputHistory.recallNewer();
+              if (recalled !== null) {
+                input = recalled;
+                renderInteractiveInput();
+              }
             }
             i += 3;
             handled = true;
@@ -1367,6 +1383,11 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
               } else {
                 executePrompt(resolvedPrompt);
               }
+              // P3-3: capture in history + persist async (non-fatal on failure).
+              inputHistory.push(normalizedPrompt);
+              void saveHistoryToDisk(historyPath, inputHistory.toArray()).catch(
+                () => undefined,
+              );
               input = ""; // Clear input for next prompt
               slashAutocompleteSelectedIndex = 0;
             }
@@ -1386,6 +1407,7 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
               charArray.pop();
               input = charArray.join("");
             }
+            inputHistory.resetRecall();
             slashAutocompleteSelectedIndex = 0;
             const nextInputLayout = measureInputLayout(screen.getDimensions(), input);
             const isSlashAutocompleteActive = getSlashAutocompleteQuery(input) !== null;
@@ -1407,6 +1429,7 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
             // would erase already-entered Hangul syllables.
             const wasSlashAutocompleteActive = getSlashAutocompleteQuery(input) !== null;
             input += char;
+            inputHistory.resetRecall();
             slashAutocompleteSelectedIndex = 0;
             const nextInputLayout = measureInputLayout(screen.getDimensions(), input);
             const isSlashAutocompleteActive = getSlashAutocompleteQuery(input) !== null;
