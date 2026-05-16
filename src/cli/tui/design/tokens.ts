@@ -7,27 +7,122 @@ const identity: Style = (text) => text;
 
 const supportsTruecolor = (): boolean => chalk.level >= 2;
 
-const statusOrange: Style = supportsTruecolor()
+// ── Theme palettes ────────────────────────────────────────────────────────
+
+export interface ThemePalette {
+  success: Style;
+  pipelineDone: Style;
+  warn: Style;
+  error: Style;
+  info: Style;
+  muted: Style;
+  accent: Style;
+  pending: Style;
+  active: Style;
+  title: Style;
+  header: Style;
+  strong: Style;
+  footer: Style;
+  plain: Style;
+}
+
+const darkActive: Style = supportsTruecolor()
   ? colors.statusOrange
   : (text) => chalk.yellow(text);
 
-export const statusColor = {
-  // Green — universal success / checkmark / selected highlight
-  success: colors.success,
-  // Blue — "ALL BLUE" pipeline stage-done convention
-  pipelineDone: colors.statusBlue,
-  warn: colors.warning,
-  error: colors.statusRed,
-  info: colors.info,
-  muted: colors.muted,
-  accent: colors.prompt,
-  pending: statusOrange,
-  active: statusOrange,
-  title: colors.title,
-  header: colors.header,
-  strong: colors.boldText,
-  footer: colors.footer,
+const darkPalette: ThemePalette = {
+  success: colors.success,         // green
+  pipelineDone: colors.statusBlue, // blue ("ALL BLUE" convention)
+  warn: colors.warning,            // yellow
+  error: colors.statusRed,         // red
+  info: colors.info,               // gray
+  muted: colors.muted,             // dim
+  accent: colors.prompt,           // cyan
+  pending: darkActive,
+  active: darkActive,
+  title: colors.title,             // bold cyan
+  header: colors.header,           // bold blue
+  strong: colors.boldText,         // bold
+  footer: colors.footer,           // gray
   plain: identity,
+};
+
+// Light terminals lose information from chalk.gray — swap muted/footer to dim.
+const lightPalette: ThemePalette = {
+  ...darkPalette,
+  info: (text) => chalk.dim(text),
+  muted: (text) => chalk.dim(text),
+  footer: (text) => chalk.dim(text),
+  active: (text) => chalk.yellow(text),
+  pending: (text) => chalk.yellow(text),
+};
+
+// Deuteranopia/protanopia-friendly: avoid the red/green pair entirely.
+// Uses blue + cyan + yellow + magenta (well-separated across common deficiencies).
+const colorblindPalette: ThemePalette = {
+  success: (text) => chalk.cyan(text),
+  pipelineDone: (text) => chalk.blueBright(text),
+  warn: (text) => chalk.yellow(text),
+  error: (text) => chalk.magenta(text),
+  info: (text) => chalk.gray(text),
+  muted: (text) => chalk.dim(text),
+  accent: (text) => chalk.white(text),
+  pending: (text) => chalk.yellow(text),
+  active: (text) => chalk.yellow(text),
+  title: (text) => chalk.bold.white(text),
+  header: (text) => chalk.bold.cyan(text),
+  strong: (text) => chalk.bold(text),
+  footer: (text) => chalk.gray(text),
+  plain: identity,
+};
+
+export type ThemeName = "dark" | "light" | "colorblind";
+
+export const isThemeName = (value: string): value is ThemeName =>
+  value === "dark" || value === "light" || value === "colorblind";
+
+export const themes: Record<ThemeName, ThemePalette> = {
+  dark: darkPalette,
+  light: lightPalette,
+  colorblind: colorblindPalette,
+};
+
+export const resolveActiveTheme = (): ThemePalette => {
+  const envName = process.env.DETOKS_THEME?.trim().toLowerCase();
+  if (envName && isThemeName(envName)) {
+    return themes[envName];
+  }
+  return themes.dark;
+};
+
+// Mutable reference so applyTheme() can switch palettes at runtime.
+let activeTheme: ThemePalette = resolveActiveTheme();
+
+export const applyTheme = (theme: ThemePalette): void => {
+  activeTheme = theme;
+};
+
+export const getActiveTheme = (): ThemePalette => activeTheme;
+
+// ── Public token surfaces ────────────────────────────────────────────────
+
+// statusColor stays a const but each entry resolves through the live theme,
+// so applyTheme() at runtime affects all subsequent calls without re-importing.
+export const statusColor = {
+  success: (text: string) => activeTheme.success(text),
+  pipelineDone: (text: string) => activeTheme.pipelineDone(text),
+  warn: (text: string) => activeTheme.warn(text),
+  error: (text: string) => activeTheme.error(text),
+  info: (text: string) => activeTheme.info(text),
+  muted: (text: string) => activeTheme.muted(text),
+  accent: (text: string) => activeTheme.accent(text),
+  pending: (text: string) => activeTheme.pending(text),
+  active: (text: string) => activeTheme.active(text),
+  title: (text: string) => activeTheme.title(text),
+  header: (text: string) => activeTheme.header(text),
+  strong: (text: string) => activeTheme.strong(text),
+  footer: (text: string) => activeTheme.footer(text),
+  plain: (text: string) => activeTheme.plain(text),
 } as const;
 
 export type StatusColorKey = keyof typeof statusColor;
@@ -53,11 +148,9 @@ export const glyph = {
   changeDelete: "-",
   changeRename: "→",
   changeUpdate: "~",
-  // Cache lifecycle markers — used by upcoming P1 cache live stream.
   cacheHit: "▣",
   cacheMiss: "▢",
   cacheAdvise: "⚠",
-  // RAG markers — used by upcoming P1 RAG context summary in result panel.
   ragInjected: "ⓘ",
   ragSkipped: "○",
 } as const;
