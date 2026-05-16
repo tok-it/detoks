@@ -1,5 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { computeLayout, getPanelHeight, getContentArea } from "../../../../../src/cli/tui/layout-manager.js";
+import {
+  DEFAULT_LAYOUT_SCHEMA,
+  computeLayout,
+  computeLayoutRegions,
+  getContentArea,
+  getPanelHeight,
+  type PanelDef,
+} from "../../../../../src/cli/tui/layout-manager.js";
 
 describe("layout-manager", () => {
   describe("computeLayout", () => {
@@ -95,6 +102,88 @@ describe("layout-manager", () => {
       const region = { startRow: 5, endRow: 5, columns: 80 };
       expect(getPanelHeight(region)).toBe(0);
     });
+  });
+
+  describe("declarative schema", () => {
+    it("exposes the default schema with 5 named panels in the expected order", () => {
+      const ids = DEFAULT_LAYOUT_SCHEMA.map((p) => p.id);
+      expect(ids).toEqual(["header", "status", "transcript", "result", "input"]);
+    });
+
+    it("computeLayoutRegions returns a region for every schema panel", () => {
+      const regions = computeLayoutRegions({ rows: 30, columns: 100 });
+      for (const panel of DEFAULT_LAYOUT_SCHEMA) {
+        expect(regions.has(panel.id)).toBe(true);
+      }
+    });
+
+    it("flex panels tile exactly between top-fixed and bottom-fixed regions", () => {
+      const regions = computeLayoutRegions({ rows: 30, columns: 100 });
+      const transcript = regions.get("transcript")!;
+      const result = regions.get("result")!;
+      const status = regions.get("status")!;
+      const input = regions.get("input")!;
+      expect(transcript.startRow).toBe(status.endRow);
+      expect(transcript.endRow).toBe(result.startRow);
+      expect(result.endRow).toBe(input.startRow);
+    });
+
+    it("supports a custom schema with a different flex split", () => {
+      const schema: PanelDef[] = [
+        { id: "top", mode: "fixed", rows: 2 },
+        { id: "main", mode: "flex", weight: 1, minRows: 0 },
+        { id: "bottom", mode: "fixed", rows: 1 },
+      ];
+      const regions = computeLayoutRegions({ rows: 10, columns: 40 }, schema);
+      expect(regions.get("top")).toEqual({ startRow: 0, endRow: 2, columns: 40 });
+      expect(regions.get("main")).toEqual({ startRow: 2, endRow: 9, columns: 40 });
+      expect(regions.get("bottom")).toEqual({ startRow: 9, endRow: 10, columns: 40 });
+    });
+
+    it("handles schemas with multiple flex panels by weight", () => {
+      const schema: PanelDef[] = [
+        { id: "a", mode: "flex", weight: 1, minRows: 0 },
+        { id: "b", mode: "flex", weight: 3, minRows: 0 },
+      ];
+      const regions = computeLayoutRegions({ rows: 20, columns: 50 }, schema);
+      const a = regions.get("a")!;
+      const b = regions.get("b")!;
+      expect(getPanelHeight(a)).toBe(5);
+      expect(getPanelHeight(b)).toBe(15);
+      expect(a.endRow).toBe(b.startRow);
+    });
+
+    it("handles a schema with no flex panels (all fixed)", () => {
+      const schema: PanelDef[] = [
+        { id: "x", mode: "fixed", rows: 4 },
+        { id: "y", mode: "fixed", rows: 3 },
+      ];
+      const regions = computeLayoutRegions({ rows: 24, columns: 80 }, schema);
+      expect(regions.get("x")).toEqual({ startRow: 0, endRow: 4, columns: 80 });
+      expect(regions.get("y")).toEqual({ startRow: 4, endRow: 7, columns: 80 });
+    });
+  });
+
+  describe("size scenario matrix", () => {
+    const scenarios: Array<{ rows: number; columns: number }> = [
+      { rows: 24, columns: 80 },
+      { rows: 30, columns: 120 },
+      { rows: 50, columns: 200 },
+      { rows: 60, columns: 100 },
+      { rows: 20, columns: 60 },
+    ];
+
+    for (const { rows, columns } of scenarios) {
+      it(`tiles all regions without gaps for ${rows}x${columns}`, () => {
+        const layout = computeLayout({ rows, columns });
+        expect(layout.headerRegion.endRow).toBe(layout.statusPanelRegion.startRow);
+        expect(layout.statusPanelRegion.endRow).toBe(layout.transcriptRegion.startRow);
+        expect(layout.transcriptRegion.endRow).toBe(layout.resultRegion.startRow);
+        expect(layout.resultRegion.endRow).toBe(layout.inputRegion.startRow);
+        expect(layout.inputRegion.endRow).toBe(rows);
+        expect(layout.headerRegion.startRow).toBe(0);
+      });
+    }
   });
 
   describe("getContentArea", () => {

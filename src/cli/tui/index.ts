@@ -30,6 +30,7 @@ import { TranscriptPanel } from "./panels/transcript.js";
 import { ResultSummaryPanel } from "./panels/result-summary.js";
 import { EmbeddedTerminalPane } from "./panels/embedded-terminal.js";
 import { renderSlashAutocompletePanel } from "./panels/slash-autocomplete.js";
+import { TuiEventRouter } from "./event-router.js";
 import {
   createEmbeddedTerminalFocusManager,
   isEmbeddedTerminalInterruptKey,
@@ -235,6 +236,11 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
     const transcriptPanel = new TranscriptPanel();
     const resultPanel = new ResultSummaryPanel();
     let embeddedTerminalPane = new EmbeddedTerminalPane();
+    const eventRouter = new TuiEventRouter({
+      pipelinePanel,
+      transcriptPanel,
+      getEmbeddedTerminalPane: () => embeddedTerminalPane,
+    });
     const embeddedTerminalFocus = createEmbeddedTerminalFocusManager();
     let hasExecuted = false;
     let lastInputSeparatorRow = -1;
@@ -706,7 +712,7 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
         ...(currentAdapterModel !== undefined ? { model: currentAdapterModel } : {}),
         ...(options.sessionId !== undefined ? { sessionId: options.sessionId } : {}),
         onEvent: (event) => {
-          embeddedTerminalPane.addEvent(event);
+          eventRouter.routeAdapterEvent(event, "embedded");
           render();
         },
       });
@@ -950,7 +956,7 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
     let lastProgressRenderAt = 0;
     const PROGRESS_RENDER_INTERVAL_MS = 200;
     const onProgress = (event: PipelineProgressEvent): void => {
-      pipelinePanel.update(event);
+      eventRouter.routePipelineProgress(event);
       if (nativePassthroughMode && isExecuting) {
         return;
       }
@@ -1547,7 +1553,7 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
             }
 
             if (embeddedPaneMode) {
-              embeddedTerminalPane.addEvent(event);
+              eventRouter.routeAdapterEvent(event, "embedded");
               const interactionState = embeddedTerminalPane.getInteractionState();
               if (
                 interactionState?.kind === "approval" &&
@@ -1556,12 +1562,12 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
                 embeddedTerminalFocus.focusNative();
               }
             } else {
-              transcriptPanel.addEvent(event);
+              eventRouter.routeAdapterEvent(event, "transcript");
             }
             render();
           },
           onActionTimelineEvent: (event) => {
-            pipelinePanel.updateActionTimelineEvent(event);
+            eventRouter.routeActionTimeline(event);
             if (!nativePassthroughMode || !isExecuting) {
               render();
             }
@@ -1570,13 +1576,10 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
 
         // Phase 3.3: Feed PTY events to transcript panel
         if (!receivedLiveAdapterEvents && result.adapterTranscript?.events) {
-          for (const event of result.adapterTranscript.events) {
-            if (embeddedPaneMode) {
-              embeddedTerminalPane.addEvent(event);
-            } else {
-              transcriptPanel.addEvent(event);
-            }
-          }
+          eventRouter.routeAdapterEventBatch(
+            result.adapterTranscript.events,
+            embeddedPaneMode ? "embedded" : "transcript",
+          );
         }
 
         const hasVisibleOutput = embeddedPaneMode
