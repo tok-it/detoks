@@ -44,6 +44,16 @@ import {
   saveHistoryToDisk,
 } from "./input-history.js";
 import {
+  backspaceAt,
+  deleteAt,
+  insertAt,
+  moveCursorEnd,
+  moveCursorHome,
+  moveCursorLeft,
+  moveCursorRight,
+  setInput,
+} from "./input-cursor.js";
+import {
   createEmbeddedTerminalFocusManager,
   isEmbeddedTerminalInterruptKey,
   isEmbeddedTerminalNativeFocusToggleKey,
@@ -240,6 +250,8 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
     }
 
     let input = "";
+    // P3-3 2단계: code-point index of cursor in `input`. 0 ≤ cursor ≤ input length.
+    let cursor = 0;
     let running = true;
     let isExecuting = false;
 
@@ -762,7 +774,7 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
     const renderInputOnly = (): void => {
       const dims = screen.getDimensions();
       const ctx = { screen, dims };
-      const inputLayout = renderInputArea(ctx, input);
+      const inputLayout = renderInputArea(ctx, input, cursor);
       lastInputSeparatorRow = inputLayout.separatorRow;
       screen.flush();
     };
@@ -804,7 +816,7 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
     const renderInteractiveInput = (): void => {
       const dims = screen.getDimensions();
       const ctx = { screen, dims };
-      const inputLayout = measureInputLayout(dims, input);
+      const inputLayout = measureInputLayout(dims, input, cursor);
       lastInputSeparatorRow = inputLayout.separatorRow;
 
       const slashAutocompleteQuery = getSlashAutocompleteQuery(input);
@@ -830,7 +842,7 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
           formatEmbeddedTerminalFocusHint(embeddedTerminalFocus.focus, currentAdapter),
         );
       } else {
-        renderInputArea(ctx, input);
+        renderInputArea(ctx, input, cursor);
       }
 
       if (slashAutocompleteQuery !== null) {
@@ -866,7 +878,7 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
         screen.cursorMoveTo(0, 0);
         forceFullRender = false;
       }
-      const inputLayout = measureInputLayout(dims, input);
+      const inputLayout = measureInputLayout(dims, input, cursor);
       const viewportStatusText = getEmbeddedViewportStatusText(dims.columns, inputLayout);
       const bannerRows = Math.min(3, Math.max(0, inputLayout.separatorRow));
       const statusRegionStart = bannerRows;
@@ -1039,7 +1051,7 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
             render();
           } else if (text === "\x1b[H" || text === "\x1b[1~") {
             const dims = screen.getDimensions();
-            const inputLayout = measureInputLayout(dims, input);
+            const inputLayout = measureInputLayout(dims, input, cursor);
             embeddedTerminalPane.scrollToTop(dims.columns, getEmbeddedTranscriptHeight(inputLayout));
             render();
           } else if (text === "\x1b[F" || text === "\x1b[4~") {
@@ -1117,7 +1129,7 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
               activeRunBlock.summaryLines = ["실행이 취소되었습니다."];
               setStickyPromptFromRun(activeRunBlock);
             }
-            input = pendingApprovalPrompt;
+            ({ input, cursor } = setInput(pendingApprovalPrompt));
             pendingApprovalPrompt = null;
             skipApprovalLineFeed = false;
             render();
@@ -1157,7 +1169,7 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
               scrollEmbeddedViewportBy(Math.max(1, Math.floor(screen.getDimensions().rows / 3)));
             } else if (matchedScrollSequence === "\x1b[H" || matchedScrollSequence === "\x1b[1~") {
               const dims = screen.getDimensions();
-              const inputLayout = measureInputLayout(dims, input);
+              const inputLayout = measureInputLayout(dims, input, cursor);
               embeddedTerminalPane.scrollToTop(dims.columns, getEmbeddedTranscriptHeight(inputLayout));
             } else {
               embeddedTerminalPane.scrollToBottom();
@@ -1166,6 +1178,24 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
             i += matchedScrollSequence.length;
             handled = true;
             continue;
+          }
+
+          // P3-3 2단계: Home/End → cursor home/end in non-embedded mode.
+          if (!embeddedPaneMode) {
+            if (matchedScrollSequence === "\x1b[H" || matchedScrollSequence === "\x1b[1~") {
+              ({ input, cursor } = moveCursorHome({ input, cursor }));
+              renderInputOnly();
+              i += matchedScrollSequence.length;
+              handled = true;
+              continue;
+            }
+            if (matchedScrollSequence === "\x1b[F" || matchedScrollSequence === "\x1b[4~") {
+              ({ input, cursor } = moveCursorEnd({ input, cursor }));
+              renderInputOnly();
+              i += matchedScrollSequence.length;
+              handled = true;
+              continue;
+            }
           }
 
           const sequence = text.substring(i, i + 3);
@@ -1195,7 +1225,7 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
               // PageUp still scrolls the viewport.
               const recalled = inputHistory.recallOlder(input);
               if (recalled !== null) {
-                input = recalled;
+                ({ input, cursor } = setInput(recalled));
                 renderInteractiveInput();
               }
             }
@@ -1214,10 +1244,22 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
               // P3-3: ↓ recalls newer history (or exits recall and restores draft).
               const recalled = inputHistory.recallNewer();
               if (recalled !== null) {
-                input = recalled;
+                ({ input, cursor } = setInput(recalled));
                 renderInteractiveInput();
               }
             }
+            i += 3;
+            handled = true;
+          } else if (sequence === "\x1b[D") {
+            // P3-3 2단계: ← moves cursor left within input.
+            ({ input, cursor } = moveCursorLeft({ input, cursor }));
+            renderInputOnly();
+            i += 3;
+            handled = true;
+          } else if (sequence === "\x1b[C") {
+            // P3-3 2단계: → moves cursor right within input.
+            ({ input, cursor } = moveCursorRight({ input, cursor }));
+            renderInputOnly();
             i += 3;
             handled = true;
           }
@@ -1355,7 +1397,7 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
             if (isPasting) {
               // During bracketed paste, newlines are part of the pasted content
               if (char === "\n") {
-                input += "\n";
+                ({ input, cursor } = insertAt({ input, cursor }, "\n"));
                 needsFullRender = true;
               }
             } else if (input.trim()) {
@@ -1388,7 +1430,7 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
               void saveHistoryToDisk(historyPath, inputHistory.toArray()).catch(
                 () => undefined,
               );
-              input = ""; // Clear input for next prompt
+              ({ input, cursor } = setInput("")); // Clear input for next prompt
               slashAutocompleteSelectedIndex = 0;
             }
           } else if (embeddedPaneMode && isEmbeddedTerminalNativeFocusToggleKey(char)) {
@@ -1399,17 +1441,12 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
               renderInteractiveInput();
             }
           } else if (char === "\x7f" || char === "\b") {
-            // Backspace (DEL: 0x7f or Backspace: 0x08)
-            // Remove last character by code point, not by byte
+            // Backspace — delete code point BEFORE cursor (P3-3 2단계).
             const wasSlashAutocompleteActive = getSlashAutocompleteQuery(input) !== null;
-            const charArray = Array.from(input);
-            if (charArray.length > 0) {
-              charArray.pop();
-              input = charArray.join("");
-            }
+            ({ input, cursor } = backspaceAt({ input, cursor }));
             inputHistory.resetRecall();
             slashAutocompleteSelectedIndex = 0;
-            const nextInputLayout = measureInputLayout(screen.getDimensions(), input);
+            const nextInputLayout = measureInputLayout(screen.getDimensions(), input, cursor);
             const isSlashAutocompleteActive = getSlashAutocompleteQuery(input) !== null;
             if (
               wasSlashAutocompleteActive ||
@@ -1423,15 +1460,36 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
             }
             i++;
             continue;
+          } else if (char === "\x01") {
+            // Ctrl+A — move cursor to start (P3-3 2단계, readline)
+            ({ input, cursor } = moveCursorHome({ input, cursor }));
+            renderInputOnly();
+            i++;
+            continue;
+          } else if (char === "\x05") {
+            // Ctrl+E — move cursor to end (P3-3 2단계, readline)
+            ({ input, cursor } = moveCursorEnd({ input, cursor }));
+            renderInputOnly();
+            i++;
+            continue;
+          } else if (char === "\x04" && input.length > 0) {
+            // Ctrl+D — forward-delete (only on non-empty input; empty-input
+            // Ctrl+D continues to mean "exit" per shell convention, handled
+            // by the earlier Ctrl+C/D exit branch).
+            ({ input, cursor } = deleteAt({ input, cursor }));
+            inputHistory.resetRecall();
+            renderInputOnly();
+            i++;
+            continue;
           } else if (char.charCodeAt(0) >= 32 || /[\p{L}\p{N}\p{P}\p{Z}]/u.test(char)) {
-            // Append committed printable characters directly.
-            // Terminal IME input arrives as committed characters, so rewriting prior input
-            // would erase already-entered Hangul syllables.
+            // Insert committed printable character at cursor (P3-3 2단계).
+            // Terminal IME input arrives as committed characters; insertAt is
+            // code-point safe so Korean syllables aren't split.
             const wasSlashAutocompleteActive = getSlashAutocompleteQuery(input) !== null;
-            input += char;
+            ({ input, cursor } = insertAt({ input, cursor }, char));
             inputHistory.resetRecall();
             slashAutocompleteSelectedIndex = 0;
-            const nextInputLayout = measureInputLayout(screen.getDimensions(), input);
+            const nextInputLayout = measureInputLayout(screen.getDimensions(), input, cursor);
             const isSlashAutocompleteActive = getSlashAutocompleteQuery(input) !== null;
             if (
               wasSlashAutocompleteActive ||

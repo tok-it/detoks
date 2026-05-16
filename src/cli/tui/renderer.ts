@@ -266,7 +266,11 @@ export const buildFooterText = (columns: number, footer: FooterContext): string 
   return finalizeFooter(shortened);
 };
 
-export const measureInputLayout = (dims: ScreenDimensions, input: string): InputLayout => {
+export const measureInputLayout = (
+  dims: ScreenDimensions,
+  input: string,
+  cursorPos?: number,
+): InputLayout => {
   const firstLineWidth = Math.max(0, dims.columns - 2);
   const continuationWidth = Math.max(0, dims.columns);
   const allLines = wrapInputLines(input, firstLineWidth, continuationWidth);
@@ -279,9 +283,32 @@ export const measureInputLayout = (dims: ScreenDimensions, input: string): Input
   const inputStartRow = separatorRow + 1;
   const bottomSeparatorRow = dims.rows - 2;
   const inputEndRow = dims.rows - 1;
+
+  // Default — cursor at end of last visible line.
   const lastVisibleLine = visibleLines[visibleLines.length - 1] ?? { text: "", width: 0 };
-  const cursorRow = inputStartRow + visibleLines.length - 1;
-  const cursorCol = lastVisibleLine.width + (visibleStartIndex === 0 && visibleLines.length === 1 ? 2 : 0);
+  let cursorRow = inputStartRow + Math.max(0, visibleLines.length - 1);
+  let cursorCol = lastVisibleLine.width + (visibleStartIndex === 0 && visibleLines.length === 1 ? 2 : 0);
+
+  if (cursorPos !== undefined) {
+    const chars = Array.from(input);
+    const clamped = Math.max(0, Math.min(cursorPos, chars.length));
+    const prefix = chars.slice(0, clamped).join("");
+    const prefixLines = wrapInputLines(prefix, firstLineWidth, continuationWidth);
+    const prefixLastLineIdx = prefixLines.length - 1;
+    const prefixLastLine = prefixLines[prefixLastLineIdx] ?? { text: "", width: 0 };
+    // Map prefixLastLineIdx (in the full allLines space) to the visible window.
+    const visibleCursorLineIdx = Math.max(0, prefixLastLineIdx - visibleStartIndex);
+    if (prefixLastLineIdx >= visibleStartIndex) {
+      cursorRow = inputStartRow + visibleCursorLineIdx;
+      // Prompt offset applies only on the very first visible line ("> " prefix).
+      const promptOffset = visibleStartIndex === 0 && prefixLastLineIdx === 0 ? 2 : 0;
+      cursorCol = prefixLastLine.width + promptOffset;
+    } else {
+      // Cursor is above the visible window — pin to the first visible row, col 0.
+      cursorRow = inputStartRow;
+      cursorCol = visibleStartIndex === 0 ? 2 : 0;
+    }
+  }
 
   return {
     separatorRow,
@@ -351,9 +378,13 @@ export const renderStatusPanel = (
   return currentRow;
 };
 
-export const renderInputArea = (ctx: RenderContext, input: string): InputLayout => {
+export const renderInputArea = (
+  ctx: RenderContext,
+  input: string,
+  cursorPos?: number,
+): InputLayout => {
   const { screen, dims } = ctx;
-  const layout = measureInputLayout(dims, input);
+  const layout = measureInputLayout(dims, input, cursorPos);
 
   // Render colored separator line before input area
   for (let row = layout.separatorRow; row <= layout.bottomSeparatorRow; row++) {
