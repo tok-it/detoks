@@ -1,5 +1,5 @@
 import type { ScreenManager, ScreenDimensions } from "./screen-manager.js";
-import { colors } from "../colors.js";
+import { statusColor } from "./design/tokens.js";
 
 export interface RenderContext {
   screen: ScreenManager;
@@ -362,7 +362,7 @@ export const renderInputArea = (ctx: RenderContext, input: string): InputLayout 
   }
 
   screen.cursorMoveTo(layout.separatorRow, 0);
-  const separator = colors.prompt("━".repeat(dims.columns));
+  const separator = statusColor.accent("━".repeat(dims.columns));
   screen.write(separator);
 
   layout.visibleLines.forEach((line, index) => {
@@ -377,7 +377,7 @@ export const renderInputArea = (ctx: RenderContext, input: string): InputLayout 
   });
 
   screen.cursorMoveTo(layout.bottomSeparatorRow, 0);
-  screen.write(colors.prompt("━".repeat(dims.columns)));
+  screen.write(statusColor.accent("━".repeat(dims.columns)));
 
   screen.cursorMoveTo(layout.cursorRow, layout.cursorCol);
 
@@ -400,13 +400,13 @@ export const renderFocusArea = (
   }
 
   screen.cursorMoveTo(layout.separatorRow, 0);
-  screen.write(colors.prompt("━".repeat(dims.columns)));
+  screen.write(statusColor.accent("━".repeat(dims.columns)));
 
   screen.cursorMoveTo(layout.inputStartRow, 0);
-  screen.write(colors.muted(displayMessage.padEnd(dims.columns)));
+  screen.write(statusColor.muted(displayMessage.padEnd(dims.columns)));
 
   screen.cursorMoveTo(layout.bottomSeparatorRow, 0);
-  screen.write(colors.prompt("━".repeat(dims.columns)));
+  screen.write(statusColor.accent("━".repeat(dims.columns)));
 
   screen.cursorMoveTo(layout.inputStartRow, 0);
   return layout;
@@ -416,5 +416,5 @@ export const renderFooter = (ctx: RenderContext, footerText: string): void => {
   const { screen, dims } = ctx;
 
   screen.cursorMoveTo(dims.rows - 1, 0);
-  screen.write(colors.footer(footerText));
+  screen.write(statusColor.footer(footerText));
 };

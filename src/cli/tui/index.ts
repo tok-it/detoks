@@ -60,7 +60,7 @@ import { readRole1ModelName, loadRole1RuntimeConfig } from "../../core/prompt/co
 import { ensureLocalLlmRuntime } from "../../core/llm-client/local-runtime.js";
 import { onLlamaBuildPhase } from "../../core/llm-client/llama-build-events.js";
 import type { TokenReductionSnapshot } from "../../core/utils/tokenMetrics.js";
-import { colors } from "../colors.js";
+import { statusColor } from "./design/tokens.js";
 import { formatError } from "../format.js";
 import {
   hasConfigFile,
@@ -358,7 +358,7 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
       }
 
       const prefix = `── ${label} `;
-      return colors.header(padDisplayWidth(
+      return statusColor.header(padDisplayWidth(
         prefix.length >= width ? prefix.slice(0, width) : `${prefix}${"─".repeat(width - prefix.length)}`,
         width,
       ));
@@ -395,9 +395,9 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
           ...buildWrappedBlock(
             [hasExecuted ? "최근 실행 결과를 준비하는 중입니다." : "첫 프롬프트를 입력하세요."],
             width,
-          ).map((line) => colors.muted(line)),
+          ).map((line) => statusColor.muted(line)),
         );
-        lines.push(colors.muted(padDisplayWidth(`상태: ${statusText}`, width)));
+        lines.push(statusColor.muted(padDisplayWidth(`상태: ${statusText}`, width)));
         lines.push(" ".repeat(width));
         return lines.slice(0, getEmbeddedStickyRows());
       }
@@ -406,7 +406,7 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
       lines.push(
         ...buildWrappedBlock(promptText.split("\n"), width, "> ").slice(0, Math.max(0, getEmbeddedStickyRows() - 2)),
       );
-      lines.push(colors.muted(padDisplayWidth(`상태: ${statusText}`, width)));
+      lines.push(statusColor.muted(padDisplayWidth(`상태: ${statusText}`, width)));
       lines.push(" ".repeat(width));
       return lines.slice(0, getEmbeddedStickyRows());
     };
@@ -433,7 +433,7 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
           width,
         );
         return [
-          colors.warning(padDisplayWidth(approvalLine, width)),
+          statusColor.warn(padDisplayWidth(approvalLine, width)),
         ].slice(0, getEmbeddedActivityRows());
       }
 
@@ -445,12 +445,12 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
             width,
           );
           return [
-            colors.muted(padDisplayWidth(inputHint, width)),
+            statusColor.muted(padDisplayWidth(inputHint, width)),
           ].slice(0, getEmbeddedActivityRows());
         }
 
         return [
-          colors.muted(
+          statusColor.muted(
             padDisplayWidth(
               truncateToDisplayWidth(
                 viewportStatusText !== null
@@ -475,8 +475,8 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
         : compactLine;
       return [
         activity.status === "failed"
-          ? colors.error(padDisplayWidth(compactLine, width))
-          : colors.muted(padDisplayWidth(runningLine, width)),
+          ? statusColor.error(padDisplayWidth(compactLine, width))
+          : statusColor.muted(padDisplayWidth(runningLine, width)),
       ].slice(0, getEmbeddedActivityRows());
     };
 
@@ -518,7 +518,7 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
 
       const lines: string[] = [];
       lines.push(buildSectionDivider(`Run #${run.index}`, width));
-      lines.push(colors.muted(padDisplayWidth(`상태: ${getStickyPromptStatusForRun(run)}`, width)));
+      lines.push(statusColor.muted(padDisplayWidth(`상태: ${getStickyPromptStatusForRun(run)}`, width)));
       lines.push(buildSectionDivider(`Prompt #${run.index}`, width));
       lines.push(...buildWrappedBlock(run.prompt.split("\n"), width, "> "));
       lines.push(buildSectionDivider(`Original CLI #${run.index}`, width));
@@ -528,7 +528,7 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
           ...buildWrappedBlock(
             ["실행 확인 대기 중 · Enter로 실행 · Esc로 편집 복귀"],
             width,
-          ).map((line) => colors.muted(line)),
+          ).map((line) => statusColor.muted(line)),
         );
       } else {
         const cliLines = run.pane.getRenderableLines(width).map((line) => line.text);
@@ -571,7 +571,7 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
             "프롬프트를 실행하면 여기 아래에 RunBlock이 누적됩니다.",
           ],
           width,
-        ).map((line) => colors.muted(line));
+        ).map((line) => statusColor.muted(line));
       }
 
       const lines: string[] = [];
@@ -777,7 +777,7 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
           : line).padEnd(dims.columns);
 
         screen.cursorMoveTo(index, 0);
-        screen.write(colors.muted(displayLine));
+        screen.write(statusColor.muted(displayLine));
       }
     };
 
@@ -1684,7 +1684,7 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
       clearInterval(buildSpinnerTimer);
     }
 
-    stdout.write("\n" + colors.info("TUI REPL이 종료되었습니다.\n") + "\n");
+    stdout.write("\n" + statusColor.info("TUI REPL이 종료되었습니다.\n") + "\n");
   } finally {
     process.off("SIGTERM", sigtermHandler);
     screen.cleanup();
