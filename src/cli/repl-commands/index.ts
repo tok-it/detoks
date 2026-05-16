@@ -96,6 +96,12 @@ const BASE_COMMANDS: SlashCommand[] = [
     usage: "/cache [stats|clear|disable|enable]",
   },
   {
+    name: "layout",
+    aliases: ["l"],
+    description: "transcript/result 패널 비율 조정 (reset / transcript=N result=N / + / -)",
+    usage: "/layout [reset|transcript=N|result=N|+|-]",
+  },
+  {
     name: "exit",
     aliases: ["quit", "q"],
     description: "REPL 종료",
@@ -454,6 +460,7 @@ export const handleSlashCommand = async (
     onMainScreenRestore?: () => void;
     onInteractiveStart?: () => void;
     onInteractiveEnd?: () => void;
+    onLayoutCommand?: (args: readonly string[]) => string;
   },
 ): Promise<boolean> => {
   const adapter = state.adapter as Adapter;
@@ -512,6 +519,17 @@ export const handleSlashCommand = async (
         ),
       );
       return true;
+
+    case "layout": {
+      const args = input.trim().split(/\s+/).slice(1);
+      if (state.onLayoutCommand) {
+        const message = state.onLayoutCommand(args);
+        if (message) output.write(colors.info(`\n${message}\n\n`));
+      } else {
+        output.write(colors.warning("\n레이아웃 변경이 비활성화된 컨텍스트입니다.\n\n"));
+      }
+      return true;
+    }
 
     case "codex-models": {
       const handled = await handleCodexModels(selectStreams);
