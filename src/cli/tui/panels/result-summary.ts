@@ -1,11 +1,48 @@
 import type { RenderContext } from "../renderer.js";
 import type { PanelRegion } from "../layout-manager.js";
-import type { PipelineExecutionResult } from "../../../core/pipeline/types.js";
+import type {
+  PipelineExecutionResult,
+  RagContextDisplayItem,
+  RagContextSummary,
+} from "../../../core/pipeline/types.js";
 import type { TokenReductionSnapshot } from "../../../core/utils/tokenMetrics.js";
 import { getTurnRecapLines } from "../../../core/timeline/action-timeline.js";
 import { getContentArea } from "../layout-manager.js";
 import { fillRemaining, truncateByLength, writePaddedLine } from "./base.js";
 import { glyph, statusColor } from "../design/tokens.js";
+
+const RAG_SOURCE_LABEL: Record<RagContextDisplayItem["sourceType"], string> = {
+  previous_request: "이전 요청",
+  previous_task: "이전 task",
+  previous_output: "이전 결과",
+};
+
+const RAG_SKIP_REASON_LABEL: Record<NonNullable<RagContextSummary["skipReason"]>, string> = {
+  budget: "토큰 예산 초과",
+  empty_content: "본문 비어있음",
+  disabled: "비활성화",
+  error: "오류",
+};
+
+const formatRagSummaryLine = (summary: RagContextSummary): string => {
+  const parts = [`${glyph.ragInjected} ${summary.injected}개 주입`];
+  if (summary.skipped > 0) {
+    parts.push(`${glyph.ragSkipped} ${summary.skipped}개 스킵`);
+  }
+  const tail = summary.skipReason
+    ? `  (스킵 사유: ${RAG_SKIP_REASON_LABEL[summary.skipReason]})`
+    : "";
+  return `RAG  ${summary.found}개 발견 · ${parts.join(" · ")}${tail}`;
+};
+
+const formatRagItemLine = (item: RagContextDisplayItem): string => {
+  const marker = item.injected ? glyph.ragInjected : glyph.ragSkipped;
+  const label = RAG_SOURCE_LABEL[item.sourceType];
+  const sessionShort = item.sessionId.slice(0, 8);
+  const taskFragment = item.taskId ? ` ${item.taskId}` : "";
+  const preview = item.preview.replace(/\s+/g, " ").trim();
+  return `  ${marker} [${item.relevance}] ${label} (${sessionShort}${taskFragment}) — ${preview}`;
+};
 
 const EMPTY_RESULT_LINES = [
   "실행 결과가 아직 없습니다.",
@@ -90,6 +127,16 @@ export class ResultSummaryPanel {
         lines.push(`  결과 요약 압축: ${this.formatTokenReduction(this.result.tokenMetrics.output)}`);
       } else if (this.result.promptTokenSavings) {
         lines.push(`  프롬프트 압축: ${this.formatTokenReduction(this.result.promptTokenSavings)}`);
+      }
+    }
+
+    const rag = this.result.ragContextSummary;
+    if (rag && rag.found > 0) {
+      lines.push("");
+      lines.push(formatRagSummaryLine(rag));
+      // Show top 3 items so users can see which past sessions were pulled in.
+      for (const item of rag.items.slice(0, 3)) {
+        lines.push(formatRagItemLine(item));
       }
     }
 

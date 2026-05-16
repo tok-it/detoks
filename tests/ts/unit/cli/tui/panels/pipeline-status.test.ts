@@ -336,4 +336,49 @@ describe("PipelineStatusPanel", () => {
       expect(executorLine).not.toMatch(/\d+ms/);
     });
   });
+
+  describe("cache event live stream", () => {
+    const cacheEvent = (kind: "cache_hit" | "cache_miss" | "cache_advise", summary: string): ActionTimelineEvent => ({
+      kind,
+      source: "pipeline",
+      summary,
+      timestamp: Date.now(),
+    });
+
+    it("does not render cache summary line when no cache events have arrived", () => {
+      panel.render(mockContext, mockRegion);
+      const output = mockScreen.write.mock.calls.map((c: any) => stripAnsi(c[0])).join("\n");
+      expect(output).not.toContain("캐시");
+    });
+
+    it("renders accumulated counters with hit/miss/advise glyphs", () => {
+      panel.updateActionTimelineEvent(cacheEvent("cache_hit", "F1 hit"));
+      panel.updateActionTimelineEvent(cacheEvent("cache_hit", "F2 hit"));
+      panel.updateActionTimelineEvent(cacheEvent("cache_miss", "F2 miss"));
+      panel.updateActionTimelineEvent(cacheEvent("cache_advise", "F1 advise"));
+      panel.render(mockContext, mockRegion);
+      const output = mockScreen.write.mock.calls.map((c: any) => stripAnsi(c[0])).join("\n");
+      expect(output).toContain("캐시");
+      expect(output).toContain("▣ 2 hit");
+      expect(output).toContain("▢ 1 miss");
+      expect(output).toContain("⚠ 1 advise");
+    });
+
+    it("omits zero-count categories from the summary", () => {
+      panel.updateActionTimelineEvent(cacheEvent("cache_hit", "F1 hit"));
+      panel.render(mockContext, mockRegion);
+      const output = mockScreen.write.mock.calls.map((c: any) => stripAnsi(c[0])).join("\n");
+      expect(output).toContain("▣ 1 hit");
+      expect(output).not.toContain("0 miss");
+      expect(output).not.toContain("0 advise");
+    });
+
+    it("clears cache counters on reset", () => {
+      panel.updateActionTimelineEvent(cacheEvent("cache_hit", "F1 hit"));
+      panel.reset();
+      panel.render(mockContext, mockRegion);
+      const output = mockScreen.write.mock.calls.map((c: any) => stripAnsi(c[0])).join("\n");
+      expect(output).not.toContain("캐시");
+    });
+  });
 });

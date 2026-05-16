@@ -384,4 +384,86 @@ describe("ResultSummaryPanel", () => {
       expect(calls.length).toBeLessThanOrEqual(regionHeight);
     });
   });
+
+  describe("RAG context summary section", () => {
+    it("renders summary line + top items when found > 0", () => {
+      const result = mockResult({
+        ragContextSummary: {
+          found: 3,
+          injected: 1,
+          skipped: 2,
+          skipReason: "budget",
+          items: [
+            {
+              sourceType: "previous_task",
+              sessionId: "abcdef1234567890",
+              taskId: "t2",
+              preview: "Refactor user-service to extract auth middleware",
+              relevance: "high",
+              injected: true,
+            },
+            {
+              sourceType: "previous_request",
+              sessionId: "fedcba9876543210",
+              preview: "Update README with new API examples",
+              relevance: "medium",
+              injected: false,
+            },
+          ],
+        },
+      });
+      panel.setResult(result);
+      panel.render(mockContext, mockRegion);
+      const output = mockScreen.write.mock.calls.map((c: any) => c[0]).join("\n");
+      expect(output).toContain("RAG");
+      expect(output).toContain("3개 발견");
+      expect(output).toContain("1개 주입");
+      expect(output).toContain("2개 스킵");
+      expect(output).toContain("토큰 예산 초과");
+      expect(output).toContain("이전 task");
+      expect(output).toContain("abcdef12");
+      expect(output).toContain("Refactor user-service");
+    });
+
+    it("omits the section entirely when ragContextSummary is absent", () => {
+      panel.setResult(mockResult());
+      panel.render(mockContext, mockRegion);
+      const output = mockScreen.write.mock.calls.map((c: any) => c[0]).join("\n");
+      expect(output).not.toContain("RAG");
+    });
+
+    it("omits the section when found is zero (no past matches)", () => {
+      panel.setResult(
+        mockResult({
+          ragContextSummary: { found: 0, injected: 0, skipped: 0, items: [] },
+        }),
+      );
+      panel.render(mockContext, mockRegion);
+      const output = mockScreen.write.mock.calls.map((c: any) => c[0]).join("\n");
+      expect(output).not.toContain("RAG");
+    });
+
+    it("limits item rendering to top 3", () => {
+      const items = Array.from({ length: 5 }, (_, i) => ({
+        sourceType: "previous_task" as const,
+        sessionId: `session-${i.toString().padStart(8, "0")}`,
+        taskId: `t${i}`,
+        preview: `preview ${i}`,
+        relevance: "low" as const,
+        injected: i < 1,
+      }));
+      panel.setResult(
+        mockResult({
+          ragContextSummary: { found: 5, injected: 1, skipped: 4, items },
+        }),
+      );
+      panel.render(mockContext, mockRegion);
+      const output = mockScreen.write.mock.calls.map((c: any) => c[0]).join("\n");
+      expect(output).toContain("preview 0");
+      expect(output).toContain("preview 1");
+      expect(output).toContain("preview 2");
+      expect(output).not.toContain("preview 3");
+      expect(output).not.toContain("preview 4");
+    });
+  });
 });
