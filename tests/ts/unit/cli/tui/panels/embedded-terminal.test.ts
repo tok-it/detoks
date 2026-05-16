@@ -79,9 +79,8 @@ describe("EmbeddedTerminalPane", () => {
       data: "OpenAI Codex v0.130.0\nworkdir: /tmp/demo\n--------\n",
     });
 
-    pane.render(mockContext, mockRegion);
-
-    const output = mockScreen.write.mock.calls.map((call: any) => call[0]).join("\n");
+    const lines = pane.getRenderableLines(60);
+    const output = lines.map((l) => l.text).join("\n");
     expect(output).toContain("세션 정보");
     expect(output).toContain("OpenAI Codex");
     expect(output).not.toContain("workdir:");
@@ -300,5 +299,235 @@ describe("EmbeddedTerminalPane", () => {
       pane.scrollUp();
       pane.render(mockContext, mockRegion);
     }).not.toThrow();
+  });
+
+  // T1: exec completed — gutter ▎ + ✓ icon
+  it("adds ▎ gutter and ✓ icon to completed exec blocks", () => {
+    pane.addEvent({
+      type: "chunk",
+      timestamp: Date.now(),
+      stream: "stdout",
+      data: [
+        "exec",
+        `/bin/zsh -lc "rg -n \\"query\\" src"`,
+        "succeeded in 125ms:",
+        "src/foo.ts:1:result",
+        "",
+      ].join("\n"),
+    });
+
+    const lines = pane.getRenderableLines(80);
+    const combined = lines.map((l) => l.text).join("\n");
+    expect(combined).toContain("▎");
+    expect(combined).toContain("✓");
+    expect(combined).not.toContain("succeeded in 125ms");
+  });
+
+  // T2: exec failed — gutter ▎ + ✗ icon
+  it("adds ▎ gutter and ✗ icon to failed exec blocks", () => {
+    pane.addEvent({
+      type: "chunk",
+      timestamp: Date.now(),
+      stream: "stdout",
+      data: ["exec", "git push origin main", "failed in 800ms:", ""].join("\n"),
+    });
+
+    const lines = pane.getRenderableLines(80);
+    const combined = lines.map((l) => l.text).join("\n");
+    expect(combined).toContain("▎");
+    expect(combined).toContain("✗");
+    expect(combined).not.toContain("failed in 800ms");
+  });
+
+  // T4: metadata block — ▎ gutter + ▣ adapter badge
+  it("adds ▎ gutter and ▣ badge to metadata blocks", () => {
+    pane.addEvent({
+      type: "chunk",
+      timestamp: Date.now(),
+      stream: "stdout",
+      data: "OpenAI Codex v0.130.0\nmodel: gpt-4o\nprovider: openai\n--------\n",
+    });
+
+    const lines = pane.getRenderableLines(80);
+    const combined = lines.map((l) => l.text).join("\n");
+    expect(combined).toContain("▎");
+    expect(combined).toContain("▣");
+    expect(combined).toContain("OpenAI Codex");
+  });
+
+  // T5: tool activity icons per type
+  it("uses ◐ icon for web search tool activity", () => {
+    pane.addEvent({
+      type: "chunk",
+      timestamp: Date.now(),
+      stream: "stdout",
+      data: "web search: detoks README\n",
+    });
+
+    const lines = pane.getRenderableLines(80);
+    const combined = lines.map((l) => l.text).join("\n");
+    expect(combined).toContain("▎");
+    expect(combined).toContain("◐");
+  });
+
+  it("uses ▢ icon for mcp tool activity", () => {
+    pane.addEvent({
+      type: "chunk",
+      timestamp: Date.now(),
+      stream: "stdout",
+      data: "mcp tool call result\n",
+    });
+
+    const lines = pane.getRenderableLines(80);
+    const combined = lines.map((l) => l.text).join("\n");
+    expect(combined).toContain("▎");
+    expect(combined).toContain("▢");
+  });
+
+  // T3: spinner frame rotates deterministically from now/runStartedAt
+  it("rotates running exec spinner frames deterministically from now/runStartedAt", () => {
+    pane.addEvent({
+      type: "chunk",
+      timestamp: Date.now(),
+      stream: "stdout",
+      data: ["exec", "npm test", ""].join("\n"),
+    });
+
+    const startedAt = 1_000;
+    const frame0 = pane.getRenderableLines(80, undefined, 0, { now: 1_000, runStartedAt: startedAt })
+      .map((l) => l.text).join("\n");
+    const frame1 = pane.getRenderableLines(80, undefined, 0, { now: 1_250, runStartedAt: startedAt })
+      .map((l) => l.text).join("\n");
+    const frame4 = pane.getRenderableLines(80, undefined, 0, { now: 2_000, runStartedAt: startedAt })
+      .map((l) => l.text).join("\n");
+
+    expect(frame0).toContain("⠋");
+    expect(frame1).toContain("⠙");
+    expect(frame4).toContain("⠼");
+  });
+
+  // T6: elapsed label formatting
+  it("shows elapsed label for long-running exec summaries", () => {
+    pane.addEvent({
+      type: "chunk",
+      timestamp: Date.now(),
+      stream: "stdout",
+      data: ["exec", "npm run build", ""].join("\n"),
+    });
+
+    const seconds = pane.getRenderableLines(80, undefined, 0, { now: 5_000, runStartedAt: 1_000 })
+      .map((l) => l.text).join("\n");
+    const minutes = pane.getRenderableLines(80, undefined, 0, { now: 73_000, runStartedAt: 1_000 })
+      .map((l) => l.text).join("\n");
+
+    expect(seconds).toContain("(4s)");
+    expect(minutes).toContain("(1m12s)");
+  });
+
+  // T7: getStatusBannerLine — approval pending → banner, otherwise null
+  it("getStatusBannerLine returns a warn banner when approval is pending", () => {
+    pane.addEvent({
+      type: "chunk",
+      timestamp: Date.now(),
+      stream: "stdout",
+      data: "approval required (y/n)\n",
+    });
+
+    const banner = pane.getStatusBannerLine(80, { now: Date.now() });
+    expect(banner).not.toBeNull();
+    expect(banner?.severity).toBe("warn");
+    expect(banner?.text).toContain("⚠");
+    expect(banner?.text).toContain("승인 대기");
+  });
+
+  it("getStatusBannerLine returns null when no approval is pending", () => {
+    pane.addEvent({
+      type: "chunk",
+      timestamp: Date.now(),
+      stream: "stdout",
+      data: "hello world\n",
+    });
+
+    expect(pane.getStatusBannerLine(80, { now: Date.now() })).toBeNull();
+  });
+
+  // T8: banner clears after approval resolves
+  it("getStatusBannerLine clears after subsequent output resolves approval", () => {
+    pane.addEvent({ type: "chunk", timestamp: Date.now(), stream: "stdout", data: "approval required (y/n)\n" });
+    expect(pane.getStatusBannerLine(80, { now: Date.now() })).not.toBeNull();
+
+    pane.addEvent({ type: "chunk", timestamp: Date.now(), stream: "stdout", data: "approved, continuing\n" });
+    expect(pane.getStatusBannerLine(80, { now: Date.now() })).toBeNull();
+  });
+
+  // T9: getFocusFooterLine — correct hint per focus state
+  it("getFocusFooterLine includes Ctrl+T hint for detoks-input focus", () => {
+    pane.addEvent({ type: "chunk", timestamp: Date.now(), stream: "stdout", data: "output\n" });
+    const footer = pane.getFocusFooterLine(80, "detoks-input");
+    expect(footer).toContain("Ctrl+T");
+  });
+
+  it("getFocusFooterLine includes Esc/Ctrl+G hint for adapter-terminal focus", () => {
+    pane.addEvent({ type: "chunk", timestamp: Date.now(), stream: "stdout", data: "output\n" });
+    const footer = pane.getFocusFooterLine(80, "adapter-terminal");
+    expect(footer).toContain("Esc");
+    expect(footer).toContain("Ctrl+G");
+  });
+
+  // T10: getScrollIndicator — null when pinned to bottom, indicator when scrolled
+  it("getScrollIndicator returns null when pinned to bottom", () => {
+    pane.addEvent({ type: "chunk", timestamp: Date.now(), stream: "stdout", data: "line1\nline2\n" });
+    expect(pane.getScrollIndicator(80, 10)).toBeNull();
+  });
+
+  it("getScrollIndicator returns ▒ indicator when scrolled up", () => {
+    // Add enough lines to enable scrolling
+    for (let i = 0; i < 20; i++) {
+      pane.addEvent({ type: "chunk", timestamp: Date.now(), stream: "stdout", data: `line ${i}\n` });
+    }
+    pane.scrollUp();
+    pane.scrollUp();
+    const indicator = pane.getScrollIndicator(80, 5);
+    expect(indicator).not.toBeNull();
+    expect(indicator).toContain("▒");
+  });
+
+  // T11: narrow terminal (maxWidth < 20) — no gutter
+  it("omits the gutter in narrow terminals (maxWidth < 20)", () => {
+    pane.addEvent({
+      type: "chunk",
+      timestamp: Date.now(),
+      stream: "stdout",
+      data: [
+        "exec",
+        `/bin/zsh -lc "rg query src"`,
+        "succeeded in 0ms:",
+        "",
+      ].join("\n"),
+    });
+
+    const lines = pane.getRenderableLines(15);
+    const combined = lines.map((l) => l.text).join("\n");
+    expect(combined).not.toContain("▎");
+  });
+
+  // T12: spinner-only refresh rebuilds compact lines without rebuilding rows cache
+  it("rebuilds only compact lines when spinner frame changes on the same width", () => {
+    pane.addEvent({
+      type: "chunk",
+      timestamp: Date.now(),
+      stream: "stdout",
+      data: ["exec", "npm test", ""].join("\n"),
+    });
+
+    pane.getRenderableLines(80, undefined, 0, { now: 1_000, runStartedAt: 1_000 });
+    const afterFirst = pane.getDebugStats();
+
+    pane.getRenderableLines(80, undefined, 0, { now: 1_250, runStartedAt: 1_000 });
+    const afterSpinner = pane.getDebugStats();
+
+    expect(afterFirst.renderCacheRebuildCount).toBe(1);
+    expect(afterSpinner.renderCacheRebuildCount).toBe(1);
+    expect(afterSpinner.compactRebuildCount).toBeGreaterThan(afterFirst.compactRebuildCount);
   });
 });

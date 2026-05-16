@@ -825,7 +825,7 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
         if (isExecuting) {
           requestRender("execution-clock");
         }
-      }, 1000);
+      }, 250);
     };
 
     const ensureEmbeddedNativeCliSession = (): void => {
@@ -1013,7 +1013,10 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
           endRow: stickyRegionEnd,
           columns: dims.columns,
         };
+        const now = Date.now();
+        const approvalBanner = activeRunBlock?.pane.getStatusBannerLine(stickyRegion.columns, { now }) ?? null;
         const stickyLines = [
+          ...(approvalBanner ? [approvalBanner.text] : []),
           ...buildStickyPromptLines(stickyRegion.columns),
           ...buildEmbeddedActivityLines(stickyRegion.columns, inputLayout, viewportStatusText),
         ];
@@ -1055,7 +1058,29 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
             embeddedNativeCliSession?.resize(transcriptRegion.columns, transcriptPtyRows);
           }
         }
-        embeddedTerminalPane.render(ctx, transcriptRegion);
+        const transcriptHeight = transcriptRegion.endRow - transcriptRegion.startRow;
+        const showFooter = transcriptHeight > 2;
+        const paneRenderRegion = showFooter
+          ? { ...transcriptRegion, endRow: transcriptRegion.endRow - 1 }
+          : transcriptRegion;
+        embeddedTerminalPane.render(ctx, paneRenderRegion, {
+          now,
+          runStartedAt: executionClockStartedAt,
+        });
+
+        if (showFooter) {
+          const footerRow = transcriptRegion.endRow - 1;
+          screen.cursorMoveTo(footerRow, 0);
+          screen.write(embeddedTerminalPane.getFocusFooterLine(transcriptRegion.columns, embeddedTerminalFocus.focus));
+        }
+
+        const scrollIndicator = embeddedTerminalPane.getScrollIndicator(transcriptRegion.columns, transcriptHeight);
+        if (scrollIndicator !== null) {
+          const indicatorLen = scrollIndicator.length;
+          const startCol = Math.max(0, transcriptRegion.columns - indicatorLen);
+          screen.cursorMoveTo(transcriptRegion.startRow, startCol);
+          screen.write(scrollIndicator);
+        }
       } else {
         const transcriptRegion = {
           startRow: contentRegionStart,
