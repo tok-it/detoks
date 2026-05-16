@@ -560,4 +560,32 @@ describe("ResultSummaryPanel", () => {
       expect(output).not.toContain("비용 정산");
     });
   });
+
+  describe("saved transcript path (P3-4)", () => {
+    it("renders path when set after a result", () => {
+      panel.setResult(mockResult());
+      panel.setSavedTranscriptPath("/tmp/.detoks/projects/x/transcripts/abc.txt");
+      panel.render(mockContext, mockRegion);
+      const output = mockScreen.write.mock.calls.map((c: any) => c[0]).join("\n");
+      expect(output).toContain("전사 저장");
+      expect(output).toContain("/tmp/.detoks/projects/x/transcripts/abc.txt");
+    });
+
+    it("omits path section when savedTranscriptPath is null", () => {
+      panel.setResult(mockResult());
+      panel.setSavedTranscriptPath(null);
+      panel.render(mockContext, mockRegion);
+      const output = mockScreen.write.mock.calls.map((c: any) => c[0]).join("\n");
+      expect(output).not.toContain("전사 저장");
+    });
+
+    it("clears saved path when clear() is called", () => {
+      panel.setResult(mockResult());
+      panel.setSavedTranscriptPath("/tmp/x.txt");
+      panel.clear();
+      panel.render(mockContext, mockRegion);
+      const output = mockScreen.write.mock.calls.map((c: any) => c[0]).join("\n");
+      expect(output).not.toContain("전사 저장");
+    });
+  });
 });

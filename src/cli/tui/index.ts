@@ -32,6 +32,12 @@ import { EmbeddedTerminalPane } from "./panels/embedded-terminal.js";
 import { renderSlashAutocompletePanel } from "./panels/slash-autocomplete.js";
 import { TuiEventRouter } from "./event-router.js";
 import {
+  formatTranscript,
+  isAutoSaveEnabled,
+  resolveTranscriptPath,
+  saveTranscript,
+} from "./transcript-export.js";
+import {
   createEmbeddedTerminalFocusManager,
   isEmbeddedTerminalInterruptKey,
   isEmbeddedTerminalNativeFocusToggleKey,
@@ -1609,6 +1615,37 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
           ...(actionTimeline.length > 0 ? { actionTimeline } : {}),
         };
         resultPanel.setResult(completedResult);
+
+        // P3-4: Auto-save adapter transcript when DETOKS_SAVE_TRANSCRIPTS=1.
+        if (
+          isAutoSaveEnabled() &&
+          completedResult.adapterTranscript &&
+          completedResult.adapterTranscript.events.length > 0
+        ) {
+          const path = resolveTranscriptPath({
+            cwd: executionCwd,
+            sessionId: completedResult.sessionId,
+            runIndex: currentRunBlock.index,
+          });
+          const text = formatTranscript(completedResult.adapterTranscript, {
+            sessionId: completedResult.sessionId,
+            adapter: completedResult.adapter,
+            ...(completedResult.originalPrompt
+              ? { prompt: completedResult.originalPrompt }
+              : {}),
+          });
+          saveTranscript(path, text)
+            .then(() => {
+              resultPanel.setSavedTranscriptPath(path);
+              render();
+            })
+            .catch(() => {
+              // Non-fatal — transcript export must never break the pipeline.
+            });
+        } else {
+          resultPanel.setSavedTranscriptPath(null);
+        }
+
         currentRunBlock.summaryLines = resultPanel.getLines();
         currentRunBlock.status = completedResult.ok ? "completed" : "failed";
         currentRunBlock.completedAt = Date.now();
