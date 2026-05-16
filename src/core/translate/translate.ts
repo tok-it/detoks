@@ -68,6 +68,7 @@ const TRANSLATION_SYSTEM_PROMPT = [
 	"- Return only the translated text.",
 	"- Do not add explanations, commentary, prefaces, labels, quotes, or code fences.",
 	"- Do not omit, shorten, simplify, or partially translate the input.",
+	"- Do not write meta sentences such as \"Okay\", \"Sure\", \"Here is\", \"Let me translate\", or \"The user wants...\". The very first character of your output must be the first character of the English translation itself.",
 	"",
 	"PRESERVATION:",
 	"- Preserve all technical literals exactly as written, including file names, paths, commands, flags, placeholders, JSON keys, API names, class names, function names, model names, version numbers, and error messages.",
