@@ -4,29 +4,13 @@ import type { PipelineExecutionResult } from "../../../core/pipeline/types.js";
 import type { TokenReductionSnapshot } from "../../../core/utils/tokenMetrics.js";
 import { getTurnRecapLines } from "../../../core/timeline/action-timeline.js";
 import { getContentArea } from "../layout-manager.js";
-import { padDisplayWidth } from "../renderer.js";
-import { colors } from "../../colors.js";
+import { fillRemaining, truncateByLength, writePaddedLine } from "./base.js";
+import { glyph, statusColor } from "../design/tokens.js";
 
 const EMPTY_RESULT_LINES = [
   "실행 결과가 아직 없습니다.",
   "첫 실행 이후 작업 타임라인 · 다음 작업 · 사용량/압축 지표가 이 영역에 표시됩니다.",
 ] as const;
-
-const truncateLine = (line: string, maxWidth: number): string => {
-  if (maxWidth <= 0) {
-    return "";
-  }
-
-  if (line.length <= maxWidth) {
-    return line.padEnd(maxWidth);
-  }
-
-  if (maxWidth <= 3) {
-    return ".".repeat(maxWidth);
-  }
-
-  return `${line.slice(0, maxWidth - 3)}...`;
-};
 
 export class ResultSummaryPanel {
   private result: PipelineExecutionResult | null = null;
@@ -70,12 +54,10 @@ export class ResultSummaryPanel {
 
     const lines: string[] = [];
 
-    // Status line
-    const statusIcon = this.result.ok ? "✓" : "✗";
+    const statusIcon = this.result.ok ? glyph.success : glyph.failure;
     const statusText = this.result.ok ? "완료" : "실패";
     lines.push(`${statusIcon} ${statusText}  어댑터: ${this.result.adapter}  세션: ${this.result.sessionId}`);
 
-    // Summary
     lines.push(`요약: ${this.result.summary}`);
     lines.push(`다음 작업: ${this.result.nextAction}`);
 
@@ -98,7 +80,6 @@ export class ResultSummaryPanel {
       lines.push(`  실제 ${this.result.adapter} 사용량: ${actualUsage} tokens`);
     }
 
-    // Token metrics
     if (this.result.tokenMetrics || this.result.promptTokenSavings) {
       lines.push("");
       lines.push("detoks 압축 지표");
@@ -114,7 +95,6 @@ export class ResultSummaryPanel {
   }
 
   render(ctx: RenderContext, region: PanelRegion): void {
-    const { screen } = ctx;
     const { usableWidth } = getContentArea(region);
 
     const isEmptyState = this.result === null && !this.executing;
@@ -124,20 +104,15 @@ export class ResultSummaryPanel {
     for (const line of lines) {
       if (currentRow >= region.endRow) break;
 
-      const displayLine = isEmptyState
-        ? colors.muted(padDisplayWidth(truncateLine(line, usableWidth), usableWidth))
-        : padDisplayWidth(truncateLine(line, usableWidth), usableWidth);
-
-      screen.cursorMoveTo(currentRow, 0);
-      screen.write(displayLine);
+      const truncated = truncateByLength(line, usableWidth);
+      if (isEmptyState) {
+        writePaddedLine(ctx, currentRow, truncated, usableWidth, statusColor.muted);
+      } else {
+        writePaddedLine(ctx, currentRow, truncated, usableWidth);
+      }
       currentRow += 1;
     }
 
-    // Fill remaining rows
-    while (currentRow < region.endRow) {
-      screen.cursorMoveTo(currentRow, 0);
-      screen.write(" ".repeat(usableWidth));
-      currentRow += 1;
-    }
+    fillRemaining(ctx, region, currentRow);
   }
 }

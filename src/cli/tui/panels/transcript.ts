@@ -4,7 +4,8 @@ import type { PtyEvent } from "../../../integrations/subprocess/types.js";
 import type { ActionTimelineEvent } from "../../../core/timeline/types.js";
 import { getContentArea, getPanelHeight } from "../layout-manager.js";
 import { padDisplayWidth } from "../renderer.js";
-import { colors } from "../../colors.js";
+import { fillRemaining, truncateByLength } from "./base.js";
+import { statusColor } from "../design/tokens.js";
 
 const EMPTY_TRANSCRIPT_LINES = [
   "실행 기록이 아직 없습니다.",
@@ -49,21 +50,7 @@ const stripControlSequences = (value: string): string =>
 
 const sanitizeText = (value: string): string => stripControlSequences(value).replace(/\r/g, "");
 
-const truncateLine = (line: string, maxWidth: number): string => {
-  if (maxWidth <= 0) {
-    return "";
-  }
-
-  if (line.length <= maxWidth) {
-    return line.padEnd(maxWidth);
-  }
-
-  if (maxWidth <= 3) {
-    return ".".repeat(maxWidth);
-  }
-
-  return `${line.slice(0, maxWidth - 3)}...`;
-};
+const truncateLine = truncateByLength;
 
 type TranscriptEntryKind = "tool" | "validation" | "git" | "edit" | "final" | "diagnostic" | "recap" | "raw";
 
@@ -729,11 +716,11 @@ export class TranscriptPanel {
       const line = truncateLine(`${prefix}${entry.text}`, usableWidth);
       const paddedLine = padDisplayWidth(line, usableWidth);
       const displayLine = isEmptyState
-        ? colors.muted(paddedLine)
+        ? statusColor.muted(paddedLine)
         : entry.kind === "diagnostic"
-          ? colors.error(paddedLine)
+          ? statusColor.error(paddedLine)
           : entry.kind === "recap"
-            ? colors.info(paddedLine)
+            ? statusColor.info(paddedLine)
             : paddedLine;
 
       screen.cursorMoveTo(currentRow, 0);
@@ -741,10 +728,6 @@ export class TranscriptPanel {
       currentRow += 1;
     }
 
-    while (currentRow < region.endRow) {
-      screen.cursorMoveTo(currentRow, 0);
-      screen.write(" ".repeat(usableWidth));
-      currentRow += 1;
-    }
+    fillRemaining(ctx, region, currentRow);
   }
 }

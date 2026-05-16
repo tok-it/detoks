@@ -2,8 +2,9 @@ import type { RenderContext } from "../renderer.js";
 import type { PanelRegion } from "../layout-manager.js";
 import type { PtyEvent } from "../../../integrations/subprocess/types.js";
 import { getContentArea } from "../layout-manager.js";
-import { colors } from "../../colors.js";
 import { padDisplayWidth } from "../renderer.js";
+import { fillRemaining } from "./base.js";
+import { statusColor } from "../design/tokens.js";
 import type { TerminalCell, TerminalCellStyle, TerminalColor } from "../terminal-emulator.js";
 import { TerminalEmulatorBuffer, getCharacterDisplayWidth } from "../terminal-emulator.js";
 
@@ -462,7 +463,7 @@ const buildCompactRenderableLines = (
       }
 
       output.push({
-        text: colors.muted(
+        text: statusColor.muted(
           padDisplayWidth(summarizeMetadataBlock(block, maxWidth), maxWidth),
         ),
       });
@@ -502,7 +503,7 @@ const buildCompactRenderableLines = (
         const summary = summarizeCommandBlock(commandBlock, maxWidth);
         if (summary !== null) {
           output.push({
-            text: colors.header(padDisplayWidth(summary, maxWidth)),
+            text: statusColor.header(padDisplayWidth(summary, maxWidth)),
           });
           index = cursor;
           continue;
@@ -512,7 +513,7 @@ const buildCompactRenderableLines = (
       const commandLine = rows[index + 1]?.plainText.trim() ?? "";
       if (looksLikeCommandLine(commandLine)) {
         output.push({
-          text: colors.muted(
+          text: statusColor.muted(
             padDisplayWidth(summarizeCommandActivity(commandLine, maxWidth, "running"), maxWidth),
           ),
         });
@@ -534,7 +535,7 @@ const buildCompactRenderableLines = (
       }
 
       output.push({
-        text: colors.muted(
+        text: statusColor.muted(
           padDisplayWidth(summarizeToolActivityBlock(block, maxWidth), maxWidth),
         ),
       });
@@ -853,7 +854,7 @@ export class EmbeddedTerminalPane {
 
     if (!this.buffer.hasContent()) {
       return EMPTY_PANE_LINES.map((line) => ({
-        text: colors.muted(padDisplayWidth(truncateToWidth(line, maxWidth), maxWidth)),
+        text: statusColor.muted(padDisplayWidth(truncateToWidth(line, maxWidth), maxWidth)),
       }));
     }
 
@@ -899,10 +900,6 @@ export class EmbeddedTerminalPane {
       currentRow += 1;
     }
 
-    while (currentRow < region.endRow) {
-      screen.cursorMoveTo(currentRow, 0);
-      screen.write(" ".repeat(usableWidth));
-      currentRow += 1;
-    }
+    fillRemaining(ctx, region, currentRow);
   }
 }
