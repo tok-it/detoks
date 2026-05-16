@@ -153,6 +153,16 @@ export const glyph = {
   cacheAdvise: "⚠",
   ragInjected: "ⓘ",
   ragSkipped: "○",
+  gutter: "▎",
+  spinnerBraille: ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"] as const,
+  toolWeb: "◐",
+  toolMcp: "▢",
+  toolTodo: "☐",
+  execRunning: "▸",
+  execDone: "✓",
+  execFailed: "✗",
+  adapterBadge: "▣",
+  scrollIndicator: "▒",
 } as const;
 
 export const spacing = {
@@ -167,6 +177,7 @@ export const width = {
   cjkCharCells: 2,
   asciiCharCells: 1,
   spinnerFrameMs: 250,
+  gutterColumns: 2,
 } as const;
 
 export const colorLevel = {
