@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
 	buildModelRuntimeEnv,
-	calculateTokenJaccardSimilarity,
+	calculateCosineSimilarity,
 	computeSummary,
 	loadInputRecords,
 	loadModelSpecs,
@@ -64,6 +64,8 @@ describe("translate-model-benchmark-report script", () => {
 			"refs.json",
 			"--limit",
 			"2",
+			"--embedding-model-path",
+			"/tmp/kure.gguf",
 			"--debug",
 		]);
 
@@ -72,6 +74,7 @@ describe("translate-model-benchmark-report script", () => {
 			filePath: "tests/data/row_data.json",
 			referenceFilePath: "refs.json",
 			limit: 2,
+			embeddingModelPath: "/tmp/kure.gguf",
 			debug: true,
 			fromJsonPaths: [],
 		});
@@ -151,7 +154,6 @@ describe("translate-model-benchmark-report script", () => {
 			makeItem({
 				reference: "Create a file",
 				reference_similarity: 1,
-				reference_length_ratio: 1,
 				reference_pass: true,
 			}),
 			makeItem({
@@ -163,7 +165,6 @@ describe("translate-model-benchmark-report script", () => {
 				korean_remaining: true,
 				reference: "Delete a file",
 				reference_similarity: 0,
-				reference_length_ratio: 0.7,
 				reference_pass: false,
 			}),
 		];
@@ -171,10 +172,7 @@ describe("translate-model-benchmark-report script", () => {
 			makeItem({
 				translated_text: "Create a file now",
 				reference: "Create a file",
-				reference_similarity: calculateTokenJaccardSimilarity(
-					"Create a file now",
-					"Create a file",
-				),
+				reference_similarity: 0.9,
 			}),
 		];
 
@@ -205,6 +203,21 @@ describe("translate-model-benchmark-report script", () => {
 		expect(markdown).toContain("korean_text_remaining");
 		expect(markdown).toContain("model-a");
 		expect(markdown).toContain("model-b");
+	});
+
+	it("임베딩 cosine similarity를 계산한다", () => {
+		expect(
+			calculateCosineSimilarity(
+				new Float32Array([1, 0, 1]),
+				new Float32Array([1, 0, 1]),
+			),
+		).toBe(1);
+		expect(
+			calculateCosineSimilarity(
+				new Float32Array([1, 0]),
+				new Float32Array([0, 1]),
+			),
+		).toBe(0);
 	});
 
 	it("기존 verify-role1 JSON도 from-json 입력으로 정규화한다", () => {

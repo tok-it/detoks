@@ -70,6 +70,7 @@ yarn.lock
 *~
 
 # Project-specific
+!data/row_data_translated.json
 .repl-session.json
 .detoks/
 .serena/
@@ -99,7 +100,7 @@ scripts/daily-report
 scripts/generate-daily-reports.py
 JetBrainsMono-2.304/
 daily/
-data/
+data/*
 datasets/validation/
 docs/blog/
 docs/logic/

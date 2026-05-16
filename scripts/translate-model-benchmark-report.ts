@@ -1,10 +1,11 @@
 #!/usr/bin/env tsx
 
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { basename, dirname, extname, isAbsolute, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { get_encoding } from "tiktoken";
 import { shutdownManagedLocalLlmRuntime } from "../src/core/llm-client/local-runtime.js";
+import { EmbeddingService } from "../src/core/rag/embedding-service.js";
 import {
 	loadRole1Policies,
 	loadRole1RuntimeConfig,
@@ -15,6 +16,10 @@ import {
 } from "../src/core/translate/translate.js";
 
 type JsonObject = Record<string, unknown>;
+
+const DEFAULT_EMBEDDING_MODEL_PATH =
+	"/Users/siho/.detoks/models/embedding/mykor-KURE-v1-gguf";
+const DEFAULT_EMBEDDING_MODEL_FILE = "KURE-v1-Q4_K_M.gguf";
 
 interface BenchmarkArgs {
 	modelsPath?: string;
@@ -27,6 +32,7 @@ interface BenchmarkArgs {
 	reportOutputPath: string;
 	fromJsonPaths: string[];
 	title: string;
+	embeddingModelPath: string;
 }
 
 export interface ModelSpec {
@@ -58,7 +64,6 @@ export interface TranslateBenchmarkItem {
 	korean_remaining: boolean;
 	reference?: string;
 	reference_similarity?: number;
-	reference_length_ratio?: number;
 	reference_pass?: boolean;
 	error?: string;
 }
@@ -113,6 +118,7 @@ function getUsage(): string {
 		"  --report-output <path>          Markdown 보고서 저장 경로",
 		"  --from-json <path>              기존 결과 JSON 사용 (반복 가능)",
 		"  --title <text>                  Markdown 보고서 제목",
+		"  --embedding-model-path <path>   reference 유사도용 GGUF 임베딩 모델 경로",
 		"  --help                          도움말 출력",
 	].join("\n");
 }
@@ -128,6 +134,7 @@ export function parseArgs(argv: string[] = process.argv.slice(2)): BenchmarkArgs
 	let benchmarkOutputDir = "tmp/translate-model-benchmark";
 	let reportOutputPath = "docs/TRANSLATE_MODEL_BENCHMARK_REPORT.md";
 	let title = "번역 모델 벤치마크 분석";
+	let embeddingModelPath = DEFAULT_EMBEDDING_MODEL_PATH;
 
 	for (let i = 0; i < argv.length; i += 1) {
 		const current = argv[i];
@@ -201,6 +208,12 @@ export function parseArgs(argv: string[] = process.argv.slice(2)): BenchmarkArgs
 			continue;
 		}
 
+		if (current === "--embedding-model-path" && next !== undefined) {
+			embeddingModelPath = next;
+			i += 1;
+			continue;
+		}
+
 		throw new Error(`Unknown argument: ${current}`);
 	}
 
@@ -219,6 +232,7 @@ export function parseArgs(argv: string[] = process.argv.slice(2)): BenchmarkArgs
 		reportOutputPath,
 		fromJsonPaths,
 		title,
+		embeddingModelPath,
 	};
 	if (modelsPath !== undefined) {
 		parsed.modelsPath = modelsPath;
@@ -266,33 +280,92 @@ function countTokensWithEncoding(
 	return encoding.encode(text).length;
 }
 
-function tokenizeForSimilarity(text: string): Set<string> {
-	const tokens = text
-		.toLowerCase()
-		.match(/[a-z0-9_./:-]+/gu);
-	return new Set(tokens ?? []);
+export function calculateCosineSimilarity(
+	actualVector: Float32Array,
+	referenceVector: Float32Array,
+): number {
+	const length = Math.min(actualVector.length, referenceVector.length);
+	if (length === 0) {
+		return 0;
+	}
+
+	let dot = 0;
+	let actualNorm = 0;
+	let referenceNorm = 0;
+	for (let index = 0; index < length; index += 1) {
+		const actual = actualVector[index] ?? 0;
+		const reference = referenceVector[index] ?? 0;
+		dot += actual * reference;
+		actualNorm += actual * actual;
+		referenceNorm += reference * reference;
+	}
+
+	if (actualNorm === 0 || referenceNorm === 0) {
+		return 0;
+	}
+
+	return roundMetric(dot / (Math.sqrt(actualNorm) * Math.sqrt(referenceNorm)));
 }
 
-export function calculateTokenJaccardSimilarity(
-	actual: string,
-	reference: string,
-): number {
-	const actualTokens = tokenizeForSimilarity(actual);
-	const referenceTokens = tokenizeForSimilarity(reference);
-
-	if (actualTokens.size === 0 && referenceTokens.size === 0) {
-		return 1;
+function resolveEmbeddingModelPath(path: string): string {
+	const absolutePath = resolveFromCwd(path);
+	if (!existsSync(absolutePath)) {
+		throw new Error(`임베딩 모델 경로를 찾을 수 없습니다: ${absolutePath}`);
 	}
 
-	const union = new Set([...actualTokens, ...referenceTokens]);
-	let intersectionCount = 0;
-	for (const token of actualTokens) {
-		if (referenceTokens.has(token)) {
-			intersectionCount += 1;
+	if (statSync(absolutePath).isDirectory()) {
+		const modelPath = join(absolutePath, DEFAULT_EMBEDDING_MODEL_FILE);
+		if (!existsSync(modelPath)) {
+			throw new Error(`임베딩 GGUF 파일을 찾을 수 없습니다: ${modelPath}`);
 		}
+		return modelPath;
 	}
 
-	return union.size > 0 ? roundMetric(intersectionCount / union.size) : 0;
+	return absolutePath;
+}
+
+class ReferenceSimilarityScorer {
+	private readonly service: EmbeddingService;
+	private readonly cache = new Map<string, Float32Array>();
+
+	private constructor(modelPath: string) {
+		this.service = new EmbeddingService(modelPath);
+	}
+
+	static async create(modelPath: string): Promise<ReferenceSimilarityScorer> {
+		const scorer = new ReferenceSimilarityScorer(resolveEmbeddingModelPath(modelPath));
+		await scorer.service.init();
+		return scorer;
+	}
+
+	async score(actual: string, reference: string): Promise<number> {
+		const actualText = actual.trim();
+		const referenceText = reference.trim();
+		if (!actualText || !referenceText) {
+			return 0;
+		}
+
+		const [actualVector, referenceVector] = await Promise.all([
+			this.embedCached(actualText),
+			this.embedCached(referenceText),
+		]);
+		return calculateCosineSimilarity(actualVector, referenceVector);
+	}
+
+	async dispose(): Promise<void> {
+		await this.service.dispose();
+	}
+
+	private async embedCached(text: string): Promise<Float32Array> {
+		const cached = this.cache.get(text);
+		if (cached) {
+			return cached;
+		}
+
+		const vector = await this.service.embed(text);
+		this.cache.set(text, vector);
+		return vector;
+	}
 }
 
 export function loadInputRecords(
@@ -403,25 +476,27 @@ export function buildModelRuntimeEnv(
 	};
 }
 
-function makeReferenceMetrics(
+async function makeReferenceMetrics(
 	translatedText: string,
 	reference: string | undefined,
-): Pick<
+	scorer: ReferenceSimilarityScorer | null,
+): Promise<Pick<
 	TranslateBenchmarkItem,
-	"reference" | "reference_similarity" | "reference_length_ratio" | "reference_pass"
-> {
+	"reference" | "reference_similarity" | "reference_pass"
+>> {
 	if (reference === undefined) {
 		return {};
 	}
 
-	const similarity = calculateTokenJaccardSimilarity(translatedText, reference);
-	const referenceLength = Math.max(reference.trim().length, 1);
-	const lengthRatio = roundMetric(translatedText.trim().length / referenceLength);
+	if (!scorer) {
+		return { reference };
+	}
+
+	const similarity = await scorer.score(translatedText, reference);
 	return {
 		reference,
 		reference_similarity: similarity,
-		reference_length_ratio: lengthRatio,
-		reference_pass: similarity >= 0.5 && lengthRatio >= 0.5 && lengthRatio <= 1.8,
+		reference_pass: similarity >= 0.75,
 	};
 }
 
@@ -430,12 +505,13 @@ function summarizeInput(rawInput: string): string {
 	return singleLine.length <= 80 ? singleLine : `${singleLine.slice(0, 77)}...`;
 }
 
-function createResultItem(
+async function createResultItem(
 	record: InputRecord,
 	result: TranslateToEnglishResult,
 	reference: string | undefined,
 	encoding: ReturnType<typeof get_encoding>,
-): TranslateBenchmarkItem {
+	scorer: ReferenceSimilarityScorer | null,
+): Promise<TranslateBenchmarkItem> {
 	const translatedText = result.text;
 	return {
 		index: record.index,
@@ -449,16 +525,17 @@ function createResultItem(
 		repair_actions: result.repair_actions,
 		fallback_span_count: result.fallback_span_count,
 		korean_remaining: hasKorean(translatedText),
-		...makeReferenceMetrics(translatedText, reference),
+		...(await makeReferenceMetrics(translatedText, reference, scorer)),
 	};
 }
 
-function createFailedItem(
+async function createFailedItem(
 	record: InputRecord,
 	error: unknown,
 	reference: string | undefined,
 	encoding: ReturnType<typeof get_encoding>,
-): TranslateBenchmarkItem {
+	scorer: ReferenceSimilarityScorer | null,
+): Promise<TranslateBenchmarkItem> {
 	const message = error instanceof Error ? error.message : String(error);
 	return {
 		index: record.index,
@@ -472,7 +549,7 @@ function createFailedItem(
 		repair_actions: [],
 		fallback_span_count: 0,
 		korean_remaining: false,
-		...makeReferenceMetrics("", reference),
+		...(await makeReferenceMetrics("", reference, scorer)),
 		error: message,
 	};
 }
@@ -534,6 +611,7 @@ async function runBenchmarkForModel(
 	inputs: readonly InputRecord[],
 	references: ReadonlyMap<number, string>,
 	args: BenchmarkArgs,
+	scorer: ReferenceSimilarityScorer | null,
 ): Promise<TranslateBenchmarkFile> {
 	const env = buildModelRuntimeEnv(model, args);
 	const config = loadRole1RuntimeConfig({ env });
@@ -552,9 +630,9 @@ async function runBenchmarkForModel(
 					config,
 					policies,
 				});
-				results.push(createResultItem(record, result, reference, encoding));
+				results.push(await createResultItem(record, result, reference, encoding, scorer));
 			} catch (error) {
-				results.push(createFailedItem(record, error, reference, encoding));
+				results.push(await createFailedItem(record, error, reference, encoding, scorer));
 			}
 		}
 	} finally {
@@ -618,6 +696,8 @@ function normalizeExistingResult(
 			? "completed"
 			: "failed";
 	const reference = typeof record.reference === "string" ? record.reference : undefined;
+	const referenceSimilarity = toNumber(record.reference_similarity, NaN);
+	const hasReferenceSimilarity = Number.isFinite(referenceSimilarity);
 	return {
 		index: toNumber(record.index),
 		raw_input: rawInput,
@@ -639,7 +719,16 @@ function normalizeExistingResult(
 			typeof record.korean_remaining === "boolean"
 				? record.korean_remaining
 				: hasKorean(translatedText),
-		...makeReferenceMetrics(translatedText, reference),
+		...(reference !== undefined ? { reference } : {}),
+		...(hasReferenceSimilarity
+			? {
+					reference_similarity: referenceSimilarity,
+					reference_pass:
+						typeof record.reference_pass === "boolean"
+							? record.reference_pass
+							: referenceSimilarity >= 0.75,
+				}
+			: {}),
 		...(typeof record.error === "string" ? { error: record.error } : {}),
 	};
 }
@@ -681,6 +770,41 @@ export function loadReportModelDataFromJson(path: string): ReportModelData {
 	} finally {
 		encoding.free();
 	}
+}
+
+async function applyReferenceMetricsToReportModels(
+	models: readonly ReportModelData[],
+	references: ReadonlyMap<number, string>,
+	scorer: ReferenceSimilarityScorer | null,
+): Promise<ReportModelData[]> {
+	if (references.size === 0 || !scorer) {
+		return [...models];
+	}
+
+	const updatedModels: ReportModelData[] = [];
+	for (const model of models) {
+		const results: TranslateBenchmarkItem[] = [];
+		for (const item of model.results) {
+			const reference = references.get(item.index) ?? item.reference;
+			if (reference === undefined || item.status !== "completed") {
+				results.push(item);
+				continue;
+			}
+
+			results.push({
+				...item,
+				...(await makeReferenceMetrics(item.translated_text, reference, scorer)),
+			});
+		}
+
+		updatedModels.push({
+			...model,
+			summary: computeSummary(model.modelName, results),
+			results,
+		});
+	}
+
+	return updatedModels;
 }
 
 function escapeTableCell(value: string | number | undefined): string {
@@ -862,21 +986,34 @@ async function runBenchmarkMode(args: BenchmarkArgs): Promise<ReportModelData[]>
 	mkdirSync(outputDir, { recursive: true });
 	const timestamp = new Date().toISOString().replace(/[:.]/gu, "-");
 	const reportModels: ReportModelData[] = [];
+	const scorer = references.size > 0
+		? await ReferenceSimilarityScorer.create(args.embeddingModelPath)
+		: null;
 
-	for (const model of models) {
-		const benchmark = await runBenchmarkForModel(model, inputs, references, args);
-		const outputPath = join(
-			outputDir,
-			`${timestamp}-${safeFileSegment(model.name)}.json`,
-		);
-		writeJsonFile(outputPath, benchmark);
-		process.stdout.write(`벤치마크 JSON 저장: ${outputPath}\n`);
-		reportModels.push({
-			modelName: benchmark.summary.model_name,
-			sourcePath: outputPath,
-			summary: benchmark.summary,
-			results: benchmark.results,
-		});
+	try {
+		for (const model of models) {
+			const benchmark = await runBenchmarkForModel(
+				model,
+				inputs,
+				references,
+				args,
+				scorer,
+			);
+			const outputPath = join(
+				outputDir,
+				`${timestamp}-${safeFileSegment(model.name)}.json`,
+			);
+			writeJsonFile(outputPath, benchmark);
+			process.stdout.write(`벤치마크 JSON 저장: ${outputPath}\n`);
+			reportModels.push({
+				modelName: benchmark.summary.model_name,
+				sourcePath: outputPath,
+				summary: benchmark.summary,
+				results: benchmark.results,
+			});
+		}
+	} finally {
+		await scorer?.dispose();
 	}
 
 	return reportModels;
@@ -884,9 +1021,24 @@ async function runBenchmarkMode(args: BenchmarkArgs): Promise<ReportModelData[]>
 
 async function main(): Promise<void> {
 	const args = parseArgs();
-	const reportModels = args.fromJsonPaths.length > 0
+	let reportModels = args.fromJsonPaths.length > 0
 		? args.fromJsonPaths.map((path) => loadReportModelDataFromJson(path))
 		: await runBenchmarkMode(args);
+	if (args.fromJsonPaths.length > 0 && args.referenceFilePath) {
+		const references = loadReferenceMap(args.referenceFilePath);
+		const scorer = references.size > 0
+			? await ReferenceSimilarityScorer.create(args.embeddingModelPath)
+			: null;
+		try {
+			reportModels = await applyReferenceMetricsToReportModels(
+				reportModels,
+				references,
+				scorer,
+			);
+		} finally {
+			await scorer?.dispose();
+		}
+	}
 
 	const markdown = renderMarkdownReport(reportModels, args);
 	const reportOutputPath = resolveFromCwd(args.reportOutputPath);
