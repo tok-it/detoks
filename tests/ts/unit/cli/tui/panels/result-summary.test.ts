@@ -466,4 +466,98 @@ describe("ResultSummaryPanel", () => {
       expect(output).not.toContain("preview 4");
     });
   });
+
+  describe("resume hint banner (P1-3)", () => {
+    it("renders banner at top with sessionId, completed count, currentTaskId, ago, and continue command", () => {
+      const fiveMinAgo = new Date(Date.now() - 5 * 60_000).toISOString();
+      panel.setResult(
+        mockResult({
+          resumeHint: {
+            sessionId: "abc123def4567890",
+            completedTaskIds: ["t1", "t2"],
+            currentTaskId: "t3",
+            updatedAt: fiveMinAgo,
+          },
+        }),
+      );
+      panel.render(mockContext, mockRegion);
+      const output = mockScreen.write.mock.calls.map((c: any) => c[0]).join("\n");
+      expect(output).toContain("↩ Resume");
+      expect(output).toContain("abc123de");
+      expect(output).toContain("완료 2개");
+      expect(output).toContain("중단 t3");
+      expect(output).toMatch(/\d+분 전/);
+      expect(output).toContain("/session continue abc123de");
+    });
+
+    it("omits banner when resumeHint is undefined", () => {
+      panel.setResult(mockResult());
+      panel.render(mockContext, mockRegion);
+      const output = mockScreen.write.mock.calls.map((c: any) => c[0]).join("\n");
+      expect(output).not.toContain("Resume");
+    });
+  });
+
+  describe("per-task status grid (P1-4)", () => {
+    it("renders a section with one styled line per task record", () => {
+      panel.setResult(
+        mockResult({
+          taskRecords: [
+            { taskId: "t1", status: "completed", rawOutput: "" },
+            { taskId: "t2", status: "failed", rawOutput: "" },
+            { taskId: "t3", status: "skipped", rawOutput: "", blockedBy: "t2" },
+          ],
+        }),
+      );
+      panel.render(mockContext, mockRegion);
+      const output = mockScreen.write.mock.calls.map((c: any) => c[0]).join("\n");
+      expect(output).toContain("작업 결과");
+      expect(output).toContain("✓ t1");
+      expect(output).toContain("✗ t2");
+      expect(output).toContain("○ t3");
+      expect(output).toContain("blocked by t2");
+    });
+
+    it("omits the section when taskRecords is empty", () => {
+      panel.setResult(mockResult({ taskRecords: [] }));
+      panel.render(mockContext, mockRegion);
+      const output = mockScreen.write.mock.calls.map((c: any) => c[0]).join("\n");
+      expect(output).not.toContain("작업 결과");
+    });
+  });
+
+  describe("verbose mode (P1-5)", () => {
+    const cost = {
+      costSavedUsd: 0.0123,
+      costAddedUsd: 0.0034,
+      compressionCostUsd: 0,
+      netCostSavedUsd: 0.0089,
+    };
+
+    it("hides cost accounting section by default", () => {
+      panel.setResult(mockResult({ costAccounting: cost }));
+      panel.render(mockContext, mockRegion);
+      const output = mockScreen.write.mock.calls.map((c: any) => c[0]).join("\n");
+      expect(output).not.toContain("비용 정산");
+    });
+
+    it("shows cost accounting section when verbose enabled", () => {
+      panel.setVerbose(true);
+      panel.setResult(mockResult({ costAccounting: cost }));
+      panel.render(mockContext, mockRegion);
+      const output = mockScreen.write.mock.calls.map((c: any) => c[0]).join("\n");
+      expect(output).toContain("비용 정산");
+      expect(output).toContain("캐시로 절약");
+      expect(output).toContain("RAG 추가");
+      expect(output).toContain("순절감");
+    });
+
+    it("omits cost accounting even when verbose if costAccounting is missing", () => {
+      panel.setVerbose(true);
+      panel.setResult(mockResult());
+      panel.render(mockContext, mockRegion);
+      const output = mockScreen.write.mock.calls.map((c: any) => c[0]).join("\n");
+      expect(output).not.toContain("비용 정산");
+    });
+  });
 });
