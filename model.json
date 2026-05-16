@@ -1,0 +1,46 @@
+{
+  "models": [
+    {
+      "name": "qwen3.5-4b",
+      "env": {
+        "LOCAL_LLM_RUNTIME_PROVIDER": "node-llama-cpp",
+        "LOCAL_LLM_MODEL_NAME": "unsloth/Qwen3.5-4B-GGUF",
+        "LOCAL_LLM_HF_REPO": "unsloth/Qwen3.5-4B-GGUF:Q4_K_M",
+        "LOCAL_LLM_HF_FILE": "Qwen3.5-4B-Q4_K_M.gguf",
+        "LOCAL_LLM_MODEL_DIR": "/Users/siho/.detoks/models/llm/unsloth-Qwen3.5-4B-GGUF",
+        "LOCAL_LLM_GPU_LAYERS": "all",
+        "LOCAL_LLM_CONTEXT_SIZE": "4096",
+        "LOCAL_LLM_MAX_TOKENS": "512",
+        "LOCAL_LLM_REASONING": "off"
+      }
+    },
+    {
+      "name": "qwen3.5-2b",
+      "env": {
+        "LOCAL_LLM_RUNTIME_PROVIDER": "node-llama-cpp",
+        "LOCAL_LLM_MODEL_NAME": "lmstudio-community/Qwen3.5-2B-GGUF",
+        "LOCAL_LLM_HF_REPO": "lmstudio-community/Qwen3.5-2B-GGUF",
+        "LOCAL_LLM_HF_FILE": "Qwen3.5-2B-Q4_K_M.gguf",
+        "LOCAL_LLM_MODEL_DIR": "/Users/siho/.detoks/models/llm/lmstudio-community-Qwen3.5-2B-GGUF",
+        "LOCAL_LLM_GPU_LAYERS": "all",
+        "LOCAL_LLM_CONTEXT_SIZE": "4096",
+        "LOCAL_LLM_MAX_TOKENS": "512",
+        "LOCAL_LLM_REASONING": "off"
+      }
+    },
+    {
+      "name": "deepseek-r1-0528-qwen3-8b",
+      "env": {
+        "LOCAL_LLM_RUNTIME_PROVIDER": "node-llama-cpp",
+        "LOCAL_LLM_MODEL_NAME": "unsloth/DeepSeek-R1-0528-Qwen3-8B-GGUF",
+        "LOCAL_LLM_HF_REPO": "unsloth/DeepSeek-R1-0528-Qwen3-8B-GGUF",
+        "LOCAL_LLM_HF_FILE": "DeepSeek-R1-0528-Qwen3-8B-Q4_K_M.gguf",
+        "LOCAL_LLM_MODEL_DIR": "/Users/siho/.detoks/models/llm/unsloth-DeepSeek-R1-0528-Qwen3-8B-GGUF",
+        "LOCAL_LLM_GPU_LAYERS": "all",
+        "LOCAL_LLM_CONTEXT_SIZE": "4096",
+        "LOCAL_LLM_MAX_TOKENS": "512",
+        "LOCAL_LLM_REASONING": "off"
+      }
+    }
+  ]
+}
