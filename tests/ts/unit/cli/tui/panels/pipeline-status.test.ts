@@ -301,4 +301,39 @@ describe("PipelineStatusPanel", () => {
       expect(calls.length).toBeGreaterThan(5);
     });
   });
+
+  describe("stage duration display", () => {
+    it("renders ms duration when a stage transitions start → end quickly", async () => {
+      panel.update({ stage: "Prompt Compiler", status: "start", message: "시작" });
+      // Tiny delay so endedAt > startedAt by some ms.
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      panel.update({ stage: "Prompt Compiler", status: "end", message: "완료" });
+
+      panel.render(mockContext, mockRegion);
+      const output = mockScreen.write.mock.calls.map((c: any) => stripAnsi(c[0])).join("\n");
+      expect(output).toMatch(/Prompt Compiler\s+\d+ms/);
+    });
+
+    it("does not render duration before a stage has ended", () => {
+      panel.update({ stage: "Prompt Compiler", status: "start", message: "시작" });
+      panel.render(mockContext, mockRegion);
+      const output = mockScreen.write.mock.calls.map((c: any) => stripAnsi(c[0])).join("\n");
+      const compilerLine = output.split("\n").find((l: string) => l.includes("Prompt Compiler"));
+      expect(compilerLine).toBeDefined();
+      expect(compilerLine).not.toMatch(/\d+ms/);
+      expect(compilerLine).not.toMatch(/\d+\.\d+s/);
+    });
+
+    it("clears duration when stage restarts via update(start)", () => {
+      panel.update({ stage: "Executor", status: "start", message: "1차" });
+      panel.update({ stage: "Executor", status: "end", message: "1차 완료" });
+      panel.update({ stage: "Executor", status: "start", message: "2차 시작" });
+
+      panel.render(mockContext, mockRegion);
+      const output = mockScreen.write.mock.calls.map((c: any) => stripAnsi(c[0])).join("\n");
+      const executorLine = output.split("\n").find((l: string) => l.includes("Executor"));
+      expect(executorLine).toBeDefined();
+      expect(executorLine).not.toMatch(/\d+ms/);
+    });
+  });
 });

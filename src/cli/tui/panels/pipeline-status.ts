@@ -11,7 +11,14 @@ interface StageStatus {
   status: PipelineProgressStatus;
   message: string;
   timestamp: number;
+  startedAt?: number;
+  endedAt?: number;
 }
+
+const formatStageDuration = (durationMs: number): string => {
+  if (durationMs < 1000) return `${durationMs}ms`;
+  return `${(durationMs / 1000).toFixed(1)}s`;
+};
 
 const STATUS_ICONS: Record<PipelineProgressStatus, string> = {
   end: glyph.done,
@@ -54,11 +61,22 @@ export class PipelineStatusPanel {
   }
 
   update(event: PipelineProgressEvent): void {
-    this.stages.set(event.stage, {
+    const now = Date.now();
+    const prev = this.stages.get(event.stage);
+    const next: StageStatus = {
       status: event.status,
       message: event.message,
-      timestamp: Date.now(),
-    });
+      timestamp: now,
+      ...(prev?.startedAt !== undefined ? { startedAt: prev.startedAt } : {}),
+      ...(prev?.endedAt !== undefined ? { endedAt: prev.endedAt } : {}),
+    };
+    if (event.status === "start") {
+      next.startedAt = now;
+      delete next.endedAt;
+    } else if (event.status === "end" || event.status === "error") {
+      next.endedAt = now;
+    }
+    this.stages.set(event.stage, next);
   }
 
   updateActionTimelineEvent(event: ActionTimelineEvent): void {
@@ -76,11 +94,12 @@ export class PipelineStatusPanel {
   }
 
   reset(): void {
+    const now = Date.now();
     for (const stageName of STAGE_ORDER) {
       this.stages.set(stageName, {
         status: "start",
         message: "준비",
-        timestamp: Date.now(),
+        timestamp: now,
       });
     }
     this.latestWorkState = null;
@@ -141,10 +160,13 @@ export class PipelineStatusPanel {
       if (!stageStatus) continue;
 
       const icon = STATUS_ICONS[stageStatus.status];
+      const durationLabel = stageStatus.startedAt !== undefined && stageStatus.endedAt !== undefined
+        ? `  ${formatStageDuration(stageStatus.endedAt - stageStatus.startedAt)}`
+        : "";
       writePaddedLine(
         ctx,
         currentRow,
-        `${icon} ${stageName}`,
+        `${icon} ${stageName}${durationLabel}`,
         usableWidth,
         STATUS_STYLES[stageStatus.status],
       );

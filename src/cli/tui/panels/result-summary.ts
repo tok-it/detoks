@@ -10,6 +10,8 @@ import { glyph, statusColor } from "../design/tokens.js";
 const EMPTY_RESULT_LINES = [
   "실행 결과가 아직 없습니다.",
   "첫 실행 이후 작업 타임라인 · 다음 작업 · 사용량/압축 지표가 이 영역에 표시됩니다.",
+  "",
+  "이전 세션 보기: /session list  ·  특정 세션 이어가기: /session continue <id>",
 ] as const;
 
 export class ResultSummaryPanel {
