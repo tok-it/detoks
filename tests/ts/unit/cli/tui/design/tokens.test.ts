@@ -1,5 +1,16 @@
-import { describe, expect, it } from "vitest";
-import { glyph, spacing, statusColor, width } from "../../../../../../src/cli/tui/design/tokens.js";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import {
+  applyTheme,
+  getActiveTheme,
+  glyph,
+  isThemeName,
+  resolveActiveTheme,
+  spacing,
+  statusColor,
+  themes,
+  width,
+  type ThemePalette,
+} from "../../../../../../src/cli/tui/design/tokens.js";
 
 describe("design tokens", () => {
   describe("statusColor", () => {
@@ -69,6 +80,96 @@ describe("design tokens", () => {
       expect(width.cjkCharCells).toBe(2);
       expect(width.asciiCharCells).toBe(1);
       expect(width.spinnerFrameMs).toBeGreaterThan(0);
+    });
+  });
+
+  describe("theme system (P3-2)", () => {
+    const PALETTE_KEYS: Array<keyof ThemePalette> = [
+      "success", "pipelineDone", "warn", "error", "info", "muted",
+      "accent", "pending", "active", "title", "header", "strong",
+      "footer", "plain",
+    ];
+
+    let originalTheme: ThemePalette;
+    let originalEnv: string | undefined;
+
+    beforeEach(() => {
+      originalTheme = getActiveTheme();
+      originalEnv = process.env.DETOKS_THEME;
+    });
+
+    afterEach(() => {
+      applyTheme(originalTheme);
+      if (originalEnv === undefined) {
+        delete process.env.DETOKS_THEME;
+      } else {
+        process.env.DETOKS_THEME = originalEnv;
+      }
+    });
+
+    it("exposes 3 built-in palettes (dark, light, colorblind)", () => {
+      expect(Object.keys(themes).sort()).toEqual(["colorblind", "dark", "light"]);
+    });
+
+    it("every palette implements all 14 semantic slots as functions", () => {
+      for (const [name, palette] of Object.entries(themes)) {
+        for (const key of PALETTE_KEYS) {
+          expect(typeof palette[key]).toBe("function");
+          // sanity: applying to text returns a string containing the input
+          expect(palette[key]("z")).toContain("z");
+          void name;
+        }
+      }
+    });
+
+    it("isThemeName accepts known names and rejects unknown", () => {
+      expect(isThemeName("dark")).toBe(true);
+      expect(isThemeName("light")).toBe(true);
+      expect(isThemeName("colorblind")).toBe(true);
+      expect(isThemeName("DARK")).toBe(false);
+      expect(isThemeName("solarized")).toBe(false);
+      expect(isThemeName("")).toBe(false);
+    });
+
+    it("resolveActiveTheme reads DETOKS_THEME env var", () => {
+      process.env.DETOKS_THEME = "light";
+      expect(resolveActiveTheme()).toBe(themes.light);
+      process.env.DETOKS_THEME = "colorblind";
+      expect(resolveActiveTheme()).toBe(themes.colorblind);
+    });
+
+    it("resolveActiveTheme is case-insensitive and trims whitespace", () => {
+      process.env.DETOKS_THEME = "  Light  ";
+      expect(resolveActiveTheme()).toBe(themes.light);
+    });
+
+    it("resolveActiveTheme defaults to dark on missing or invalid env", () => {
+      delete process.env.DETOKS_THEME;
+      expect(resolveActiveTheme()).toBe(themes.dark);
+      process.env.DETOKS_THEME = "solarized";
+      expect(resolveActiveTheme()).toBe(themes.dark);
+    });
+
+    it("applyTheme switches active palette so statusColor delegates to it", () => {
+      // Sentinel palette where every style wraps text in unique markers.
+      const sentinel: ThemePalette = {} as ThemePalette;
+      for (const key of PALETTE_KEYS) {
+        sentinel[key] = ((text: string) => `<${key}>${text}</${key}>`) as ThemePalette[typeof key];
+      }
+      applyTheme(sentinel);
+      expect(statusColor.success("hi")).toBe("<success>hi</success>");
+      expect(statusColor.pipelineDone("ok")).toBe("<pipelineDone>ok</pipelineDone>");
+      expect(statusColor.error("x")).toBe("<error>x</error>");
+    });
+
+    it("colorblind palette avoids the red/green pair", () => {
+      // Render to a chunk with chalk.level forced — verify success/error
+      // outputs differ from dark theme's red/green ANSI codes.
+      const successOut = themes.colorblind.success("✓");
+      const errorOut = themes.colorblind.error("✗");
+      // Dark theme uses 32 (green) for success, 31 (red) for error.
+      expect(successOut).not.toMatch(/\x1b\[32m/);
+      expect(errorOut).not.toMatch(/\x1b\[31m/);
     });
   });
 });
