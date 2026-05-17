@@ -1397,7 +1397,19 @@ export const orchestratePipeline = async (
         }
 
         // (6) LLM 실행
-        const prompt = `${responseLanguageInstruction}${ragContext ? `${ragContext}\n\n` : ""}[${task.type.toUpperCase()}] ${task.title}\n\nContext: ${executionContext.context_summary}`;
+        const promptParts: string[] = [];
+        if (responseLanguageInstruction) promptParts.push(responseLanguageInstruction.trimEnd());
+        if (ragContext) promptParts.push(ragContext.trimEnd());
+        promptParts.push(`[${task.type.toUpperCase()}] ${task.title}`);
+        promptParts.push(`User request: ${compiledPrompt.compressed_prompt}`);
+        promptParts.push(`Context: ${executionContext.context_summary}`);
+        const prompt = promptParts.join("\n\n");
+        if (process.env.DETOKS_DEBUG_ADAPTER_PROMPT === "1") {
+          process.stderr.write(
+            `[adapter-prompt] task=${task.id} type=${task.type} bytes=${Buffer.byteLength(prompt, "utf8")}\n` +
+            `--- BEGIN PROMPT ---\n${prompt}\n--- END PROMPT ---\n`,
+          );
+        }
         logger.info(`작업 [${task.id}] 실행 중 type=${task.type}`);
         await emitProgressWithLogging({
           stage: "Executor", status: "start", taskId: task.id,
