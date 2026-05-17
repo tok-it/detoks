@@ -467,6 +467,66 @@ describe("ResultSummaryPanel", () => {
     });
   });
 
+  describe("RAG indexing summary section", () => {
+    it("renders partial indexing status with DB stats and failures", () => {
+      panel.setResult(
+        mockResult({
+          ragIndexingSummary: {
+            status: "partial",
+            attempted: 3,
+            indexed: 2,
+            skipped: 1,
+            dbRowCount: 12,
+            dbSessionCount: 4,
+            failures: [
+              {
+                id: "output::sess::t1",
+                kind: "output",
+                sessionId: "sess",
+                taskId: "t1",
+                reason: "context too long",
+              },
+            ],
+          },
+        }),
+      );
+      panel.render(mockContext, mockRegion);
+      const output = mockScreen.write.mock.calls.map((c: any) => c[0]).join("\n");
+      expect(output).toContain("RAG 인덱싱");
+      expect(output).toContain("부분 완료");
+      expect(output).toContain("2/3");
+      expect(output).toContain("DB 12 rows/4 sessions");
+      expect(output).toContain("output t1");
+      expect(output).toContain("context too long");
+    });
+
+    it("renders failed indexing as non-fatal", () => {
+      panel.setResult(
+        mockResult({
+          ragIndexingSummary: {
+            status: "failed",
+            attempted: 0,
+            indexed: 0,
+            skipped: 0,
+            failures: [
+              {
+                id: "session::sess",
+                kind: "output",
+                sessionId: "sess",
+                reason: "db unavailable",
+              },
+            ],
+          },
+        }),
+      );
+      panel.render(mockContext, mockRegion);
+      const output = mockScreen.write.mock.calls.map((c: any) => c[0]).join("\n");
+      expect(output).toContain("RAG 인덱싱");
+      expect(output).toContain("실패 (non-fatal)");
+      expect(output).toContain("db unavailable");
+    });
+  });
+
   describe("resume hint banner (P1-3)", () => {
     it("renders banner at top with sessionId, completed count, currentTaskId, ago, and continue command", () => {
       const fiveMinAgo = new Date(Date.now() - 5 * 60_000).toISOString();

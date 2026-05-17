@@ -88,4 +88,15 @@ describe("VectorStore", () => {
     expect(first?.meta.session_id).toBe("sess-xyz");
     expect(first?.meta.task_id).toBe("t1");
   });
+
+  it("getStats — row/session count를 반환한다", () => {
+    store.upsert("task-1", makeVec([1, 0, 0, 0]), { kind: "task", session_id: "s1" });
+    store.upsert("task-2", makeVec([0, 1, 0, 0]), { kind: "task", session_id: "s2" });
+    store.upsert("task-1", makeVec([0, 1, 0, 0]), { kind: "task", session_id: "s1" });
+
+    expect(store.getStats()).toEqual({
+      rowCount: 2,
+      sessionCount: 2,
+    });
+  });
 });

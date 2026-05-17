@@ -47,6 +47,47 @@ const formatRagItemLine = (item: RagContextDisplayItem): string => {
   return `  ${marker} [${item.relevance}] ${label} (${sessionShort}${taskFragment}) — ${preview}`;
 };
 
+const formatRagIndexingLines = (result: PipelineExecutionResult): StyledLine[] => {
+  const summary = result.ragIndexingSummary;
+  if (!summary || summary.status === "skipped") return [];
+
+  const dbStats = summary.dbRowCount !== undefined && summary.dbSessionCount !== undefined
+    ? `  · DB ${summary.dbRowCount} rows/${summary.dbSessionCount} sessions`
+    : "";
+
+  if (summary.status === "completed") {
+    return [
+      { text: "" },
+      { text: `RAG 인덱싱  완료 · ${summary.indexed}/${summary.attempted}${dbStats}` },
+    ];
+  }
+
+  if (summary.status === "partial") {
+    const lines: StyledLine[] = [
+      { text: "" },
+      { text: `RAG 인덱싱  부분 완료 · ${summary.indexed}/${summary.attempted} · ${summary.skipped}개 스킵${dbStats}`, style: statusColor.warn },
+    ];
+    for (const failure of (summary.failures ?? []).slice(0, 2)) {
+      lines.push({
+        text: `  ${glyph.warn} ${failure.kind}${failure.taskId ? ` ${failure.taskId}` : ""} — ${failure.reason}`,
+        style: statusColor.warn,
+      });
+    }
+    if ((summary.failures?.length ?? 0) > 2) {
+      lines.push({ text: `  외 ${(summary.failures?.length ?? 0) - 2}개 실패`, style: statusColor.muted });
+    }
+    return lines;
+  }
+
+  return [
+    { text: "" },
+    { text: `RAG 인덱싱  실패 (non-fatal)`, style: statusColor.error },
+    ...(summary.failures?.[0]
+      ? [{ text: `  ${glyph.error} ${summary.failures[0].reason}`, style: statusColor.error } satisfies StyledLine]
+      : []),
+  ];
+};
+
 const formatRelativeAge = (updatedAt: string, now: number = Date.now()): string => {
   const ts = Date.parse(updatedAt);
   if (isNaN(ts)) return "방금";
@@ -70,11 +111,11 @@ const formatResumeBannerLines = (resumeHint: ResumeHintInfo): string[] => {
   ];
 };
 
-const TASK_STATUS_GLYPHS: Record<TaskExecutionRecord["status"], string> = {
+const getTaskStatusGlyph = (status: TaskExecutionRecord["status"]): string => ({
   completed: glyph.success,
   failed: glyph.failure,
   skipped: glyph.skipped,
-};
+}[status]);
 
 const TASK_STATUS_STYLES: Record<TaskExecutionRecord["status"], Style> = {
   completed: statusColor.success,
@@ -98,7 +139,7 @@ const formatTaskGridLines = (records: readonly TaskExecutionRecord[]): StyledLin
   lines.push({ text: "" });
   lines.push({ text: "작업 결과" });
   for (const record of records) {
-    const marker = TASK_STATUS_GLYPHS[record.status];
+    const marker = getTaskStatusGlyph(record.status);
     const label = TASK_STATUS_LABELS[record.status];
     const blocked = record.blockedBy ? `  (blocked by ${record.blockedBy})` : "";
     lines.push({
@@ -239,6 +280,10 @@ export class ResultSummaryPanel {
       for (const styled of formatTaskGridLines(this.result.taskRecords)) {
         lines.push(styled);
       }
+    }
+
+    for (const styled of formatRagIndexingLines(this.result)) {
+      lines.push(styled);
     }
 
     const rag = this.result.ragContextSummary;

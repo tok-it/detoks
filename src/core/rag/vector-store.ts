@@ -34,6 +34,11 @@ export interface SearchResult {
   meta: EmbeddingMeta;
 }
 
+export interface VectorStoreStats {
+  rowCount: number;
+  sessionCount: number;
+}
+
 export class VectorStore {
   private db: _Db | null = null;
 
@@ -146,5 +151,22 @@ export class VectorStore {
     if (!row) return;
     db.prepare("DELETE FROM vec_index WHERE rowid = ?").run(row.rowid);
     db.prepare("DELETE FROM embedding_meta WHERE rowid = ?").run(row.rowid);
+  }
+
+  getStats(): VectorStoreStats {
+    const db = this.conn;
+    const row = db
+      .prepare<{ rowCount: number; sessionCount: number }>(
+        `SELECT
+          COUNT(*) AS rowCount,
+          COUNT(DISTINCT session_id) AS sessionCount
+         FROM embedding_meta`,
+      )
+      .get();
+
+    return {
+      rowCount: row?.rowCount ?? 0,
+      sessionCount: row?.sessionCount ?? 0,
+    };
   }
 }

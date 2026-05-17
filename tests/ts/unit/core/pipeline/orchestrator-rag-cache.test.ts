@@ -47,6 +47,15 @@ const ragContextLoaderInstance = vi.hoisted(() => ({
   load: vi.fn(async (): Promise<any[]> => []),
 }));
 
+const vectorStoreInstance = vi.hoisted(() => ({
+  open: vi.fn(),
+  close: vi.fn(),
+  search: vi.fn(() => []),
+  upsert: vi.fn(),
+  delete: vi.fn(),
+  getStats: vi.fn(() => ({ rowCount: 3, sessionCount: 1 })),
+}));
+
 const countRagContextTokensMock = vi.hoisted(() =>
   vi.fn((text: string) => Math.ceil(text.length / 4)),
 );
@@ -78,13 +87,7 @@ vi.mock("../../../../../src/core/rag/embedding-service.js", () => ({
 }));
 
 vi.mock("../../../../../src/core/rag/vector-store.js", () => ({
-  VectorStore: vi.fn(() => ({
-    open: vi.fn(),
-    close: vi.fn(),
-    search: vi.fn(() => []),
-    upsert: vi.fn(),
-    delete: vi.fn(),
-  })),
+  VectorStore: vi.fn(() => vectorStoreInstance),
 }));
 
 vi.mock("../../../../../src/core/rag/semantic-retriever.js", () => ({
@@ -172,10 +175,18 @@ describe("orchestratePipeline — RAG 캐시 통합", () => {
     vi.mocked(EmbeddingService).mockClear();
     embeddingServiceInstance.init.mockClear();
     embeddingServiceInstance.embed.mockClear();
+    embeddingServiceInstance.embed.mockImplementation(async () => new Float32Array(1024));
     embeddingServiceInstance.dispose.mockClear();
     semanticRetrieverInstance.hybridSearch.mockResolvedValue([]);
     ragContextLoaderInstance.load.mockResolvedValue([]);
     countRagContextTokensMock.mockImplementation((text: string) => Math.ceil(text.length / 4));
+    vectorStoreInstance.open.mockClear();
+    vectorStoreInstance.close.mockClear();
+    vectorStoreInstance.search.mockClear();
+    vectorStoreInstance.upsert.mockClear();
+    vectorStoreInstance.delete.mockClear();
+    vectorStoreInstance.getStats.mockClear();
+    vectorStoreInstance.getStats.mockReturnValue({ rowCount: 3, sessionCount: 1 });
 
     nodeRuntimeMocks.completeChatWithNodeLlamaCpp.mockReset();
     nodeRuntimeMocks.buildNodeLlamaRuntimeSignature.mockClear();
@@ -217,6 +228,72 @@ describe("orchestratePipeline — RAG 캐시 통합", () => {
     expect(result.tokenAccounting!.tokensAddedByRagContext).toBe(0);
     expect(result.lightQuality!.cacheHitRate).toBe(1.0);
   }, 30_000);
+
+  it("RAG 인덱싱 성공 시 결과에 row/session count를 포함한다", async () => {
+    vi.mocked(isRagEnabled).mockReturnValue(true);
+
+    const result = await orchestratePipeline(baseRequest);
+
+    expect(result.ragIndexingSummary).toMatchObject({
+      status: "completed",
+      attempted: 3,
+      indexed: 3,
+      skipped: 0,
+      dbRowCount: 3,
+      dbSessionCount: 1,
+    });
+  });
+
+  it("RAG 인덱싱 일부 실패는 partial로 표시하고 파이프라인은 성공 유지한다", async () => {
+    vi.mocked(isRagEnabled).mockReturnValue(true);
+    let callCount = 0;
+    embeddingServiceInstance.embed.mockImplementation(async () => {
+      callCount += 1;
+      if (callCount === 3) throw new Error("output chunk failed");
+      return new Float32Array(1024);
+    });
+
+    const result = await orchestratePipeline(baseRequest);
+
+    expect(result.ok).toBe(true);
+    expect(result.ragIndexingSummary).toMatchObject({
+      status: "partial",
+      attempted: 3,
+      indexed: 2,
+      skipped: 1,
+      dbRowCount: 3,
+      dbSessionCount: 1,
+    });
+    expect(result.ragIndexingSummary?.failures).toEqual([
+      expect.objectContaining({
+        kind: "output",
+        taskId: "t1",
+        reason: "output chunk failed",
+      }),
+    ]);
+  });
+
+  it("RAG 인덱싱 전체 실패는 failed로 표시하고 파이프라인은 성공 유지한다", async () => {
+    vi.mocked(isRagEnabled).mockReturnValue(true);
+    vectorStoreInstance.getStats.mockImplementationOnce(() => {
+      throw new Error("db unavailable");
+    });
+
+    const result = await orchestratePipeline(baseRequest);
+
+    expect(result.ok).toBe(true);
+    expect(result.ragIndexingSummary).toMatchObject({
+      status: "failed",
+      attempted: 0,
+      indexed: 0,
+      skipped: 0,
+    });
+    expect(result.ragIndexingSummary?.failures).toEqual([
+      expect.objectContaining({
+        reason: "db unavailable",
+      }),
+    ]);
+  });
 
   it("RAG 활성화 + F2 전체 miss → EmbeddingService.init 호출됨", async () => {
     // findSuccessfulTaskByHash → null (beforeEach default)
