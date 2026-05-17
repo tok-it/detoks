@@ -251,7 +251,8 @@ describe("translate_to_english", () => {
   });
 
   it("재시도 제한을 넘기지 않고 실패 metadata를 남긴다", async () => {
-    mockNodeResponses("파일을 생성해", "파일을 생성해");
+    // 3rd call: Option A Korean residue retry fires in final_retry pass (SEG 형식 아니므로 실패)
+    mockNodeResponses("파일을 생성해", "파일을 생성해", "파일을 생성해");
     const fetchImplementation = vi.fn(async () => {
       return new Response(
         JSON.stringify({
@@ -291,7 +292,8 @@ describe("translate_to_english", () => {
     });
 
     expect(fetchImplementation).not.toHaveBeenCalled();
-    expect(nodeRuntimeMocks.completeChatWithNodeLlamaCpp).toHaveBeenCalledTimes(2);
+    // primary(1) + final_retry span(2) + Option A korean residue retry(3)
+    expect(nodeRuntimeMocks.completeChatWithNodeLlamaCpp).toHaveBeenCalledTimes(3);
     expect(result.span_results[0]!.status).toBe("failed");
     expect(result.span_results[0]!.attempts).toBe(1);
     expect(result.span_results[0]!.validation_errors).toContain(
