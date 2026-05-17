@@ -18,6 +18,7 @@ import { runModelSetupIfNeeded } from "../model-setup/index.js";
 import {
   handleAdapterSwitch,
   handleSlashCommand,
+  isSlashCommand,
 } from "../repl-commands/index.js";
 import {
   getNextSlashAutocompleteIndex,
@@ -1770,7 +1771,16 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
       const workspaceBefore = captureWorkspaceSnapshot(executionCwd);
       let receivedLiveAdapterEvents = false;
       try {
-        if (normalizedPrompt.startsWith("/")) {
+        // Whitelist gate: only treat as slash command if the leading "/" matches
+        // a known command (or alias), or is "/" alone (opens the menu). Otherwise
+        // pass through as a regular prompt — so "/tmp/path 에 파일 만들어줘" 같은
+        // 자연어 경로 시작 문장이 알 수 없는 명령으로 가로채지지 않는다.
+        const trimmedForCommand = normalizedPrompt.trim();
+        const isKnownSlash =
+          trimmedForCommand === "/" ||
+          (trimmedForCommand.startsWith("/") && isSlashCommand(trimmedForCommand, state.adapter));
+
+        if (isKnownSlash) {
           // /clear — reset all run blocks and scrollback (not allowed during execution)
           if (normalizedPrompt === "/clear") {
             if (isExecuting) {
