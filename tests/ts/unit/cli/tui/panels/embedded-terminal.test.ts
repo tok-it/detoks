@@ -167,6 +167,193 @@ describe("EmbeddedTerminalPane", () => {
     });
   });
 
+  it("compacts native Read blocks into title + detail lines", () => {
+    mockRegion.columns = 120;
+    pane.addEvent({
+      type: "chunk",
+      timestamp: Date.now(),
+      stream: "stdout",
+      data: [
+        "Read index.ts (lines 1883–1912)",
+        "타입체크를 먼저 실행해서 오류를 확인합니다.",
+      ].join("\n"),
+    });
+
+    const output = pane.getRenderableLines(120).map((line) => line.text).join("\n");
+    expect(output).toContain("[1883–1912]");
+    expect(output).toContain("Read index.ts");
+    expect(output).toContain("[NOTE]");
+    expect(output).toContain("타입체크를 먼저 실행해서 오류를 확인합니다.");
+    expect(pane.getActivitySnapshot(120)).toMatchObject({
+      kind: "read",
+      label: "Read",
+      detail: "index.ts",
+      status: "completed",
+    });
+  });
+
+  it("compacts native Edit blocks and hides code preview noise", () => {
+    mockRegion.columns = 140;
+    pane.addEvent({
+      type: "chunk",
+      timestamp: Date.now(),
+      stream: "stdout",
+      data: [
+        "Edit index.ts",
+        "Added 21 lines",
+        "if (normalizedPrompt.startsWith(\"/\")) {",
+        "Click to expand",
+      ].join("\n"),
+    });
+
+    const output = pane.getRenderableLines(140).map((line) => line.text).join("\n");
+    expect(output).toContain("Edit index.ts");
+    expect(output).toContain("Added 21 lines");
+    expect(output).not.toContain("Click to expand");
+    expect(output).not.toContain("normalizedPrompt.startsWith");
+    expect(pane.getActivitySnapshot(140)).toMatchObject({
+      kind: "edit",
+      label: "Edit",
+      detail: "index.ts",
+      status: "completed",
+    });
+  });
+
+  it("shows inline code preview for small Edit blocks without expand hints", () => {
+    mockRegion.columns = 140;
+    pane.addEvent({
+      type: "chunk",
+      timestamp: Date.now(),
+      stream: "stdout",
+      data: [
+        "Edit index.ts",
+        "Added 2 lines",
+        "+ const syncScrollback = () => {",
+        "+   runBlockScrollback.setEntries([]);",
+      ].join("\n"),
+    });
+
+    const output = pane.getRenderableLines(140).map((line) => line.text).join("\n");
+    expect(output).toContain("Edit index.ts");
+    expect(output).toContain("[+2]");
+    expect(output).toContain("Added 2 lines");
+    expect(output).toContain("+ const syncScrollback = () => {");
+    expect(output).toContain("+   runBlockScrollback.setEntries([]);");
+  });
+
+  it("shows mixed edit count badge when both added and removed lines exist", () => {
+    mockRegion.columns = 140;
+    pane.addEvent({
+      type: "chunk",
+      timestamp: Date.now(),
+      stream: "stdout",
+      data: [
+        "Edit index.ts",
+        "Added 2 lines",
+        "Removed 1 line",
+      ].join("\n"),
+    });
+
+    const output = pane.getRenderableLines(140).map((line) => line.text).join("\n");
+    expect(output).toContain("[+2/-1]");
+  });
+
+  it("compacts native Bash blocks into concise summaries", () => {
+    mockRegion.columns = 120;
+    pane.addEvent({
+      type: "chunk",
+      timestamp: Date.now(),
+      stream: "stdout",
+      data: [
+        "Bash Push dev branch to remote",
+        "IN git push origin dev 2>&1",
+        "OUT Exit code 1",
+      ].join("\n"),
+    });
+
+    const output = pane.getRenderableLines(120).map((line) => line.text).join("\n");
+    expect(output).toContain("Bash Push dev branch to remote");
+    expect(output).toContain("[git]");
+    expect(output).toContain("[IN]");
+    expect(output).toContain("git push origin dev 2>&1");
+    expect(output).toContain("[OUT]");
+    expect(output).toContain("Exit code 1");
+    expect(pane.getActivitySnapshot(120)).toMatchObject({
+      kind: "command",
+      label: "Bash",
+      detail: "Push dev branch to remote",
+      status: "failed",
+    });
+  });
+
+  it("classifies bash test commands with a [test] badge", () => {
+    mockRegion.columns = 120;
+    pane.addEvent({
+      type: "chunk",
+      timestamp: Date.now(),
+      stream: "stdout",
+      data: [
+        "Bash Run validation",
+        "IN npm test -- --runInBand",
+        "OUT Exit code 0",
+      ].join("\n"),
+    });
+
+    const output = pane.getRenderableLines(120).map((line) => line.text).join("\n");
+    expect(output).toContain("[test]");
+    expect(output).toContain("[OK]");
+  });
+
+  it("classifies bash read commands with a [read] badge", () => {
+    mockRegion.columns = 120;
+    pane.addEvent({
+      type: "chunk",
+      timestamp: Date.now(),
+      stream: "stdout",
+      data: [
+        "Bash Inspect file",
+        "IN sed -n '1,20p' src/index.ts",
+      ].join("\n"),
+    });
+
+    const output = pane.getRenderableLines(120).map((line) => line.text).join("\n");
+    expect(output).toContain("[read]");
+  });
+
+  it("classifies unknown bash commands with a [cmd] badge", () => {
+    mockRegion.columns = 120;
+    pane.addEvent({
+      type: "chunk",
+      timestamp: Date.now(),
+      stream: "stdout",
+      data: [
+        "Bash Custom step",
+        "IN echo hello",
+      ].join("\n"),
+    });
+
+    const output = pane.getRenderableLines(120).map((line) => line.text).join("\n");
+    expect(output).toContain("[cmd]");
+  });
+
+  it("formats Thought title rows with the same compact card typography", () => {
+    mockRegion.columns = 120;
+    pane.addEvent({
+      type: "chunk",
+      timestamp: Date.now(),
+      stream: "stdout",
+      data: [
+        "Thought for 3s",
+        "/clear 명령 처리를 handleSlashCommand 호출 전에 삽입합니다.",
+      ].join("\n"),
+    });
+
+    const output = pane.getRenderableLines(120).map((line) => line.text).join("\n");
+    expect(output).toContain("Thought");
+    expect(output).toContain("3s");
+    expect(output).toContain("handleSlashCommand");
+  });
+
   it("detects approval prompts as a focused interaction state", () => {
     pane.addEvent({
       type: "chunk",

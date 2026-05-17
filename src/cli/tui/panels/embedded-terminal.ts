@@ -180,7 +180,7 @@ interface RenderedRowInfo {
   globalRow: number;
 }
 
-export type EmbeddedActivityKind = "file" | "search" | "tool" | "test" | "git" | "command";
+export type EmbeddedActivityKind = "file" | "read" | "edit" | "search" | "tool" | "test" | "git" | "command";
 
 export interface EmbeddedActivitySnapshot {
   kind: EmbeddedActivityKind;
@@ -194,6 +194,9 @@ export interface EmbeddedInteractionState {
   label: string;
   detail?: string;
 }
+
+type NarrativeActivityKind = "thought" | "read" | "edit" | "bash";
+type NarrativeActivityStatus = "neutral" | "completed" | "failed";
 
 const isMetaLine = (plainText: string): boolean =>
   plainText.length > 0 &&
@@ -219,6 +222,24 @@ const isApprovalPromptLine = (plainText: string): boolean => {
   const hasApprovalVerb = APPROVAL_PROMPT_PATTERNS.some((pattern) => pattern.test(plainText));
   const hasApprovalHint = APPROVAL_PROMPT_HINT_PATTERNS.some((pattern) => pattern.test(plainText));
   return hasApprovalVerb && hasApprovalHint;
+};
+
+const classifyNarrativeActivityTitle = (
+  plainText: string,
+): { kind: NarrativeActivityKind; icon: string; style: Style } | null => {
+  if (/^Thought for \d+s\b/i.test(plainText)) {
+    return { kind: "thought", icon: glyph.info, style: statusColor.muted };
+  }
+  if (/^Read\b/i.test(plainText)) {
+    return { kind: "read", icon: glyph.info, style: statusColor.info };
+  }
+  if (/^Edit\b/i.test(plainText)) {
+    return { kind: "edit", icon: glyph.changeUpdate, style: statusColor.success };
+  }
+  if (/^Bash\b/i.test(plainText)) {
+    return { kind: "bash", icon: glyph.execDone, style: statusColor.header };
+  }
+  return null;
 };
 
 const extractCommandName = (commandLine: string): string => {
@@ -356,6 +377,189 @@ const composeGutteredLine = (
   return colorize(padDisplayWidth(line, maxWidth));
 };
 
+const composeIndentedLine = (
+  body: string,
+  maxWidth: number,
+  colorize: Style,
+): string => {
+  if (maxWidth <= 0) {
+    return "";
+  }
+
+  const prefix = maxWidth < 20 ? "" : "    ";
+  return colorize(padDisplayWidth(`${prefix}${truncateForSummary(body, maxWidth - prefix.length)}`, maxWidth));
+};
+
+const composeBadgedDetailLine = (
+  badge: string,
+  body: string,
+  maxWidth: number,
+  badgeStyle: Style,
+  bodyStyle: Style,
+): string => {
+  if (maxWidth <= 0) {
+    return "";
+  }
+  if (maxWidth < 20) {
+    return bodyStyle(padDisplayWidth(truncateForSummary(`${badge} ${body}`, maxWidth), maxWidth));
+  }
+
+  const prefix = "    ";
+  const available = Math.max(0, maxWidth - prefix.length - badge.length - 1);
+  const text = `${prefix}${badgeStyle(badge)} ${bodyStyle(truncateForSummary(body, available))}`;
+  return padDisplayWidth(text, maxWidth);
+};
+
+const composeNarrativeTitleLine = (
+  kindLabel: string,
+  subject: string,
+  icon: string,
+  maxWidth: number,
+  colorize: Style,
+  statusBadges?: Array<{ text: string; style: Style }>,
+): string => {
+  if (maxWidth <= 0) {
+    return "";
+  }
+
+  if (maxWidth < 20) {
+    const narrow = `${kindLabel} ${subject}`.trim();
+    return colorize(padDisplayWidth(truncateForSummary(narrow, maxWidth), maxWidth));
+  }
+
+  const { prefix, displayWidth } = buildGutterPrefix(icon);
+  const badges = statusBadges ?? [];
+  const badgeText = badges.length > 0 ? `${badges.map((badge) => badge.text).join(" ")} ` : "";
+  const remainingWidth = Math.max(0, maxWidth - displayWidth);
+  const subjectWidth = Math.max(0, remainingWidth - badgeText.length - kindLabel.length - 2);
+  const isThought = kindLabel === "Thought";
+  const coloredKind = isThought ? statusColor.muted(kindLabel) : statusColor.strong(kindLabel);
+  const coloredSubject = (isThought ? statusColor.footer : statusColor.muted)(
+    truncateForSummary(subject, Math.max(0, subjectWidth)),
+  );
+  const badge = badges.map((entry) => entry.style(entry.text)).join(" ");
+  const body = `${badgeText ? `${badge} ` : ""}${coloredKind} ${coloredSubject}`;
+  return padDisplayWidth(`${colorize(prefix)}${body}`, maxWidth);
+};
+
+const getNarrativeDetailStyle = (
+  kind: NarrativeActivityKind,
+  line: string,
+): Style => {
+  if (kind === "edit") {
+    if (/^[+]/.test(line.trim())) return statusColor.success;
+    if (/^[-]/.test(line.trim())) return statusColor.error;
+    if (line.startsWith(" ")) return statusColor.footer;
+  }
+
+  if (kind === "bash") {
+    if (/^OUT\b.*(?:exit code 0|succeeded|success)/i.test(line)) return statusColor.success;
+    if (/^OUT\b.*(?:exit code [1-9]\d*|failed|error)/i.test(line)) return statusColor.error;
+    if (/^IN\b/i.test(line)) return statusColor.info;
+  }
+
+  return statusColor.muted;
+};
+
+const getNarrativeDetailBadge = (
+  kind: NarrativeActivityKind,
+  line: string,
+): { text: string; style: Style; body: string } | null => {
+  const trimmed = line.trim();
+
+  if (kind === "read") {
+    return {
+      text: "[NOTE]",
+      style: statusColor.footer,
+      body: trimmed,
+    };
+  }
+
+  if (kind === "bash") {
+    if (/^IN\b/i.test(trimmed)) {
+      return {
+        text: "[IN]",
+        style: statusColor.info,
+        body: trimmed.replace(/^IN\s*/i, "").trim(),
+      };
+    }
+    if (/^OUT\b/i.test(trimmed)) {
+      const style =
+        /^OUT\b.*(?:exit code 0|succeeded|success)/i.test(trimmed) ? statusColor.success
+        : /^OUT\b.*(?:exit code [1-9]\d*|failed|error)/i.test(trimmed) ? statusColor.error
+        : statusColor.muted;
+      return {
+        text: "[OUT]",
+        style,
+        body: trimmed.replace(/^OUT\s*/i, "").trim(),
+      };
+    }
+  }
+
+  return null;
+};
+
+const extractBashCategoryBadge = (lines: readonly string[]): { text: string; style: Style } | undefined => {
+  const inputLine = lines.find((line) => /^IN\b/i.test(line.trim()));
+  const command = inputLine?.replace(/^IN\s*/i, "").trim().toLowerCase() ?? "";
+  if (command.length === 0) {
+    return undefined;
+  }
+
+  if (command.startsWith("git ")) return { text: "[git]", style: statusColor.info };
+  if (/\b(test|vitest|tsc|build)\b/.test(command)) return { text: "[test]", style: statusColor.warn };
+  if (/\b(rg|grep|find|sed|cat|head|tail)\b/.test(command)) return { text: "[read]", style: statusColor.muted };
+  return { text: "[cmd]", style: statusColor.muted };
+};
+
+const extractEditCountBadge = (lines: readonly string[]): { text: string; style: Style } | undefined => {
+  let addedCount: string | null = null;
+  let removedCount: string | null = null;
+
+  for (const line of lines) {
+    const added = /^Added\s+(\d+)\s+lines?$/i.exec(line.trim());
+    if (added) {
+      addedCount = added[1] ?? null;
+    }
+
+    const removed = /^Removed\s+(\d+)\s+lines?$/i.exec(line.trim());
+    if (removed) {
+      removedCount = removed[1] ?? null;
+    }
+  }
+
+  if (addedCount !== null && removedCount !== null) {
+    return { text: `[+${addedCount}/-${removedCount}]`, style: statusColor.warn };
+  }
+  if (addedCount !== null) {
+    return { text: `[+${addedCount}]`, style: statusColor.success };
+  }
+  if (removedCount !== null) {
+    return { text: `[-${removedCount}]`, style: statusColor.error };
+  }
+
+  return undefined;
+};
+
+const extractReadBadge = (subject: string): { text: string; style: Style; subject: string } | undefined => {
+  const match = /^(.*?)\s+\((lines?\s+[^)]+)\)$/i.exec(subject.trim());
+  if (!match) {
+    return undefined;
+  }
+
+  const path = (match[1] ?? "").trim();
+  const lines = (match[2] ?? "").trim().replace(/^lines?\s+/i, "");
+  if (path.length === 0 || lines.length === 0) {
+    return undefined;
+  }
+
+  return {
+    text: `[${lines}]`,
+    style: statusColor.info,
+    subject: path,
+  };
+};
+
 const computeRunningElapsedLabel = (runStartedAt: number | null, now: number): string => {
   if (runStartedAt === null) {
     return "";
@@ -484,6 +688,145 @@ const findPendingCommandEnd = (rows: RenderedRowInfo[], startIndex: number): num
   return cursor;
 };
 
+const looksLikeCodePreviewLine = (plainText: string): boolean => {
+  const trimmed = plainText.trim();
+  if (trimmed.length === 0) {
+    return false;
+  }
+
+  return (
+    /^Click to expand$/i.test(trimmed) ||
+    /^[@+\-]{2,}/.test(trimmed) ||
+    /^[{}[\]()]+$/.test(trimmed) ||
+    /(?:\{|\}|\(|\)|=>|;)$/.test(trimmed) ||
+    /\b(if|const|let|return|function|class|import|export)\b/.test(trimmed)
+  );
+};
+
+const findNarrativeBlockEnd = (rows: RenderedRowInfo[], startIndex: number): number => {
+  let cursor = startIndex + 1;
+  while (cursor < rows.length) {
+    const text = rows[cursor]?.plainText ?? "";
+    if (
+      text === "exec" ||
+      isMetaLine(text) ||
+      isToolActivityLine(text) ||
+      isConversationRoleLine(text) ||
+      classifyNarrativeActivityTitle(text) !== null
+    ) {
+      break;
+    }
+    cursor += 1;
+  }
+  return cursor;
+};
+
+const summarizeNarrativeActivityBlock = (
+  rows: RenderedRowInfo[],
+  maxWidth: number,
+): {
+  kind: NarrativeActivityKind;
+  kindLabel: string;
+  subject: string;
+  details: string[];
+  detailStyles: Style[];
+  icon: string;
+  style: Style;
+  status: NarrativeActivityStatus;
+  titleBadge?: { text: string; style: Style };
+  activity: EmbeddedActivitySnapshot | null;
+} | null => {
+  const title = rows[0]?.plainText.trim() ?? "";
+  const classification = classifyNarrativeActivityTitle(title);
+  if (classification === null) {
+    return null;
+  }
+
+  const subject = title.replace(/^(Thought for|Read|Edit|Bash)\s+/i, "").trim() || title;
+  const readBadge = classification.kind === "read" ? extractReadBadge(subject) : undefined;
+  const normalizedSubject = readBadge?.subject ?? subject;
+
+  const blockLines = rows
+    .slice(1)
+    .map((row) => row.plainText.trim())
+    .filter((line) => line.length > 0);
+  const hasExpandHint = blockLines.some((line) => /^Click to expand$/i.test(line));
+  const detailLines = blockLines
+    .filter((line) => !looksLikeCodePreviewLine(line))
+    .slice(0, classification.kind === "edit" || classification.kind === "bash" ? 2 : 1);
+  const codePreviewLines = blockLines
+    .filter((line) => looksLikeCodePreviewLine(line))
+    .filter((line) => !/^Click to expand$/i.test(line));
+  const shouldInlineEditPreview =
+    classification.kind === "edit" &&
+    !hasExpandHint &&
+    maxWidth >= 60 &&
+    codePreviewLines.length > 0 &&
+    codePreviewLines.length <= 3;
+  const previewLines = shouldInlineEditPreview ? codePreviewLines.slice(0, 3) : [];
+  const details = [...detailLines, ...previewLines].map((line) => truncateForSummary(line, maxWidth));
+  const detailStyles = details.map((line) => getNarrativeDetailStyle(classification.kind, line));
+  const status: NarrativeActivityStatus =
+    classification.kind === "bash"
+      ? details.some((line) => /^OUT\b.*(?:exit code [1-9]\d*|failed|error)/i.test(line))
+        ? "failed"
+        : details.some((line) => /^OUT\b.*(?:exit code 0|succeeded|success)/i.test(line))
+          ? "completed"
+          : "neutral"
+      : classification.kind === "thought"
+        ? "neutral"
+        : "completed";
+
+  const activity =
+    classification.kind === "thought"
+      ? null
+      : {
+          kind:
+            classification.kind === "read"
+              ? "read"
+              : classification.kind === "edit"
+                ? "edit"
+                : "command",
+          label:
+            classification.kind === "read"
+              ? "Read"
+              : classification.kind === "edit"
+                ? "Edit"
+                : "Bash",
+          detail: normalizedSubject,
+          status: status === "failed" ? "failed" : "completed",
+        } satisfies EmbeddedActivitySnapshot;
+
+  const titleBadge =
+    classification.kind === "edit"
+      ? extractEditCountBadge(blockLines)
+      : classification.kind === "read"
+        ? readBadge
+      : classification.kind === "bash"
+        ? extractBashCategoryBadge(blockLines)
+      : undefined;
+
+  return {
+    kind: classification.kind,
+    kindLabel:
+      classification.kind === "thought"
+        ? "Thought"
+        : classification.kind === "read"
+          ? "Read"
+          : classification.kind === "edit"
+            ? "Edit"
+            : "Bash",
+    subject: normalizedSubject,
+    details,
+    detailStyles,
+    icon: classification.icon,
+    style: classification.style,
+    status,
+    ...(titleBadge ? { titleBadge } : {}),
+    activity,
+  };
+};
+
 const buildCompactRenderableLines = (
   rows: RenderedRowInfo[],
   maxWidth: number,
@@ -515,6 +858,54 @@ const buildCompactRenderableLines = (
         text: composeGutteredLine(glyph.adapterBadge, metaBody, maxWidth, statusColor.muted),
       });
       continue;
+    }
+
+    const narrativeActivity = classifyNarrativeActivityTitle(row.plainText);
+    if (narrativeActivity !== null) {
+      const cursor = findNarrativeBlockEnd(rows, index);
+      const block = rows.slice(index, cursor);
+      const summary = summarizeNarrativeActivityBlock(block, maxWidth);
+      if (summary !== null) {
+        const statusBadges =
+          summary.kind === "bash"
+            ? [
+              ...(summary.status === "failed"
+                ? [{ text: "[FAIL]", style: statusColor.error }]
+                : summary.status === "completed"
+                  ? [{ text: "[OK]", style: statusColor.success }]
+                  : []),
+              ...(summary.titleBadge ? [summary.titleBadge] : []),
+            ]
+            : summary.titleBadge
+              ? [summary.titleBadge]
+              : undefined;
+        output.push({
+          text: composeNarrativeTitleLine(
+            summary.kindLabel,
+            summary.subject,
+            summary.icon,
+            maxWidth,
+            summary.style,
+            statusBadges,
+          ),
+        });
+        for (const [detailIndex, detail] of summary.details.entries()) {
+          const detailBadge = getNarrativeDetailBadge(summary.kind, detail);
+          output.push({
+            text: detailBadge
+              ? composeBadgedDetailLine(
+                detailBadge.text,
+                detailBadge.body,
+                maxWidth,
+                detailBadge.style,
+                summary.detailStyles[detailIndex] ?? statusColor.muted,
+              )
+              : composeIndentedLine(detail, maxWidth, summary.detailStyles[detailIndex] ?? statusColor.muted),
+          });
+        }
+        index = cursor;
+        continue;
+      }
     }
 
     if (row.plainText === "exec") {
@@ -897,6 +1288,16 @@ export class EmbeddedTerminalPane {
           detail: detail.length > 0 ? detail : "진행 중",
           status: "running",
         };
+      }
+
+      const narrativeBlock = classifyNarrativeActivityTitle(row.plainText);
+      if (narrativeBlock !== null) {
+        const cursor = findNarrativeBlockEnd(rows, index);
+        const block = rows.slice(index, cursor);
+        const summary = summarizeNarrativeActivityBlock(block, Math.max(1, maxWidth));
+        if (summary?.activity) {
+          return summary.activity;
+        }
       }
     }
 
