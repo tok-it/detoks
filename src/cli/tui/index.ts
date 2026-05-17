@@ -884,6 +884,7 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
       pipelinePanel.setExecutionClock(executionClockStartedAt);
       executionClockTimer = setInterval(() => {
         if (isExecuting) {
+          dirtyPanels.pipeline = true;
           requestRender("execution-clock");
         }
       }, 250);
@@ -1227,9 +1228,8 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
           return;
         }
         lastProgressRenderAt = now;
-        requestRender("pipeline-progress");
-        return;
       }
+      requestRender("pipeline-progress");
       render();
     };
 
