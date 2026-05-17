@@ -1115,7 +1115,7 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
           Math.ceil(Math.max(0, availableContentRows - stickyRows) * getTranscriptRatio()),
         );
         embeddedTerminalPane.resize(transcriptRegion.columns, transcriptPtyRows);
-        if (embeddedNativeCliSession !== null) {
+        if (embeddedNativeCliSession !== null || activeAdapterController !== null) {
           if (
             lastEmbeddedNativeResize === null ||
             lastEmbeddedNativeResize.columns !== transcriptRegion.columns ||
@@ -1126,6 +1126,9 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
               rows: transcriptPtyRows,
             };
             embeddedNativeCliSession?.resize(transcriptRegion.columns, transcriptPtyRows);
+            // 오케스트레이터 codex PTY도 동일 크기로 resize — 버퍼와 PTY 크기가
+            // 일치해야 커서 이동 시퀀스(예: \x1b[A 덮어쓰기)가 올바른 줄을 가리킴.
+            activeAdapterController?.resize(transcriptRegion.columns, transcriptPtyRows);
           }
         }
         const transcriptHeight = transcriptRegion.endRow - transcriptRegion.startRow;
