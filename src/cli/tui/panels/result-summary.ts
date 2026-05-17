@@ -111,11 +111,13 @@ const formatResumeBannerLines = (resumeHint: ResumeHintInfo): string[] => {
   ];
 };
 
-const getTaskStatusGlyph = (status: TaskExecutionRecord["status"]): string => ({
-  completed: glyph.success,
-  failed: glyph.failure,
-  skipped: glyph.skipped,
-}[status]);
+const getTaskStatusGlyph = (status: TaskExecutionRecord["status"]): string => {
+  switch (status) {
+    case "completed": return glyph.success;
+    case "failed":    return glyph.failure;
+    case "skipped":   return glyph.skipped;
+  }
+};
 
 const TASK_STATUS_STYLES: Record<TaskExecutionRecord["status"], Style> = {
   completed: statusColor.success,

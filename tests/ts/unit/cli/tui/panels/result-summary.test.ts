@@ -1,4 +1,5 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { setNerdFont } from "../../../../../../src/cli/tui/design/tokens.js";
 import { ResultSummaryPanel } from "../../../../../../src/cli/tui/panels/result-summary.js";
 import type { PipelineExecutionResult } from "../../../../../../src/core/pipeline/types.js";
 import type { TokenReductionSnapshot, TokenMetricsSnapshot } from "../../../../../../src/core/utils/tokenMetrics.js";
@@ -646,6 +647,58 @@ describe("ResultSummaryPanel", () => {
       panel.render(mockContext, mockRegion);
       const output = mockScreen.write.mock.calls.map((c: any) => c[0]).join("\n");
       expect(output).not.toContain("전사 저장");
+    });
+  });
+
+  describe("nerd font glyph integration", () => {
+    const stripAnsi = (s: string): string =>
+      s.replace(/\[[0-?]*[ -/]*[@-~]/g, "");
+
+    afterEach(() => {
+      setNerdFont(false);
+    });
+
+    it("task status uses default glyphs when nerd font is off", () => {
+      setNerdFont(false);
+      panel.setResult(mockResult({
+        taskRecords: [{ taskId: "t1", status: "completed", rawOutput: "" }, { taskId: "t2", status: "failed", rawOutput: "" }],
+      }));
+      panel.render(mockContext, mockRegion);
+      const output = mockScreen.write.mock.calls.map((c: any) => stripAnsi(c[0])).join("");
+      expect(output).toContain("✓");
+      expect(output).toContain("✗");
+    });
+
+    it("task status uses nerd font glyphs when nerd font is on", () => {
+      setNerdFont(true);
+      panel.setResult(mockResult({
+        taskRecords: [{ taskId: "t1", status: "completed", rawOutput: "" }, { taskId: "t2", status: "failed", rawOutput: "" }],
+      }));
+      panel.render(mockContext, mockRegion);
+      const output = mockScreen.write.mock.calls.map((c: any) => stripAnsi(c[0])).join("");
+      expect(output).not.toContain("✓");
+      expect(output).not.toContain("✗");
+      expect(output).toContain("t1");
+      expect(output).toContain("t2");
+    });
+
+    it("switching nerd font between renders changes task status glyphs", () => {
+      const result = mockResult({
+        taskRecords: [{ taskId: "t1", status: "completed", rawOutput: "" }],
+      });
+      panel.setResult(result);
+
+      setNerdFont(false);
+      panel.render(mockContext, mockRegion);
+      const defaultOut = mockScreen.write.mock.calls.map((c: any) => stripAnsi(c[0])).join("");
+
+      mockScreen.write.mockClear();
+      setNerdFont(true);
+      panel.render(mockContext, mockRegion);
+      const nerdOut = mockScreen.write.mock.calls.map((c: any) => stripAnsi(c[0])).join("");
+
+      expect(defaultOut).toContain("✓");
+      expect(nerdOut).not.toContain("✓");
     });
   });
 });

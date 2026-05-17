@@ -165,15 +165,17 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
   const screen = createScreenManager(stdout, stdin);
   const decoder = new StringDecoder("utf8");
   const executionCwd = options.cwd ?? process.cwd();
-  let currentAdapter = options.adapter;
-  let currentAdapterModel = options.adapterModel ?? getAdapterModel(currentAdapter);
-    let currentTranslationModel = options.translationModel ?? getTranslationModel();
-    let currentVerbose = options.verbose;
-  let currentCacheDisabled = false;
-  let currentInferenceStrength =
-    currentAdapter === "codex"
+  const state = {
+    adapter: options.adapter,
+    adapterModel: options.adapterModel ?? getAdapterModel(options.adapter),
+    translationModel: options.translationModel ?? getTranslationModel(),
+    verbose: options.verbose,
+    cacheDisabled: false,
+    inferenceStrength: options.adapter === "codex"
       ? options.inferenceStrength ?? getCodexReasoningEffortOverride() ?? "medium"
-      : undefined;
+      : undefined as string | undefined,
+    tokenSavingsLabel: undefined as string | undefined,
+  };
   const nativePassthroughMode = options.presentationMode === "passthrough";
   const embeddedPaneMode = options.presentationMode === "embedded-pane";
 
@@ -201,10 +203,10 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
   };
 
   const refreshRuntimeState = (): void => {
-    currentAdapterModel = getAdapterModel(currentAdapter);
-    currentTranslationModel = getTranslationModel();
-    currentInferenceStrength =
-      currentAdapter === "codex"
+    state.adapterModel = getAdapterModel(state.adapter);
+    state.translationModel = getTranslationModel();
+    state.inferenceStrength =
+      state.adapter === "codex"
         ? getCodexReasoningEffortOverride() ?? "medium"
         : undefined;
   };
@@ -237,8 +239,8 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
       refreshRuntimeState();
 
       if (!hasInitialConfig) {
-        await handleAdapterSwitch(currentAdapter, async (newAdapter) => {
-          currentAdapter = newAdapter;
+        await handleAdapterSwitch(state.adapter, async (newAdapter) => {
+          state.adapter = newAdapter;
           loadAndApplyConfig(newAdapter);
           updateSelectedAdapter(newAdapter);
           refreshRuntimeState();
@@ -269,7 +271,14 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
     const pipelinePanel = new PipelineStatusPanel();
     const transcriptPanel = new TranscriptPanel();
     const resultPanel = new ResultSummaryPanel();
-    resultPanel.setVerbose(currentVerbose);
+    resultPanel.setVerbose(state.verbose);
+
+    const dirtyPanels = { pipeline: true, transcript: true, result: true };
+    const markAllDirty = (): void => {
+      dirtyPanels.pipeline = true;
+      dirtyPanels.transcript = true;
+      dirtyPanels.result = true;
+    };
 
     // P3-3: Input history — load existing on init, persist on each submit.
     const inputHistory = new InputHistory();
@@ -296,7 +305,6 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
     let hasExecuted = false;
     let lastInputSeparatorRow = -1;
     let slashAutocompleteSelectedIndex = 0;
-    let currentTokenSavingsLabel: string | undefined;
     let isInputSuspended = false;
     let isPasting = false;
     let embeddedNativeCliSession: EmbeddedNativeCliSession | null = null;
@@ -834,10 +842,10 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
       }
 
       embeddedNativeCliSession = createEmbeddedNativeCliSession({
-        adapter: currentAdapter,
+        adapter: state.adapter,
         cwd: executionCwd,
-        verbose: currentVerbose,
-        ...(currentAdapterModel !== undefined ? { model: currentAdapterModel } : {}),
+        verbose: state.verbose,
+        ...(state.adapterModel !== undefined ? { model: state.adapterModel } : {}),
         ...(options.sessionId !== undefined ? { sessionId: options.sessionId } : {}),
         onEvent: (event) => {
           eventRouter.routeAdapterEvent(event, "embedded");
@@ -893,7 +901,7 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
               ? viewportStatusText ?? "첫 프롬프트를 입력하면 아래 패널이 채워집니다 · /... 자동완성 · q 종료"
               : "첫 프롬프트를 입력하면 아래 패널이 채워집니다 · /... 자동완성 · q 종료");
       const bannerLines = [
-        `adapter: ${currentAdapter} | model: ${currentAdapterModel ?? "미설정"} | translate: ${currentTranslationModel ?? "미설정"}`,
+        `adapter: ${state.adapter} | model: ${state.adapterModel ?? "미설정"} | translate: ${state.translationModel ?? "미설정"}`,
         `mode: ${options.executionMode} | session: ${options.sessionId ?? "new"}`,
         browsingHistoryHint,
       ];
@@ -938,7 +946,7 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
       if (embeddedPaneMode && embeddedTerminalFocus.focus !== "detoks-input") {
         renderFocusArea(
           ctx,
-          formatEmbeddedTerminalFocusHint(embeddedTerminalFocus.focus, currentAdapter),
+          formatEmbeddedTerminalFocusHint(embeddedTerminalFocus.focus, state.adapter),
         );
       } else {
         renderInputArea(ctx, input, cursor);
@@ -949,20 +957,21 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
           ctx,
           resultRegion,
           slashAutocompleteQuery,
-          getSlashAutocompleteCommands(currentAdapter, slashAutocompleteQuery),
+          getSlashAutocompleteCommands(state.adapter, slashAutocompleteQuery),
           slashAutocompleteSelectedIndex,
         );
-      } else if (!embeddedPaneMode) {
+      } else if (!embeddedPaneMode && dirtyPanels.result) {
         resultPanel.render(ctx, resultRegion);
+        dirtyPanels.result = false;
       }
 
       renderFooter(
         ctx,
         buildFooterText(dims.columns, {
-          adapter: currentAdapter,
-          adapterModel: currentAdapterModel,
-          inferenceStrength: currentInferenceStrength,
-          tokenSavings: currentTokenSavingsLabel,
+          adapter: state.adapter,
+          adapterModel: state.adapterModel,
+          inferenceStrength: state.inferenceStrength,
+          tokenSavings: state.tokenSavingsLabel,
           cwd: executionCwd,
         }),
       );
@@ -976,6 +985,7 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
         screen.clear();
         screen.cursorMoveTo(0, 0);
         forceFullRender = false;
+        markAllDirty();
       }
       const inputLayout = measureInputLayout(dims, input, cursor);
       const viewportStatusText = getEmbeddedViewportStatusText(dims.columns, inputLayout);
@@ -1005,7 +1015,10 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
         endRow: statusRegionEnd,
         columns: dims.columns,
       };
-      pipelinePanel.render(ctx, statusRegion);
+      if (dirtyPanels.pipeline) {
+        pipelinePanel.render(ctx, statusRegion);
+        dirtyPanels.pipeline = false;
+      }
 
       if (embeddedPaneMode) {
         const stickyRegion = {
@@ -1087,7 +1100,10 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
           endRow: transcriptRegionEnd,
           columns: dims.columns,
         };
-        transcriptPanel.render(ctx, transcriptRegion);
+        if (dirtyPanels.transcript) {
+          transcriptPanel.render(ctx, transcriptRegion);
+          dirtyPanels.transcript = false;
+        }
       }
 
       renderInteractiveInput();
@@ -1123,6 +1139,7 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
     const PROGRESS_RENDER_INTERVAL_MS = 200;
     const onProgress = (event: PipelineProgressEvent): void => {
       eventRouter.routePipelineProgress(event);
+      dirtyPanels.pipeline = true;
       if (nativePassthroughMode && isExecuting) {
         return;
       }
@@ -1368,7 +1385,7 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
               slashAutocompleteSelectedIndex = getNextSlashAutocompleteIndex(
                 slashAutocompleteSelectedIndex,
                 "up",
-                getSlashAutocompleteCommands(currentAdapter, slashAutocompleteQuery).length,
+                getSlashAutocompleteCommands(state.adapter, slashAutocompleteQuery).length,
               );
               renderInteractiveInput();
             } else {
@@ -1388,7 +1405,7 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
               slashAutocompleteSelectedIndex = getNextSlashAutocompleteIndex(
                 slashAutocompleteSelectedIndex,
                 "down",
-                getSlashAutocompleteCommands(currentAdapter, slashAutocompleteQuery).length,
+                getSlashAutocompleteCommands(state.adapter, slashAutocompleteQuery).length,
               );
               renderInteractiveInput();
             } else {
@@ -1556,7 +1573,7 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
               const resolvedPrompt =
                 slashAutocompleteActive && (slashAutocompleteQuery?.length ?? 0) > 0
                   ? getSlashAutocompleteSelection(
-                      getSlashAutocompleteCommands(currentAdapter, slashAutocompleteQuery),
+                      getSlashAutocompleteCommands(state.adapter, slashAutocompleteQuery),
                       slashAutocompleteSelectedIndex,
                     )?.usage ?? input
                   : input;
@@ -1679,30 +1696,30 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
         if (normalizedPrompt.startsWith("/")) {
           let shouldRestoreMainScreen = false;
           const previousState = {
-            adapter: currentAdapter,
-            adapterModel: currentAdapterModel,
-            translationModel: currentTranslationModel,
-            inferenceStrength: currentInferenceStrength,
+            adapter: state.adapter,
+            adapterModel: state.adapterModel,
+            translationModel: state.translationModel,
+            inferenceStrength: state.inferenceStrength,
           };
           const handled = await handleSlashCommand(normalizedPrompt, {
-            adapter: currentAdapter,
+            adapter: state.adapter,
             executionMode: options.executionMode,
-            modelName: currentTranslationModel,
-            verbose: currentVerbose,
-            cacheDisabled: currentCacheDisabled,
+            modelName: state.translationModel,
+            verbose: state.verbose,
+            cacheDisabled: state.cacheDisabled,
             onVerboseToggle: (enabled) => {
-              currentVerbose = enabled;
+              state.verbose = enabled;
               resultPanel.setVerbose(enabled);
             },
             onCacheDisableToggle: (disabled) => {
-              currentCacheDisabled = disabled;
+              state.cacheDisabled = disabled;
             },
             onMainScreenRestore: () => {
               shouldRestoreMainScreen = true;
             },
             onAdapterChange: async (newAdapter) => {
               closeExecutionControllers();
-              currentAdapter = newAdapter;
+              state.adapter = newAdapter;
               loadAndApplyConfig(newAdapter);
               updateSelectedAdapter(newAdapter);
               refreshRuntimeState();
@@ -1741,16 +1758,20 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
               const w = getEffectiveWeights(layoutOverrides);
               return `레이아웃 조정: transcript=${w.transcriptWeight} result=${w.resultWeight}`;
             },
+            onNerdFontToggle: () => {
+              dirtyPanels.pipeline = true;
+              dirtyPanels.result = true;
+            },
           });
 
           refreshRuntimeState();
 
           if (handled) {
             const stateChanged =
-              previousState.adapter !== currentAdapter ||
-              previousState.adapterModel !== currentAdapterModel ||
-              previousState.translationModel !== currentTranslationModel ||
-              previousState.inferenceStrength !== currentInferenceStrength;
+              previousState.adapter !== state.adapter ||
+              previousState.adapterModel !== state.adapterModel ||
+              previousState.translationModel !== state.translationModel ||
+              previousState.inferenceStrength !== state.inferenceStrength;
             if (stateChanged || shouldRestoreMainScreen) {
               render();
             }
@@ -1781,7 +1802,10 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
           resultPanel.setExecuting(true);
         }
         pipelinePanel.reset();
-        currentTokenSavingsLabel = undefined;
+        dirtyPanels.pipeline = true;
+        dirtyPanels.transcript = true;
+        dirtyPanels.result = true;
+        state.tokenSavingsLabel = undefined;
         if (nativePassthroughMode) {
           suspendInput();
           leaveTuiDisplay();
@@ -1795,10 +1819,10 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
           {
             mode: "repl",
             prompt,
-            adapter: currentAdapter,
+            adapter: state.adapter,
             executionMode: options.executionMode,
-            verbose: currentVerbose,
-            noCache: currentCacheDisabled,
+            verbose: state.verbose,
+            noCache: state.cacheDisabled,
             trace: false,
             showHelp: false,
             helpTopic: "repl",
@@ -1832,11 +1856,14 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
               return;
             } else {
               eventRouter.routeAdapterEvent(event, "transcript");
+              dirtyPanels.transcript = true;
             }
             render();
           },
           onActionTimelineEvent: (event) => {
             eventRouter.routeActionTimeline(event);
+dirtyPanels.pipeline = true;
+            dirtyPanels.transcript = true;
             if (nativePassthroughMode && isExecuting) {
               return;
             }
@@ -1881,6 +1908,8 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
           ...(actionTimeline.length > 0 ? { actionTimeline } : {}),
         };
         resultPanel.setResult(completedResult);
+        dirtyPanels.result = true;
+        dirtyPanels.transcript = true;
 
         // P3-4: Auto-save adapter transcript when DETOKS_SAVE_TRANSCRIPTS=1.
         if (
@@ -1920,7 +1949,7 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
           closeExecutionControllers();
           embeddedTerminalFocus.focusDetoks();
         }
-        currentTokenSavingsLabel = result.cacheHit
+        state.tokenSavingsLabel = result.cacheHit
           ? formatCacheHitBadge(result.cacheHit)
           : formatTokenSavingsBadge(
               result.promptTokenSavings ?? result.tokenMetrics?.input ?? result.tokenMetrics?.output,
@@ -1939,13 +1968,13 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
           enterTuiDisplay();
         }
         // Display error
-        const errorMsg = formatError(error, currentVerbose);
+        const errorMsg = formatError(error, state.verbose);
         resultPanel.clear();
         if (currentRunBlock !== null) {
           currentRunBlock.status = "failed";
           currentRunBlock.completedAt = Date.now();
           currentRunBlock.summaryLines = [
-            `✗ 실패  어댑터: ${currentAdapter}  세션: ${options.sessionId ?? "new"}`,
+            `✗ 실패  어댑터: ${state.adapter}  세션: ${options.sessionId ?? "new"}`,
             `요약: ${errorMsg}`,
             "다음 작업: 입력을 수정한 뒤 다시 시도하세요.",
           ];

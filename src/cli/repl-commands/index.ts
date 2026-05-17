@@ -3,6 +3,7 @@ import { createInterface } from "node:readline/promises";
 import { spawnSync } from "node:child_process";
 import type { Adapter } from "../../core/pipeline/types.js";
 import { colors } from "../colors.js";
+import { isNerdFontEnabled, setNerdFont } from "../tui/design/tokens.js";
 import {
   claudeLogout,
   getAdapterStatus,
@@ -100,6 +101,12 @@ const BASE_COMMANDS: SlashCommand[] = [
     aliases: ["l"],
     description: "transcript/result 패널 비율 조정 (reset / transcript=N result=N / + / -)",
     usage: "/layout [reset|transcript=N|result=N|+|-]",
+  },
+  {
+    name: "nerd",
+    aliases: ["nf"],
+    description: "Nerd Font 아이콘 토글 (DETOKS_NERD_FONT=1 로 시작 시 자동 활성화)",
+    usage: "/nerd [on|off]",
   },
   {
     name: "exit",
@@ -461,6 +468,7 @@ export const handleSlashCommand = async (
     onInteractiveStart?: () => void;
     onInteractiveEnd?: () => void;
     onLayoutCommand?: (args: readonly string[]) => string;
+    onNerdFontToggle?: (enabled: boolean) => void;
   },
 ): Promise<boolean> => {
   const adapter = state.adapter as Adapter;
@@ -528,6 +536,22 @@ export const handleSlashCommand = async (
       } else {
         output.write(colors.warning("\n레이아웃 변경이 비활성화된 컨텍스트입니다.\n\n"));
       }
+      return true;
+    }
+
+    case "nerd": {
+      const sub = input.trim().split(/\s+/)[1]?.toLowerCase();
+      const enabled =
+        sub === "on" ? true :
+        sub === "off" ? false :
+        !isNerdFontEnabled();
+      setNerdFont(enabled);
+      state.onNerdFontToggle?.(enabled);
+      output.write(
+        colors.info(
+          `\nNerd Font 아이콘: ${enabled ? colors.success("ON") : colors.warning("OFF")}\n\n`,
+        ),
+      );
       return true;
     }
 
