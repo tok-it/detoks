@@ -457,8 +457,10 @@ export async function completeChatWithNodeLlamaCpp(
 	const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 	const startedAt = Date.now();
 	const baseMaxTokens = request.max_tokens ?? config.localLlmMaxTokens ?? 512;
+	const reasoningActive =
+		isQwenReasoningArchitecture && !loadedRuntime.reasoningDisabled;
 	const completionOptions = {
-		maxTokens: isQwenReasoningArchitecture
+		maxTokens: reasoningActive
 			? Math.max(baseMaxTokens, 1024)
 			: baseMaxTokens,
 		temperature: request.temperature ?? 0,

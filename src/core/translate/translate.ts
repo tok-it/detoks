@@ -68,6 +68,7 @@ const TRANSLATION_SYSTEM_PROMPT = [
 	"- Return only the translated text.",
 	"- Do not add explanations, commentary, prefaces, labels, quotes, or code fences.",
 	"- Do not omit, shorten, simplify, or partially translate the input.",
+	"- Do not write meta sentences such as \"Okay\", \"Sure\", \"Here is\", \"Let me translate\", or \"The user wants...\". The very first character of your output must be the first character of the English translation itself.",
 	"",
 	"PRESERVATION:",
 	"- Preserve all technical literals exactly as written, including file names, paths, commands, flags, placeholders, JSON keys, API names, class names, function names, model names, version numbers, and error messages.",
@@ -104,6 +105,7 @@ interface SegmentedRetryResult {
 	raw_response?: Record<string, unknown>;
 	inference_time_sec: number;
 }
+
 
 function containsKorean(text: string): boolean {
 	return /[가-힣]/.test(text);
@@ -507,6 +509,17 @@ async function translate_span(
 		);
 	}
 
+	const isFallbackPass = promptType === "fallback" || promptType === "final_retry";
+	const passTemperature = isFallbackPass
+		? Math.max(0.3, options.config.temperature)
+		: options.config.temperature;
+	const passMaxTokens = isFallbackPass
+		? Math.min(
+			estimateTranslationMaxTokens(span.text, options.config),
+			Math.max(96, Math.ceil(span.text.length * 2.5)),
+		)
+		: estimateTranslationMaxTokens(span.text, options.config);
+
 	return complete_chat(
 		{
 			messages: [
@@ -519,8 +532,8 @@ async function translate_span(
 					content: `${TRANSLATION_USER_PROMPT_PREFIX}${span.text}`,
 				},
 			],
-			temperature: options.config.temperature,
-			max_tokens: estimateTranslationMaxTokens(span.text, options.config),
+			temperature: passTemperature,
+			max_tokens: passMaxTokens,
 			timeout_ms: options.config.requestTimeout,
 		},
 		{
@@ -742,8 +755,8 @@ async function runTranslationPass(
 		}
 
 		if (
-			initialPromptType === "final_retry" &&
 			status === "failed" &&
+			(initialPromptType === "final_retry" || attempts > 1) &&
 			placeholderTokens.length > 0 &&
 			validationErrors.some((error) =>
 				error === "placeholder_count_mismatch" ||
@@ -800,6 +813,7 @@ async function runTranslationPass(
 				}
 			}
 		}
+
 
 		translatedSpans.push({
 			...span,
