@@ -127,7 +127,45 @@ export const statusColor = {
 
 export type StatusColorKey = keyof typeof statusColor;
 
-export const glyph = {
+export interface GlyphSet {
+  active: string;
+  done: string;
+  skipped: string;
+  error: string;
+  pending: string;
+  info: string;
+  warn: string;
+  success: string;
+  failure: string;
+  selected: string;
+  arrow: string;
+  bullet: string;
+  separator: string;
+  ellipsisOneChar: string;
+  ellipsisThreeDot: string;
+  spinner: readonly string[];
+  changeAdd: string;
+  changeDelete: string;
+  changeRename: string;
+  changeUpdate: string;
+  cacheHit: string;
+  cacheMiss: string;
+  cacheAdvise: string;
+  ragInjected: string;
+  ragSkipped: string;
+  gutter: string;
+  spinnerBraille: readonly string[];
+  toolWeb: string;
+  toolMcp: string;
+  toolTodo: string;
+  execRunning: string;
+  execDone: string;
+  execFailed: string;
+  adapterBadge: string;
+  scrollIndicator: string;
+}
+
+const _defaultGlyph: GlyphSet = {
   active: "●",
   done: "●",
   skipped: "○",
@@ -143,7 +181,7 @@ export const glyph = {
   separator: "━",
   ellipsisOneChar: "…",
   ellipsisThreeDot: "...",
-  spinner: ["|", "/", "-", "\\"] as const,
+  spinner: ["|", "/", "-", "\\"],
   changeAdd: "+",
   changeDelete: "-",
   changeRename: "→",
@@ -154,7 +192,7 @@ export const glyph = {
   ragInjected: "ⓘ",
   ragSkipped: "○",
   gutter: "▎",
-  spinnerBraille: ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"] as const,
+  spinnerBraille: ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"],
   toolWeb: "◐",
   toolMcp: "▢",
   toolTodo: "☐",
@@ -163,7 +201,57 @@ export const glyph = {
   execFailed: "✗",
   adapterBadge: "▣",
   scrollIndicator: "▒",
-} as const;
+};
+
+// Nerd Fonts v3 — FontAwesome + Codicon PUA codepoints
+const _nerdGlyph: GlyphSet = {
+  active:          "",  // nf-fa-circle
+  done:            "",  // nf-fa-check_circle
+  skipped:         "",  // nf-fa-ban
+  error:           "",  // nf-fa-times_circle
+  pending:         "",  // nf-fa-clock_o
+  info:            "",  // nf-fa-info_circle
+  warn:            "",  // nf-fa-warning
+  success:         "",  // nf-fa-check
+  failure:         "",  // nf-fa-times
+  selected:        "",  // nf-fa-chevron_right
+  arrow:           "",  // nf-fa-arrow_right
+  bullet:          "",  // nf-fa-circle
+  separator:       "━",
+  ellipsisOneChar: "…",
+  ellipsisThreeDot: "...",
+  spinner: ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"],
+  changeAdd:    "+",
+  changeDelete: "-",
+  changeRename: "",  // nf-fa-arrow_right
+  changeUpdate: "~",
+  cacheHit:    "",  // nf-fa-database
+  cacheMiss:   "",  // nf-fa-database
+  cacheAdvise: "",  // nf-fa-warning
+  ragInjected: "",  // nf-fa-file_text
+  ragSkipped:  "",  // nf-fa-file_text_o
+  gutter:        "▎",
+  spinnerBraille: ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"],
+  toolWeb:       "",  // nf-fa-globe
+  toolMcp:       "",  // nf-fa-plug
+  toolTodo:      "",  // nf-fa-tasks
+  execRunning:   "",  // nf-fa-play
+  execDone:      "",  // nf-fa-check
+  execFailed:    "",  // nf-fa-times
+  adapterBadge:  "",  // nf-fa-database
+  scrollIndicator: "▒",
+};
+
+let _nerdFontEnabled: boolean = process.env.DETOKS_NERD_FONT === "1";
+
+export const isNerdFontEnabled = (): boolean => _nerdFontEnabled;
+
+export const setNerdFont = (enabled: boolean): void => {
+  _nerdFontEnabled = enabled;
+  Object.assign(glyph, enabled ? _nerdGlyph : _defaultGlyph);
+};
+
+export const glyph: GlyphSet = { ...(_nerdFontEnabled ? _nerdGlyph : _defaultGlyph) };
 
 export const spacing = {
   panelPaddingX: 0,

@@ -3,8 +3,10 @@ import {
   applyTheme,
   getActiveTheme,
   glyph,
+  isNerdFontEnabled,
   isThemeName,
   resolveActiveTheme,
+  setNerdFont,
   spacing,
   statusColor,
   themes,
@@ -46,6 +48,14 @@ describe("design tokens", () => {
   });
 
   describe("glyph", () => {
+    beforeEach(() => {
+      setNerdFont(false);
+    });
+
+    afterEach(() => {
+      setNerdFont(false);
+    });
+
     it("provides expected single-character markers", () => {
       expect(glyph.active).toBe("●");
       expect(glyph.skipped).toBe("○");
@@ -70,6 +80,71 @@ describe("design tokens", () => {
       expect(glyph.cacheAdvise).toBe("⚠");
       expect(glyph.ragInjected).toBe("ⓘ");
       expect(glyph.ragSkipped).toBe("○");
+    });
+  });
+
+  describe("nerd font system", () => {
+    beforeEach(() => {
+      setNerdFont(false);
+    });
+
+    afterEach(() => {
+      setNerdFont(false);
+    });
+
+    it("is disabled by default", () => {
+      expect(isNerdFontEnabled()).toBe(false);
+    });
+
+    it("setNerdFont(true) switches glyph values to nerd font set", () => {
+      const defaultActive = glyph.active;
+      setNerdFont(true);
+      expect(isNerdFontEnabled()).toBe(true);
+      expect(glyph.active).not.toBe(defaultActive);
+      expect(glyph.spinner.length).toBeGreaterThan(0);
+    });
+
+    it("setNerdFont(false) restores default glyph values", () => {
+      setNerdFont(true);
+      setNerdFont(false);
+      expect(isNerdFontEnabled()).toBe(false);
+      expect(glyph.active).toBe("●");
+      expect(glyph.success).toBe("✓");
+      expect(glyph.failure).toBe("✗");
+      expect(glyph.skipped).toBe("○");
+      expect(glyph.cacheHit).toBe("▣");
+      expect(glyph.ragInjected).toBe("ⓘ");
+    });
+
+    it("nerd font glyph set has all required keys", () => {
+      setNerdFont(true);
+      const keys: Array<keyof typeof glyph> = [
+        "active", "done", "skipped", "error", "pending", "info",
+        "warn", "success", "failure", "selected", "arrow", "bullet",
+        "separator", "ellipsisOneChar", "ellipsisThreeDot",
+        "changeAdd", "changeDelete", "changeRename", "changeUpdate",
+        "cacheHit", "cacheMiss", "cacheAdvise", "ragInjected", "ragSkipped",
+      ];
+      for (const key of keys) {
+        expect(typeof glyph[key]).toBe("string");
+        expect((glyph[key] as string).length).toBeGreaterThan(0);
+      }
+      expect(glyph.spinner.length).toBeGreaterThan(0);
+    });
+
+    it("toggling nerd font twice returns to original values", () => {
+      const snapshot = {
+        active: glyph.active,
+        success: glyph.success,
+        cacheHit: glyph.cacheHit,
+        spinner0: glyph.spinner[0],
+      };
+      setNerdFont(true);
+      setNerdFont(false);
+      expect(glyph.active).toBe(snapshot.active);
+      expect(glyph.success).toBe(snapshot.success);
+      expect(glyph.cacheHit).toBe(snapshot.cacheHit);
+      expect(glyph.spinner[0]).toBe(snapshot.spinner0);
     });
   });
 

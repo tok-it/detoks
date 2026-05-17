@@ -116,6 +116,45 @@ function formatRagSkipReason(reason: NonNullable<CliExecutionResult["ragContextS
   return null;
 }
 
+function buildRagIndexingLines(result: CliExecutionResult): string[] {
+  const summary = result.ragIndexingSummary;
+  if (!summary || summary.status === "skipped") return [];
+
+  const dbStats = summary.dbRowCount !== undefined && summary.dbSessionCount !== undefined
+    ? ` · DB ${summary.dbRowCount} rows / ${summary.dbSessionCount} sessions`
+    : "";
+
+  if (summary.status === "completed") {
+    return [
+      "",
+      colors.header("RAG 인덱싱"),
+      `  ${colors.muted("·")} 완료 · 이번 세션 ${summary.indexed}/${summary.attempted}${dbStats}`,
+    ];
+  }
+
+  if (summary.status === "partial") {
+    const lines = [
+      "",
+      colors.header("RAG 인덱싱"),
+      `  ${colors.muted("·")} 부분 완료 · ${summary.indexed}/${summary.attempted} 반영 · ${summary.skipped}개 스킵${dbStats}`,
+    ];
+    for (const failure of (summary.failures ?? []).slice(0, 2)) {
+      lines.push(`    ${colors.warning("!")} ${failure.kind}${failure.taskId ? ` ${failure.taskId}` : ""}: ${translateVisibleText(failure.reason)}`);
+    }
+    if ((summary.failures?.length ?? 0) > 2) {
+      lines.push(`    ${colors.muted(`외 ${(summary.failures?.length ?? 0) - 2}개 실패`)}`);
+    }
+    return lines;
+  }
+
+  const firstFailure = summary.failures?.[0];
+  return [
+    "",
+    colors.header("RAG 인덱싱"),
+    `  ${colors.warning("!")} 실패 (non-fatal)${firstFailure ? ` · ${translateVisibleText(firstFailure.reason)}` : ""}`,
+  ];
+}
+
 function buildRagContextLines(result: CliExecutionResult): string[] {
   const summary = result.ragContextSummary;
   if (!summary || summary.items.length === 0) {
@@ -257,6 +296,8 @@ function formatResultHuman(result: CliExecutionResult, ok: boolean): string {
       `  ${colors.muted("이어서 진행:")} detoks session continue ${sessionId}`,
     );
   }
+
+  lines.push(...buildRagIndexingLines(result));
 
   const ragContextLines = buildRagContextLines(result);
   if (ragContextLines.length > 0) {

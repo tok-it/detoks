@@ -1,4 +1,5 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { setNerdFont } from "../../../../../../src/cli/tui/design/tokens.js";
 import { ResultSummaryPanel } from "../../../../../../src/cli/tui/panels/result-summary.js";
 import type { PipelineExecutionResult } from "../../../../../../src/core/pipeline/types.js";
 import type { TokenReductionSnapshot, TokenMetricsSnapshot } from "../../../../../../src/core/utils/tokenMetrics.js";
@@ -467,6 +468,66 @@ describe("ResultSummaryPanel", () => {
     });
   });
 
+  describe("RAG indexing summary section", () => {
+    it("renders partial indexing status with DB stats and failures", () => {
+      panel.setResult(
+        mockResult({
+          ragIndexingSummary: {
+            status: "partial",
+            attempted: 3,
+            indexed: 2,
+            skipped: 1,
+            dbRowCount: 12,
+            dbSessionCount: 4,
+            failures: [
+              {
+                id: "output::sess::t1",
+                kind: "output",
+                sessionId: "sess",
+                taskId: "t1",
+                reason: "context too long",
+              },
+            ],
+          },
+        }),
+      );
+      panel.render(mockContext, mockRegion);
+      const output = mockScreen.write.mock.calls.map((c: any) => c[0]).join("\n");
+      expect(output).toContain("RAG 인덱싱");
+      expect(output).toContain("부분 완료");
+      expect(output).toContain("2/3");
+      expect(output).toContain("DB 12 rows/4 sessions");
+      expect(output).toContain("output t1");
+      expect(output).toContain("context too long");
+    });
+
+    it("renders failed indexing as non-fatal", () => {
+      panel.setResult(
+        mockResult({
+          ragIndexingSummary: {
+            status: "failed",
+            attempted: 0,
+            indexed: 0,
+            skipped: 0,
+            failures: [
+              {
+                id: "session::sess",
+                kind: "output",
+                sessionId: "sess",
+                reason: "db unavailable",
+              },
+            ],
+          },
+        }),
+      );
+      panel.render(mockContext, mockRegion);
+      const output = mockScreen.write.mock.calls.map((c: any) => c[0]).join("\n");
+      expect(output).toContain("RAG 인덱싱");
+      expect(output).toContain("실패 (non-fatal)");
+      expect(output).toContain("db unavailable");
+    });
+  });
+
   describe("resume hint banner (P1-3)", () => {
     it("renders banner at top with sessionId, completed count, currentTaskId, ago, and continue command", () => {
       const fiveMinAgo = new Date(Date.now() - 5 * 60_000).toISOString();
@@ -586,6 +647,58 @@ describe("ResultSummaryPanel", () => {
       panel.render(mockContext, mockRegion);
       const output = mockScreen.write.mock.calls.map((c: any) => c[0]).join("\n");
       expect(output).not.toContain("전사 저장");
+    });
+  });
+
+  describe("nerd font glyph integration", () => {
+    const stripAnsi = (s: string): string =>
+      s.replace(/\[[0-?]*[ -/]*[@-~]/g, "");
+
+    afterEach(() => {
+      setNerdFont(false);
+    });
+
+    it("task status uses default glyphs when nerd font is off", () => {
+      setNerdFont(false);
+      panel.setResult(mockResult({
+        taskRecords: [{ taskId: "t1", status: "completed", rawOutput: "" }, { taskId: "t2", status: "failed", rawOutput: "" }],
+      }));
+      panel.render(mockContext, mockRegion);
+      const output = mockScreen.write.mock.calls.map((c: any) => stripAnsi(c[0])).join("");
+      expect(output).toContain("✓");
+      expect(output).toContain("✗");
+    });
+
+    it("task status uses nerd font glyphs when nerd font is on", () => {
+      setNerdFont(true);
+      panel.setResult(mockResult({
+        taskRecords: [{ taskId: "t1", status: "completed", rawOutput: "" }, { taskId: "t2", status: "failed", rawOutput: "" }],
+      }));
+      panel.render(mockContext, mockRegion);
+      const output = mockScreen.write.mock.calls.map((c: any) => stripAnsi(c[0])).join("");
+      expect(output).not.toContain("✓");
+      expect(output).not.toContain("✗");
+      expect(output).toContain("t1");
+      expect(output).toContain("t2");
+    });
+
+    it("switching nerd font between renders changes task status glyphs", () => {
+      const result = mockResult({
+        taskRecords: [{ taskId: "t1", status: "completed", rawOutput: "" }],
+      });
+      panel.setResult(result);
+
+      setNerdFont(false);
+      panel.render(mockContext, mockRegion);
+      const defaultOut = mockScreen.write.mock.calls.map((c: any) => stripAnsi(c[0])).join("");
+
+      mockScreen.write.mockClear();
+      setNerdFont(true);
+      panel.render(mockContext, mockRegion);
+      const nerdOut = mockScreen.write.mock.calls.map((c: any) => stripAnsi(c[0])).join("");
+
+      expect(defaultOut).toContain("✓");
+      expect(nerdOut).not.toContain("✓");
     });
   });
 });

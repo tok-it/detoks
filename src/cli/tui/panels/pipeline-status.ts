@@ -29,12 +29,14 @@ const formatStageDuration = (durationMs: number): string => {
 const isZeroCacheCounters = (c: CacheCounters): boolean =>
   c.hit === 0 && c.miss === 0 && c.advise === 0;
 
-const STATUS_ICONS: Record<PipelineProgressStatus, string> = {
-  end: glyph.done,
-  error: glyph.error,
-  skip: glyph.skipped,
-  start: glyph.active,
-  info: glyph.info,
+const getStatusIcon = (status: PipelineProgressStatus): string => {
+  switch (status) {
+    case "end":   return glyph.done;
+    case "error": return glyph.error;
+    case "skip":  return glyph.skipped;
+    case "start": return glyph.active;
+    case "info":  return glyph.info;
+  }
 };
 
 const STATUS_STYLES: Record<PipelineProgressStatus, Style> = {
@@ -184,7 +186,7 @@ export class PipelineStatusPanel {
       const stageStatus = this.stages.get(stageName);
       if (!stageStatus) continue;
 
-      const icon = STATUS_ICONS[stageStatus.status];
+      const icon = getStatusIcon(stageStatus.status);
       const durationLabel = stageStatus.startedAt !== undefined && stageStatus.endedAt !== undefined
         ? `  ${formatStageDuration(stageStatus.endedAt - stageStatus.startedAt)}`
         : "";

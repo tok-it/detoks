@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { PipelineStatusPanel } from "../../../../../../src/cli/tui/panels/pipeline-status.js";
+import { setNerdFont } from "../../../../../../src/cli/tui/design/tokens.js";
 import type { PipelineProgressEvent } from "../../../../../../src/core/pipeline/types.js";
 import type { ActionTimelineEvent } from "../../../../../../src/core/timeline/types.js";
 
@@ -379,6 +380,49 @@ describe("PipelineStatusPanel", () => {
       panel.render(mockContext, mockRegion);
       const output = mockScreen.write.mock.calls.map((c: any) => stripAnsi(c[0])).join("\n");
       expect(output).not.toContain("캐시");
+    });
+  });
+
+  describe("nerd font glyph integration", () => {
+    afterEach(() => {
+      setNerdFont(false);
+    });
+
+    it("uses default glyphs when nerd font is off", () => {
+      setNerdFont(false);
+      const event: PipelineProgressEvent = { stage: "Executor", status: "end", message: "완료" };
+      panel.update(event);
+      panel.render(mockContext, mockRegion);
+      const output = mockScreen.write.mock.calls.map((c: any) => stripAnsi(c[0])).join("");
+      expect(output).toContain("●");
+    });
+
+    it("uses nerd font glyphs when nerd font is on", () => {
+      setNerdFont(true);
+      const event: PipelineProgressEvent = { stage: "Executor", status: "end", message: "완료" };
+      panel.update(event);
+      mockScreen.write.mockClear();
+      panel.render(mockContext, mockRegion);
+      const output = mockScreen.write.mock.calls.map((c: any) => stripAnsi(c[0])).join("");
+      expect(output).not.toContain("●");
+      expect(output).toContain("Executor");
+    });
+
+    it("switching nerd font mid-session changes subsequent renders", () => {
+      const event: PipelineProgressEvent = { stage: "Executor", status: "end", message: "완료" };
+      panel.update(event);
+
+      setNerdFont(false);
+      panel.render(mockContext, mockRegion);
+      const defaultOutput = mockScreen.write.mock.calls.map((c: any) => stripAnsi(c[0])).join("");
+
+      mockScreen.write.mockClear();
+      setNerdFont(true);
+      panel.render(mockContext, mockRegion);
+      const nerdOutput = mockScreen.write.mock.calls.map((c: any) => stripAnsi(c[0])).join("");
+
+      expect(defaultOutput).toContain("●");
+      expect(nerdOutput).not.toContain("●");
     });
   });
 });
