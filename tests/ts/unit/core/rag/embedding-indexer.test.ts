@@ -84,6 +84,27 @@ describe("EmbeddingIndexer", () => {
     );
   });
 
+  it("긴 raw_output은 여러 output 청크로 나눠 인덱싱한다", async () => {
+    const session = makeSession({
+      task_results: {
+        t1: {
+          task_id: "t1",
+          success: true,
+          summary: "Found auth module",
+          raw_output: "긴 출력 ".repeat(400),
+          input_hash: "taskhash001",
+        },
+      },
+    });
+
+    await indexer.indexSession(session as any);
+
+    const outputCalls = (store.upsert as ReturnType<typeof vi.fn>).mock.calls.filter(
+      (c) => typeof c[0] === "string" && c[0].startsWith("output::sess-abc::t1"),
+    );
+    expect(outputCalls.length).toBeGreaterThan(1);
+  });
+
   it("raw_input이 없는 세션은 prompt 인덱싱을 건너뛴다", async () => {
     const session = makeSession({
       shared_context: { session_id: "sess-no-input", raw_input: "" },
