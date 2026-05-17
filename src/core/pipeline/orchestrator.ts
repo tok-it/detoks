@@ -60,6 +60,7 @@ import type {
   SemanticContextResult,
   RagContextDisplayItem,
   RagContextSummary,
+  RagIndexingSummary,
 } from "./types.js";
 import { createActionTimelineEvent } from "../timeline/types.js";
 import type { ActionTimelineEvent } from "../timeline/types.js";
@@ -771,6 +772,7 @@ export const orchestratePipeline = async (
   const perTaskSnippets = new Map<string, RagSnippet[]>();
   const ragDisplayItemsByTask = new Map<string, RagContextDisplayItem[]>();
   let ragSkipReason: RagContextSummary["skipReason"] | undefined;
+  let ragIndexingSummary: RagIndexingSummary | undefined;
 
   // ── Step 1: Prompt compile + Role 2.1 handoff 생성 (Role 1) ──────────────
   let compiledPrompt;
@@ -1539,11 +1541,52 @@ export const orchestratePipeline = async (
 
   // ── RAG indexing: 완료된 세션을 벡터 DB에 인덱싱 ─────────────────────────
   if (ragEmbedder && ragStore && !memoryDisabled) {
+    await emitProgressWithLogging({
+      stage: "RAG Indexer",
+      status: "start",
+      message: "RAG Indexer 시작",
+    });
     try {
       const indexer = new EmbeddingIndexer(ragStore, ragEmbedder);
-      await indexer.indexSession(state as any);
+      const indexing = await indexer.indexSession(state as any);
+      const stats = ragStore.getStats();
+      ragIndexingSummary = {
+        status: indexing.failures.length === 0 ? "completed" : "partial",
+        attempted: indexing.attempted,
+        indexed: indexing.indexed,
+        skipped: indexing.skipped,
+        dbRowCount: stats.rowCount,
+        dbSessionCount: stats.sessionCount,
+        ...(indexing.failures.length > 0 ? { failures: indexing.failures } : {}),
+      };
+      await emitProgressWithLogging({
+        stage: "RAG Indexer",
+        status: "end",
+        message:
+          indexing.failures.length === 0
+            ? `RAG Indexer 완료 (${indexing.indexed}/${indexing.attempted}, DB ${stats.rowCount} rows/${stats.sessionCount} sessions)`
+            : `RAG Indexer 부분 완료 (${indexing.indexed}/${indexing.attempted}, ${indexing.skipped}개 스킵, DB ${stats.rowCount} rows/${stats.sessionCount} sessions)`,
+      });
     } catch (idxErr) {
-      logger.warn(`RAG indexing 실패 (non-fatal): ${toErrorMessage(idxErr)}`);
+      const reason = toErrorMessage(idxErr);
+      ragIndexingSummary = {
+        status: "failed",
+        attempted: 0,
+        indexed: 0,
+        skipped: 0,
+        failures: [{
+          id: `session::${sessionId}`,
+          kind: "output",
+          sessionId,
+          reason,
+        }],
+      };
+      logger.warn(`RAG indexing 실패 (non-fatal): ${reason}`);
+      await emitProgressWithLogging({
+        stage: "RAG Indexer",
+        status: "error",
+        message: `RAG Indexer 실패 (non-fatal): ${reason}`,
+      });
     } finally {
       await ragEmbedder.dispose().catch(() => {});
       ragStore.close();
@@ -1607,6 +1650,7 @@ export const orchestratePipeline = async (
     ...(resumeHint ? { resumeHint } : {}),
     ...(semanticContext ? { semanticContext } : {}),
     ...(ragContextSummary ? { ragContextSummary } : {}),
+    ...(ragIndexingSummary ? { ragIndexingSummary } : {}),
     tokenAccounting,
     costAccounting,
     lightQuality,

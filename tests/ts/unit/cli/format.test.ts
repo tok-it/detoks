@@ -180,6 +180,66 @@ describe("formatSuccess", () => {
     expect(formatted).not.toContain("task::a13f9c2b::t2");
   });
 
+  it("renders RAG indexing summary for partial indexing", () => {
+    const formatted = formatSuccess(
+      {
+        ...result,
+        ragIndexingSummary: {
+          status: "partial" as const,
+          attempted: 3,
+          indexed: 2,
+          skipped: 1,
+          dbRowCount: 12,
+          dbSessionCount: 4,
+          failures: [
+            {
+              id: "output::a13f9c2b::t2",
+              kind: "output" as const,
+              sessionId: "a13f9c2b",
+              taskId: "t2",
+              reason: "context too long",
+            },
+          ],
+        },
+      },
+      false,
+    );
+
+    expect(formatted).toContain("RAG 인덱싱");
+    expect(formatted).toContain("부분 완료");
+    expect(formatted).toContain("2/3");
+    expect(formatted).toContain("1개 스킵");
+    expect(formatted).toContain("DB 12 rows / 4 sessions");
+    expect(formatted).toContain("output t2: context too long");
+  });
+
+  it("renders non-fatal RAG indexing failure", () => {
+    const formatted = formatSuccess(
+      {
+        ...result,
+        ragIndexingSummary: {
+          status: "failed" as const,
+          attempted: 0,
+          indexed: 0,
+          skipped: 0,
+          failures: [
+            {
+              id: "session::test-session",
+              kind: "output" as const,
+              sessionId: "test-session",
+              reason: "db unavailable",
+            },
+          ],
+        },
+      },
+      false,
+    );
+
+    expect(formatted).toContain("RAG 인덱싱");
+    expect(formatted).toContain("실패 (non-fatal)");
+    expect(formatted).toContain("db unavailable");
+  });
+
   it("falls back to semanticContext when RAG display summary is absent", () => {
     const formatted = formatSuccess(
       {

@@ -5,6 +5,21 @@ interface Embedder {
   embed(text: string): Promise<Float32Array>;
 }
 
+export interface RagIndexingFailure {
+  id: string;
+  kind: "prompt" | "task" | "output";
+  sessionId: string;
+  taskId?: string;
+  reason: string;
+}
+
+export interface RagIndexingResult {
+  attempted: number;
+  indexed: number;
+  skipped: number;
+  failures: RagIndexingFailure[];
+}
+
 const MAX_EMBED_CHARS = 1200;
 
 function chunkTextForEmbedding(text: string): string[] {
@@ -59,48 +74,72 @@ export class EmbeddingIndexer {
     private readonly embedder: Embedder,
   ) {}
 
-  async indexSession(session: SessionState): Promise<void> {
+  async indexSession(session: SessionState): Promise<RagIndexingResult> {
     const sessionId = session.shared_context.session_id;
+    const result: RagIndexingResult = {
+      attempted: 0,
+      indexed: 0,
+      skipped: 0,
+      failures: [],
+    };
 
-    for (const [index, chunk] of chunkTextForEmbedding(session.shared_context.raw_input ?? "").entries()) {
-      const vec = await this.embedder.embed(chunk);
-      this.store.upsert(
-        index === 0 ? `prompt::${sessionId}` : `prompt::${sessionId}::chunk${index + 1}`,
-        vec,
-        { kind: "prompt", session_id: sessionId },
+    const indexChunks = async (
+      kind: "prompt" | "task" | "output",
+      taskId: string | undefined,
+      chunks: string[],
+      idForIndex: (index: number) => string,
+    ): Promise<void> => {
+      for (const [index, chunk] of chunks.entries()) {
+        const id = idForIndex(index);
+        result.attempted += 1;
+        try {
+          const vec = await this.embedder.embed(chunk);
+          this.store.upsert(id, vec, {
+            kind,
+            session_id: sessionId,
+            ...(taskId ? { task_id: taskId } : {}),
+          });
+          result.indexed += 1;
+        } catch (error) {
+          result.skipped += 1;
+          result.failures.push({
+            id,
+            kind,
+            sessionId,
+            ...(taskId ? { taskId } : {}),
+            reason: error instanceof Error ? error.message : String(error),
+          });
+        }
+      }
+    };
+
+    await indexChunks(
+      "prompt",
+      undefined,
+      chunkTextForEmbedding(session.shared_context.raw_input ?? ""),
+      (index) => index === 0 ? `prompt::${sessionId}` : `prompt::${sessionId}::chunk${index + 1}`,
+    );
+
+    for (const [taskId, rawResult] of Object.entries(session.task_results ?? {})) {
+      const taskResult = rawResult as { success?: boolean; summary?: string; raw_output?: string };
+      if (!taskResult.success) continue;
+
+      const taskText = taskResult.summary ?? taskResult.raw_output ?? taskId;
+      await indexChunks(
+        "task",
+        taskId,
+        chunkTextForEmbedding(taskText),
+        (index) => index === 0 ? `task::${sessionId}::${taskId}` : `task::${sessionId}::${taskId}::chunk${index + 1}`,
+      );
+
+      await indexChunks(
+        "output",
+        taskId,
+        chunkTextForEmbedding(taskResult.raw_output ?? ""),
+        (index) => index === 0 ? `output::${sessionId}::${taskId}` : `output::${sessionId}::${taskId}::chunk${index + 1}`,
       );
     }
 
-    for (const [taskId, rawResult] of Object.entries(session.task_results ?? {})) {
-      const result = rawResult as { success?: boolean; summary?: string; raw_output?: string };
-      if (!result.success) continue;
-
-      const taskText = result.summary ?? result.raw_output ?? taskId;
-      for (const [index, chunk] of chunkTextForEmbedding(taskText).entries()) {
-        const taskVec = await this.embedder.embed(chunk);
-        this.store.upsert(
-          index === 0 ? `task::${sessionId}::${taskId}` : `task::${sessionId}::${taskId}::chunk${index + 1}`,
-          taskVec,
-          {
-            kind: "task",
-            session_id: sessionId,
-            task_id: taskId,
-          },
-        );
-      }
-
-      for (const [index, chunk] of chunkTextForEmbedding(result.raw_output ?? "").entries()) {
-        const outVec = await this.embedder.embed(chunk);
-        this.store.upsert(
-          index === 0 ? `output::${sessionId}::${taskId}` : `output::${sessionId}::${taskId}::chunk${index + 1}`,
-          outVec,
-          {
-            kind: "output",
-            session_id: sessionId,
-            task_id: taskId,
-          },
-        );
-      }
-    }
+    return result;
   }
 }

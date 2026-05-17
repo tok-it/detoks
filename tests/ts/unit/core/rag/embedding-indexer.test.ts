@@ -9,6 +9,7 @@ function makeMockStore(): VectorStore {
     upsert: vi.fn(),
     search: vi.fn().mockReturnValue([]),
     delete: vi.fn(),
+    getStats: vi.fn(() => ({ rowCount: 0, sessionCount: 0 })),
     open: vi.fn(),
     close: vi.fn(),
   } as unknown as VectorStore;
@@ -103,6 +104,34 @@ describe("EmbeddingIndexer", () => {
       (c) => typeof c[0] === "string" && c[0].startsWith("output::sess-abc::t1"),
     );
     expect(outputCalls.length).toBeGreaterThan(1);
+  });
+
+  it("raw_output 청크 일부가 실패해도 task summary 인덱싱은 유지하고 실패만 집계한다", async () => {
+    let callCount = 0;
+    embedder.embed.mockImplementation(async () => {
+      callCount += 1;
+      if (callCount === 3) throw new Error("output chunk failed");
+      return makeVec(4);
+    });
+
+    const indexing = await indexer.indexSession(makeSession() as any);
+
+    expect(store.upsert).toHaveBeenCalledWith(
+      expect.stringContaining("task::sess-abc::t1"),
+      expect.any(Float32Array),
+      expect.objectContaining({ kind: "task", session_id: "sess-abc", task_id: "t1" }),
+    );
+    expect(indexing.indexed).toBe(2);
+    expect(indexing.skipped).toBe(1);
+    expect(indexing.failures).toEqual([
+      expect.objectContaining({
+        id: "output::sess-abc::t1",
+        kind: "output",
+        sessionId: "sess-abc",
+        taskId: "t1",
+        reason: "output chunk failed",
+      }),
+    ]);
   });
 
   it("raw_input이 없는 세션은 prompt 인덱싱을 건너뛴다", async () => {

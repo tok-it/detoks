@@ -107,6 +107,24 @@ export interface RagContextSummary {
   items: RagContextDisplayItem[];
 }
 
+export interface RagIndexingFailure {
+  id: string;
+  kind: "prompt" | "task" | "output";
+  sessionId: string;
+  taskId?: string;
+  reason: string;
+}
+
+export interface RagIndexingSummary {
+  status: "completed" | "partial" | "failed" | "skipped";
+  attempted: number;
+  indexed: number;
+  skipped: number;
+  dbRowCount?: number;
+  dbSessionCount?: number;
+  failures?: RagIndexingFailure[];
+}
+
 export interface PipelineExecutionResult {
   ok: boolean;
   mode: InteractionMode;
@@ -137,6 +155,7 @@ export interface PipelineExecutionResult {
   resumeHint?: ResumeHintInfo;
   semanticContext?: SemanticContextResult[];
   ragContextSummary?: RagContextSummary;
+  ragIndexingSummary?: RagIndexingSummary;
   tokenAccounting?: TokenAccounting;
   costAccounting?: CostAccounting;
   lightQuality?: LightQualityCounters;
