@@ -44,7 +44,8 @@ function chunkTextForEmbedding(text: string): string[] {
     if (trimmed.length > MAX_EMBED_CHARS) {
       flush();
       for (let i = 0; i < trimmed.length; i += MAX_EMBED_CHARS) {
-        const slice = trimmed.slice(i, i + MAX_EMBED_CHARS).trim();
+        const slice = trimmed.slice(i, i +
+MAX_EMBED_CHARS).trim();
         if (slice) chunks.push(slice);
       }
       return;
@@ -74,7 +75,8 @@ export class EmbeddingIndexer {
     private readonly embedder: Embedder,
   ) {}
 
-  async indexSession(session: SessionState): Promise<RagIndexingResult> {
+  async indexSession(session: SessionState):
+Promise<RagIndexingResult> {
     const sessionId = session.shared_context.session_id;
     const result: RagIndexingResult = {
       attempted: 0,
@@ -107,7 +109,8 @@ export class EmbeddingIndexer {
             kind,
             sessionId,
             ...(taskId ? { taskId } : {}),
-            reason: error instanceof Error ? error.message : String(error),
+            reason: error instanceof Error ? error.message :
+String(error),
           });
         }
       }
@@ -116,27 +119,34 @@ export class EmbeddingIndexer {
     await indexChunks(
       "prompt",
       undefined,
-      chunkTextForEmbedding(session.shared_context.raw_input ?? ""),
-      (index) => index === 0 ? `prompt::${sessionId}` : `prompt::${sessionId}::chunk${index + 1}`,
+      chunkTextForEmbedding(session.shared_context.raw_input ??
+""),
+      (index) => index === 0 ? `prompt::${sessionId}` : `prompt::
+${sessionId}::chunk${index + 1}`,
     );
 
-    for (const [taskId, rawResult] of Object.entries(session.task_results ?? {})) {
-      const taskResult = rawResult as { success?: boolean; summary?: string; raw_output?: string };
+    for (const [taskId, rawResult] of
+Object.entries(session.task_results ?? {})) {
+      const taskResult = rawResult as { success?: boolean;
+summary?: string; raw_output?: string };
       if (!taskResult.success) continue;
 
-      const taskText = taskResult.summary ?? taskResult.raw_output ?? taskId;
+      const taskText = taskResult.summary ??
+taskResult.raw_output ?? taskId;
       await indexChunks(
         "task",
         taskId,
         chunkTextForEmbedding(taskText),
-        (index) => index === 0 ? `task::${sessionId}::${taskId}` : `task::${sessionId}::${taskId}::chunk${index + 1}`,
+        (index) => index === 0 ? `task::${sessionId}::${taskId}
+` : `task::${sessionId}::${taskId}::chunk${index + 1}`,
       );
 
       await indexChunks(
         "output",
         taskId,
         chunkTextForEmbedding(taskResult.raw_output ?? ""),
-        (index) => index === 0 ? `output::${sessionId}::${taskId}` : `output::${sessionId}::${taskId}::chunk${index + 1}`,
+        (index) => index === 0 ? `output::${sessionId}::${taskId}
+` : `output::${sessionId}::${taskId}::chunk${index + 1}`,
       );
     }
 

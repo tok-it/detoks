@@ -276,7 +276,7 @@ afterEach(async () => {
 						budgets: {
 							thoughtTokens: 0,
 						},
-						maxTokens: 1024,
+						maxTokens: 128,
 						temperature: 0,
 						topK: 40,
 						topP: 0.95,
@@ -330,6 +330,12 @@ afterEach(async () => {
 					"새 파일을 생성해",
 					expect.not.objectContaining({
 						budgets: expect.anything(),
+					}),
+				);
+				expect(nodeLlamaMocks.sessionPromptWithMeta).toHaveBeenCalledWith(
+					"새 파일을 생성해",
+					expect.objectContaining({
+						maxTokens: 1024,
 					}),
 				);
 			} finally {

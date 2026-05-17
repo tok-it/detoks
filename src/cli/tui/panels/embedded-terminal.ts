@@ -4,7 +4,7 @@ import type { PtyEvent } from "../../../integrations/subprocess/types.js";
 import { getContentArea } from "../layout-manager.js";
 import { padDisplayWidth } from "../renderer.js";
 import { fillRemaining } from "./base.js";
-import { statusColor } from "../design/tokens.js";
+import { glyph, statusColor, width, type Style } from "../design/tokens.js";
 import type { TerminalCell, TerminalCellStyle, TerminalColor } from "../terminal-emulator.js";
 import { TerminalEmulatorBuffer, getCharacterDisplayWidth } from "../terminal-emulator.js";
 
@@ -334,6 +334,50 @@ const truncateForSummary = (text: string, maxWidth: number): string => {
   return `${text.slice(0, maxWidth - 3)}...`;
 };
 
+const buildGutterPrefix = (icon: string): { prefix: string; displayWidth: number } => {
+  const iconWidth = getCharacterDisplayWidth(icon);
+  const prefix = `${glyph.gutter} ${icon} `;
+  return { prefix, displayWidth: 1 + 1 + iconWidth + 1 };
+};
+
+const composeGutteredLine = (
+  icon: string,
+  body: string,
+  maxWidth: number,
+  colorize: Style,
+): string => {
+  if (maxWidth < 20) {
+    return colorize(padDisplayWidth(truncateForSummary(body, maxWidth), maxWidth));
+  }
+
+  const { prefix, displayWidth } = buildGutterPrefix(icon);
+  const truncatedBody = truncateForSummary(body, maxWidth - displayWidth);
+  const line = prefix + truncatedBody;
+  return colorize(padDisplayWidth(line, maxWidth));
+};
+
+const computeRunningElapsedLabel = (runStartedAt: number | null, now: number): string => {
+  if (runStartedAt === null) {
+    return "";
+  }
+
+  const elapsedSeconds = Math.max(0, Math.floor((now - runStartedAt) / 1000));
+  if (elapsedSeconds < 60) {
+    return `(${elapsedSeconds}s)`;
+  }
+
+  const minutes = Math.floor(elapsedSeconds / 60);
+  const seconds = elapsedSeconds % 60;
+  return `(${minutes}m${seconds}s)`;
+};
+
+const pickToolIcon = (firstLine: string): string => {
+  if (firstLine.startsWith("web search:")) return glyph.toolWeb;
+  if (/^mcp\b/i.test(firstLine)) return glyph.toolMcp;
+  if (/^todo_list\b/i.test(firstLine)) return glyph.toolTodo;
+  return glyph.bullet;
+};
+
 const findMetaValue = (rows: RenderedRowInfo[], key: string): string | null => {
   const matched = rows.find((row) => row.plainText.startsWith(key));
   if (!matched) {
@@ -446,6 +490,8 @@ const buildCompactRenderableLines = (
   cursorColumn?: number,
   cursorVisible?: boolean,
   cursorGlobalRow?: number,
+  now = Date.now(),
+  runStartedAt: number | null = null,
 ): EmbeddedTerminalRenderableLine[] => {
   const output: EmbeddedTerminalRenderableLine[] = [];
 
@@ -464,10 +510,9 @@ const buildCompactRenderableLines = (
         index += 1;
       }
 
+      const metaBody = summarizeMetadataBlock(block, maxWidth);
       output.push({
-        text: statusColor.muted(
-          padDisplayWidth(summarizeMetadataBlock(block, maxWidth), maxWidth),
-        ),
+        text: composeGutteredLine(glyph.adapterBadge, metaBody, maxWidth, statusColor.muted),
       });
       continue;
     }
@@ -504,8 +549,12 @@ const buildCompactRenderableLines = (
 
         const summary = summarizeCommandBlock(commandBlock, maxWidth);
         if (summary !== null) {
+          const statusLineText = commandBlock.find((r, i) => i >= 2 && isCommandStatusLine(r.plainText))?.plainText ?? null;
+          const execStatus = statusFromCommandStatusLine(statusLineText);
+          const execIcon = execStatus === "completed" ? glyph.execDone : glyph.execFailed;
+          const execStyle = execStatus === "completed" ? statusColor.success : statusColor.error;
           output.push({
-            text: statusColor.header(padDisplayWidth(summary, maxWidth)),
+            text: composeGutteredLine(execIcon, summary, maxWidth, execStyle),
           });
           index = cursor;
           continue;
@@ -514,10 +563,17 @@ const buildCompactRenderableLines = (
 
       const commandLine = rows[index + 1]?.plainText.trim() ?? "";
       if (looksLikeCommandLine(commandLine)) {
+        const spinnerIndex = runStartedAt === null
+          ? -1
+          : Math.floor(Math.max(0, now - runStartedAt) / width.spinnerFrameMs) % glyph.spinnerBraille.length;
+        const runningIcon = spinnerIndex >= 0 ? glyph.spinnerBraille[spinnerIndex]! : glyph.execRunning;
+        const elapsedLabel = computeRunningElapsedLabel(runStartedAt, now);
+        const runningBody = summarizeCommandActivity(commandLine, maxWidth, "running");
+        const runningBodyWithElapsed = elapsedLabel.length > 0
+          ? `${runningBody} ${elapsedLabel}`
+          : runningBody;
         output.push({
-          text: statusColor.muted(
-            padDisplayWidth(summarizeCommandActivity(commandLine, maxWidth, "running"), maxWidth),
-          ),
+          text: composeGutteredLine(runningIcon, runningBodyWithElapsed, maxWidth, statusColor.header),
         });
         index = findPendingCommandEnd(rows, index + 2);
         continue;
@@ -536,10 +592,10 @@ const buildCompactRenderableLines = (
         index += 1;
       }
 
+      const toolIcon = pickToolIcon(block[0]?.plainText ?? "");
+      const toolBody = summarizeToolActivityBlock(block, maxWidth);
       output.push({
-        text: statusColor.muted(
-          padDisplayWidth(summarizeToolActivityBlock(block, maxWidth), maxWidth),
-        ),
+        text: composeGutteredLine(toolIcon, toolBody, maxWidth, statusColor.muted),
       });
       continue;
     }
@@ -634,11 +690,28 @@ export interface EmbeddedTerminalViewportTrackingInfo {
 export class EmbeddedTerminalPane {
   private readonly buffer = new TerminalEmulatorBuffer(80, 24, EMBEDDED_PANE_SCROLLBACK_LIMIT);
   private scrollOffset = 0;
-  // Cached total renderable line count (after compact summaries are applied) —
-  // updated on every write to avoid rebuilding the combined array on every scrollUp() keypress.
+  // Cached total renderable line count (after compact summaries are applied).
+  // Mark dirty on writes and rebuild lazily during render/scroll queries so
+  // high-frequency PTY chunks do not repeatedly compact the whole scrollback.
   private cachedTotalRows = 0;
   private currentColumns = 80;
   private currentRows = 24;
+  private renderCacheDirty = true;
+  private renderCache:
+    | {
+        width: number;
+        rows: RenderedRowInfo[];
+        cursorColumn: number;
+        cursorVisible: boolean;
+        cursorGlobalRow: number;
+        compactLines: EmbeddedTerminalRenderableLine[];
+        lastCompactNow: number | null;
+        lastRunStartedAt: number | null;
+        compactRebuildCount: number;
+      }
+    | null = null;
+  private renderCacheRebuildCount = 0;
+  private approvalBannerShownAt: number | null = null;
 
   clear(): void {
     this.buffer.reset();
@@ -646,6 +719,9 @@ export class EmbeddedTerminalPane {
     this.cachedTotalRows = 0;
     this.currentColumns = 80;
     this.currentRows = 24;
+    this.renderCacheDirty = true;
+    this.renderCache = null;
+    this.approvalBannerShownAt = null;
   }
 
   resize(columns: number, rows: number): void {
@@ -659,10 +735,11 @@ export class EmbeddedTerminalPane {
     this.currentColumns = nextColumns;
     this.currentRows = nextRows;
     this.buffer.resize(nextColumns, nextRows);
-    this.updateCachedTotalRows();
+    this.markRenderCacheDirty();
   }
 
   scrollUp(): void {
+    this.ensureCachedTotalRows();
     this.scrollOffset = Math.min(this.scrollOffset + 1, Math.max(0, this.cachedTotalRows - 1));
   }
 
@@ -675,6 +752,7 @@ export class EmbeddedTerminalPane {
   }
 
   scrollBy(deltaRows: number): void {
+    this.ensureCachedTotalRows();
     if (deltaRows < 0) {
       this.scrollOffset = Math.min(this.scrollOffset + Math.abs(deltaRows), Math.max(0, this.cachedTotalRows - 1));
       return;
@@ -684,12 +762,12 @@ export class EmbeddedTerminalPane {
   }
 
   scrollToTop(maxWidth: number, viewportHeight: number): void {
-    const totalLines = this.getRenderableLines(Math.max(1, maxWidth)).length;
+    const totalLines = this.getTotalRenderableLineCount(Math.max(1, maxWidth));
     this.scrollOffset = Math.max(0, totalLines - Math.max(0, viewportHeight));
   }
 
   getViewportTrackingInfo(maxWidth: number, viewportHeight: number): EmbeddedTerminalViewportTrackingInfo {
-    const totalLines = this.getRenderableLines(Math.max(1, maxWidth)).length;
+    const totalLines = this.getTotalRenderableLineCount(Math.max(1, maxWidth));
     const maxTopRow = Math.max(0, totalLines - Math.max(0, viewportHeight));
     const distanceFromBottom = Math.min(this.scrollOffset, maxTopRow);
 
@@ -700,8 +778,28 @@ export class EmbeddedTerminalPane {
     };
   }
 
-  private updateCachedTotalRows(): void {
-    this.cachedTotalRows = this.getRenderableLines(this.currentColumns).length;
+  private markRenderCacheDirty(): void {
+    this.renderCacheDirty = true;
+    this.renderCache = null;
+  }
+
+  private ensureCachedTotalRows(): void {
+    this.cachedTotalRows = this.getTotalRenderableLineCount(this.currentColumns);
+  }
+
+  private getTotalRenderableLineCount(maxWidth: number): number {
+    if (maxWidth <= 0) {
+      return 0;
+    }
+
+    if (!this.buffer.hasContent()) {
+      this.cachedTotalRows = EMPTY_PANE_LINES.length;
+      return this.cachedTotalRows;
+    }
+
+    const cache = this.ensureRenderCache(maxWidth);
+    this.cachedTotalRows = cache.compactLines.length;
+    return this.cachedTotalRows;
   }
 
   addEvent(event: PtyEvent): void {
@@ -717,7 +815,7 @@ export class EmbeddedTerminalPane {
     }
 
     this.buffer.write(event.data);
-    this.updateCachedTotalRows();
+    this.markRenderCacheDirty();
     this.scrollOffset = 0;
   }
 
@@ -727,7 +825,7 @@ export class EmbeddedTerminalPane {
     }
 
     this.buffer.write(text.endsWith("\n") ? text : `${text}\n`);
-    this.updateCachedTotalRows();
+    this.markRenderCacheDirty();
     this.scrollOffset = 0;
   }
 
@@ -740,7 +838,7 @@ export class EmbeddedTerminalPane {
       return null;
     }
 
-    const { rows } = this.getRenderedRows(Math.max(1, maxWidth));
+    const { rows } = this.ensureRenderCache(Math.max(1, maxWidth));
     for (let index = rows.length - 1; index >= 0; index -= 1) {
       const row = rows[index];
       if (row === undefined) {
@@ -790,7 +888,7 @@ export class EmbeddedTerminalPane {
       return null;
     }
 
-    const { rows } = this.getRenderedRows(Math.max(1, maxWidth));
+    const { rows } = this.ensureRenderCache(Math.max(1, maxWidth));
     for (let index = rows.length - 1; index >= 0; index -= 1) {
       const row = rows[index];
       if (row === undefined || row.plainText.length === 0) {
@@ -849,7 +947,116 @@ export class EmbeddedTerminalPane {
     };
   }
 
-  getRenderableLines(maxWidth: number, maxRows?: number, scrollOffset = 0): EmbeddedTerminalRenderableLine[] {
+  private hasRunningExec(rows: RenderedRowInfo[]): boolean {
+    for (let index = 0; index < rows.length; index += 1) {
+      if (rows[index]?.plainText !== "exec") {
+        continue;
+      }
+
+      let hasStatusLine = false;
+      for (let lookahead = index + 2; lookahead < Math.min(rows.length, index + 8); lookahead += 1) {
+        if (isCommandStatusLine(rows[lookahead]?.plainText ?? "")) {
+          hasStatusLine = true;
+          break;
+        }
+      }
+
+      if (!hasStatusLine) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  private ensureRenderCache(
+    maxWidth: number,
+    now?: number,
+    runStartedAt?: number | null,
+  ): NonNullable<EmbeddedTerminalPane["renderCache"]> {
+    const renderWidth = Math.max(1, maxWidth);
+    const effectiveNow = now ?? Date.now();
+    const effectiveRunStartedAt = runStartedAt ?? null;
+    const spinnerIndex = effectiveRunStartedAt === null
+      ? -1
+      : Math.floor(Math.max(0, effectiveNow - effectiveRunStartedAt) / width.spinnerFrameMs) % glyph.spinnerBraille.length;
+
+    if (
+      this.renderCache !== null &&
+      !this.renderCacheDirty &&
+      this.renderCache.width === renderWidth
+    ) {
+      const previousSpinnerIndex = this.renderCache.lastRunStartedAt === null || this.renderCache.lastCompactNow === null
+        ? -1
+        : Math.floor(Math.max(0, this.renderCache.lastCompactNow - this.renderCache.lastRunStartedAt) / width.spinnerFrameMs) % glyph.spinnerBraille.length;
+      if (spinnerIndex === previousSpinnerIndex || !this.hasRunningExec(this.renderCache.rows)) {
+        return this.renderCache;
+      }
+
+      this.renderCache.compactLines = buildCompactRenderableLines(
+        this.renderCache.rows,
+        renderWidth,
+        this.renderCache.cursorColumn,
+        this.renderCache.cursorVisible,
+        this.renderCache.cursorGlobalRow,
+        effectiveNow,
+        effectiveRunStartedAt,
+      );
+      this.renderCache.lastCompactNow = effectiveNow;
+      this.renderCache.lastRunStartedAt = effectiveRunStartedAt;
+      this.renderCache.compactRebuildCount += 1;
+      this.cachedTotalRows = this.renderCache.compactLines.length;
+      return this.renderCache;
+    }
+
+    const {
+      rows: renderedRows,
+      cursorColumn,
+      cursorVisible,
+      cursorGlobalRow,
+    } = this.getRenderedRows(renderWidth);
+
+    const compactLines = buildCompactRenderableLines(
+      renderedRows,
+      renderWidth,
+      cursorColumn,
+      cursorVisible,
+      cursorGlobalRow,
+      effectiveNow,
+      effectiveRunStartedAt,
+    );
+
+    this.renderCache = {
+      width: renderWidth,
+      rows: renderedRows,
+      cursorColumn,
+      cursorVisible,
+      cursorGlobalRow,
+      compactLines,
+      lastCompactNow: effectiveNow,
+      lastRunStartedAt: effectiveRunStartedAt,
+      compactRebuildCount: 1,
+    };
+    this.renderCacheDirty = false;
+    this.cachedTotalRows = compactLines.length;
+    this.renderCacheRebuildCount += 1;
+    return this.renderCache;
+  }
+
+  getDebugStats(): { renderCacheRebuildCount: number; compactRebuildCount: number; cachedTotalRows: number } {
+    return {
+      renderCacheRebuildCount: this.renderCacheRebuildCount,
+      compactRebuildCount: this.renderCache?.compactRebuildCount ?? 0,
+      cachedTotalRows: this.cachedTotalRows,
+    };
+  }
+
+  getRenderableLines(
+    maxWidth: number,
+    maxRows?: number,
+    scrollOffset = 0,
+    opts?: { now?: number; runStartedAt?: number | null },
+  ): EmbeddedTerminalRenderableLine[] {
     if (maxWidth <= 0) {
       return [];
     }
@@ -860,20 +1067,7 @@ export class EmbeddedTerminalPane {
       }));
     }
 
-    const {
-      rows: renderedRows,
-      cursorColumn,
-      cursorVisible,
-      cursorGlobalRow,
-    } = this.getRenderedRows(maxWidth);
-
-    const compactLines = buildCompactRenderableLines(
-      renderedRows,
-      maxWidth,
-      cursorColumn,
-      cursorVisible,
-      cursorGlobalRow,
-    );
+    const { compactLines } = this.ensureRenderCache(maxWidth, opts?.now, opts?.runStartedAt);
 
     const endIndex = Math.max(0, compactLines.length - Math.max(0, scrollOffset));
     const startIndex = Math.max(0, maxRows === undefined ? 0 : endIndex - Math.max(0, maxRows));
@@ -881,7 +1075,75 @@ export class EmbeddedTerminalPane {
     return compactLines.slice(startIndex, endIndex);
   }
 
-  render(ctx: RenderContext, region: PanelRegion): void {
+  getStatusBannerLine(
+    maxWidth: number,
+    opts?: { now?: number },
+  ): { text: string; severity: "warn" } | null {
+    const state = this.getInteractionState(maxWidth);
+    if (state === null || state.kind !== "approval") {
+      this.approvalBannerShownAt = null;
+      return null;
+    }
+
+    const now = opts?.now ?? Date.now();
+    if (this.approvalBannerShownAt === null) {
+      this.approvalBannerShownAt = now;
+    }
+
+    const detail = state.detail ?? "";
+    const hint = "  [Enter 승인 · Esc 거절]";
+    const body = (detail.length > 0 ? `${state.label}: "${detail}"` : state.label) + hint;
+    const flashActive = now - this.approvalBannerShownAt < 500;
+
+    if (maxWidth < 20) {
+      const truncated = truncateForSummary(body, maxWidth);
+      const text = flashActive
+        ? statusColor.warn(`\x1b[7m${padDisplayWidth(truncated, maxWidth)}\x1b[27m`)
+        : statusColor.warn(padDisplayWidth(truncated, maxWidth));
+      return { text, severity: "warn" };
+    }
+
+    const { prefix, displayWidth } = buildGutterPrefix(glyph.warn);
+    const truncatedBody = truncateForSummary(body, maxWidth - displayWidth);
+    const fullText = prefix + truncatedBody;
+    const text = flashActive
+      ? statusColor.warn(`\x1b[7m${padDisplayWidth(fullText, maxWidth)}\x1b[27m`)
+      : statusColor.warn(padDisplayWidth(fullText, maxWidth));
+    return { text, severity: "warn" };
+  }
+
+  getFocusFooterLine(
+    maxWidth: number,
+    focus: "detoks-input" | "adapter-terminal" | "summary",
+  ): string {
+    const hint =
+      focus === "adapter-terminal"
+        ? "Esc / Ctrl+G detoks 입력으로 복귀  ·  Ctrl+T 포커스 전환"
+        : focus === "summary"
+          ? "Enter 복귀  ·  Ctrl+T 어댑터 터미널 포커스 전환"
+          : "Ctrl+T 어댑터 터미널 포커스 전환  ·  Esc / Ctrl+G detoks 입력";
+    return statusColor.muted(padDisplayWidth(truncateForSummary(hint, maxWidth), maxWidth));
+  }
+
+  getScrollIndicator(maxWidth: number, viewportHeight: number): string | null {
+    if (maxWidth < 30) {
+      return null;
+    }
+    const { pinnedToBottom, distanceFromBottom, totalLines } = this.getViewportTrackingInfo(
+      maxWidth,
+      viewportHeight,
+    );
+    if (pinnedToBottom) {
+      return null;
+    }
+    return `${glyph.scrollIndicator} ${distanceFromBottom}/${totalLines}`;
+  }
+
+  render(
+    ctx: RenderContext,
+    region: PanelRegion,
+    opts?: { now?: number; runStartedAt?: number | null },
+  ): void {
     const { screen } = ctx;
     const { usableWidth, usableHeight } = getContentArea(region);
 
@@ -890,7 +1152,7 @@ export class EmbeddedTerminalPane {
     }
 
     let currentRow = region.startRow;
-    const renderedLines = this.getRenderableLines(usableWidth, usableHeight, this.scrollOffset);
+    const renderedLines = this.getRenderableLines(usableWidth, usableHeight, this.scrollOffset, opts);
 
     for (const line of renderedLines) {
       if (currentRow >= region.endRow) {

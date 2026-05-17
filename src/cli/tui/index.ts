@@ -306,6 +306,14 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
     let executionClockStartedAt: number | null = null;
     let executionClockTimer: NodeJS.Timeout | undefined;
     let forceFullRender = false;
+    let scheduledRenderTimer: NodeJS.Timeout | undefined;
+    let scheduledRenderReason: string | undefined;
+    let lastEmbeddedNativeResize: { columns: number; rows: number } | null = null;
+    let renderPerfWindowStartedAt = Date.now();
+    let renderPerfCount = 0;
+    let coalescedRenderCount = 0;
+    let ptyEventPerfCount = 0;
+    let render: () => void = () => {};
     let localLlmBuildHint: string | null = null;
     let buildSpinnerTimer: NodeJS.Timeout | undefined;
     let buildSpinnerFrame = 0;
@@ -708,6 +716,7 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
         embeddedNativeCliSession?.close();
       }
       embeddedNativeCliSession = null;
+      lastEmbeddedNativeResize = null;
     };
 
     const closeActiveAdapterController = (signal?: NodeJS.Signals): void => {
@@ -737,6 +746,74 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
       forceFullRender = true;
     };
 
+    const maybeFocusEmbeddedInteraction = (): boolean => {
+      if (!embeddedPaneMode) {
+        return false;
+      }
+
+      const interactionState = embeddedTerminalPane.getInteractionState();
+      if (
+        interactionState?.kind === "approval" &&
+        embeddedTerminalFocus.focus !== "adapter-terminal"
+      ) {
+        embeddedTerminalFocus.focusNative();
+        return true;
+      }
+
+      return false;
+    };
+
+    const emitRenderPerfIfNeeded = (): void => {
+      if (process.env.DETOKS_TUI_PERF !== "1") {
+        return;
+      }
+
+      const now = Date.now();
+      const elapsed = now - renderPerfWindowStartedAt;
+      if (elapsed < 1000) {
+        return;
+      }
+
+      process.stderr.write(
+        `[detoks:tui-perf] render=${renderPerfCount}/s pty=${ptyEventPerfCount}/s coalesced=${coalescedRenderCount}/s reason=${scheduledRenderReason ?? "none"}\n`,
+      );
+      renderPerfWindowStartedAt = now;
+      renderPerfCount = 0;
+      coalescedRenderCount = 0;
+      ptyEventPerfCount = 0;
+    };
+
+    const renderNow = (_reason: string): void => {
+      if (scheduledRenderTimer !== undefined) {
+        clearTimeout(scheduledRenderTimer);
+        scheduledRenderTimer = undefined;
+      }
+      render();
+      renderPerfCount += 1;
+      emitRenderPerfIfNeeded();
+    };
+
+    const requestRender = (reason: string): void => {
+      scheduledRenderReason = reason;
+      if (!embeddedPaneMode) {
+        renderNow(reason);
+        return;
+      }
+
+      if (scheduledRenderTimer !== undefined) {
+        coalescedRenderCount += 1;
+        return;
+      }
+
+      scheduledRenderTimer = setTimeout(() => {
+        scheduledRenderTimer = undefined;
+        maybeFocusEmbeddedInteraction();
+        render();
+        renderPerfCount += 1;
+        emitRenderPerfIfNeeded();
+      }, 16);
+    };
+
     const startExecutionClock = (): void => {
       if (!embeddedPaneMode || executionClockStartedAt !== null) {
         return;
@@ -746,9 +823,9 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
       pipelinePanel.setExecutionClock(executionClockStartedAt);
       executionClockTimer = setInterval(() => {
         if (isExecuting) {
-          render();
+          requestRender("execution-clock");
         }
-      }, 1000);
+      }, 250);
     };
 
     const ensureEmbeddedNativeCliSession = (): void => {
@@ -764,7 +841,10 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
         ...(options.sessionId !== undefined ? { sessionId: options.sessionId } : {}),
         onEvent: (event) => {
           eventRouter.routeAdapterEvent(event, "embedded");
-          render();
+          if (event.type === "chunk") {
+            ptyEventPerfCount += 1;
+          }
+          requestRender("embedded-native-event");
         },
       });
     };
@@ -889,7 +969,7 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
       screen.flush();
     };
 
-    const render = (): void => {
+    render = (): void => {
       const dims = screen.getDimensions();
       const ctx = { screen, dims };
       if (forceFullRender) {
@@ -933,7 +1013,10 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
           endRow: stickyRegionEnd,
           columns: dims.columns,
         };
+        const now = Date.now();
+        const approvalBanner = activeRunBlock?.pane.getStatusBannerLine(stickyRegion.columns, { now }) ?? null;
         const stickyLines = [
+          ...(approvalBanner ? [approvalBanner.text] : []),
           ...buildStickyPromptLines(stickyRegion.columns),
           ...buildEmbeddedActivityLines(stickyRegion.columns, inputLayout, viewportStatusText),
         ];
@@ -963,9 +1046,41 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
         );
         embeddedTerminalPane.resize(transcriptRegion.columns, transcriptPtyRows);
         if (embeddedNativeCliSession !== null) {
-          embeddedNativeCliSession?.resize(transcriptRegion.columns, transcriptPtyRows);
+          if (
+            lastEmbeddedNativeResize === null ||
+            lastEmbeddedNativeResize.columns !== transcriptRegion.columns ||
+            lastEmbeddedNativeResize.rows !== transcriptPtyRows
+          ) {
+            lastEmbeddedNativeResize = {
+              columns: transcriptRegion.columns,
+              rows: transcriptPtyRows,
+            };
+            embeddedNativeCliSession?.resize(transcriptRegion.columns, transcriptPtyRows);
+          }
         }
-        embeddedTerminalPane.render(ctx, transcriptRegion);
+        const transcriptHeight = transcriptRegion.endRow - transcriptRegion.startRow;
+        const showFooter = transcriptHeight > 2;
+        const paneRenderRegion = showFooter
+          ? { ...transcriptRegion, endRow: transcriptRegion.endRow - 1 }
+          : transcriptRegion;
+        embeddedTerminalPane.render(ctx, paneRenderRegion, {
+          now,
+          runStartedAt: executionClockStartedAt,
+        });
+
+        if (showFooter) {
+          const footerRow = transcriptRegion.endRow - 1;
+          screen.cursorMoveTo(footerRow, 0);
+          screen.write(embeddedTerminalPane.getFocusFooterLine(transcriptRegion.columns, embeddedTerminalFocus.focus));
+        }
+
+        const scrollIndicator = embeddedTerminalPane.getScrollIndicator(transcriptRegion.columns, transcriptHeight);
+        if (scrollIndicator !== null) {
+          const indicatorLen = scrollIndicator.length;
+          const startCol = Math.max(0, transcriptRegion.columns - indicatorLen);
+          screen.cursorMoveTo(transcriptRegion.startRow, startCol);
+          screen.write(scrollIndicator);
+        }
       } else {
         const transcriptRegion = {
           startRow: contentRegionStart,
@@ -1017,6 +1132,8 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
           return;
         }
         lastProgressRenderAt = now;
+        requestRender("pipeline-progress");
+        return;
       }
       render();
     };
@@ -1708,13 +1825,11 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
 
             if (embeddedPaneMode) {
               eventRouter.routeAdapterEvent(event, "embedded");
-              const interactionState = embeddedTerminalPane.getInteractionState();
-              if (
-                interactionState?.kind === "approval" &&
-                embeddedTerminalFocus.focus !== "adapter-terminal"
-              ) {
-                embeddedTerminalFocus.focusNative();
+              if (event.type === "chunk") {
+                ptyEventPerfCount += 1;
               }
+              requestRender("adapter-event");
+              return;
             } else {
               eventRouter.routeAdapterEvent(event, "transcript");
             }
@@ -1722,7 +1837,12 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
           },
           onActionTimelineEvent: (event) => {
             eventRouter.routeActionTimeline(event);
-            if (!nativePassthroughMode || !isExecuting) {
+            if (nativePassthroughMode && isExecuting) {
+              return;
+            }
+            if (embeddedPaneMode && isExecuting) {
+              requestRender("action-timeline");
+            } else {
               render();
             }
           },
@@ -1863,6 +1983,10 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
     stdin.on("data", onData);
     stdin.on("end", () => {
       clearNativeEscapeTimer();
+      if (scheduledRenderTimer !== undefined) {
+        clearTimeout(scheduledRenderTimer);
+        scheduledRenderTimer = undefined;
+      }
       closeExecutionControllers();
       running = false;
     });
@@ -1876,6 +2000,10 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
     }
 
     stdin.removeListener("data", onData);
+    if (scheduledRenderTimer !== undefined) {
+      clearTimeout(scheduledRenderTimer);
+      scheduledRenderTimer = undefined;
+    }
     unsubBuildEvents();
     if (buildSpinnerTimer !== undefined) {
       clearInterval(buildSpinnerTimer);

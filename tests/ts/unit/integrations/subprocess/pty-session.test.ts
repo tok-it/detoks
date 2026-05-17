@@ -93,7 +93,7 @@ describe("interactive PTY session", () => {
     });
   });
 
-  it("keeps request input writable and emits a prompt event for canned input", async () => {
+  it("submits initial PTY input immediately and emits a prompt event", async () => {
     const ptyProcess = new FakePtyProcess();
     ptyMocks.spawn.mockReturnValueOnce(ptyProcess as unknown as never);
     const onEvent = vi.fn();
@@ -107,9 +107,12 @@ describe("interactive PTY session", () => {
       { onEvent },
     );
 
-    session.write("hello detoks\n");
-    expect(ptyProcess.write).toHaveBeenCalledWith("hello detoks\n");
+    expect(ptyProcess.write).toHaveBeenNthCalledWith(1, "hello detoks\n");
+    expect(ptyProcess.write).toHaveBeenNthCalledWith(2, "\x04");
     expect(onEvent.mock.calls.some(([event]) => event.type === "prompt")).toBe(true);
+
+    session.write("y\r");
+    expect(ptyProcess.write).toHaveBeenNthCalledWith(3, "y\r");
 
     session.close();
     expect(ptyProcess.kill).toHaveBeenCalledWith("SIGTERM");
@@ -119,6 +122,31 @@ describe("interactive PTY session", () => {
       exitCode: 0,
       timedOut: false,
     });
+  });
+
+  it("adds a carriage return before EOF when the initial prompt has no trailing newline", async () => {
+    const ptyProcess = new FakePtyProcess();
+    ptyMocks.spawn.mockReturnValueOnce(ptyProcess as unknown as never);
+
+    const session = createInteractivePtySession(
+      {
+        command: process.execPath,
+        args: ["-e", "process.stdout.write('ok')"],
+        input: "hello detoks",
+        interactiveAfterInput: true,
+      },
+      { onEvent: vi.fn() },
+    );
+
+    expect(ptyProcess.write).toHaveBeenNthCalledWith(1, "hello detoks");
+    expect(ptyProcess.write).toHaveBeenNthCalledWith(2, "\r");
+    expect(ptyProcess.write).toHaveBeenNthCalledWith(3, "\x04");
+
+    session.write("y\r");
+    expect(ptyProcess.write).toHaveBeenNthCalledWith(4, "y\r");
+
+    ptyProcess.emitExit(0);
+    await expect(session.result).resolves.toMatchObject({ exitCode: 0, timedOut: false });
   });
 
   it("captures child output and emits resize events", async () => {

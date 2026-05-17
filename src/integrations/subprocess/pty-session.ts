@@ -263,6 +263,18 @@ export const createInteractivePtySession = (
     });
   });
 
+  if (request.input !== undefined) {
+    emitEvent({ type: "prompt", data: request.input });
+    ptyProcess.write(request.input);
+    // Match the PTY runner behavior: stdin-driven commands like `codex exec -`
+    // need an explicit line terminator/EOF to start work, while the PTY stays
+    // interactive for later approval replies.
+    if (!request.input.endsWith("\r") && !request.input.endsWith("\n")) {
+      ptyProcess.write("\r");
+    }
+    ptyProcess.write("\x04");
+  }
+
   return {
     write: (data: string): void => {
       if (request.input !== undefined) {
