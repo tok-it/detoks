@@ -932,7 +932,10 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
       const statusRegionEnd = Math.min(inputLayout.separatorRow, statusRegionStart + 8);
       const contentRegionStart = statusRegionEnd;
       const availableContentRows = Math.max(0, inputLayout.separatorRow - contentRegionStart);
-      const transcriptRows = availableContentRows > 0 ? availableContentRows : 0;
+      const transcriptRows =
+        !embeddedPaneMode && availableContentRows > 0
+          ? Math.max(1, Math.floor(availableContentRows * getTranscriptRatio()))
+          : availableContentRows;
       const transcriptRegionEnd = Math.min(
         inputLayout.separatorRow,
         contentRegionStart + transcriptRows,
@@ -952,7 +955,7 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
         renderInputArea(ctx, input, cursor);
       }
 
-      if (slashAutocompleteQuery !== null) {
+      if (!embeddedPaneMode && slashAutocompleteQuery !== null) {
         renderSlashAutocompletePanel(
           ctx,
           resultRegion,
