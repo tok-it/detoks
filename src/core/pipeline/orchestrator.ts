@@ -1397,15 +1397,13 @@ export const orchestratePipeline = async (
         }
 
         // (6) LLM 실행
-        const prompt = [
-          responseLanguageInstruction,
-          ragContext ? `${ragContext}\n\n` : "",
-          `[${task.type.toUpperCase()}] ${task.title}`,
-          "",
-          `User request: ${compiledPrompt.compressed_prompt}`,
-          "",
-          `Context: ${executionContext.context_summary}`,
-        ].join("\n");
+        const promptParts: string[] = [];
+        if (responseLanguageInstruction) promptParts.push(responseLanguageInstruction.trimEnd());
+        if (ragContext) promptParts.push(ragContext.trimEnd());
+        promptParts.push(`[${task.type.toUpperCase()}] ${task.title}`);
+        promptParts.push(`User request: ${compiledPrompt.compressed_prompt}`);
+        promptParts.push(`Context: ${executionContext.context_summary}`);
+        const prompt = promptParts.join("\n\n");
         if (process.env.DETOKS_DEBUG_ADAPTER_PROMPT === "1") {
           process.stderr.write(
             `[adapter-prompt] task=${task.id} type=${task.type} bytes=${Buffer.byteLength(prompt, "utf8")}\n` +
