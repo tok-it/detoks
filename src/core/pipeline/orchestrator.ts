@@ -1397,13 +1397,20 @@ export const orchestratePipeline = async (
         }
 
         // (6) LLM 실행
-        const promptParts: string[] = [];
-        if (responseLanguageInstruction) promptParts.push(responseLanguageInstruction.trimEnd());
-        if (ragContext) promptParts.push(ragContext.trimEnd());
-        promptParts.push(`[${task.type.toUpperCase()}] ${task.title}`);
-        promptParts.push(`User request: ${compiledPrompt.compressed_prompt}`);
-        promptParts.push(`Context: ${executionContext.context_summary}`);
-        const prompt = promptParts.join("\n\n");
+        // embedded-pane: codex exec은 단순 작업 설명만 기대 — 구조화된 템플릿은 모델을 혼란시킴.
+        // 다른 모드: 번역된 원본 명령 + RAG 컨텍스트 + 태스크 정보 포함.
+        let prompt: string;
+        if (request.presentationMode === "embedded-pane") {
+          prompt = compiledPrompt.compressed_prompt;
+        } else {
+          const promptParts: string[] = [];
+          if (responseLanguageInstruction) promptParts.push(responseLanguageInstruction.trimEnd());
+          if (ragContext) promptParts.push(ragContext.trimEnd());
+          promptParts.push(`[${task.type.toUpperCase()}] ${task.title}`);
+          promptParts.push(`User request: ${compiledPrompt.compressed_prompt}`);
+          promptParts.push(`Context: ${executionContext.context_summary}`);
+          prompt = promptParts.join("\n\n");
+        }
         if (process.env.DETOKS_DEBUG_ADAPTER_PROMPT === "1") {
           process.stderr.write(
             `[adapter-prompt] task=${task.id} type=${task.type} bytes=${Buffer.byteLength(prompt, "utf8")}\n` +
