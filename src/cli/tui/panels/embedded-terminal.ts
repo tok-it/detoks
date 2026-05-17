@@ -787,7 +787,7 @@ export class EmbeddedTerminalPane {
     this.cachedTotalRows = this.getTotalRenderableLineCount(this.currentColumns);
   }
 
-  private getTotalRenderableLineCount(maxWidth: number): number {
+  getTotalRenderableLineCount(maxWidth: number): number {
     if (maxWidth <= 0) {
       return 0;
     }

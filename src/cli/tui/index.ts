@@ -1130,8 +1130,9 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
         const showFooter = transcriptHeight > 2;
         const contentRows = showFooter ? Math.max(0, transcriptHeight - 1) : transcriptHeight;
 
-        // Sync scrollback with active pane's live output for viewport tracking.
-        runBlockScrollback.markDirty();
+        // Note: do NOT call runBlockScrollback.markDirty() here — completed
+        // entries are cached and only change via syncScrollback(); the active
+        // pane's lines are pulled fresh from pane.getRenderableLines().
 
         const visibleLines = runBlockScrollback.getVisibleLines(
           transcriptRegion.columns,

@@ -170,8 +170,10 @@ describe("RunBlockScrollback", () => {
     });
 
     it("delegates to pane.getRenderableLines for active (no snapshot) entry", () => {
+      const liveLines = [{ text: "live output" }];
       const mockPane = {
-        getRenderableLines: () => [{ text: "live output" }],
+        getTotalRenderableLineCount: () => liveLines.length,
+        getRenderableLines: () => liveLines,
       } as unknown as import("../../../../../../src/cli/tui/panels/embedded-terminal.js").EmbeddedTerminalPane;
 
       sb.setEntries([{ id: "r1", index: 1, prompt: "p", status: "running", pane: mockPane }]);
