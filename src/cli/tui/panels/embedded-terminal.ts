@@ -822,7 +822,7 @@ const summarizeNarrativeActivityBlock = (
     icon: classification.icon,
     style: classification.style,
     status,
-    titleBadge,
+    ...(titleBadge ? { titleBadge } : {}),
     activity,
   };
 };
