@@ -647,6 +647,35 @@ describe("EmbeddedTerminalPane", () => {
     expect(pane.getStatusBannerLine(80, { now: Date.now() })).toBeNull();
   });
 
+  // T8b: multi-row approval dialog (verb on one row, [y/N] hint on another)
+  it("getStatusBannerLine detects multi-row approval when verb and hint are on separate rows", () => {
+    // Simulate codex box-style approval dialog
+    pane.addEvent({ type: "chunk", timestamp: Date.now(), stream: "stdout", data: "╭─ Execute Command? ───────────────────╮\n" });
+    pane.addEvent({ type: "chunk", timestamp: Date.now(), stream: "stdout", data: "│ curl -I https://api.github.com      │\n" });
+    pane.addEvent({ type: "chunk", timestamp: Date.now(), stream: "stdout", data: "│ Allow? [y/N]                        │\n" });
+    pane.addEvent({ type: "chunk", timestamp: Date.now(), stream: "stdout", data: "╰──────────────────────────────────────╯\n" });
+
+    const banner = pane.getStatusBannerLine(80, { now: Date.now() });
+    expect(banner).not.toBeNull();
+    expect(banner?.severity).toBe("warn");
+    expect(banner?.text).toContain("승인 대기");
+  });
+
+  it("getStatusBannerLine clears multi-row approval when subsequent non-approval output appears", () => {
+    pane.addEvent({ type: "chunk", timestamp: Date.now(), stream: "stdout", data: "│ Allow? [y/N]                        │\n" });
+    pane.addEvent({ type: "chunk", timestamp: Date.now(), stream: "stdout", data: "╰──────────────────────────────────────╯\n" });
+    expect(pane.getStatusBannerLine(80, { now: Date.now() })).not.toBeNull();
+
+    // Non-approval output appears — approval resolved
+    pane.addEvent({ type: "chunk", timestamp: Date.now(), stream: "stdout", data: "HTTP/2 200\n" });
+    expect(pane.getStatusBannerLine(80, { now: Date.now() })).toBeNull();
+  });
+
+  it("getStatusBannerLine does not detect approval from decorative-only border lines", () => {
+    pane.addEvent({ type: "chunk", timestamp: Date.now(), stream: "stdout", data: "╰──────────────────────────────────────╯\n" });
+    expect(pane.getStatusBannerLine(80, { now: Date.now() })).toBeNull();
+  });
+
   // T9: getFocusFooterLine — correct hint per focus state
   it("getFocusFooterLine includes Ctrl+T hint for detoks-input focus", () => {
     pane.addEvent({ type: "chunk", timestamp: Date.now(), stream: "stdout", data: "output\n" });
