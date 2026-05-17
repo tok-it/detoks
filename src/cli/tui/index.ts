@@ -29,6 +29,7 @@ import { PipelineStatusPanel } from "./panels/pipeline-status.js";
 import { TranscriptPanel } from "./panels/transcript.js";
 import { ResultSummaryPanel } from "./panels/result-summary.js";
 import { EmbeddedTerminalPane } from "./panels/embedded-terminal.js";
+import { RunBlockScrollback } from "./panels/run-block-scrollback.js";
 import { renderSlashAutocompletePanel } from "./panels/slash-autocomplete.js";
 import { TuiEventRouter } from "./event-router.js";
 import {
@@ -128,6 +129,8 @@ interface TuiRunBlock {
   completedAt?: number | undefined;
   pane: EmbeddedTerminalPane;
   summaryLines: string[];
+  /** Frozen rendered lines captured after execution ends; pane is disposed once set. */
+  snapshotLines?: import("./panels/embedded-terminal.js").EmbeddedTerminalRenderableLine[];
 }
 
 interface StickyPromptState {
@@ -188,7 +191,10 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
     // Enable terminal focus reporting so we can repaint after app switch/resume.
     stdout.write("\x1b[?1004h");
     // Enable mouse wheel reporting in SGR mode for trackpad/mouse viewport scrolling.
+    // ?1000h: button press/release, ?1002h: button-event tracking (required for wheel
+    // on Apple Terminal.app and some tmux configs), ?1006h: SGR extended coordinates.
     stdout.write("\x1b[?1000h");
+    stdout.write("\x1b[?1002h");
     stdout.write("\x1b[?1006h");
   };
 
@@ -196,6 +202,7 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
     stdout.write("\x1b[?2004l");
     stdout.write("\x1b[?1004l");
     stdout.write("\x1b[?1000l");
+    stdout.write("\x1b[?1002l");
     stdout.write("\x1b[?1006l");
     screen.setRawMode(false);
     screen.cursorShow();
@@ -217,6 +224,7 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
   const sigtermHandler = (): void => {
     stdout.write("\x1b[?2004l");
     stdout.write("\x1b[?1000l");
+    stdout.write("\x1b[?1002l");
     stdout.write("\x1b[?1006l");
     screen.cleanup();
     process.exit(0);
@@ -296,6 +304,7 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
       return total > 0 ? transcriptWeight / total : 0.7;
     };
     let embeddedTerminalPane = new EmbeddedTerminalPane();
+    const runBlockScrollback = new RunBlockScrollback({ maxEntries: Number(process.env.DETOKS_MAX_RUN_BLOCKS ?? "50") });
     const eventRouter = new TuiEventRouter({
       pipelinePanel,
       transcriptPanel,
@@ -383,13 +392,43 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
       };
     };
 
+    const freezePreviousRunBlock = (dims: { columns: number }): void => {
+      if (activeRunBlock === null) return;
+      if (activeRunBlock.snapshotLines !== undefined) return;
+      activeRunBlock.snapshotLines = activeRunBlock.pane.snapshot(dims.columns);
+      activeRunBlock.pane.dispose();
+    };
+
+    const syncScrollback = (): void => {
+      runBlockScrollback.setEntries(
+        runBlocks.map((run) => {
+          const isFinished = run.snapshotLines !== undefined;
+          return {
+            id: run.id,
+            index: run.index,
+            prompt: run.prompt,
+            status: run.status,
+            ...(run.snapshotLines !== undefined ? { snapshotLines: run.snapshotLines } : {}),
+            ...(!isFinished ? { pane: run.pane } : {}),
+          };
+        }),
+      );
+    };
+
     const registerRunBlock = (prompt: string, status: RunBlockStatus): TuiRunBlock => {
+      // Snapshot the previous active block before replacing the global pane reference.
+      if (activeRunBlock !== null) {
+        freezePreviousRunBlock(screen.getDimensions());
+      }
       const block = createRunBlock(prompt);
       block.status = status;
       runBlocks.push(block);
       activeRunBlock = block;
       embeddedTerminalPane = block.pane;
       setStickyPromptFromRun(block);
+      syncScrollback();
+      // Pin scroll to bottom when a new run starts.
+      runBlockScrollback.scrollToBottom();
       return block;
     };
 
@@ -405,6 +444,7 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
         activeRunBlock.completedAt = Date.now();
       }
       setStickyPromptFromRun(activeRunBlock);
+      syncScrollback();
     };
 
     const markActiveRunCancelled = (): void => {
@@ -670,7 +710,7 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
         return null;
       }
 
-      const tracking = embeddedTerminalPane.getViewportTrackingInfo(width, transcriptHeight);
+      const tracking = runBlockScrollback.getViewport(width, transcriptHeight);
       return formatViewportTrackingHint(
         tracking.totalLines,
         transcriptHeight,
@@ -682,8 +722,14 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
     };
 
     const scrollEmbeddedViewportBy = (deltaRows: number): void => {
-      embeddedTerminalPane.scrollBy(deltaRows);
+      const dims = screen.getDimensions();
+      const inputLayout = measureInputLayout(dims, input, cursor);
+      const transcriptHeight = getEmbeddedTranscriptHeight(inputLayout);
+      runBlockScrollback.scrollBy(deltaRows, transcriptHeight, dims.columns);
     };
+
+    const debugMouse = process.env.DETOKS_TUI_DEBUG_MOUSE === "1";
+    const mouseAlwaysScroll = process.env.DETOKS_TUI_MOUSE_ALWAYS_SCROLL === "1";
 
     const applyMouseWheelEvents = (
       text: string,
@@ -691,11 +737,17 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
       const consumption = consumeMouseReportingInput(`${pendingMouseInputSequence}${text}`);
       pendingMouseInputSequence = consumption.pendingSequence;
 
-      if (
-        embeddedPaneMode &&
-        embeddedTerminalFocus.focus !== "adapter-terminal" &&
-        consumption.wheelEvents.length > 0
-      ) {
+      if (debugMouse && consumption.wheelEvents.length > 0) {
+        process.stderr.write(
+          `[mouse-debug] focus=${embeddedTerminalFocus.focus} embeddedPaneMode=${embeddedPaneMode} ` +
+          `events=${JSON.stringify(consumption.wheelEvents)} pending=${JSON.stringify(consumption.pendingSequence)}\n`,
+        );
+      }
+
+      const focusAllowsScroll =
+        embeddedTerminalFocus.focus !== "adapter-terminal" || mouseAlwaysScroll;
+
+      if (embeddedPaneMode && focusAllowsScroll && consumption.wheelEvents.length > 0) {
         for (const wheelEvent of consumption.wheelEvents) {
           scrollEmbeddedViewportBy(wheelEvent.direction === "up" ? -3 : 3);
         }
@@ -1076,13 +1128,31 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
         }
         const transcriptHeight = transcriptRegion.endRow - transcriptRegion.startRow;
         const showFooter = transcriptHeight > 2;
-        const paneRenderRegion = showFooter
-          ? { ...transcriptRegion, endRow: transcriptRegion.endRow - 1 }
-          : transcriptRegion;
-        embeddedTerminalPane.render(ctx, paneRenderRegion, {
-          now,
-          runStartedAt: executionClockStartedAt,
-        });
+        const contentRows = showFooter ? Math.max(0, transcriptHeight - 1) : transcriptHeight;
+
+        // Sync scrollback with active pane's live output for viewport tracking.
+        runBlockScrollback.markDirty();
+
+        const visibleLines = runBlockScrollback.getVisibleLines(
+          transcriptRegion.columns,
+          contentRows,
+          { now, runStartedAt: executionClockStartedAt },
+        );
+
+        let paintRow = transcriptRegion.startRow;
+        const contentEndRow = transcriptRegion.startRow + contentRows;
+        for (const line of visibleLines) {
+          if (paintRow >= contentEndRow) break;
+          screen.cursorMoveTo(paintRow, 0);
+          screen.write(line.text);
+          paintRow += 1;
+        }
+        // Clear any unused rows in the content area.
+        while (paintRow < contentEndRow) {
+          screen.cursorMoveTo(paintRow, 0);
+          screen.write(" ".repeat(transcriptRegion.columns));
+          paintRow += 1;
+        }
 
         if (showFooter) {
           const footerRow = transcriptRegion.endRow - 1;
@@ -1090,7 +1160,10 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
           screen.write(embeddedTerminalPane.getFocusFooterLine(transcriptRegion.columns, embeddedTerminalFocus.focus));
         }
 
-        const scrollIndicator = embeddedTerminalPane.getScrollIndicator(transcriptRegion.columns, transcriptHeight);
+        const viewport = runBlockScrollback.getViewport(transcriptRegion.columns, contentRows);
+        const scrollIndicator = viewport.pinnedToBottom
+          ? null
+          : embeddedTerminalPane.getScrollIndicator(transcriptRegion.columns, contentRows);
         if (scrollIndicator !== null) {
           const indicatorLen = scrollIndicator.length;
           const startCol = Math.max(0, transcriptRegion.columns - indicatorLen);
@@ -1208,10 +1281,10 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
           } else if (text === "\x1b[H" || text === "\x1b[1~") {
             const dims = screen.getDimensions();
             const inputLayout = measureInputLayout(dims, input, cursor);
-            embeddedTerminalPane.scrollToTop(dims.columns, getEmbeddedTranscriptHeight(inputLayout));
+            runBlockScrollback.scrollToTop(dims.columns, getEmbeddedTranscriptHeight(inputLayout));
             render();
           } else if (text === "\x1b[F" || text === "\x1b[4~") {
-            embeddedTerminalPane.scrollToBottom();
+            runBlockScrollback.scrollToBottom();
             render();
           }
           return;
@@ -1697,6 +1770,27 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
       let receivedLiveAdapterEvents = false;
       try {
         if (normalizedPrompt.startsWith("/")) {
+          // /clear — reset all run blocks and scrollback (not allowed during execution)
+          if (normalizedPrompt === "/clear") {
+            if (isExecuting) {
+              transcriptPanel.append("\n[WARN] /clear 는 실행 중에 사용할 수 없습니다.\n");
+              render();
+              return;
+            }
+            runBlocks = [];
+            activeRunBlock = null;
+            embeddedTerminalPane = new EmbeddedTerminalPane();
+            runBlockScrollback.reset();
+            transcriptPanel.clear();
+            resultPanel.clear();
+            pipelinePanel.reset();
+            stickyPrompt = null;
+            hasExecuted = false;
+            markAllDirty();
+            render();
+            return;
+          }
+
           let shouldRestoreMainScreen = false;
           const previousState = {
             adapter: state.adapter,

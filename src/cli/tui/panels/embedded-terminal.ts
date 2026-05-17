@@ -833,6 +833,26 @@ export class EmbeddedTerminalPane {
     return this.buffer.hasContent();
   }
 
+  /**
+   * Captures the current rendered state as a frozen line array for display
+   * in the stacked RunBlock history view. Call after execution completes,
+   * then dispose() to free the PTY buffer memory.
+   */
+  snapshot(maxWidth: number): EmbeddedTerminalRenderableLine[] {
+    if (maxWidth <= 0) {
+      return [];
+    }
+    return this.getRenderableLines(maxWidth);
+  }
+
+  /**
+   * Release the PTY buffer and render cache to free memory.
+   * After dispose() the pane renders as empty; do not write to it again.
+   */
+  dispose(): void {
+    this.clear();
+  }
+
   getActivitySnapshot(maxWidth = this.currentColumns): EmbeddedActivitySnapshot | null {
     if (!this.buffer.hasContent()) {
       return null;

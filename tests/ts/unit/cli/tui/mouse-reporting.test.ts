@@ -42,6 +42,22 @@ describe("mouse reporting", () => {
     });
   });
 
+  it("parses multiple wheel events mixed with plain text in a single chunk", () => {
+    const result = consumeMouseReportingInput("hi\x1b[<64;1;1Mmid\x1b[<65;2;2Mend");
+    expect(result.cleanedText).toBe("himidend");
+    expect(result.pendingSequence).toBe("");
+    expect(result.wheelEvents).toHaveLength(2);
+    expect(result.wheelEvents[0]?.direction).toBe("up");
+    expect(result.wheelEvents[1]?.direction).toBe("down");
+  });
+
+  it("ignores non-wheel button codes (left/right click) in wheelEvents", () => {
+    const result = consumeMouseReportingInput("\x1b[<0;5;5M\x1b[<2;5;5M");
+    expect(result.wheelEvents).toHaveLength(0);
+    // Non-wheel mouse sequences are consumed (not passed to prompt text)
+    expect(result.cleanedText).toBe("");
+  });
+
   it("buffers incomplete mouse sequences until the next chunk arrives", () => {
     const firstChunk = consumeMouseReportingInput("\x1b[<64;12");
     expect(firstChunk.cleanedText).toBe("");
