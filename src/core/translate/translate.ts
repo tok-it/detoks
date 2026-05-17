@@ -106,11 +106,6 @@ interface SegmentedRetryResult {
 	inference_time_sec: number;
 }
 
-interface KoreanResidueSegment {
-	id: string;
-	kind: "EN" | "KO";
-	source: string;
-}
 
 function containsKorean(text: string): boolean {
 	return /[가-힣]/.test(text);
@@ -477,191 +472,6 @@ async function translate_segmented_placeholder_retry(
 	};
 }
 
-function splitOutputByKorean(text: string): KoreanResidueSegment[] {
-	const segments: KoreanResidueSegment[] = [];
-	let cursor = 0;
-	let index = 1;
-
-	for (const match of text.matchAll(/[가-힣]+(?:\s*[가-힣]+)*/gu)) {
-		const start = match.index!;
-		if (cursor < start) {
-			segments.push({
-				id: `SEG_${String(index++).padStart(4, "0")}`,
-				kind: "EN",
-				source: text.slice(cursor, start),
-			});
-		}
-		segments.push({
-			id: `SEG_${String(index++).padStart(4, "0")}`,
-			kind: "KO",
-			source: match[0],
-		});
-		cursor = start + match[0].length;
-	}
-
-	if (cursor < text.length) {
-		segments.push({
-			id: `SEG_${String(index++).padStart(4, "0")}`,
-			kind: "EN",
-			source: text.slice(cursor),
-		});
-	}
-
-	return segments.length > 0
-		? segments
-		: [{ id: "SEG_0001", kind: "EN", source: text }];
-}
-
-function reconstructKoreanResidueOutput(
-	content: string,
-	segments: KoreanResidueSegment[],
-): { text: string } | null {
-	const parsedById = new Map<string, string>();
-
-	for (const rawLine of content.split(/\r?\n/u)) {
-		const line = rawLine.trimEnd();
-		const match = line.match(/^(SEG_\d{4})\|\|\|(?:EN|KO)\|\|\|(.*)$/u);
-		if (!match) {
-			continue;
-		}
-		parsedById.set(match[1]!, match[2]!);
-	}
-
-	if (parsedById.size === 0) {
-		return null;
-	}
-
-	const parts: string[] = [];
-
-	for (const segment of segments) {
-		if (segment.kind === "EN") {
-			parts.push(segment.source);
-		} else {
-			const translated = parsedById.get(segment.id);
-			if (!translated) {
-				return null;
-			}
-			parts.push(translated);
-		}
-	}
-
-	return { text: normalizePlaceholderSpacing(parts.join("")) };
-}
-
-async function translate_korean_residue_retry(
-	span: TranslatableSpan,
-	options: TranslateToEnglishOptions,
-	fallbackContext: {
-		previous_output: string;
-		validation_errors: string[];
-	},
-): Promise<SegmentedRetryResult | null> {
-	if (!containsKorean(fallbackContext.previous_output)) {
-		return null;
-	}
-
-	const segments = splitOutputByKorean(fallbackContext.previous_output);
-	if (!segments.some((s) => s.kind === "KO")) {
-		return null;
-	}
-
-	const systemPrompt = [
-		TRANSLATION_SYSTEM_PROMPT,
-		"## Korean Residue Recovery Mode",
-		"The previous translation output still contains untranslated Korean fragments.",
-		"For each segment listed below:",
-		"- Copy EN segments verbatim (do not modify).",
-		"- Translate KO segments into natural English.",
-		"Return exactly one line per segment in the format: SEG_NNNN|||KIND|||<content>",
-		"Do not add explanations, extra lines, or code fences.",
-	].join("\n\n");
-
-	const userPrompt = [
-		"Recover a fully-English output by translating the Korean fragments.",
-		"",
-		`Validation errors: ${fallbackContext.validation_errors.join(", ")}`,
-		"Original source span:",
-		span.text,
-		"",
-		"Ordered segments from the previous (partially-translated) output:",
-		segments.map((s) => `${s.id}|||${s.kind}|||${s.source}`).join("\n"),
-	].join("\n");
-
-	const response = await complete_chat(
-		{
-			messages: [
-				{ role: "system", content: systemPrompt },
-				{ role: "user", content: userPrompt },
-			],
-			temperature: Math.max(0.2, options.config.temperature),
-			max_tokens: estimateTranslationMaxTokens(span.text, options.config),
-			timeout_ms: options.config.requestTimeout,
-		},
-		{
-			...(options.config.localLlmRuntimeProvider
-				? { localLlmRuntimeProvider: options.config.localLlmRuntimeProvider }
-				: {}),
-			...(options.config.localLlmApiBase
-				? { apiBase: options.config.localLlmApiBase }
-				: {}),
-			...(options.config.localLlmApiKey
-				? { apiKey: options.config.localLlmApiKey }
-				: {}),
-			...(options.config.localLlmModelName
-				? { localLlmModelName: options.config.localLlmModelName }
-				: {}),
-			...(options.config.localLlmModelDir
-				? { localLlmModelDir: options.config.localLlmModelDir }
-				: {}),
-			...(options.config.localLlmModelPath
-				? { localLlmModelPath: options.config.localLlmModelPath }
-				: {}),
-			...(options.config.localLlmHfRepo
-				? { localLlmHfRepo: options.config.localLlmHfRepo }
-				: {}),
-			...(options.config.localLlmHfFile
-				? { localLlmHfFile: options.config.localLlmHfFile }
-				: {}),
-			...(options.config.localLlmDevice
-				? { localLlmDevice: options.config.localLlmDevice }
-				: {}),
-			...(options.config.localLlmGpuLayers
-				? { localLlmGpuLayers: options.config.localLlmGpuLayers }
-				: {}),
-			...(options.config.localLlmContextSize
-				? { localLlmContextSize: options.config.localLlmContextSize }
-				: {}),
-			...(options.config.localLlmTopK !== undefined
-				? { localLlmTopK: options.config.localLlmTopK }
-				: {}),
-			...(options.config.localLlmTopP !== undefined
-				? { localLlmTopP: options.config.localLlmTopP }
-				: {}),
-			...(options.config.localLlmMaxTokens !== undefined
-				? { localLlmMaxTokens: options.config.localLlmMaxTokens }
-				: {}),
-			...(options.fetchImplementation
-				? { fetchImplementation: options.fetchImplementation }
-				: {}),
-		},
-	);
-
-	const reconstructed = reconstructKoreanResidueOutput(
-		response.content,
-		segments,
-	);
-	if (!reconstructed) {
-		return null;
-	}
-
-	return {
-		text: reconstructed.text,
-		repair_actions: [],
-		...(response.raw_response ? { raw_response: response.raw_response } : {}),
-		inference_time_sec: response.inference_time_sec ?? 0,
-	};
-}
-
 async function translate_span(
 	span: TranslatableSpan,
 	options: TranslateToEnglishOptions,
@@ -701,7 +511,7 @@ async function translate_span(
 
 	const isFallbackPass = promptType === "fallback" || promptType === "final_retry";
 	const passTemperature = isFallbackPass
-		? Math.max(0.2, options.config.temperature)
+		? Math.max(0.3, options.config.temperature)
 		: options.config.temperature;
 	const passMaxTokens = isFallbackPass
 		? Math.min(
@@ -1004,63 +814,6 @@ async function runTranslationPass(
 			}
 		}
 
-		if (
-			initialPromptType === "final_retry" &&
-			status === "failed" &&
-			validationErrors.some(
-				(error) =>
-					error === "korean_text_remaining" ||
-					error === "source_korean_copied",
-			)
-		) {
-			const koreanResidueRetry = await translate_korean_residue_retry(
-				span,
-				options,
-				{
-					previous_output: finalText,
-					validation_errors: validationErrors,
-				},
-			);
-
-			if (koreanResidueRetry) {
-				attempts += 1;
-				fallbackSpanCount += 1;
-				if (koreanResidueRetry.raw_response) {
-					rawResponses.push(koreanResidueRetry.raw_response);
-				}
-				inferenceTimeSec += koreanResidueRetry.inference_time_sec;
-
-				const residueRepaired = repair_translation({
-					source_text: span.text,
-					compressed_prompt: koreanResidueRetry.text,
-					placeholders: placeholderTokens,
-					protected_terms: options.policies.protectedTerms,
-					required_terms: requiredTerms,
-					forbidden_patterns: options.policies.forbiddenPatterns,
-				});
-				const residueValidation = validate_translation({
-					source_text: span.text,
-					compressed_prompt: residueRepaired.output,
-					placeholders: placeholderTokens,
-					protected_terms: options.policies.protectedTerms,
-					required_terms: requiredTerms,
-					model_names: options.config.localLlmModelName
-						? [options.config.localLlmModelName]
-						: [],
-					forbidden_patterns: options.policies.forbiddenPatterns,
-				});
-				repairActions.push(...residueRepaired.repair_actions);
-
-				if (residueValidation.validation_errors.length === 0) {
-					finalText = residueRepaired.output;
-					validationErrors = [];
-					status = "fallback_succeeded";
-				} else {
-					finalText = residueRepaired.output;
-					validationErrors = residueValidation.validation_errors;
-				}
-			}
-		}
 
 		translatedSpans.push({
 			...span,
