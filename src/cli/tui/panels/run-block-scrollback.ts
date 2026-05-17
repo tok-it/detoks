@@ -137,6 +137,8 @@ export class RunBlockScrollback {
       return [];
     }
 
+    const debugScrollback = process.env.DETOKS_TUI_DEBUG_SCROLLBACK === "1";
+
     if (this.entries.length === 0) {
       return [
         { text: "\x1b[2m실행 히스토리가 없습니다. 프롬프트를 실행하면 여기에 누적됩니다.\x1b[0m" },
@@ -165,6 +167,17 @@ export class RunBlockScrollback {
     const clampedOffset = Math.min(this.scrollOffset, maxOffset);
     const endIndex = Math.max(0, totalLines - clampedOffset);
     const startIndex = Math.max(0, endIndex - viewportHeight);
+
+    if (debugScrollback) {
+      const completed = this.entries.length - (activeEntry !== undefined ? 1 : 0);
+      process.stderr.write(
+        `[scrollback] entries=${this.entries.length} completed=${completed} activeContent=${activeContentCount} viewport=${viewportHeight} offset=${clampedOffset} total=${totalLines}\n`,
+      );
+    }
+
+    if (endIndex <= startIndex) {
+      return [];
+    }
 
     const result: EmbeddedTerminalRenderableLine[] = [];
 
@@ -208,7 +221,8 @@ export class RunBlockScrollback {
             paneOffsetFromBottom,
             opts,
           );
-          result.push(...paneLines);
+          const clipped = paneLines.length > paneMaxRows ? paneLines.slice(-paneMaxRows) : paneLines;
+          result.push(...clipped);
         }
       } else if (activeEntry.snapshotLines !== undefined) {
         for (let i = localStart; i < localEnd; i += 1) {
