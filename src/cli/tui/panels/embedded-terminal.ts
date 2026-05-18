@@ -3,7 +3,7 @@ import type { RenderContext } from "../renderer.js";
 import type { PanelRegion } from "../layout-manager.js";
 import type { PtyEvent } from "../../../integrations/subprocess/types.js";
 import { getContentArea } from "../layout-manager.js";
-import { padDisplayWidth, wrapTextToDisplayWidth } from "../renderer.js";
+import { measureDisplayWidth, padDisplayWidth, wrapTextToDisplayWidth } from "../renderer.js";
 import { fillRemaining, truncateByDisplayWidth } from "./base.js";
 import { glyph, statusColor, width, type Style } from "../design/tokens.js";
 import {
@@ -569,6 +569,12 @@ const buildFinalAnswerRenderableLines = (
 ): EmbeddedTerminalRenderableLine[] => {
   if (maxWidth <= 0) return [];
 
+  const bodyGutterWidth = maxWidth >= 24 ? 1 : 0;
+  const bodyGutter = " ".repeat(bodyGutterWidth);
+  const bodyContentWidth = Math.max(1, maxWidth - bodyGutterWidth - (bodyGutterWidth > 0 ? 1 : 0));
+  const bulletPattern = /^(\s*)([-*+]|\d+[.)])\s+(.+)$/;
+  const headingPattern = /^\s{0,3}#{1,6}\s+(.+)$/;
+
   const renderHighlightedLine = (line: string, emphasize: "title" | "body"): string => {
     const padded = padDisplayWidth(truncateToWidth(line, maxWidth), maxWidth);
     return emphasize === "title"
@@ -576,12 +582,46 @@ const buildFinalAnswerRenderableLines = (
       : chalk.bgHex("#1f2937").hex("#e5e7eb")(padded);
   };
 
+  const wrapBodyLine = (line: string): string[] => {
+    const trimmed = line.trimEnd();
+    if (trimmed.length === 0) {
+      return [""];
+    }
+
+    const headingMatch = headingPattern.exec(trimmed);
+    if (headingMatch?.[1]) {
+      return wrapTextToDisplayWidth(headingMatch[1].trim(), bodyContentWidth)
+        .map((segment) => `${bodyGutter}${segment.trimEnd()}`);
+    }
+
+    const bulletMatch = bulletPattern.exec(trimmed);
+    if (bulletMatch?.[2] && bulletMatch[3]) {
+      const marker = bulletMatch[2];
+      const firstPrefix = `${bodyGutter}${marker} `;
+      const continuationPrefix = `${bodyGutter}${" ".repeat(measureDisplayWidth(marker))} `;
+      const firstWidth = Math.max(1, maxWidth - measureDisplayWidth(firstPrefix) - bodyGutterWidth);
+      const continuationWidth = Math.max(1, maxWidth - measureDisplayWidth(continuationPrefix) - bodyGutterWidth);
+      const wrapped = wrapTextToDisplayWidth(bulletMatch[3].trim(), firstWidth);
+      return wrapped.map((segment, index) => {
+        const prefix = index === 0 ? firstPrefix : continuationPrefix;
+        const width = index === 0 ? firstWidth : continuationWidth;
+        return `${prefix}${truncateToWidth(segment.trimEnd(), width)}`;
+      });
+    }
+
+    return wrapTextToDisplayWidth(trimmed.trimStart(), bodyContentWidth)
+      .map((segment) => `${bodyGutter}${segment.trimEnd()}`);
+  };
+
   const lines: EmbeddedTerminalRenderableLine[] = [
     { text: "" },
     { text: renderHighlightedLine(" 최종 결과 ", "title") },
   ];
-  const bodyLines = wrapTextToDisplayWidth(finalAnswer.replace(/\r\n/g, "\n").replace(/\r/g, "\n"), maxWidth)
-    .map((line) => line.trimEnd());
+  const bodyLines = finalAnswer
+    .replace(/\r\n/g, "\n")
+    .replace(/\r/g, "\n")
+    .split("\n")
+    .flatMap((line) => wrapBodyLine(line));
   if (bodyLines.length === 0) {
     lines.push({ text: renderHighlightedLine("", "body") });
     return lines;
