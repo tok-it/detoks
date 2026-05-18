@@ -1,3 +1,4 @@
+import { appendFileSync } from "node:fs";
 import type { RenderContext } from "../renderer.js";
 import type { PanelRegion } from "../layout-manager.js";
 import type { PtyEvent } from "../../../integrations/subprocess/types.js";
@@ -1219,6 +1220,13 @@ export class EmbeddedTerminalPane {
 
     if (event.type !== "chunk" || typeof event.data !== "string") {
       return;
+    }
+
+    const debugPtyPath = process.env.DETOKS_DEBUG_PTY;
+    if (debugPtyPath) {
+      try {
+        appendFileSync(debugPtyPath, event.data);
+      } catch { /* non-fatal */ }
     }
 
     this.buffer.write(event.data);

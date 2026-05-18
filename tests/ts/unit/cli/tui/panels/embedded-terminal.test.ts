@@ -1,4 +1,7 @@
-import { describe, expect, it, beforeEach, vi } from "vitest";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { describe, expect, it, beforeEach, vi, afterEach } from "vitest";
 import { EmbeddedTerminalPane } from "../../../../../../src/cli/tui/panels/embedded-terminal.js";
 
 describe("EmbeddedTerminalPane", () => {
@@ -725,6 +728,42 @@ describe("EmbeddedTerminalPane", () => {
     const lines = pane.getRenderableLines(15);
     const combined = lines.map((l) => l.text).join("\n");
     expect(combined).not.toContain("▎");
+  });
+
+  // DETOKS_DEBUG_PTY: raw chunk dump
+  describe("DETOKS_DEBUG_PTY raw chunk dump", () => {
+    let tmpDir: string;
+    let dumpPath: string;
+
+    beforeEach(() => {
+      tmpDir = mkdtempSync(join(tmpdir(), "detoks-pty-test-"));
+      dumpPath = join(tmpDir, "pty.log");
+    });
+
+    afterEach(() => {
+      delete process.env.DETOKS_DEBUG_PTY;
+      rmSync(tmpDir, { recursive: true, force: true });
+    });
+
+    it("appends raw chunk bytes to the dump file when DETOKS_DEBUG_PTY is set", () => {
+      process.env.DETOKS_DEBUG_PTY = dumpPath;
+      const localPane = new EmbeddedTerminalPane();
+
+      localPane.addEvent({ type: "chunk", timestamp: Date.now(), stream: "stdout", data: "hello\n" });
+      localPane.addEvent({ type: "chunk", timestamp: Date.now(), stream: "stdout", data: "world\n" });
+
+      const content = readFileSync(dumpPath, "utf8");
+      expect(content).toBe("hello\nworld\n");
+    });
+
+    it("does not create a dump file when DETOKS_DEBUG_PTY is unset", () => {
+      delete process.env.DETOKS_DEBUG_PTY;
+      const localPane = new EmbeddedTerminalPane();
+
+      localPane.addEvent({ type: "chunk", timestamp: Date.now(), stream: "stdout", data: "hello\n" });
+
+      expect(() => readFileSync(dumpPath)).toThrow();
+    });
   });
 
   // T12: spinner-only refresh rebuilds compact lines without rebuilding rows cache
