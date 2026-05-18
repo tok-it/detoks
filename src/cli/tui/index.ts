@@ -776,7 +776,22 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
         for (const wheelEvent of consumption.wheelEvents) {
           scrollEmbeddedViewportBy(wheelEvent.direction === "up" ? -3 : 3);
         }
+        if (process.env.DETOKS_SCROLL_DEBUG === "1") {
+          const dims = screen.getDimensions();
+          const inputLayout = measureInputLayout(dims, input, cursor);
+          const transcriptHeight = getEmbeddedTranscriptHeight(inputLayout);
+          const vp = runBlockScrollback.getViewport(dims.columns, transcriptHeight);
+          process.stderr.write(
+            `[scroll-debug] wheel dir=${consumption.wheelEvents.map((e) => e.direction).join(",")} ` +
+            `embedded=${embeddedPaneMode} focus=${embeddedTerminalFocus.focus} isExec=${isExecuting} ` +
+            `offset(after)=${vp.distanceFromBottom}/${vp.totalLines} viewport=${transcriptHeight} pinned=${vp.pinnedToBottom}\n`,
+          );
+        }
         render();
+      } else if (process.env.DETOKS_SCROLL_DEBUG === "1" && consumption.wheelEvents.length > 0) {
+        process.stderr.write(
+          `[scroll-debug] wheel IGNORED embedded=${embeddedPaneMode} focusAllowsScroll=${focusAllowsScroll} focus=${embeddedTerminalFocus.focus}\n`,
+        );
       }
 
       return {
@@ -1430,10 +1445,28 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
             } else {
               runBlockScrollback.scrollToBottom();
             }
+            if (process.env.DETOKS_SCROLL_DEBUG === "1") {
+              const dims = screen.getDimensions();
+              const inputLayout = measureInputLayout(dims, input, cursor);
+              const transcriptHeight = getEmbeddedTranscriptHeight(inputLayout);
+              const vp = runBlockScrollback.getViewport(dims.columns, transcriptHeight);
+              const seqLabel = JSON.stringify(matchedScrollSequence);
+              process.stderr.write(
+                `[scroll-debug] key=${seqLabel} embedded=${embeddedPaneMode} focus=${embeddedTerminalFocus.focus} isExec=${isExecuting} ` +
+                `offset(after)=${vp.distanceFromBottom}/${vp.totalLines} viewport=${transcriptHeight} pinned=${vp.pinnedToBottom}\n`,
+              );
+            }
             render();
             i += matchedScrollSequence.length;
             handled = true;
             continue;
+          } else if (
+            matchedScrollSequence !== undefined &&
+            process.env.DETOKS_SCROLL_DEBUG === "1"
+          ) {
+            process.stderr.write(
+              `[scroll-debug] key IGNORED seq=${JSON.stringify(matchedScrollSequence)} embedded=${embeddedPaneMode}\n`,
+            );
           }
 
           // P3-3 2단계: Home/End → cursor home/end in non-embedded mode.
