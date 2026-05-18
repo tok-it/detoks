@@ -60,10 +60,25 @@ describe("EmbeddedTerminalPane", () => {
       stream: "stdout",
       data: "{\"type\":\"item.completed\",\"item\":{\"type\":\"assistant_message\",\"text\":\"Detoks is the CLI workspace.\"}}\n",
     });
+    pane.addEvent({ type: "exit", timestamp: Date.now(), data: "0" });
 
     expect(pane.getLastFinalAnswer()).toBe("Detoks is the CLI workspace.");
     const output = pane.getRenderableLines(120).map((line) => line.text).join("\n");
     expect(output).toContain("Detoks is the CLI workspace.");
+  });
+
+  it("keeps streamed final-answer candidates hidden until exit", () => {
+    pane.addEvent({
+      type: "chunk",
+      timestamp: Date.now(),
+      stream: "stdout",
+      data: "{\"type\":\"item.completed\",\"item\":{\"type\":\"assistant_message\",\"text\":\"임시 목표 문장입니다.\"}}\n",
+    });
+
+    expect(pane.getLastFinalAnswer()).toBeNull();
+    const output = pane.getRenderableLines(120).map((line) => line.text).join("\n");
+    expect(output).not.toContain("최종 결과");
+    expect(output).not.toContain("임시 목표 문장입니다.");
   });
 
   it("does not promote started assistant messages into the final result block", () => {
@@ -76,6 +91,7 @@ describe("EmbeddedTerminalPane", () => {
         "{\"type\":\"item.completed\",\"item\":{\"type\":\"assistant_message\",\"text\":\"최종 요약 결과입니다.\"}}",
       ].join("\n"),
     });
+    pane.addEvent({ type: "exit", timestamp: Date.now(), data: "0" });
 
     expect(pane.getLastFinalAnswer()).toBe("최종 요약 결과입니다.");
     const output = pane.getRenderableLines(120).map((line) => line.text).join("\n");
@@ -93,6 +109,7 @@ describe("EmbeddedTerminalPane", () => {
         "{\"type\":\"item.completed\",\"item\":{\"type\":\"assistant_message\",\"text\":\"The workspace contains the detoks CLI project.\"}}",
       ].join("\n"),
     });
+    pane.addEvent({ type: "exit", timestamp: Date.now(), data: "0" });
 
     const output = pane.getRenderableLines(120).map((line) => line.text).join("\n");
     expect(output).toContain("최종 결과");
@@ -196,6 +213,19 @@ describe("EmbeddedTerminalPane", () => {
 
     const output = pane.getRenderableLines(120).map((line) => line.text).join("\n");
     expect(output).not.toContain("turn.started");
+  });
+
+  it("drops codex router stdin-closed noise after command completion", () => {
+    pane.addEvent({
+      type: "chunk",
+      timestamp: Date.now(),
+      stream: "stderr",
+      data: "2026-05-18T11:09:19.784823Z ERROR codex_core::tools::router: error-write_stdin failed: stdin is closed for this session; rerun exec_command with tty=true to keep stdin open\n",
+    });
+
+    const output = pane.getRenderableLines(120).map((line) => line.text).join("\n");
+    expect(output).not.toContain("error-write_stdin failed");
+    expect(output).toContain("원본 CLI 출력");
   });
 
   it("drops ansi-prefixed lifecycle json lines in the embedded pane", () => {

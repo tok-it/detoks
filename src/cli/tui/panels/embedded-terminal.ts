@@ -601,6 +601,7 @@ const buildFinalAnswerRenderableLines = (
   };
 
   const lines: EmbeddedTerminalRenderableLine[] = [
+    { text: "" },
     { text: renderHighlightedLine(" 최종 결과 ", "title") },
   ];
   const bodyLines = wrapPlainText(finalAnswer, maxWidth);
@@ -1281,6 +1282,7 @@ export class EmbeddedTerminalPane {
   private readonly structuredActivities = new Map<string, StructuredActivityEntry>();
   private structuredActivityOrder: string[] = [];
   private nextStructuredActivityId = 1;
+  private pendingFinalAnswer: string | null = null;
   private lastFinalAnswer: string | null = null;
   private scrollOffset = 0;
   // Cached total renderable line count (after compact summaries are applied).
@@ -1312,6 +1314,7 @@ export class EmbeddedTerminalPane {
     this.structuredActivities.clear();
     this.structuredActivityOrder = [];
     this.nextStructuredActivityId = 1;
+    this.pendingFinalAnswer = null;
     this.lastFinalAnswer = null;
     this.scrollOffset = 0;
     this.cachedTotalRows = 0;
@@ -1474,6 +1477,13 @@ export class EmbeddedTerminalPane {
       return;
     }
 
+    if (event.type === "exit") {
+      if (this.lastFinalAnswer === null && this.pendingFinalAnswer !== null) {
+        this.appendFinalAnswer(this.pendingFinalAnswer);
+      }
+      return;
+    }
+
     if (event.type !== "chunk" || typeof event.data !== "string") {
       return;
     }
@@ -1481,6 +1491,13 @@ export class EmbeddedTerminalPane {
     const normalized = event.data.replace(/\r\n/g, "\n");
     const lines = normalized.split("\n");
     const shouldTreatAsStructured = lines.some((line) => hasCodexJsonCandidate(line));
+    const shouldIgnoreAsNoise =
+      event.stream === "stderr" &&
+      lines.every((line) => line.length === 0 || shouldIgnoreCodexNoiseLine(line));
+
+    if (shouldIgnoreAsNoise) {
+      return;
+    }
 
     if (!shouldTreatAsStructured) {
       this.buffer.write(event.data);
@@ -1496,7 +1513,10 @@ export class EmbeddedTerminalPane {
 
       const classified = classifyCodexJsonLine(line);
       if (classified?.kind === "final") {
-        this.appendFinalAnswer(classified.text);
+        const normalizedFinal = classified.text.trim();
+        if (normalizedFinal.length > 0) {
+          this.pendingFinalAnswer = normalizedFinal;
+        }
         continue;
       }
 
@@ -1529,6 +1549,7 @@ export class EmbeddedTerminalPane {
     }
 
     this.buffer.write(text.endsWith("\n") ? text : `${text}\n`);
+    this.pendingFinalAnswer = normalized;
     this.lastFinalAnswer = normalized;
     this.markRenderCacheDirty();
     this.scrollOffset = 0;
