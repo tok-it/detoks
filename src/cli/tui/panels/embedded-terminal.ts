@@ -3,8 +3,8 @@ import type { RenderContext } from "../renderer.js";
 import type { PanelRegion } from "../layout-manager.js";
 import type { PtyEvent } from "../../../integrations/subprocess/types.js";
 import { getContentArea } from "../layout-manager.js";
-import { padDisplayWidth } from "../renderer.js";
-import { fillRemaining } from "./base.js";
+import { padDisplayWidth, wrapTextToDisplayWidth } from "../renderer.js";
+import { fillRemaining, truncateByDisplayWidth } from "./base.js";
 import { glyph, statusColor, width, type Style } from "../design/tokens.js";
 import {
   classifyCodexJsonLine,
@@ -27,40 +27,8 @@ const EMPTY_PANE_LINES = [
   "Ctrl+T 어댑터 터미널 포커스 전환  ·  Esc / Ctrl+G detoks 입력으로 복귀",
 ] as const;
 
-const wrapPlainText = (text: string, maxWidth: number): string[] => {
-  if (maxWidth <= 0) return [];
-  const sourceLines = text.replace(/\r\n/g, "\n").split("\n");
-  const wrapped: string[] = [];
-  for (const sourceLine of sourceLines) {
-    const line = sourceLine.trimEnd();
-    if (line.length === 0) {
-      wrapped.push("");
-      continue;
-    }
-    let remaining = line;
-    while (remaining.length > maxWidth) {
-      wrapped.push(remaining.slice(0, maxWidth));
-      remaining = remaining.slice(maxWidth);
-    }
-    wrapped.push(remaining);
-  }
-  return wrapped;
-};
-
 const truncateToWidth = (line: string, maxWidth: number): string => {
-  if (maxWidth <= 0) {
-    return "";
-  }
-
-  if (line.length <= maxWidth) {
-    return line.padEnd(maxWidth);
-  }
-
-  if (maxWidth <= 3) {
-    return ".".repeat(maxWidth);
-  }
-
-  return `${line.slice(0, maxWidth - 3)}...`;
+  return truncateByDisplayWidth(line, maxWidth);
 };
 
 const colorToAnsi = (color: TerminalColor | undefined, isForeground: boolean): string | null => {
@@ -612,7 +580,8 @@ const buildFinalAnswerRenderableLines = (
     { text: "" },
     { text: renderHighlightedLine(" 최종 결과 ", "title") },
   ];
-  const bodyLines = wrapPlainText(finalAnswer, maxWidth);
+  const bodyLines = wrapTextToDisplayWidth(finalAnswer.replace(/\r\n/g, "\n").replace(/\r/g, "\n"), maxWidth)
+    .map((line) => line.trimEnd());
   if (bodyLines.length === 0) {
     lines.push({ text: renderHighlightedLine("", "body") });
     return lines;
@@ -1480,7 +1449,7 @@ export class EmbeddedTerminalPane {
       return 0;
     }
 
-    if (!this.buffer.hasContent()) {
+    if (!this.hasVisibleContent()) {
       this.cachedTotalRows = EMPTY_PANE_LINES.length;
       return this.cachedTotalRows;
     }
@@ -1573,7 +1542,6 @@ export class EmbeddedTerminalPane {
       return;
     }
 
-    this.buffer.write(text.endsWith("\n") ? text : `${text}\n`);
     this.pendingFinalAnswer = normalized;
     this.lastFinalAnswer = normalized;
     this.markRenderCacheDirty();
@@ -1589,7 +1557,7 @@ export class EmbeddedTerminalPane {
   }
 
   hasVisibleContent(): boolean {
-    return this.buffer.hasContent();
+    return this.buffer.hasContent() || this.lastFinalAnswer !== null;
   }
 
   /**
@@ -1932,7 +1900,7 @@ export class EmbeddedTerminalPane {
       return [];
     }
 
-    if (!this.buffer.hasContent()) {
+    if (!this.hasVisibleContent()) {
       return EMPTY_PANE_LINES.map((line) => ({
         text: statusColor.muted(padDisplayWidth(truncateToWidth(line, maxWidth), maxWidth)),
       }));

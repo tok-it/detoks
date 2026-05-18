@@ -1,5 +1,9 @@
 import { describe, expect, it, beforeEach, vi } from "vitest";
 import { EmbeddedTerminalPane } from "../../../../../../src/cli/tui/panels/embedded-terminal.js";
+import { measureDisplayWidth } from "../../../../../../src/cli/tui/renderer.js";
+
+const stripAnsi = (value: string): string =>
+  value.replace(/\x1b\[[0-9;]*m/g, "");
 
 describe("EmbeddedTerminalPane", () => {
   let pane: EmbeddedTerminalPane;
@@ -159,6 +163,22 @@ describe("EmbeddedTerminalPane", () => {
     expect(output).toContain("최종 결과");
     expect(output).toContain("첫 줄입니다.");
     expect(output).not.toContain("다섯째 줄입니다.");
+  });
+
+  it("wraps Korean final answer text by display width", () => {
+    pane.appendFinalAnswer(
+      "현대 IT팀 다음 주 미팅용 15장 발표 구조안을 정리해 두었습니다. 이전 미팅에서 나온 핵심 이슈를 반영했습니다.",
+    );
+
+    const rendered = pane.getRenderableLines(24).map((line) => stripAnsi(line.text));
+    const bodyLines = rendered
+      .filter((line) => line.trim().length > 0)
+      .filter((line) => !line.includes("최종 결과"));
+
+    expect(bodyLines.length).toBeGreaterThan(1);
+    for (const line of bodyLines) {
+      expect(measureDisplayWidth(line.trimEnd())).toBeLessThanOrEqual(24);
+    }
   });
 
   it("maps codex web_search json events into the existing tool activity card", () => {
