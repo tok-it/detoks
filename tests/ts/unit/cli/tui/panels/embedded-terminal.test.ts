@@ -291,12 +291,29 @@ describe("EmbeddedTerminalPane", () => {
       type: "chunk",
       timestamp: Date.now(),
       stream: "stderr",
-      data: "2026-05-18T11:09:19.784823Z ERROR codex_core::tools::router: error-write_stdin failed: stdin is closed for this session; rerun exec_command with tty=true to keep stdin open\n",
+      data: "2026-05-18T14:49:28.081255Z ERROR codex_core::tools::router: error=write_stdin failed: stdin is closed for this session; rerun exec_command with tty=true to keep stdin open\n",
     });
 
     const output = pane.getRenderableLines(120).map((line) => line.text).join("\n");
-    expect(output).not.toContain("error-write_stdin failed");
+    expect(output).not.toContain("write_stdin failed");
     expect(output).toContain("원본 CLI 출력");
+  });
+
+  it("drops codex router stdin-closed noise from mixed stderr chunks", () => {
+    pane.addEvent({
+      type: "chunk",
+      timestamp: Date.now(),
+      stream: "stderr",
+      data: [
+        "실제 경고는 유지합니다.",
+        "2026-05-18T14:49:28.081255Z ERROR codex_core::tools::router: error=write_stdin failed: stdin is closed for this session; rerun exec_command with tty=true to keep stdin open",
+        "",
+      ].join("\n"),
+    });
+
+    const output = pane.getRenderableLines(120).map((line) => line.text).join("\n");
+    expect(output).toContain("실제 경고는 유지합니다.");
+    expect(output).not.toContain("write_stdin failed");
   });
 
   it("drops ansi-prefixed lifecycle json lines in the embedded pane", () => {
