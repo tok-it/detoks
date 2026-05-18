@@ -66,6 +66,126 @@ describe("EmbeddedTerminalPane", () => {
     expect(output).toContain("Detoks is the CLI workspace.");
   });
 
+  it("does not promote started assistant messages into the final result block", () => {
+    pane.addEvent({
+      type: "chunk",
+      timestamp: Date.now(),
+      stream: "stdout",
+      data: [
+        "{\"type\":\"item.started\",\"item\":{\"type\":\"assistant_message\",\"text\":\"숨김 상태 디렉터리에 목적 단서가 있을 수 있어 그 안도 확인하겠습니다.\"}}",
+        "{\"type\":\"item.completed\",\"item\":{\"type\":\"assistant_message\",\"text\":\"최종 요약 결과입니다.\"}}",
+      ].join("\n"),
+    });
+
+    expect(pane.getLastFinalAnswer()).toBe("최종 요약 결과입니다.");
+    const output = pane.getRenderableLines(120).map((line) => line.text).join("\n");
+    expect(output).toContain("최종 요약 결과입니다.");
+    expect(output).not.toContain("숨김 상태 디렉터리에 목적 단서가 있을 수 있어 그 안도 확인하겠습니다.");
+  });
+
+  it("pins the latest final answer as a dedicated footer block after long activity history", () => {
+    pane.addEvent({
+      type: "chunk",
+      timestamp: Date.now(),
+      stream: "stdout",
+      data: [
+        "{\"type\":\"item.completed\",\"item\":{\"type\":\"command_execution\",\"command\":\"ls -la\",\"exit_code\":0,\"aggregated_output\":\"file1\\nfile2\"}}",
+        "{\"type\":\"item.completed\",\"item\":{\"type\":\"assistant_message\",\"text\":\"The workspace contains the detoks CLI project.\"}}",
+      ].join("\n"),
+    });
+
+    const output = pane.getRenderableLines(120).map((line) => line.text).join("\n");
+    expect(output).toContain("최종 결과");
+    expect(output).toContain("The workspace contains the detoks CLI project.");
+    expect(output).not.toContain("┌");
+    expect(output).not.toContain("└");
+  });
+
+  it("keeps the final result header visible when the answer is taller than the pane", () => {
+    pane.appendFinalAnswer([
+      "첫 줄입니다.",
+      "둘째 줄입니다.",
+      "셋째 줄입니다.",
+      "넷째 줄입니다.",
+      "다섯째 줄입니다.",
+    ].join("\n"));
+
+    const output = pane.getRenderableLines(20, 4).map((line) => line.text).join("\n");
+    expect(output).toContain("최종 결과");
+    expect(output).toContain("첫 줄입니다.");
+    expect(output).not.toContain("다섯째 줄입니다.");
+  });
+
+  it("maps codex web_search json events into the existing tool activity card", () => {
+    pane.addEvent({
+      type: "chunk",
+      timestamp: Date.now(),
+      stream: "stdout",
+      data: "{\"type\":\"item.started\",\"item\":{\"type\":\"web_search\",\"query\":\"detoks cli docs\"}}\n",
+    });
+
+    const output = pane.getRenderableLines(120).map((line) => line.text).join("\n");
+    expect(output).toContain("웹 검색");
+    expect(output).toContain("detoks cli docs");
+    expect(pane.getActivitySnapshot(120)).toMatchObject({
+      kind: "tool",
+      label: "웹 검색",
+      detail: "detoks cli docs",
+      status: "running",
+    });
+  });
+
+  it("maps codex command_execution json events into the existing file read activity card", () => {
+    pane.addEvent({
+      type: "chunk",
+      timestamp: Date.now(),
+      stream: "stdout",
+      data: "{\"type\":\"item.completed\",\"item\":{\"type\":\"command_execution\",\"command\":\"printf 'hello'\",\"exit_code\":0,\"aggregated_output\":\"line1\\nline2\"}}\n",
+    });
+
+    const output = pane.getRenderableLines(120).map((line) => line.text).join("\n");
+    expect(output).toContain("명령 실행");
+    expect(output).toContain("printf");
+    expect(pane.getActivitySnapshot(120)).toMatchObject({
+      kind: "command",
+      label: "명령 실행",
+      detail: "printf",
+      status: "completed",
+    });
+    expect(output).not.toContain("\nexec\n");
+  });
+
+  it("never leaves a raw exec sentinel behind for structured codex command events", () => {
+    pane.addEvent({
+      type: "chunk",
+      timestamp: Date.now(),
+      stream: "stdout",
+      data: "{\"type\":\"item.started\",\"item\":{\"type\":\"command_execution\"}}\n",
+    });
+
+    const output = pane.getRenderableLines(120).map((line) => line.text).join("\n");
+    expect(output).toContain("명령 실행");
+    expect(output).not.toContain("\nexec\n");
+  });
+
+  it("maps codex file_change json events into the existing edit activity card", () => {
+    pane.addEvent({
+      type: "chunk",
+      timestamp: Date.now(),
+      stream: "stdout",
+      data: "{\"type\":\"item.completed\",\"item\":{\"type\":\"file_change\",\"changes\":[{\"path\":\"src/cli/tui/index.ts\",\"kind\":\"update\"}]}}\n",
+    });
+
+    const output = pane.getRenderableLines(120).map((line) => line.text).join("\n");
+    expect(output).toContain("Edit src/cli/tui/index.ts");
+    expect(pane.getActivitySnapshot(120)).toMatchObject({
+      kind: "edit",
+      label: "Edit",
+      detail: "src/cli/tui/index.ts",
+      status: "completed",
+    });
+  });
+
   it("does not render codex lifecycle json lines in the embedded pane", () => {
     pane.addEvent({
       type: "chunk",
@@ -554,7 +674,7 @@ describe("EmbeddedTerminalPane", () => {
     const combined = lines.map((l) => l.text).join("\n");
     expect(combined).toContain("▎");
     expect(combined).toContain("✓");
-    expect(combined).not.toContain("succeeded in 125ms");
+    expect(combined).toContain("succeeded in 125ms");
   });
 
   // T2: exec failed — gutter ▎ + ✗ icon
@@ -570,7 +690,7 @@ describe("EmbeddedTerminalPane", () => {
     const combined = lines.map((l) => l.text).join("\n");
     expect(combined).toContain("▎");
     expect(combined).toContain("✗");
-    expect(combined).not.toContain("failed in 800ms");
+    expect(combined).toContain("failed in 800ms");
   });
 
   // T4: metadata block — ▎ gutter + ▣ adapter badge

@@ -418,6 +418,51 @@ describe("orchestratePipeline", () => {
     expect(result.promptInferenceTimeSec).toBeGreaterThanOrEqual(0);
   });
 
+  it("prepends Korean response instructions for embedded-pane execution", async () => {
+    nodeRuntimeMocks.completeChatWithNodeLlamaCpp.mockResolvedValueOnce({
+      content: "Create a new file",
+      raw_response: {
+        choices: [{ message: { content: "Create a new file" } }],
+      },
+      inference_time_sec: 0.01,
+    });
+    executeWithAdapterMock.mockResolvedValueOnce({
+      ok: true,
+      adapter: "codex",
+      rawOutput: "[mock-embedded]",
+      exitCode: 0,
+    });
+
+    await orchestratePipeline({
+      mode: "run",
+      adapter: "codex",
+      executionMode: "stub",
+      verbose: false,
+      presentationMode: "embedded-pane",
+      userRequest: {
+        raw_input: "새 파일을 생성해",
+      },
+      env: {
+        LOCAL_LLM_API_BASE: "http://localhost:11434/v1",
+        LOCAL_LLM_API_KEY: "test-key",
+        LOCAL_LLM_MODEL_NAME: "local-model",
+      },
+      fetchImplementation: vi.fn(async () => new Response(null, { status: 200 })),
+      compressionImplementation: vi.fn(async () => ({
+        compressed: "Create a new file",
+        compression_ratio: 1,
+        tokens_saved: 0,
+      })),
+    });
+
+    expect(executeWithAdapterMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        presentationMode: "embedded-pane",
+        prompt: "Respond entirely in Korean.\n\nCreate a new file",
+      }),
+    );
+  });
+
   it("skips completed tasks from an existing session and resumes remaining work", async () => {
     vi.spyOn(SessionStateManager, "sessionExists").mockResolvedValue(true);
     vi.spyOn(SessionStateManager, "loadSession").mockResolvedValue({
