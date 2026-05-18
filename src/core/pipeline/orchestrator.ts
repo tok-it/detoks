@@ -1401,7 +1401,10 @@ export const orchestratePipeline = async (
         // 다른 모드: 번역된 원본 명령 + RAG 컨텍스트 + 태스크 정보 포함.
         let prompt: string;
         if (request.presentationMode === "embedded-pane") {
-          prompt = compiledPrompt.compressed_prompt;
+          // 한국어 입력이면 응답 언어 지시를 앞에 붙여 codex가 한국어로 응답하도록 한다.
+          prompt = responseLanguageInstruction
+            ? `${responseLanguageInstruction}${compiledPrompt.compressed_prompt}`
+            : compiledPrompt.compressed_prompt;
         } else {
           const promptParts: string[] = [];
           if (responseLanguageInstruction) promptParts.push(responseLanguageInstruction.trimEnd());
