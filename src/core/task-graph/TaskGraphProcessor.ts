@@ -28,6 +28,18 @@ import type { Task, TaskGraph, RequestCategory } from "../../schemas/pipeline.js
  *     → ParallelClassifier.classify()
  */
 export class TaskGraphProcessor {
+  private static readonly DELIVERABLE_TYPES = new Set<RequestCategory>([
+    "create",
+    "document",
+    "plan",
+  ]);
+
+  private static readonly DELIVERABLE_PATTERN =
+    /\b(presentation|slides?|deck|outline|structure|report|proposal|script|summary|brief|document|docs|guide|plan|roadmap|table|matrix|comparison|q&a|questions?|talk\s+track|message|copy|email|memo|one[-\s]?pager)\b/i;
+
+  private static readonly INDEPENDENT_ACTION_START_PATTERN =
+    /^(?:find|locate|trace|track|follow|show|tell|read|search|explore|browse|inspect|analyze|investigate|explain|diagnose|review|compare|assess|evaluate|create|build|generate|scaffold|implement|add|make|draft|set up|spin up|bootstrap|modify|update|change|fix|patch|edit|refactor|rename|rewrite|remove|replace|improve|optimi[sz]e|tune|correct|enable|disable|toggle|test|validate|verify|assert|confirm|ensure|check|lint|typecheck|run|execute|deploy|start|launch|restart|stop|install|migrate|seed|serve|document|summari[sz]e|describe|write|prepare|plan|design|organize|outline|strategize|propose|break down)\b/i;
+
   // 'make' 등 단일 키워드가 create/modify 패턴에 먼저 걸리는 숙어들을 TYPE_PATTERNS보다 먼저 처리.
   // 패턴 순서가 바뀌어도 이 테이블의 판정은 항상 우선한다.
   private static readonly IDIOM_PATTERNS: ReadonlyArray<{
@@ -255,6 +267,14 @@ export class TaskGraphProcessor {
     // ① 먼저 모든 문장의 type을 한 번에 분류 — resolveDependsOn에서 이전 type을 참조하기 때문
     const types: RequestCategory[] = sentences.map((s) => this.classifyType(s));
 
+    if (this.shouldCollapseSingleDeliverable(sentences, types)) {
+      const finalType = types[types.length - 1]!;
+      const mergedSentence = sentences.join(" ");
+      return TaskGraphSchema.parse({
+        tasks: [this.buildTask(mergedSentence, 0, finalType, [])],
+      });
+    }
+
     // ② 각 문장을 Task로 변환하면서 depends_on 결정
     const tasks: Task[] = sentences.map((sentence, index) => {
       const type = types[index]!;
@@ -285,6 +305,32 @@ export class TaskGraphProcessor {
     const curr = types[index] as RequestCategory;
     // t1, t2, t3... — index는 0-based이므로 이전 task id는 `t${index}` (1-based 기준)
     return this.FLOWS_TO[prev]?.includes(curr) ? [`t${index}`] : [];
+  }
+
+  private static shouldCollapseSingleDeliverable(
+    sentences: string[],
+    types: RequestCategory[],
+  ): boolean {
+    if (sentences.length < 2) return false;
+
+    const finalSentence = sentences[sentences.length - 1]!;
+    const finalType = types[types.length - 1]!;
+    if (!this.DELIVERABLE_TYPES.has(finalType)) return false;
+    if (!this.DELIVERABLE_PATTERN.test(finalSentence)) return false;
+
+    const prefixSentences = sentences.slice(0, -1);
+    const prefixTypes = types.slice(0, -1);
+    return prefixSentences.every((sentence, index) =>
+      this.isContextQualifier(sentence, prefixTypes[index]!),
+    );
+  }
+
+  private static isContextQualifier(
+    sentence: string,
+    type: RequestCategory,
+  ): boolean {
+    if (type !== "execute") return false;
+    return !this.INDEPENDENT_ACTION_START_PATTERN.test(sentence.trim());
   }
 
   /**
