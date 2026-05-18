@@ -202,6 +202,33 @@ describe("EmbeddedTerminalPane", () => {
     }
   });
 
+  it("drops the initial PTY prompt echo from embedded adapter output", () => {
+    const prompt = [
+      "Respond entirely in Korean.",
+      "",
+      "[PLAN] Modern IT team next week meeting 15 presentation structure plan in Korean.",
+      "User request: Modern IT team next week meeting 15 presentation structure plan in Korean.",
+    ].join("\n");
+
+    pane.addEvent({
+      type: "prompt",
+      timestamp: Date.now(),
+      data: prompt,
+    });
+    pane.addEvent({
+      type: "chunk",
+      timestamp: Date.now(),
+      stream: "stdout",
+      data: `${prompt}\n^D\n{"type":"item.started","item":{"type":"assistant_message","text":"Goal: 구조안을 작성합니다."}}\n`,
+    });
+
+    const output = pane.getRenderableLines(120).map((line) => stripAnsi(line.text)).join("\n");
+    expect(output).not.toContain("Respond entirely in Korean.");
+    expect(output).not.toContain("[PLAN]");
+    expect(output).not.toContain("^D");
+    expect(output).toContain("Goal: 구조안을 작성합니다.");
+  });
+
   it("maps codex web_search json events into the existing tool activity card", () => {
     pane.addEvent({
       type: "chunk",

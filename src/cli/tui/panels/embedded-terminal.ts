@@ -1321,6 +1321,7 @@ export class EmbeddedTerminalPane {
   private currentColumns = 80;
   private currentRows = 24;
   private renderCacheDirty = true;
+  private pendingInitialPromptEcho: string | null = null;
   private renderCache:
     | {
         width: number;
@@ -1350,6 +1351,7 @@ export class EmbeddedTerminalPane {
     this.currentColumns = 80;
     this.currentRows = 24;
     this.renderCacheDirty = true;
+    this.pendingInitialPromptEcho = null;
     this.renderCache = null;
     this.approvalBannerShownAt = null;
   }
@@ -1500,6 +1502,13 @@ export class EmbeddedTerminalPane {
   }
 
   addEvent(event: PtyEvent): void {
+    if (event.type === "prompt" && typeof event.data === "string") {
+      if (!this.hasVisibleContent() && event.data.trim().length > 0) {
+        this.pendingInitialPromptEcho = event.data;
+      }
+      return;
+    }
+
     if (event.type === "resize") {
       if (typeof event.columns === "number" && typeof event.rows === "number") {
         this.resize(event.columns, event.rows);
@@ -1518,7 +1527,12 @@ export class EmbeddedTerminalPane {
       return;
     }
 
-    const normalized = event.data.replace(/\r\n/g, "\n");
+    const data = event.stream === "stdout" ? this.stripPendingInitialPromptEcho(event.data) : event.data;
+    if (data.length === 0) {
+      return;
+    }
+
+    const normalized = data.replace(/\r\n/g, "\n");
     const rawLines = normalized.split("\n");
     const lines =
       event.stream === "stderr"
@@ -1830,6 +1844,37 @@ export class EmbeddedTerminalPane {
 
   private hasRunningStructuredActivity(): boolean {
     return this.structuredActivityOrder.some((id) => this.structuredActivities.get(id)?.status === "running");
+  }
+
+  private stripPendingInitialPromptEcho(data: string): string {
+    const pending = this.pendingInitialPromptEcho;
+    if (pending === null || data.length === 0) {
+      return data;
+    }
+
+    const normalizedData = data.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+    const normalizedPrompt = pending.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+    const promptWithTerminator = normalizedPrompt.endsWith("\n") ? normalizedPrompt : `${normalizedPrompt}\n`;
+    const candidates = [
+      normalizedPrompt,
+      promptWithTerminator,
+      `${promptWithTerminator}^D\n`,
+      `${promptWithTerminator}^D`,
+    ].sort((a, b) => b.length - a.length);
+
+    for (const candidate of candidates) {
+      if (candidate.length > 0 && normalizedData.startsWith(candidate)) {
+        this.pendingInitialPromptEcho = null;
+        return normalizedData.slice(candidate.length);
+      }
+    }
+
+    if (normalizedPrompt.startsWith(normalizedData)) {
+      return "";
+    }
+
+    this.pendingInitialPromptEcho = null;
+    return data;
   }
 
   private ensureRenderCache(
