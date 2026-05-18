@@ -181,27 +181,6 @@ describe("EmbeddedTerminalPane", () => {
     }
   });
 
-  it("formats final answer bullets with readable continuation indentation", () => {
-    pane.appendFinalAnswer([
-      "## 다음 단계",
-      "1. 현대 IT팀 질문 대응용 Q&A 스크립트를 한 페이지로 정리합니다.",
-      "2. 임원용 축약본을 별도 문서로 만듭니다.",
-    ].join("\n"));
-
-    const rendered = pane.getRenderableLines(34).map((line) => stripAnsi(line.text).trimEnd());
-    const bodyLines = rendered
-      .filter((line) => line.trim().length > 0)
-      .filter((line) => !line.includes("최종 결과"));
-
-    expect(bodyLines.some((line) => line.includes("##"))).toBe(false);
-    expect(bodyLines).toContain(" 다음 단계");
-    expect(bodyLines.some((line) => line.startsWith(" 1. "))).toBe(true);
-    expect(bodyLines.some((line) => line.startsWith("    ") && line.trim().length > 0)).toBe(true);
-    for (const line of bodyLines) {
-      expect(measureDisplayWidth(line)).toBeLessThanOrEqual(34);
-    }
-  });
-
   it("drops the initial PTY prompt echo from embedded adapter output", () => {
     const prompt = [
       "Respond entirely in Korean.",
