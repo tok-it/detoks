@@ -1430,7 +1430,7 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
             } else {
               runBlockScrollback.scrollToBottom();
             }
-            needsFullRender = true;
+            render();
             i += matchedScrollSequence.length;
             handled = true;
             continue;
