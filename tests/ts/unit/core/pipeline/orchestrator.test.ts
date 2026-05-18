@@ -516,6 +516,38 @@ describe("orchestratePipeline", () => {
     );
   });
 
+  it("returns only the terminal task output for successful multi-task runs", async () => {
+    executeWithAdapterMock
+      .mockResolvedValueOnce({
+        ok: true,
+        adapter: "codex",
+        rawOutput: "[mock] explored module",
+        exitCode: 0,
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        adapter: "codex",
+        rawOutput: "[mock] final analysis",
+        exitCode: 0,
+      });
+
+    const result = await orchestratePipeline({
+      mode: "run",
+      adapter: "codex",
+      executionMode: "stub",
+      verbose: false,
+      userRequest: {
+        raw_input: "Find the module. Analyze the flow.",
+      },
+    });
+
+    expect(result.taskRecords).toEqual([
+      { taskId: "t1", status: "completed", rawOutput: "[mock] explored module" },
+      { taskId: "t2", status: "completed", rawOutput: "[mock] final analysis" },
+    ]);
+    expect(result.rawOutput).toBe("[mock] final analysis");
+  });
+
   it("skips completed tasks from an existing session and resumes remaining work", async () => {
     vi.spyOn(SessionStateManager, "sessionExists").mockResolvedValue(true);
     vi.spyOn(SessionStateManager, "loadSession").mockResolvedValue({
@@ -719,6 +751,72 @@ describe("orchestratePipeline", () => {
     expect(result.cacheHit?.kind).toBe("session");
     expect(result.cacheHit?.sourceSessionId).toBe("cached-session");
     expect(result.rawOutput).toContain("cached output");
+    expect(executeWithAdapterMock).not.toHaveBeenCalled();
+  });
+
+  it("F1: 캐시된 multi-task 세션은 terminal task output만 반환한다", async () => {
+    const cachedSession = {
+      shared_context: {
+        session_id: "cached-multi-session",
+        raw_input_hash: "willbematched",
+        project_id: "git-test123",
+        failed_task_ids: [],
+      },
+      task_results: {
+        t1: {
+          task_id: "t1",
+          success: true,
+          raw_output: "cached explore output",
+          summary: "cached explore output",
+        },
+        t2: {
+          task_id: "t2",
+          success: true,
+          raw_output: "cached final output",
+          summary: "cached final output",
+        },
+      },
+      current_task_id: null,
+      completed_task_ids: ["t1", "t2"],
+      task_graph: {
+        tasks: [
+          {
+            id: "t1",
+            type: "explore",
+            status: "pending",
+            title: "Find the module.",
+            input_hash: "hash1",
+            depends_on: [],
+          },
+          {
+            id: "t2",
+            type: "analyze",
+            status: "pending",
+            title: "Analyze the flow.",
+            input_hash: "hash2",
+            depends_on: ["t1"],
+          },
+        ],
+      },
+      last_summary: "2개 작업을 모두 완료했습니다",
+      next_action: "파이프라인이 완료되었습니다.",
+      updated_at: new Date().toISOString(),
+    };
+    vi.spyOn(SessionStateManager, "findSuccessfulSessionByInputHash").mockResolvedValue(
+      cachedSession as any,
+    );
+
+    const result = await orchestratePipeline({
+      mode: "run",
+      adapter: "codex",
+      executionMode: "real",
+      verbose: false,
+      projectInfo: { projectId: "git-test123", projectPath: "/test", projectName: "test" },
+      userRequest: { raw_input: "cached prompt" },
+    });
+
+    expect(result.rawOutput).toBe("cached final output");
+    expect(result.taskRecords).toHaveLength(2);
     expect(executeWithAdapterMock).not.toHaveBeenCalled();
   });
 
