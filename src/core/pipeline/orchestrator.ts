@@ -402,6 +402,40 @@ function collectTaskOutputText(state: SessionState): {
   return { rawOutputText, summaryText };
 }
 
+function collectDisplayOutputTextFromState(state: SessionState): string {
+  const taskResults = state.task_results ?? {};
+  const tasks = state.task_graph?.tasks ?? [];
+  const completedIds = state.completed_task_ids ?? [];
+  if (tasks.length > 0) {
+    const dependencyIds = new Set(tasks.flatMap((task) => task.depends_on));
+    const terminalTasks = tasks.filter((task) => !dependencyIds.has(task.id));
+    for (const task of terminalTasks.reverse()) {
+      if (!completedIds.includes(task.id)) continue;
+      const rawOutput = (taskResults[task.id] as Record<string, unknown> | undefined)?.raw_output;
+      if (typeof rawOutput === "string" && rawOutput.trim().length > 0) {
+        return rawOutput;
+      }
+    }
+  }
+
+  const completedOutputs = completedIds
+    .map((id) => (taskResults[id] as Record<string, unknown> | undefined)?.raw_output)
+    .filter((value): value is string => typeof value === "string" && value.trim().length > 0);
+  const lastCompletedOutput = completedOutputs.at(-1);
+  if (lastCompletedOutput) return lastCompletedOutput;
+
+  return Object.values(taskResults)
+    .map((result) => (result as Record<string, unknown>).raw_output)
+    .filter((value): value is string => typeof value === "string" && value.trim().length > 0)
+    .at(-1) ?? "";
+}
+
+function collectDisplayOutputTextFromRecords(records: TaskExecutionRecord[]): string {
+  return records
+    .filter((record) => record.status === "completed" && record.rawOutput.trim().length > 0)
+    .at(-1)?.rawOutput ?? records.map((record) => record.rawOutput).filter(Boolean).join("\n---\n");
+}
+
 function applySessionTokenMetrics(
   state: SessionState,
   inputOriginalText: string,
@@ -686,7 +720,7 @@ export const orchestratePipeline = async (
           summary: `F1 캐시 hit — 세션 ${cachedSessionId} (${Math.round(cacheAge / 86400000)}일 전)`,
         }),
       );
-      const { rawOutputText, summaryText } = collectTaskOutputText(cachedSession!);
+      const { summaryText } = collectTaskOutputText(cachedSession!);
       return {
         ok: true,
         mode: request.mode,
@@ -695,7 +729,7 @@ export const orchestratePipeline = async (
         nextAction: cachedSession!.next_action ?? "캐시된 결과를 반환했습니다.",
         originalPrompt: request.userRequest.raw_input,
         stages: buildPipelineStages(true),
-        rawOutput: rawOutputText,
+        rawOutput: collectDisplayOutputTextFromState(cachedSession!),
         sessionId: cachedSessionId,
         taskRecords: cachedSession!.completed_task_ids.map((id) => ({
           taskId: id,
@@ -1646,7 +1680,9 @@ export const orchestratePipeline = async (
     originalPrompt: request.userRequest.raw_input,
     tokenMetrics: sessionTokenMetrics.tokenMetrics,
     stages: buildPipelineStages(allOk),
-    rawOutput: taskRecords.map((r) => r.rawOutput).filter(Boolean).join("\n---\n"),
+    rawOutput: allOk
+      ? collectDisplayOutputTextFromState(state)
+      : collectDisplayOutputTextFromRecords(taskRecords),
     sessionId,
     taskRecords,
     ...(adapterTranscript ? { adapterTranscript } : {}),
