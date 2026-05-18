@@ -95,7 +95,7 @@ import { readRole1ModelName, loadRole1RuntimeConfig } from "../../core/prompt/co
 import { ensureLocalLlmRuntime } from "../../core/llm-client/local-runtime.js";
 import { onLlamaBuildPhase } from "../../core/llm-client/llama-build-events.js";
 import type { TokenReductionSnapshot } from "../../core/utils/tokenMetrics.js";
-import { statusColor } from "./design/tokens.js";
+import { glyph, statusColor } from "./design/tokens.js";
 import { formatError } from "../format.js";
 import {
   hasConfigFile,
@@ -1191,7 +1191,7 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
         const viewport = runBlockScrollback.getViewport(transcriptRegion.columns, contentRows);
         const scrollIndicator = viewport.pinnedToBottom
           ? null
-          : embeddedTerminalPane.getScrollIndicator(transcriptRegion.columns, contentRows);
+          : `${glyph.scrollIndicator} ${viewport.distanceFromBottom}/${viewport.totalLines}`;
         if (scrollIndicator !== null) {
           const indicatorLen = scrollIndicator.length;
           const startCol = Math.max(0, transcriptRegion.columns - indicatorLen);
@@ -1426,9 +1426,9 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
             } else if (matchedScrollSequence === "\x1b[H" || matchedScrollSequence === "\x1b[1~") {
               const dims = screen.getDimensions();
               const inputLayout = measureInputLayout(dims, input, cursor);
-              embeddedTerminalPane.scrollToTop(dims.columns, getEmbeddedTranscriptHeight(inputLayout));
+              runBlockScrollback.scrollToTop(dims.columns, getEmbeddedTranscriptHeight(inputLayout));
             } else {
-              embeddedTerminalPane.scrollToBottom();
+              runBlockScrollback.scrollToBottom();
             }
             needsFullRender = true;
             i += matchedScrollSequence.length;
