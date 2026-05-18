@@ -379,6 +379,29 @@ const runWithNodePty = (
 
   let stdout = "";
   let settled = false;
+  let stdoutPending = "";
+  let stderrPending = "";
+  const lineBufferedJson = isCodexJsonStreamRequest(request);
+
+  const pushLines = (
+    chunk: string,
+    stream: "stdout" | "stderr",
+    pending: string,
+  ): string => {
+    const combined = `${pending}${chunk}`.replace(/\r\n/g, "\n");
+    const lines = combined.split("\n");
+    const nextPending = combined.endsWith("\n") ? "" : (lines.pop() ?? "");
+
+    for (const line of lines) {
+      emitEvent({
+        type: "chunk",
+        stream,
+        data: `${line}\n`,
+      });
+    }
+
+    return nextPending;
+  };
 
   const finish = (code: number, timedOut: boolean): void => {
     if (settled) {
@@ -427,10 +450,24 @@ const runWithNodePty = (
 
   ptyProcess.onData((data) => {
     stdout += data;
+    if (lineBufferedJson) {
+      stdoutPending = pushLines(data, "stdout", stdoutPending);
+      return;
+    }
     emitEvent({ type: "chunk", stream: "stdout", data });
   });
 
   ptyProcess.onExit(({ exitCode }) => {
+    if (lineBufferedJson) {
+      if (stdoutPending.length > 0) {
+        emitEvent({ type: "chunk", stream: "stdout", data: stdoutPending });
+        stdoutPending = "";
+      }
+      if (stderrPending.length > 0) {
+        emitEvent({ type: "chunk", stream: "stderr", data: stderrPending });
+        stderrPending = "";
+      }
+    }
     finish(exitCode ?? 0, false);
   });
 
@@ -458,7 +495,7 @@ export const createPtySubprocessRunner = (
     run: (request: SubprocessRequest) => baseRunner.run(request),
 
     async runWithTranscript(request: SubprocessRequest): Promise<PtyResult> {
-      if (isCodexJsonStreamRequest(request)) {
+      if (isCodexJsonStreamRequest(request) && !request.interactiveAfterInput) {
         return await runStreamingJsonProcess(request, options);
       }
 

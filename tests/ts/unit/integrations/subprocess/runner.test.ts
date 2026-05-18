@@ -202,4 +202,53 @@ describe("createRealSubprocessRunner", () => {
 			),
 		).toBe(true);
 	});
+
+	it("keeps codex json requests on PTY when interactiveAfterInput is enabled", async () => {
+		const dir = tempDirs.at(-1)!;
+		const codexScript = join(dir, "codex");
+		writeFileSync(
+			codexScript,
+			[
+				"#!/bin/sh",
+				"prompt=$(cat)",
+				"printf '{\"type\":\"turn.started\"}\\n'",
+				"printf 'approval required\\n'",
+				"IFS= read -r answer < /dev/tty",
+				"printf '{\"type\":\"item.completed\",\"item\":{\"type\":\"assistant_message\",\"text\":\"done\"}}\\n'",
+				"printf 'answer:%s\\n' \"$answer\"",
+			].join("\n"),
+			"utf8",
+		);
+		chmodSync(codexScript, 0o755);
+
+		let capturedController: { write: (data: string) => void } | null = null;
+		let answered = false;
+		const runner = createPtySubprocessRunner({
+			onController: (controller) => {
+				capturedController = controller;
+			},
+			onEvent: (event) => {
+				if (!answered && event.type === "chunk" && event.data?.includes("approval required")) {
+					answered = true;
+					capturedController?.write("y\r");
+				}
+			},
+		});
+
+		const result = await runner.runWithTranscript({
+			command: "codex",
+			args: ["exec", "--json", "-", "--sandbox", "workspace-write"],
+			input: "hello",
+			interactiveAfterInput: true,
+			env: {
+				...process.env,
+				PATH: `${dir}:${process.env.PATH ?? ""}`,
+			},
+		});
+
+		expect(result.exitCode).toBe(0);
+		expect(result.stdout).toContain("approval required");
+		expect(result.stdout).toContain("\"assistant_message\"");
+		expect(result.stdout).toContain("answer:y");
+	}, 10_000);
 });

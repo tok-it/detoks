@@ -1,10 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { CodexStubAdapter } from "../../../../../src/integrations/adapters/codex/adapter.js";
 import { ClaudeStubAdapter } from "../../../../../src/integrations/adapters/claude/adapter.js";
 import { GeminiStubAdapter } from "../../../../../src/integrations/adapters/gemini/adapter.js";
+import { executeAdapterViaSubprocess } from "../../../../../src/integrations/adapters/real.js";
 import type { ActionTimelineEvent } from "../../../../../src/core/timeline/types.js";
 import type { SubprocessRequest, TranscriptAwareSubprocessRunner } from "../../../../../src/integrations/subprocess/types.js";
 
@@ -121,6 +122,59 @@ describe("adapter execution modes", () => {
       "tool_call",
       "tool_result",
     ]);
+  });
+
+  it("prefers codex output-last-message text over PTY progress output in embedded mode", async () => {
+    capturedRequests.length = 0;
+    const transcriptRunner: TranscriptAwareSubprocessRunner = {
+      async run(request: SubprocessRequest) {
+        capturedRequests.push(request);
+        return {
+          stdout: "progress only",
+          stderr: "",
+          exitCode: 0,
+          timedOut: false,
+        };
+      },
+      async runWithTranscript(request: SubprocessRequest) {
+        capturedRequests.push(request);
+        if (request.outputLastMessagePath) {
+          writeFileSync(request.outputLastMessagePath, "final embedded answer\n", "utf8");
+        }
+        return {
+          stdout: "progress only",
+          stderr: "",
+          exitCode: 0,
+          timedOut: false,
+          transcript: {
+            events: [],
+            startTime: 1,
+            endTime: 2,
+            totalDuration: 1,
+            exitCode: 0,
+            timedOut: false,
+          },
+        };
+      },
+    };
+    const result = await executeAdapterViaSubprocess(
+      new CodexStubAdapter(),
+      {
+        mode: "repl",
+        prompt: "embedded prompt",
+        verbose: false,
+        cwd: "/workspace",
+        presentationMode: "embedded-pane",
+      },
+      {
+        executionMode: "real",
+        subprocessRunner: transcriptRunner,
+      },
+    );
+
+    expect(capturedRequests).toHaveLength(1);
+    expect(capturedRequests[0]?.outputLastMessagePath).toMatch(/last-message\.txt$/);
+    expect(result.rawOutput).toBe("final embedded answer");
   });
 
   it("records gemini real execution requests with the gemini command", async () => {

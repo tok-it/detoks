@@ -5,6 +5,7 @@ export interface SubprocessRequest {
   env?: Record<string, string>;
   input?: string;
   interactiveAfterInput?: boolean;
+  outputLastMessagePath?: string;
 }
 
 export interface SubprocessResult {

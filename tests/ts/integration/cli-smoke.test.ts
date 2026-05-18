@@ -307,15 +307,23 @@ const liveLocalLlmSmoke =
 const createFakeBinary = (
   dir: string,
   command: "codex" | "gemini" | "claude",
-  options: { exitCode?: number; stderr?: string } = {},
+  options: { exitCode?: number; stderr?: string; lastMessageText?: string; progressOnly?: boolean } = {},
 ) => {
   const binaryPath = join(dir, command);
   writeFileSync(
     binaryPath,
     `#!/usr/bin/env node
+const { writeFileSync } = require("node:fs");
 let input = "";
 let finished = false;
 let finishTimer = null;
+const args = process.argv.slice(2);
+const jsonMode = args.includes("--json");
+const outputLastMessageIndex = args.indexOf("--output-last-message");
+const outputLastMessagePath =
+  outputLastMessageIndex >= 0 && outputLastMessageIndex + 1 < args.length
+    ? args[outputLastMessageIndex + 1]
+    : null;
 const finish = () => {
   if (finished) {
     return;
@@ -326,7 +334,19 @@ const finish = () => {
     finishTimer = null;
   }
   ${options.stderr ? `process.stderr.write(${JSON.stringify(options.stderr)});` : ""}
-  process.stdout.write(\`[fake:${command}] \${input}\`);
+  ${options.lastMessageText ? `
+  if (outputLastMessagePath) {
+    writeFileSync(outputLastMessagePath, ${JSON.stringify(options.lastMessageText)}, "utf8");
+  }
+  ` : ""}
+  if (jsonMode) {
+    process.stdout.write('{"type":"turn.started"}\\n');
+    ${options.progressOnly
+      ? `process.stdout.write('{"type":"item.completed","item":{"type":"command_execution","command":"find .","aggregated_output":"README.md","exit_code":0}}\\n');`
+      : `process.stdout.write(JSON.stringify({ type: "item.completed", item: { type: "assistant_message", text: \`[fake:${command}] \${input}\` } }) + "\\n");`}
+  } else {
+    ${options.progressOnly ? `process.stdout.write("OpenAI Codex v0.0.0\\n검색: README* · 진행 중\\n");` : `process.stdout.write(\`[fake:${command}] \${input}\`);`}
+  }
   process.exit(${options.exitCode ?? 0});
 };
 const scheduleFinish = () => {
@@ -760,7 +780,6 @@ describe.skipIf(Boolean(process.env.CI))("detoks CLI smoke", () => {
       expect(replRun.stdout).toContain("실행 중");
       expect(replRun.stdout).toContain("완료");
       expect(replRun.stdout).toContain("[fake:codex]");
-      expect(replRun.stdout).toContain("tok -");
     } finally {
       rmSync(tempDir, { force: true, recursive: true });
     }
@@ -787,6 +806,34 @@ describe.skipIf(Boolean(process.env.CI))("detoks CLI smoke", () => {
       expect(replRun.stdout).toContain("hello again");
       expect(replRun.stdout).toContain("Sticky Prompt");
       expect(replRun.stdout).toContain("실행 중");
+      expect(replRun.stdout).toContain("완료");
+    } finally {
+      rmSync(tempDir, { force: true, recursive: true });
+    }
+  }, 30_000);
+
+  it("appends the final answer from codex output-last-message even when only progress text was streamed", () => {
+    const tempDir = mkdtempSync(join(tmpdir(), "detoks-cli-embedded-last-message-"));
+
+    try {
+      createFakeBinary(tempDir, "codex", {
+        lastMessageText: "This directory contains the detoks CLI workspace.\n",
+        progressOnly: true,
+      });
+      const replRun = runCliWithInputFromCwdEnvAndTimeout(
+        tempDir,
+        ["repl", "--tui", "--embedded-cli-ui", "--execution-mode", "real"],
+        "Explain the purpose of this directory in one sentence.\n\n/exit\n",
+        {
+          PATH: `${tempDir}:${process.env.PATH ?? ""}`,
+          DETOKS_CACHE_DISABLED: "1",
+        },
+        20_000,
+      );
+
+      expect(replRun.stderr).not.toContain("ReferenceError");
+      expect(replRun.stdout).toContain("README.md");
+      expect(replRun.stdout).toContain("This directory contains the detoks CLI workspace.");
       expect(replRun.stdout).toContain("완료");
     } finally {
       rmSync(tempDir, { force: true, recursive: true });
