@@ -157,6 +157,7 @@ const isToolItemType = (itemType: string): boolean =>
 const isFileEditItemType = (itemType: string): boolean => itemType === "file_change";
 const isFinalAnswerItemType = (itemType: string): boolean =>
   new Set(["agent_message", "assistant_message", "final_answer"]).has(itemType);
+const isIntentLikeAssistantText = (text: string): boolean => /^(Goal|목표):\s*/i.test(text.trim());
 
 const summarizeText = (text: string, maxLines = 3): string => {
   const normalized = sanitizeCodexText(text).replace(/\r\n/g, "\n");
@@ -263,9 +264,14 @@ export const classifyCodexJsonLine = (line: string): CodexStructuredLine | null 
         if (editText) return { kind: "edit", text: editText };
       }
       if (isFinalAnswerItemType(itemType)) {
-        if (phase !== "completed") return null;
         const finalText = text ?? getStringField(item, ["text", "content", "message", "summary"]);
-        if (finalText) return { kind: "final", text: finalText };
+        if (finalText && isIntentLikeAssistantText(finalText)) {
+          return { kind: "raw", text: finalText };
+        }
+        if (phase !== "completed") return null;
+        if (finalText) {
+          return { kind: "final", text: finalText };
+        }
       }
     }
     if (

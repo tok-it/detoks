@@ -99,6 +99,34 @@ describe("EmbeddedTerminalPane", () => {
     expect(output).not.toContain("숨김 상태 디렉터리에 목적 단서가 있을 수 있어 그 안도 확인하겠습니다.");
   });
 
+  it("renders goal-prefixed assistant messages as live output instead of final answer", () => {
+    pane.addEvent({
+      type: "chunk",
+      timestamp: Date.now(),
+      stream: "stdout",
+      data: "{\"type\":\"item.completed\",\"item\":{\"type\":\"assistant_message\",\"text\":\"Goal: 현재 디렉터리 프로젝트의 목적을 파악합니다.\"}}\n",
+    });
+
+    expect(pane.getLastFinalAnswer()).toBeNull();
+    const output = pane.getRenderableLines(120).map((line) => line.text).join("\n");
+    expect(output).toContain("Goal: 현재 디렉터리 프로젝트의 목적을 파악합니다.");
+    expect(output).not.toContain("최종 결과");
+  });
+
+  it("renders started goal-prefixed assistant messages as live output", () => {
+    pane.addEvent({
+      type: "chunk",
+      timestamp: Date.now(),
+      stream: "stdout",
+      data: "{\"type\":\"item.started\",\"item\":{\"type\":\"assistant_message\",\"text\":\"Goal: 현재 디렉터리 프로젝트의 목적을 파악합니다.\"}}\n",
+    });
+
+    expect(pane.getLastFinalAnswer()).toBeNull();
+    const output = pane.getRenderableLines(120).map((line) => line.text).join("\n");
+    expect(output).toContain("Goal: 현재 디렉터리 프로젝트의 목적을 파악합니다.");
+    expect(output).not.toContain("최종 결과");
+  });
+
   it("pins the latest final answer as a dedicated footer block after long activity history", () => {
     pane.addEvent({
       type: "chunk",
@@ -170,6 +198,49 @@ describe("EmbeddedTerminalPane", () => {
       status: "completed",
     });
     expect(output).not.toContain("\nexec\n");
+  });
+
+  it("labels goal-like command previews as intent instead of completed", () => {
+    pane.addEvent({
+      type: "chunk",
+      timestamp: Date.now(),
+      stream: "stdout",
+      data: "{\"type\":\"item.completed\",\"item\":{\"type\":\"command_execution\",\"command\":\"find . -maxdepth 1\",\"exit_code\":0,\"aggregated_output\":\"Goal: 현재 디렉터리 프로젝트의 목적을 파악합니다.\"}}\n",
+    });
+
+    const output = pane.getRenderableLines(120).map((line) => line.text).join("\n");
+    expect(output).toContain("완료");
+    expect(output).toContain("Goal: 현재 디렉터리 프로젝트의 목적을 파악합니다.");
+  });
+
+  it("shows intent lines for native exec blocks with goal output", () => {
+    pane.addEvent({
+      type: "chunk",
+      timestamp: Date.now(),
+      stream: "stdout",
+      data: [
+        "exec",
+        "/bin/zsh -lc 'find . -maxdepth 1'",
+        "succeeded in 42ms",
+        "Goal: 현재 디렉터리 프로젝트의 목적을 파악합니다.",
+      ].join("\n"),
+    });
+
+    const output = pane.getRenderableLines(120).map((line) => line.text).join("\n");
+    expect(output).toContain("성공");
+    expect(output).toContain("Goal: 현재 디렉터리 프로젝트의 목적을 파악합니다.");
+  });
+
+  it("renders standalone goal lines as plain output", () => {
+    pane.addEvent({
+      type: "chunk",
+      timestamp: Date.now(),
+      stream: "stdout",
+      data: "Goal: 현재 디렉터리 프로젝트의 목적을 파악합니다.\n",
+    });
+
+    const output = pane.getRenderableLines(120).map((line) => line.text).join("\n");
+    expect(output).toContain("Goal: 현재 디렉터리 프로젝트의 목적을 파악합니다.");
   });
 
   it("never leaves a raw exec sentinel behind for structured codex command events", () => {
