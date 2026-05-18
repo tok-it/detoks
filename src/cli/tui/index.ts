@@ -1,3 +1,4 @@
+import { execSync } from "node:child_process";
 import { stdout, stdin } from "node:process";
 import { StringDecoder } from "node:string_decoder";
 import type { CliArgs } from "../types.js";
@@ -165,10 +166,33 @@ const formatCacheHitBadge = (cacheHit: import("../../core/pipeline/types.js").Ca
   return `cache hit(${kindLabel} · ${ageLabel})`;
 };
 
+const resolveFooterBranchLabel = (cwd: string): string | undefined => {
+  try {
+    const branch = execSync("git symbolic-ref --short HEAD", {
+      cwd,
+      stdio: ["ignore", "pipe", "ignore"],
+      encoding: "utf8",
+    }).trim();
+    return branch.length > 0 ? branch : undefined;
+  } catch {}
+
+  try {
+    const detachedHead = execSync("git rev-parse --short HEAD", {
+      cwd,
+      stdio: ["ignore", "pipe", "ignore"],
+      encoding: "utf8",
+    }).trim();
+    return detachedHead.length > 0 ? `detached@${detachedHead}` : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
 export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
   const screen = createScreenManager(stdout, stdin);
   const decoder = new StringDecoder("utf8");
   const executionCwd = options.cwd ?? process.cwd();
+  const footerBranchLabel = resolveFooterBranchLabel(executionCwd);
   const state = {
     adapter: options.adapter,
     adapterModel: options.adapterModel ?? getAdapterModel(options.adapter),
@@ -1030,6 +1054,7 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
           inferenceStrength: state.inferenceStrength,
           tokenSavings: state.tokenSavingsLabel,
           cwd: executionCwd,
+          branch: footerBranchLabel,
         }),
       );
       screen.flush();

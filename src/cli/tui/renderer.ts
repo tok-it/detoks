@@ -30,6 +30,7 @@ export interface FooterContext {
   inferenceStrength?: string | undefined;
   tokenSavings?: string | undefined;
   cwd: string;
+  branch?: string | undefined;
 }
 
 const isWideCharacter = (char: string): boolean => {
@@ -200,12 +201,13 @@ const ellipsizeRight = (text: string, maxWidth: number): string => {
 export const buildFooterText = (columns: number, footer: FooterContext): string => {
   const sidePadding = columns >= 4 ? 1 : 0;
   const innerColumns = Math.max(0, columns - sidePadding * 2);
+  const cwdDisplay = footer.branch ? `${footer.cwd}(${footer.branch})` : footer.cwd;
   const footerValues = [
     footer.adapter,
     footer.adapterModel,
     footer.adapter === "codex" ? footer.inferenceStrength : undefined,
     footer.tokenSavings,
-    footer.cwd,
+    cwdDisplay,
   ].filter((value): value is string => Boolean(value));
 
   const fullText = footerValues.join(" | ");
@@ -222,8 +224,8 @@ export const buildFooterText = (columns: number, footer: FooterContext): string 
   }
 
   const compactText = footer.tokenSavings
-    ? `${footer.adapter} | ${footer.tokenSavings} | ${footer.cwd}`
-    : `${footer.adapter} | ${footer.cwd}`;
+    ? `${footer.adapter} | ${footer.tokenSavings} | ${cwdDisplay}`
+    : `${footer.adapter} | ${cwdDisplay}`;
   if (measureDisplayWidth(compactText) <= innerColumns) {
     return finalizeFooter(compactText);
   }
@@ -237,7 +239,7 @@ export const buildFooterText = (columns: number, footer: FooterContext): string 
           6,
       )
     : Math.max(0, innerColumns - measureDisplayWidth(footer.adapter) - 3);
-  const tokenAwareShortenedCwd = ellipsizeLeft(footer.cwd, tokenAwareCwdBudget);
+  const tokenAwareShortenedCwd = ellipsizeLeft(cwdDisplay, tokenAwareCwdBudget);
   let line = footer.tokenSavings
     ? `${footer.adapter} | ${footer.tokenSavings} | ${tokenAwareShortenedCwd}`
     : `${footer.adapter} | ${tokenAwareShortenedCwd}`;
@@ -247,7 +249,7 @@ export const buildFooterText = (columns: number, footer: FooterContext): string 
   }
 
   const cwdBudget = Math.max(0, innerColumns - measureDisplayWidth(footer.adapter) - 3);
-  const shortenedCwd = ellipsizeLeft(footer.cwd, cwdBudget);
+  const shortenedCwd = ellipsizeLeft(cwdDisplay, cwdBudget);
   line = `${footer.adapter} | ${shortenedCwd}`;
 
   if (measureDisplayWidth(line) <= innerColumns) {
