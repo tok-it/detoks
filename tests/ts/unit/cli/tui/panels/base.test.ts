@@ -8,6 +8,7 @@ import {
   truncateByLength,
   writePaddedLine,
 } from "../../../../../../src/cli/tui/panels/base.js";
+import { measureDisplayWidth } from "../../../../../../src/cli/tui/renderer.js";
 import { statusColor } from "../../../../../../src/cli/tui/design/tokens.js";
 
 const stripAnsi = (value: string): string =>
@@ -68,6 +69,14 @@ describe("panel base helpers", () => {
       const { ctx, screen } = makeCtx();
       writePaddedLine(ctx, 0, "ok", 4);
       expect(screen.write).toHaveBeenCalledWith("ok  ");
+    });
+
+    it("truncates long wide-character text before padding", () => {
+      const { ctx, screen } = makeCtx();
+      writePaddedLine(ctx, 0, "도구: codex 실행: 매우 긴 명령어입니다", 12);
+      const written = screen.write.mock.calls[0]?.[0] as string;
+      expect(measureDisplayWidth(written)).toBe(12);
+      expect(written).toContain("…");
     });
   });
 

@@ -376,19 +376,7 @@ const summarizeCommandActivity = (
 };
 
 const truncateForSummary = (text: string, maxWidth: number): string => {
-  if (maxWidth <= 0) {
-    return "";
-  }
-
-  if (text.length <= maxWidth) {
-    return text;
-  }
-
-  if (maxWidth <= 3) {
-    return ".".repeat(maxWidth);
-  }
-
-  return `${text.slice(0, maxWidth - 3)}...`;
+  return truncateByDisplayWidth(text, maxWidth);
 };
 
 const buildGutterPrefix = (icon: string): { prefix: string; displayWidth: number } => {

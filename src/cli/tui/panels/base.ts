@@ -27,7 +27,7 @@ export const writePaddedLine = (
   style: Style = (value) => value,
 ): void => {
   ctx.screen.cursorMoveTo(row, 0);
-  ctx.screen.write(style(padDisplayWidth(text, usableWidth)));
+  ctx.screen.write(style(padDisplayWidth(truncateByDisplayWidth(text, usableWidth), usableWidth)));
 };
 
 export interface EmptyStateOptions {
