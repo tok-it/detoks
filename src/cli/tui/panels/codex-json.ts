@@ -50,6 +50,13 @@ const extractJsonCandidate = (line: string): string | null => {
 export const hasCodexJsonCandidate = (line: string): boolean => extractJsonCandidate(line) !== null;
 
 export type CodexStructuredLine =
+  | {
+      kind: "command";
+      commandLine: string | null;
+      status: "running" | "completed" | "failed";
+      outputPreview?: string;
+      category: "tool" | "validation" | "git";
+    }
   | { kind: "tool"; text: string }
   | { kind: "validation"; text: string }
   | { kind: "git"; text: string }
@@ -168,16 +175,24 @@ const classifyCommandExecution = (item: Record<string, unknown>, phase: string):
   const commandSummary = command ? summarizeCommand(command) : null;
   const exitCode = getNumberField(item, ["exit_code", "exitCode"]);
   const output = summarizeText(getStringField(item, ["aggregated_output", "output", "stdout", "result", "text"]) ?? extractJsonText(item) ?? "");
-  const resultSummary = exitCode === null ? "done" : `exit ${exitCode}`;
-  if (phase !== "completed" && phase !== "updated" && phase !== "progress") return null;
-  if (command && isValidationCommand(command)) {
-    return { kind: "validation", text: commandSummary ? `${commandSummary} · ${output.length > 0 ? output : resultSummary}` : (output || resultSummary) };
+  const status =
+    phase === "started" ? "running"
+    : exitCode === null || exitCode === 0 ? "completed"
+    : "failed";
+  const category =
+    command && isValidationCommand(command) ? "validation"
+    : command && isGitCommand(command) ? "git"
+    : "tool";
+  if (commandSummary === null && output.length === 0 && phase !== "started") {
+    return null;
   }
-  if (command && isGitCommand(command)) {
-    return { kind: "git", text: commandSummary ? `${commandSummary} · ${output.length > 0 ? output : resultSummary}` : (output || resultSummary) };
-  }
-  const toolText = commandSummary ? `${commandSummary} · ${output.length > 0 ? output : resultSummary}` : (output || resultSummary);
-  return toolText ? { kind: "tool", text: toolText } : null;
+  return {
+    kind: "command",
+    commandLine: commandSummary,
+    status,
+    ...(output.length > 0 ? { outputPreview: output } : {}),
+    category,
+  };
 };
 
 const summarizeFileChange = (item: Record<string, unknown>, phase: string): string | null => {
@@ -188,22 +203,20 @@ const summarizeFileChange = (item: Record<string, unknown>, phase: string): stri
     const record = change as Record<string, unknown>;
     const path = getStringField(record, ["path", "filePath", "file_name", "filename"]);
     if (!path) return null;
-    const kind = getStringField(record, ["kind", "type"]) ?? "update";
-    const symbol = kind === "add" || kind === "create" ? "+" : kind === "delete" || kind === "remove" ? "-" : kind === "rename" ? "→" : "~";
-    return `${symbol} ${path}`;
+    return path;
   }).filter((entry): entry is string => Boolean(entry));
   const summary = changeSummaries.length > 0 ? changeSummaries.join(", ") : (getStringField(item, ["path", "filePath", "file_name", "filename"]) ?? "");
-  return summary.length === 0 ? "파일 변경 완료" : `applied: ${summary}`;
+  return summary.length === 0 ? "Edit 파일 변경" : `Edit ${summary.replace(/^([+~\-→]\s*)+/g, "").trim()}`;
 };
 
 const summarizeToolItem = (item: Record<string, unknown>, phase: string, itemType: string): string | null => {
   const label = itemType.replaceAll("_", " ").trim();
-  if (phase === "started") return null;
   const summarySource =
-    phase === "completed" || phase === "updated" || phase === "progress"
-      ? getStringField(item, ["output", "result", "text", "summary", "title", "name"]) ?? extractJsonText(item) ?? ""
-      : getStringField(item, ["title", "name", "summary", "text", "output"]) ?? extractJsonText(item) ?? "";
+      phase === "completed" || phase === "updated" || phase === "progress"
+      ? getStringField(item, ["output", "result", "text", "summary", "title", "name", "query", "prompt", "command", "input"]) ?? extractJsonText(item) ?? ""
+      : getStringField(item, ["title", "name", "summary", "text", "output", "query", "prompt", "command", "input"]) ?? extractJsonText(item) ?? "";
   const summary = summarizeText(summarySource, 2) || "";
+  if (phase === "started") return summary.length > 0 ? `${label}: ${summary}` : label;
   if (phase === "completed" || phase === "updated" || phase === "progress") return summary.length > 0 ? `${label}: ${summary}` : `${label}: done`;
   return summary.length > 0 ? `${label}: ${summary}` : label;
 };
@@ -248,11 +261,16 @@ export const classifyCodexJsonLine = (line: string): CodexStructuredLine | null 
         if (editText) return { kind: "edit", text: editText };
       }
       if (isFinalAnswerItemType(itemType)) {
+        if (phase !== "completed") return null;
         const finalText = text ?? getStringField(item, ["text", "content", "message", "summary"]);
         if (finalText) return { kind: "final", text: finalText };
       }
     }
-    if (text && (eventType.includes("message") || eventType.includes("text") || eventType.includes("delta"))) {
+    if (
+      text &&
+      !eventType.startsWith("item.") &&
+      (eventType.includes("final") || eventType.endsWith(".completed"))
+    ) {
       return { kind: "final", text };
     }
     if (eventType.startsWith("thread.") || eventType.startsWith("turn.") || eventType.startsWith("response.") || eventType.startsWith("item.")) {

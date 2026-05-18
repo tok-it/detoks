@@ -1,3 +1,4 @@
+import chalk from "chalk";
 import type { RenderContext } from "../renderer.js";
 import type { PanelRegion } from "../layout-manager.js";
 import type { PtyEvent } from "../../../integrations/subprocess/types.js";
@@ -12,6 +13,7 @@ import {
   shouldDropLifecycleJsonLine,
   shouldIgnoreCodexNoiseLine,
 } from "./codex-json.js";
+import type { CodexStructuredLine } from "./codex-json.js";
 import type { TerminalCell, TerminalCellStyle, TerminalColor } from "../terminal-emulator.js";
 import { TerminalEmulatorBuffer, getCharacterDisplayWidth } from "../terminal-emulator.js";
 
@@ -24,6 +26,26 @@ const EMPTY_PANE_LINES = [
   "",
   "Ctrl+T 어댑터 터미널 포커스 전환  ·  Esc / Ctrl+G detoks 입력으로 복귀",
 ] as const;
+
+const wrapPlainText = (text: string, maxWidth: number): string[] => {
+  if (maxWidth <= 0) return [];
+  const sourceLines = text.replace(/\r\n/g, "\n").split("\n");
+  const wrapped: string[] = [];
+  for (const sourceLine of sourceLines) {
+    const line = sourceLine.trimEnd();
+    if (line.length === 0) {
+      wrapped.push("");
+      continue;
+    }
+    let remaining = line;
+    while (remaining.length > maxWidth) {
+      wrapped.push(remaining.slice(0, maxWidth));
+      remaining = remaining.slice(maxWidth);
+    }
+    wrapped.push(remaining);
+  }
+  return wrapped;
+};
 
 const truncateToWidth = (line: string, maxWidth: number): string => {
   if (maxWidth <= 0) {
@@ -148,6 +170,13 @@ const COMMAND_LINE_PATTERNS = [
   /^rg\b/i,
   /^grep\b/i,
   /^find\b/i,
+  /^sed\b/i,
+  /^cat\b/i,
+  /^less\b/i,
+  /^head\b/i,
+  /^tail\b/i,
+  /^printf\b/i,
+  /^echo\b/i,
   /^git\b/i,
   /^npm\b/i,
   /^npx\b/i,
@@ -196,6 +225,8 @@ const DECORATIVE_LINE_RE = /^[\s╭╮╰╯─│┌┐└┘├┤┬┴┼╔
 
 const isDecorativeLine = (text: string): boolean =>
   text.length > 0 && DECORATIVE_LINE_RE.test(text);
+const STRUCTURED_ACTIVITY_MARKER_PREFIX = "__DETOKS_ACTIVITY__:";
+const STRUCTURED_ACTIVITY_MARKER_PATTERN = /^__DETOKS_ACTIVITY__:(\d+)$/;
 
 interface RenderedRowInfo {
   cells: TerminalCell[];
@@ -216,6 +247,17 @@ export interface EmbeddedInteractionState {
   kind: "none" | "approval";
   label: string;
   detail?: string;
+}
+
+interface StructuredActivityEntry {
+  id: string;
+  kind: EmbeddedActivityKind;
+  label: string;
+  detail: string;
+  status: "running" | "completed" | "failed";
+  commandLine?: string;
+  statusLine?: string;
+  outputPreview?: string;
 }
 
 type NarrativeActivityKind = "thought" | "read" | "edit" | "bash";
@@ -288,14 +330,17 @@ const extractShellPayload = (commandLine: string): string => {
 const extractPathCandidate = (commandLine: string): string | null => {
   const payload = extractShellPayload(commandLine);
   const pathMatches = payload.match(/(?:~\/|\/|\.\.?\/)[^\s"'`]+/g);
-  if (pathMatches !== null && pathMatches.length > 0) {
-    return pathMatches[pathMatches.length - 1] ?? null;
-  }
-
-  const tokens = payload.split(/\s+/).filter(Boolean);
-  const likelyPath = [...tokens].reverse().find((token) =>
+  const likelyPath = [...payload.split(/\s+/).filter(Boolean)].reverse().find((token) =>
     /[./]/.test(token) && /\.(?:[cm]?[jt]sx?|json|md|yml|yaml|toml|lock|txt|css|html|py|rs|go|java|swift)$/i.test(token),
   );
+  if (pathMatches !== null && pathMatches.length > 0) {
+    const lastPathMatch = (pathMatches[pathMatches.length - 1] ?? "").replace(/[;:,]+$/, "");
+    if (likelyPath !== undefined && likelyPath.length > lastPathMatch.length) {
+      return likelyPath;
+    }
+    return lastPathMatch.length > 0 ? lastPathMatch : likelyPath ?? null;
+  }
+
   return likelyPath?.replace(/[;:,]+$/, "") ?? null;
 };
 
@@ -413,6 +458,13 @@ const composeIndentedLine = (
   return colorize(padDisplayWidth(`${prefix}${truncateForSummary(body, maxWidth - prefix.length)}`, maxWidth));
 };
 
+const buildStructuredActivityMarker = (id: string): string => `${STRUCTURED_ACTIVITY_MARKER_PREFIX}${id}`;
+
+const parseStructuredActivityMarker = (plainText: string): string | null => {
+  const match = STRUCTURED_ACTIVITY_MARKER_PATTERN.exec(plainText.trim());
+  return match?.[1] ?? null;
+};
+
 const composeBadgedDetailLine = (
   badge: string,
   body: string,
@@ -463,6 +515,105 @@ const composeNarrativeTitleLine = (
   const badge = badges.map((entry) => entry.style(entry.text)).join(" ");
   const body = `${badgeText ? `${badge} ` : ""}${coloredKind} ${coloredSubject}`;
   return padDisplayWidth(`${colorize(prefix)}${body}`, maxWidth);
+};
+
+const buildStructuredActivityRenderableLines = (
+  entry: StructuredActivityEntry,
+  maxWidth: number,
+  now: number,
+  runStartedAt: number | null,
+): EmbeddedTerminalRenderableLine[] => {
+  const statusLabel =
+    entry.status === "running" ? "진행 중" : entry.status === "completed" ? "완료" : "실패";
+  const baseSummary = `${entry.label}: ${entry.detail} · ${statusLabel}`;
+
+  if (entry.kind === "command" || entry.kind === "file" || entry.kind === "search" || entry.kind === "git" || entry.kind === "test") {
+    const spinnerIndex = runStartedAt === null
+      ? -1
+      : Math.floor(Math.max(0, now - runStartedAt) / width.spinnerFrameMs) % glyph.spinnerBraille.length;
+    const icon =
+      entry.status === "running"
+        ? spinnerIndex >= 0 ? glyph.spinnerBraille[spinnerIndex]! : glyph.execRunning
+        : entry.status === "completed"
+          ? glyph.execDone
+          : glyph.execFailed;
+    const style = entry.status === "running" ? statusColor.header : entry.status === "completed" ? statusColor.success : statusColor.error;
+    const summaryWithElapsed =
+      entry.status === "running" && runStartedAt !== null
+        ? `${baseSummary} ${computeRunningElapsedLabel(runStartedAt, now)}`
+        : baseSummary;
+    const lines: EmbeddedTerminalRenderableLine[] = [
+      { text: composeGutteredLine(icon, summaryWithElapsed.trim(), maxWidth, style) },
+    ];
+
+    if (entry.commandLine && entry.commandLine !== entry.detail) {
+      lines.push({
+        text: composeIndentedLine(entry.commandLine, maxWidth, statusColor.info),
+      });
+    }
+    if (entry.statusLine) {
+      lines.push({
+        text: composeIndentedLine(entry.statusLine, maxWidth, entry.status === "completed" ? statusColor.success : entry.status === "failed" ? statusColor.error : statusColor.muted),
+      });
+    }
+    if (entry.outputPreview) {
+      lines.push({
+        text: composeIndentedLine(entry.outputPreview, maxWidth, statusColor.muted),
+      });
+    }
+    return lines;
+  }
+
+  if (entry.kind === "tool") {
+    return [
+      { text: composeGutteredLine(glyph.toolWeb, baseSummary, maxWidth, statusColor.muted) },
+    ];
+  }
+
+  if (entry.kind === "edit") {
+    return [
+      { text: composeNarrativeTitleLine("Edit", entry.detail, glyph.changeUpdate, maxWidth, statusColor.success) },
+    ];
+  }
+
+  if (entry.kind === "read") {
+    return [
+      { text: composeNarrativeTitleLine("Read", entry.detail, glyph.info, maxWidth, statusColor.info) },
+    ];
+  }
+
+  return [
+    { text: composeGutteredLine(glyph.bullet, baseSummary, maxWidth, statusColor.muted) },
+  ];
+};
+
+const buildFinalAnswerRenderableLines = (
+  finalAnswer: string,
+  maxWidth: number,
+): EmbeddedTerminalRenderableLine[] => {
+  if (maxWidth <= 0) return [];
+
+  const renderHighlightedLine = (line: string, emphasize: "title" | "body"): string => {
+    const padded = padDisplayWidth(truncateToWidth(line, maxWidth), maxWidth);
+    return emphasize === "title"
+      ? chalk.bgHex("#334155").hex("#f8fafc").bold(padded)
+      : chalk.bgHex("#1f2937").hex("#e5e7eb")(padded);
+  };
+
+  const lines: EmbeddedTerminalRenderableLine[] = [
+    { text: renderHighlightedLine(" 최종 결과 ", "title") },
+  ];
+  const bodyLines = wrapPlainText(finalAnswer, maxWidth);
+  if (bodyLines.length === 0) {
+    lines.push({ text: renderHighlightedLine("", "body") });
+    return lines;
+  }
+  for (const line of bodyLines) {
+    lines.push({
+      text: renderHighlightedLine(line, "body"),
+    });
+  }
+  return lines;
 };
 
 const getNarrativeDetailStyle = (
@@ -858,12 +1009,23 @@ const buildCompactRenderableLines = (
   cursorGlobalRow?: number,
   now = Date.now(),
   runStartedAt: number | null = null,
+  resolveStructuredActivity?: (id: string) => StructuredActivityEntry | undefined,
 ): EmbeddedTerminalRenderableLine[] => {
   const output: EmbeddedTerminalRenderableLine[] = [];
 
   for (let index = 0; index < rows.length; ) {
     const row = rows[index];
     if (!row) {
+      index += 1;
+      continue;
+    }
+
+    const structuredActivityId = parseStructuredActivityMarker(row.plainText);
+    if (structuredActivityId !== null) {
+      const structuredActivity = resolveStructuredActivity?.(structuredActivityId);
+      if (structuredActivity) {
+        output.push(...buildStructuredActivityRenderableLines(structuredActivity, maxWidth, now, runStartedAt));
+      }
       index += 1;
       continue;
     }
@@ -970,6 +1132,19 @@ const buildCompactRenderableLines = (
           output.push({
             text: composeGutteredLine(execIcon, summary, maxWidth, execStyle),
           });
+
+          const commandLine = commandBlock[1]?.plainText.trim() ?? "";
+          if (commandLine.length > 0) {
+            output.push({
+              text: composeIndentedLine(commandLine, maxWidth, statusColor.info),
+            });
+          }
+
+          if (statusLineText !== null) {
+            output.push({
+              text: composeIndentedLine(statusLineText, maxWidth, execStatus === "completed" ? statusColor.success : statusColor.error),
+            });
+          }
           index = cursor;
           continue;
         }
@@ -1103,6 +1278,9 @@ export interface EmbeddedTerminalViewportTrackingInfo {
 
 export class EmbeddedTerminalPane {
   private readonly buffer = new TerminalEmulatorBuffer(80, 24, EMBEDDED_PANE_SCROLLBACK_LIMIT);
+  private readonly structuredActivities = new Map<string, StructuredActivityEntry>();
+  private structuredActivityOrder: string[] = [];
+  private nextStructuredActivityId = 1;
   private lastFinalAnswer: string | null = null;
   private scrollOffset = 0;
   // Cached total renderable line count (after compact summaries are applied).
@@ -1120,6 +1298,7 @@ export class EmbeddedTerminalPane {
         cursorVisible: boolean;
         cursorGlobalRow: number;
         compactLines: EmbeddedTerminalRenderableLine[];
+        finalAnswerLineCount: number;
         lastCompactNow: number | null;
         lastRunStartedAt: number | null;
         compactRebuildCount: number;
@@ -1130,6 +1309,9 @@ export class EmbeddedTerminalPane {
 
   clear(): void {
     this.buffer.reset();
+    this.structuredActivities.clear();
+    this.structuredActivityOrder = [];
+    this.nextStructuredActivityId = 1;
     this.lastFinalAnswer = null;
     this.scrollOffset = 0;
     this.cachedTotalRows = 0;
@@ -1203,6 +1385,72 @@ export class EmbeddedTerminalPane {
     this.cachedTotalRows = this.getTotalRenderableLineCount(this.currentColumns);
   }
 
+  private appendStructuredActivity(entry: StructuredActivityEntry): void {
+    this.structuredActivities.set(entry.id, entry);
+    this.structuredActivityOrder.push(entry.id);
+    this.buffer.write(`${buildStructuredActivityMarker(entry.id)}\n`);
+  }
+
+  private createStructuredActivityEntry(classified: CodexStructuredLine): StructuredActivityEntry | null {
+    const id = String(this.nextStructuredActivityId++);
+
+    if (classified.kind === "command") {
+      const commandLine = classified.commandLine ?? "명령 준비 중";
+      const activity = classified.commandLine ? describeCommandActivity(classified.commandLine) : {
+        kind: "command" as const,
+        label: "명령 실행",
+        detail: "명령 준비 중",
+      };
+      const statusLine =
+        classified.status === "running" ? "실행 중"
+        : classified.status === "completed" ? "완료"
+        : "실패";
+      return {
+        id,
+        kind: activity.kind,
+        label: activity.label,
+        detail: activity.detail,
+        status: classified.status,
+        commandLine,
+        statusLine,
+        ...(classified.outputPreview ? { outputPreview: classified.outputPreview } : {}),
+      };
+    }
+
+    if (classified.kind === "tool" || classified.kind === "validation" || classified.kind === "git") {
+      const text = classified.text.trim();
+      const detail = text.includes(":") ? text.slice(text.indexOf(":") + 1).trim() : text;
+      const label =
+        text.startsWith("web search:") ? "웹 검색"
+        : text.startsWith("tool_search:") ? "도구 검색"
+        : text.startsWith("todo_list:") ? "할일 도구"
+        : /^mcp\b/i.test(text) ? "MCP 도구"
+        : classified.kind === "validation" ? "검증"
+        : classified.kind === "git" ? "Git"
+        : "도구 활동";
+      return {
+        id,
+        kind: classified.kind === "git" ? "git" : classified.kind === "validation" ? "test" : "tool",
+        label,
+        detail: detail.length > 0 ? detail : "진행 중",
+        status: "running",
+      };
+    }
+
+    if (classified.kind === "edit") {
+      const detail = classified.text.replace(/^Edit\s+/i, "").trim() || "파일 변경";
+      return {
+        id,
+        kind: "edit",
+        label: "Edit",
+        detail,
+        status: "completed",
+      };
+    }
+
+    return null;
+  }
+
   getTotalRenderableLineCount(maxWidth: number): number {
     if (maxWidth <= 0) {
       return 0;
@@ -1253,7 +1501,14 @@ export class EmbeddedTerminalPane {
       }
 
       if (classified) {
-        this.buffer.write(`${classified.text}\n`);
+        const structuredEntry = this.createStructuredActivityEntry(classified);
+        if (structuredEntry !== null) {
+          this.appendStructuredActivity(structuredEntry);
+          continue;
+        }
+        if ("text" in classified) {
+          this.buffer.write(`${classified.text}\n`);
+        }
         continue;
       }
 
@@ -1320,6 +1575,20 @@ export class EmbeddedTerminalPane {
     for (let index = rows.length - 1; index >= 0; index -= 1) {
       const row = rows[index];
       if (row === undefined) {
+        continue;
+      }
+
+      const structuredActivityId = parseStructuredActivityMarker(row.plainText);
+      if (structuredActivityId !== null) {
+        const structuredActivity = this.structuredActivities.get(structuredActivityId);
+        if (structuredActivity) {
+          return {
+            kind: structuredActivity.kind,
+            label: structuredActivity.label,
+            detail: structuredActivity.detail,
+            status: structuredActivity.status,
+          };
+        }
         continue;
       }
 
@@ -1394,6 +1663,10 @@ export class EmbeddedTerminalPane {
     for (let index = rows.length - 1; index >= scanStart; index -= 1) {
       const row = rows[index];
       if (row === undefined || row.plainText.length === 0) {
+        continue;
+      }
+
+      if (parseStructuredActivityMarker(row.plainText) !== null) {
         continue;
       }
 
@@ -1501,6 +1774,10 @@ export class EmbeddedTerminalPane {
     return false;
   }
 
+  private hasRunningStructuredActivity(): boolean {
+    return this.structuredActivityOrder.some((id) => this.structuredActivities.get(id)?.status === "running");
+  }
+
   private ensureRenderCache(
     maxWidth: number,
     now?: number,
@@ -1521,7 +1798,10 @@ export class EmbeddedTerminalPane {
       const previousSpinnerIndex = this.renderCache.lastRunStartedAt === null || this.renderCache.lastCompactNow === null
         ? -1
         : Math.floor(Math.max(0, this.renderCache.lastCompactNow - this.renderCache.lastRunStartedAt) / width.spinnerFrameMs) % glyph.spinnerBraille.length;
-      if (spinnerIndex === previousSpinnerIndex || !this.hasRunningExec(this.renderCache.rows)) {
+      if (
+        spinnerIndex === previousSpinnerIndex ||
+        (!this.hasRunningExec(this.renderCache.rows) && !this.hasRunningStructuredActivity())
+      ) {
         return this.renderCache;
       }
 
@@ -1533,7 +1813,13 @@ export class EmbeddedTerminalPane {
         this.renderCache.cursorGlobalRow,
         effectiveNow,
         effectiveRunStartedAt,
+        (id) => this.structuredActivities.get(id),
       );
+      const finalAnswerLines = this.lastFinalAnswer !== null
+        ? buildFinalAnswerRenderableLines(this.lastFinalAnswer, renderWidth)
+        : [];
+      this.renderCache.compactLines.push(...finalAnswerLines);
+      this.renderCache.finalAnswerLineCount = finalAnswerLines.length;
       this.renderCache.lastCompactNow = effectiveNow;
       this.renderCache.lastRunStartedAt = effectiveRunStartedAt;
       this.renderCache.compactRebuildCount += 1;
@@ -1556,7 +1842,13 @@ export class EmbeddedTerminalPane {
       cursorGlobalRow,
       effectiveNow,
       effectiveRunStartedAt,
+      (id) => this.structuredActivities.get(id),
     );
+
+    const finalAnswerLines = this.lastFinalAnswer !== null
+      ? buildFinalAnswerRenderableLines(this.lastFinalAnswer, renderWidth)
+      : [];
+    compactLines.push(...finalAnswerLines);
 
     this.renderCache = {
       width: renderWidth,
@@ -1565,6 +1857,7 @@ export class EmbeddedTerminalPane {
       cursorVisible,
       cursorGlobalRow,
       compactLines,
+      finalAnswerLineCount: finalAnswerLines.length,
       lastCompactNow: effectiveNow,
       lastRunStartedAt: effectiveRunStartedAt,
       compactRebuildCount: 1,
@@ -1602,7 +1895,19 @@ export class EmbeddedTerminalPane {
     const { compactLines } = this.ensureRenderCache(maxWidth, opts?.now, opts?.runStartedAt);
 
     const endIndex = Math.max(0, compactLines.length - Math.max(0, scrollOffset));
-    const startIndex = Math.max(0, maxRows === undefined ? 0 : endIndex - Math.max(0, maxRows));
+    const maxVisibleRows = Math.max(0, maxRows ?? 0);
+    if (
+      maxRows !== undefined &&
+      scrollOffset === 0 &&
+      this.renderCache !== null &&
+      this.renderCache.finalAnswerLineCount > maxVisibleRows &&
+      endIndex === compactLines.length
+    ) {
+      const finalBlockStartIndex = compactLines.length - this.renderCache.finalAnswerLineCount;
+      return compactLines.slice(finalBlockStartIndex, finalBlockStartIndex + maxVisibleRows);
+    }
+
+    const startIndex = Math.max(0, maxRows === undefined ? 0 : endIndex - maxVisibleRows);
 
     return compactLines.slice(startIndex, endIndex);
   }

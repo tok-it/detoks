@@ -832,7 +832,7 @@ describe.skipIf(Boolean(process.env.CI))("detoks CLI smoke", () => {
       );
 
       expect(replRun.stderr).not.toContain("ReferenceError");
-      expect(replRun.stdout).toContain("README.md");
+      expect(replRun.stdout).toContain("find .");
       expect(replRun.stdout).toContain("This directory contains the detoks CLI workspace.");
       expect(replRun.stdout).toContain("완료");
     } finally {
