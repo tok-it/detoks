@@ -552,13 +552,21 @@ const buildStructuredActivityRenderableLines = (
       });
     }
     if (entry.statusLine) {
+      const detailLineStyle =
+        entry.status === "completed" ? statusColor.success
+        : entry.status === "failed" ? statusColor.error
+        : statusColor.muted;
       lines.push({
-        text: composeIndentedLine(entry.statusLine, maxWidth, entry.status === "completed" ? statusColor.success : entry.status === "failed" ? statusColor.error : statusColor.muted),
+        text: composeIndentedLine(entry.statusLine, maxWidth, detailLineStyle),
       });
     }
     if (entry.outputPreview) {
       lines.push({
-        text: composeIndentedLine(entry.outputPreview, maxWidth, statusColor.muted),
+        text: composeIndentedLine(
+          entry.outputPreview,
+          maxWidth,
+          statusColor.muted,
+        ),
       });
     }
     return lines;
@@ -1146,6 +1154,18 @@ const buildCompactRenderableLines = (
               text: composeIndentedLine(statusLineText, maxWidth, execStatus === "completed" ? statusColor.success : statusColor.error),
             });
           }
+          const statusLineIndex = commandBlock.findIndex((r, i) => i >= 2 && isCommandStatusLine(r.plainText));
+          const rawPreviewLine = statusLineIndex >= 0
+            ? commandBlock
+              .slice(statusLineIndex + 1)
+              .map((entry) => entry.plainText.trim())
+              .find((line) => line.length > 0)
+            : undefined;
+          if (rawPreviewLine) {
+            output.push({
+              text: composeIndentedLine(rawPreviewLine, maxWidth, statusColor.muted),
+            });
+          }
           index = cursor;
           continue;
         }
@@ -1404,6 +1424,7 @@ export class EmbeddedTerminalPane {
         label: "명령 실행",
         detail: "명령 준비 중",
       };
+      const normalizedPreview = classified.outputPreview?.trim();
       const statusLine =
         classified.status === "running" ? "실행 중"
         : classified.status === "completed" ? "완료"
@@ -1416,7 +1437,7 @@ export class EmbeddedTerminalPane {
         status: classified.status,
         commandLine,
         statusLine,
-        ...(classified.outputPreview ? { outputPreview: classified.outputPreview } : {}),
+        ...(normalizedPreview ? { outputPreview: normalizedPreview } : {}),
       };
     }
 
