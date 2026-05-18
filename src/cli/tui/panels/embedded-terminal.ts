@@ -931,7 +931,7 @@ const buildCompactRenderableLines = (
       }
 
       let statusIndex = -1;
-      for (let lookahead = 2; lookahead < Math.min(rows.length - index, 8); lookahead += 1) {
+      for (let lookahead = 2; lookahead < Math.min(rows.length - index, 50); lookahead += 1) {
         const candidate = rows[index + lookahead];
         if (candidate !== undefined && isCommandStatusLine(candidate.plainText)) {
           commandBlock.push(candidate);
@@ -1279,7 +1279,7 @@ export class EmbeddedTerminalPane {
         }
 
         let statusLine: string | null = null;
-        for (let lookahead = index + 2; lookahead < Math.min(rows.length, index + 10); lookahead += 1) {
+        for (let lookahead = index + 2; lookahead < Math.min(rows.length, index + 50); lookahead += 1) {
           const candidate = rows[lookahead]?.plainText ?? "";
           if (isCommandStatusLine(candidate)) {
             statusLine = candidate;
@@ -1435,7 +1435,7 @@ export class EmbeddedTerminalPane {
       }
 
       let hasStatusLine = false;
-      for (let lookahead = index + 2; lookahead < Math.min(rows.length, index + 8); lookahead += 1) {
+      for (let lookahead = index + 2; lookahead < Math.min(rows.length, index + 50); lookahead += 1) {
         if (isCommandStatusLine(rows[lookahead]?.plainText ?? "")) {
           hasStatusLine = true;
           break;
