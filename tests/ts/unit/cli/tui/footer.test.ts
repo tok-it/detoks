@@ -26,12 +26,13 @@ describe("footer text", () => {
       inferenceStrength: "medium",
       tokenSavings: "tok -18%",
       cwd: "/Users/choi/Desktop/workspace/detoks",
+      branch: "dev",
     });
 
     expect(footer.startsWith(" ")).toBe(true);
     expect(footer.endsWith(" ")).toBe(true);
     expect(footer.trim()).toBe(
-      "codex | gpt-5.4-mini | medium | tok -18% | /Users/choi/Desktop/workspace/detoks",
+      "codex | gpt-5.4-mini | medium | tok -18% | /Users/choi/Desktop/workspace/detoks(dev)",
     );
     expect(getDisplayWidth(footer)).toBe(120);
   });
@@ -43,11 +44,24 @@ describe("footer text", () => {
       inferenceStrength: "medium",
       tokenSavings: "tok -18%",
       cwd: "/Users/choi/Desktop/workspace/detoks",
+      branch: "dev",
     });
 
     expect(getDisplayWidth(footer)).toBe(60);
     expect(footer.startsWith(" ")).toBe(true);
     expect(footer.endsWith(" ")).toBe(true);
-    expect(footer.trim()).toBe("codex | tok -18% | /Users/choi/Desktop/workspace/detoks");
+    expect(footer.trim()).toBe("codex | tok -18% | …ers/choi/Desktop/workspace/detoks(dev)");
+  });
+
+  it("shows detached head when provided", () => {
+    const footer = buildFooterText(120, {
+      adapter: "codex",
+      cwd: "/Users/choi/Desktop/workspace/detoks",
+      branch: "detached@abc12345",
+    });
+
+    expect(footer.trim()).toBe(
+      "codex | /Users/choi/Desktop/workspace/detoks(detached@abc12345)",
+    );
   });
 });
