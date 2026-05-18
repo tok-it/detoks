@@ -174,6 +174,22 @@ const APPROVAL_PROMPT_HINT_PATTERNS = [
   /\bcontinue\b/i,
 ] as const;
 
+// Stricter y/n patterns used for multi-row approval detection to reduce false positives.
+const APPROVAL_STRICT_HINT_PATTERNS = [
+  /\by\/n\b/i,
+  /\byes\/no\b/i,
+  /\[y\/n\]/i,
+  /\[y\/N\]/i,
+] as const;
+
+// Matches lines that consist only of box-drawing / border characters + whitespace.
+// These decorative rows (e.g. "╰──────────╯") appear at the edges of codex approval
+// dialogs and should be skipped rather than treated as meaningful content.
+const DECORATIVE_LINE_RE = /^[\s╭╮╰╯─│┌┐└┘├┤┬┴┼╔╗╚╝═║╠╣╦╩╬▲▼◀▶•·\-━┅┄━─]+$/u;
+
+const isDecorativeLine = (text: string): boolean =>
+  text.length > 0 && DECORATIVE_LINE_RE.test(text);
+
 interface RenderedRowInfo {
   cells: TerminalCell[];
   plainText: string;
@@ -1310,7 +1326,21 @@ export class EmbeddedTerminalPane {
     }
 
     const { rows } = this.ensureRenderCache(Math.max(1, maxWidth));
-    for (let index = rows.length - 1; index >= 0; index -= 1) {
+
+    // Codex may render approval dialogs across multiple rows (e.g. a box UI with a border row
+    // at the bottom). Scan up to 8 rows from the bottom:
+    //   • Decorative border rows (╰──╯) are skipped so they don't break the scan.
+    //   • Single-line approval is detected immediately and returned.
+    //   • Verb and strict-hint are accumulated across rows for multi-row dialogs.
+    //   • The first non-decorative row that has neither a verb nor a strict hint stops
+    //     the scan — it means meaningful non-approval output appeared (approval resolved).
+    const APPROVAL_SCAN_WINDOW = 8;
+    const scanStart = Math.max(0, rows.length - APPROVAL_SCAN_WINDOW);
+
+    let approvalVerbLine: string | undefined;
+    let hasStrictHint = false;
+
+    for (let index = rows.length - 1; index >= scanStart; index -= 1) {
       const row = rows[index];
       if (row === undefined || row.plainText.length === 0) {
         continue;
@@ -1320,6 +1350,12 @@ export class EmbeddedTerminalPane {
         continue;
       }
 
+      // Purely decorative border lines (e.g. "╰──────╯") do not break the scan
+      if (isDecorativeLine(row.plainText)) {
+        continue;
+      }
+
+      // Single-line approval (fastest path)
       if (isApprovalPromptLine(row.plainText)) {
         return {
           kind: "approval",
@@ -1328,7 +1364,31 @@ export class EmbeddedTerminalPane {
         };
       }
 
-      return null;
+      // Accumulate verb / strict hint for multi-row dialog detection
+      const lineHasVerb = APPROVAL_PROMPT_PATTERNS.some((p) => p.test(row.plainText));
+      const lineHasStrictHint = APPROVAL_STRICT_HINT_PATTERNS.some((p) => p.test(row.plainText));
+
+      if (lineHasVerb && approvalVerbLine === undefined) {
+        approvalVerbLine = row.plainText;
+      }
+      if (lineHasStrictHint) {
+        hasStrictHint = true;
+      }
+
+      // Stop at the first meaningful row that is unrelated to approval —
+      // subsequent output means the approval was already resolved.
+      if (!lineHasVerb && !lineHasStrictHint) {
+        break;
+      }
+    }
+
+    // Multi-row approval: verb on one row, [y/n] hint on another
+    if (approvalVerbLine !== undefined && hasStrictHint) {
+      return {
+        kind: "approval",
+        label: "Codex 승인 대기",
+        detail: approvalVerbLine,
+      };
     }
 
     return null;
