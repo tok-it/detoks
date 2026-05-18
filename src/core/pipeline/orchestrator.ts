@@ -1397,23 +1397,15 @@ export const orchestratePipeline = async (
         }
 
         // (6) LLM 실행
-        // embedded-pane: codex exec은 단순 작업 설명만 기대 — 구조화된 템플릿은 모델을 혼란시킴.
-        // 다른 모드: 번역된 원본 명령 + RAG 컨텍스트 + 태스크 정보 포함.
-        let prompt: string;
-        if (request.presentationMode === "embedded-pane") {
-          // 한국어 입력이면 응답 언어 지시를 앞에 붙여 codex가 한국어로 응답하도록 한다.
-          prompt = responseLanguageInstruction
-            ? `${responseLanguageInstruction}${compiledPrompt.compressed_prompt}`
-            : compiledPrompt.compressed_prompt;
-        } else {
-          const promptParts: string[] = [];
-          if (responseLanguageInstruction) promptParts.push(responseLanguageInstruction.trimEnd());
-          if (ragContext) promptParts.push(ragContext.trimEnd());
-          promptParts.push(`[${task.type.toUpperCase()}] ${task.title}`);
-          promptParts.push(`User request: ${compiledPrompt.compressed_prompt}`);
-          promptParts.push(`Context: ${executionContext.context_summary}`);
-          prompt = promptParts.join("\n\n");
-        }
+        // 모든 presentation mode에서 task-specific 지시를 유지한다.
+        // embedded-pane도 원본 프롬프트만 넘기면 여러 task가 같은 일을 반복할 수 있다.
+        const promptParts: string[] = [];
+        if (responseLanguageInstruction) promptParts.push(responseLanguageInstruction.trimEnd());
+        if (ragContext) promptParts.push(ragContext.trimEnd());
+        promptParts.push(`[${task.type.toUpperCase()}] ${task.title}`);
+        promptParts.push(`User request: ${compiledPrompt.compressed_prompt}`);
+        promptParts.push(`Context: ${executionContext.context_summary}`);
+        const prompt = promptParts.join("\n\n");
         if (process.env.DETOKS_DEBUG_ADAPTER_PROMPT === "1") {
           process.stderr.write(
             `[adapter-prompt] task=${task.id} type=${task.type} bytes=${Buffer.byteLength(prompt, "utf8")}\n` +

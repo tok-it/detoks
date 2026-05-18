@@ -458,7 +458,60 @@ describe("orchestratePipeline", () => {
     expect(executeWithAdapterMock).toHaveBeenCalledWith(
       expect.objectContaining({
         presentationMode: "embedded-pane",
-        prompt: "Respond entirely in Korean.\n\nCreate a new file",
+        prompt: expect.stringContaining("[CREATE] Create a new file"),
+      }),
+    );
+    expect(executeWithAdapterMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        prompt: expect.stringContaining("Respond entirely in Korean."),
+      }),
+    );
+    expect(executeWithAdapterMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        prompt: expect.stringContaining("User request: Create a new file"),
+      }),
+    );
+  });
+
+  it("keeps task-specific instructions in embedded-pane execution", async () => {
+    nodeRuntimeMocks.completeChatWithNodeLlamaCpp.mockResolvedValueOnce({
+      content: "Find the module. Analyze the flow.",
+      raw_response: {
+        choices: [{ message: { content: "Find the module. Analyze the flow." } }],
+      },
+      inference_time_sec: 0.01,
+    });
+    executeWithAdapterMock.mockResolvedValue({
+      ok: true,
+      adapter: "codex",
+      rawOutput: "[mock-embedded]",
+      exitCode: 0,
+    });
+
+    await orchestratePipeline({
+      mode: "run",
+      adapter: "codex",
+      executionMode: "stub",
+      verbose: false,
+      presentationMode: "embedded-pane",
+      userRequest: {
+        raw_input: "Find the module. Analyze the flow.",
+      },
+    });
+
+    expect(executeWithAdapterMock).toHaveBeenCalledTimes(2);
+    expect(executeWithAdapterMock).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        presentationMode: "embedded-pane",
+        prompt: expect.stringContaining("[EXPLORE] Find the module."),
+      }),
+    );
+    expect(executeWithAdapterMock).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        presentationMode: "embedded-pane",
+        prompt: expect.stringContaining("[ANALYZE] Analyze the flow."),
       }),
     );
   });
