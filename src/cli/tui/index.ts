@@ -522,7 +522,7 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
       const lines: string[] = [];
 
       if (promptText === null) {
-        lines.push(buildSectionDivider("Sticky Prompt", width));
+        lines.push(buildSectionDivider("현재 지시문", width));
         lines.push(
           ...buildWrappedBlock(
             [hasExecuted ? "최근 실행 결과를 준비하는 중입니다." : "첫 프롬프트를 입력하세요."],
@@ -534,7 +534,7 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
         return lines.slice(0, getEmbeddedStickyRows());
       }
 
-      lines.push(buildSectionDivider("Sticky Prompt", width));
+      lines.push(buildSectionDivider("현재 지시문", width));
       lines.push(
         ...buildWrappedBlock(promptText.split("\n"), width, "> ").slice(0, Math.max(0, getEmbeddedStickyRows() - 2)),
       );

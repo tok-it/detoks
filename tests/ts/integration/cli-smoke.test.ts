@@ -775,7 +775,7 @@ describe.skipIf(Boolean(process.env.CI))("detoks CLI smoke", () => {
 
       expect(replRun.stderr).not.toContain("ReferenceError");
       expect(replRun.stdout).toContain("hello detoks");
-      expect(replRun.stdout).toContain("Sticky Prompt");
+      expect(replRun.stdout).toContain("현재 지시문");
       expect(replRun.stdout).toContain("실행 확인 대기");
       expect(replRun.stdout).toContain("실행 중");
       expect(replRun.stdout).toContain("완료");
@@ -804,7 +804,7 @@ describe.skipIf(Boolean(process.env.CI))("detoks CLI smoke", () => {
       expect(replRun.stderr).not.toContain("ReferenceError");
       expect(replRun.stdout).toContain("hello detoks");
       expect(replRun.stdout).toContain("hello again");
-      expect(replRun.stdout).toContain("Sticky Prompt");
+      expect(replRun.stdout).toContain("현재 지시문");
       expect(replRun.stdout).toContain("실행 중");
       expect(replRun.stdout).toContain("완료");
     } finally {
