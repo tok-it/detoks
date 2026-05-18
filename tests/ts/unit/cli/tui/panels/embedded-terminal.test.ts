@@ -43,6 +43,53 @@ describe("EmbeddedTerminalPane", () => {
     expect(output).toContain("world");
   });
 
+  it("tracks appended final answers for embedded fallback dedupe", () => {
+    expect(pane.hasFinalAnswer()).toBe(false);
+    expect(pane.getLastFinalAnswer()).toBeNull();
+
+    pane.appendFinalAnswer("final answer");
+
+    expect(pane.hasFinalAnswer()).toBe(true);
+    expect(pane.getLastFinalAnswer()).toBe("final answer");
+  });
+
+  it("extracts final answers from codex json events", () => {
+    pane.addEvent({
+      type: "chunk",
+      timestamp: Date.now(),
+      stream: "stdout",
+      data: "{\"type\":\"item.completed\",\"item\":{\"type\":\"assistant_message\",\"text\":\"Detoks is the CLI workspace.\"}}\n",
+    });
+
+    expect(pane.getLastFinalAnswer()).toBe("Detoks is the CLI workspace.");
+    const output = pane.getRenderableLines(120).map((line) => line.text).join("\n");
+    expect(output).toContain("Detoks is the CLI workspace.");
+  });
+
+  it("does not render codex lifecycle json lines in the embedded pane", () => {
+    pane.addEvent({
+      type: "chunk",
+      timestamp: Date.now(),
+      stream: "stdout",
+      data: "{\"type\":\"turn.started\"}\n",
+    });
+
+    const output = pane.getRenderableLines(120).map((line) => line.text).join("\n");
+    expect(output).not.toContain("turn.started");
+  });
+
+  it("drops ansi-prefixed lifecycle json lines in the embedded pane", () => {
+    pane.addEvent({
+      type: "chunk",
+      timestamp: Date.now(),
+      stream: "stdout",
+      data: "\u001b[2m{\"type\":\"thread.started\"}\u001b[0m\n",
+    });
+
+    const output = pane.getRenderableLines(120).map((line) => line.text).join("\n");
+    expect(output).not.toContain("thread.started");
+  });
+
   it("renders Korean wide characters without placeholder spacing", () => {
     pane.addEvent({
       type: "chunk",

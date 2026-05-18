@@ -200,10 +200,13 @@ describe("adapter subprocess path", () => {
         "/tmp",
         "--model",
         "gpt-5",
+        "--json",
         "-",
         "--sandbox",
         "workspace-write",
         "--skip-git-repo-check",
+        "--output-last-message",
+        expect.stringMatching(/last-message\.txt$/),
       ],
         cwd: "/tmp",
         env: {
@@ -211,6 +214,7 @@ describe("adapter subprocess path", () => {
         },
         input: "",
       interactiveAfterInput: true,
+      outputLastMessagePath: expect.stringMatching(/last-message\.txt$/),
     });
   });
 

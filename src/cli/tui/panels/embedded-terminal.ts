@@ -5,6 +5,13 @@ import { getContentArea } from "../layout-manager.js";
 import { padDisplayWidth } from "../renderer.js";
 import { fillRemaining } from "./base.js";
 import { glyph, statusColor, width, type Style } from "../design/tokens.js";
+import {
+  classifyCodexJsonLine,
+  hasCodexJsonCandidate,
+  sanitizeCodexText,
+  shouldDropLifecycleJsonLine,
+  shouldIgnoreCodexNoiseLine,
+} from "./codex-json.js";
 import type { TerminalCell, TerminalCellStyle, TerminalColor } from "../terminal-emulator.js";
 import { TerminalEmulatorBuffer, getCharacterDisplayWidth } from "../terminal-emulator.js";
 
@@ -1080,6 +1087,7 @@ export interface EmbeddedTerminalViewportTrackingInfo {
 
 export class EmbeddedTerminalPane {
   private readonly buffer = new TerminalEmulatorBuffer(80, 24, EMBEDDED_PANE_SCROLLBACK_LIMIT);
+  private lastFinalAnswer: string | null = null;
   private scrollOffset = 0;
   // Cached total renderable line count (after compact summaries are applied).
   // Mark dirty on writes and rebuild lazily during render/scroll queries so
@@ -1106,6 +1114,7 @@ export class EmbeddedTerminalPane {
 
   clear(): void {
     this.buffer.reset();
+    this.lastFinalAnswer = null;
     this.scrollOffset = 0;
     this.cachedTotalRows = 0;
     this.currentColumns = 80;
@@ -1205,19 +1214,61 @@ export class EmbeddedTerminalPane {
       return;
     }
 
-    this.buffer.write(event.data);
+    const normalized = event.data.replace(/\r\n/g, "\n");
+    const lines = normalized.split("\n");
+    const shouldTreatAsStructured = lines.some((line) => hasCodexJsonCandidate(line));
+
+    if (!shouldTreatAsStructured) {
+      this.buffer.write(event.data);
+      this.markRenderCacheDirty();
+      this.scrollOffset = 0;
+      return;
+    }
+
+    for (const line of lines) {
+      if (line.length === 0 || shouldIgnoreCodexNoiseLine(line) || shouldDropLifecycleJsonLine(line)) {
+        continue;
+      }
+
+      const classified = classifyCodexJsonLine(line);
+      if (classified?.kind === "final") {
+        this.appendFinalAnswer(classified.text);
+        continue;
+      }
+
+      if (classified) {
+        this.buffer.write(`${classified.text}\n`);
+        continue;
+      }
+
+      const sanitized = sanitizeCodexText(line);
+      if (sanitized.trim().length > 0) {
+        this.buffer.write(`${sanitized}\n`);
+      }
+    }
+
     this.markRenderCacheDirty();
     this.scrollOffset = 0;
   }
 
   appendFinalAnswer(text: string): void {
-    if (text.trim().length === 0) {
+    const normalized = text.trim();
+    if (normalized.length === 0) {
       return;
     }
 
     this.buffer.write(text.endsWith("\n") ? text : `${text}\n`);
+    this.lastFinalAnswer = normalized;
     this.markRenderCacheDirty();
     this.scrollOffset = 0;
+  }
+
+  hasFinalAnswer(): boolean {
+    return this.lastFinalAnswer !== null;
+  }
+
+  getLastFinalAnswer(): string | null {
+    return this.lastFinalAnswer;
   }
 
   hasVisibleContent(): boolean {

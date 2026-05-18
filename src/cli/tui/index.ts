@@ -1991,18 +1991,16 @@ dirtyPanels.pipeline = true;
           );
         }
 
-        const hasVisibleOutput = embeddedPaneMode
-          ? embeddedTerminalPane.hasVisibleContent()
-          : transcriptPanel.hasVisibleContent();
-        if (!hasVisibleOutput) {
-          const finalOutput = result.rawOutput.trim();
-          if (finalOutput.length > 0) {
-            if (embeddedPaneMode) {
-              embeddedTerminalPane.appendFinalAnswer(finalOutput);
-            } else {
-              transcriptPanel.appendFinalAnswer(finalOutput);
-            }
+        const finalOutput = result.rawOutput.trim();
+        if (embeddedPaneMode) {
+          if (
+            finalOutput.length > 0 &&
+            embeddedTerminalPane.getLastFinalAnswer() !== finalOutput
+          ) {
+            embeddedTerminalPane.appendFinalAnswer(finalOutput);
           }
+        } else if (!transcriptPanel.hasVisibleContent() && finalOutput.length > 0) {
+          transcriptPanel.appendFinalAnswer(finalOutput);
         }
 
         const workspaceAfter = captureWorkspaceSnapshot(executionCwd);
