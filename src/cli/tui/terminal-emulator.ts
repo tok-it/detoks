@@ -710,6 +710,17 @@ export class TerminalEmulatorBuffer {
     }
 
     if (sequence === "\u001b[?1049l") {
+      // Flush non-blank alternate screen rows to scrollback so codex's TUI
+      // output survives the screen switch (otherwise the content is discarded).
+      const altRows = this.alternateScreenBuffer;
+      let lastNonBlank = altRows.length - 1;
+      while (lastNonBlank >= 0 && altRows[lastNonBlank]!.every((cell) => cell.char.length === 0)) {
+        lastNonBlank -= 1;
+      }
+      for (let i = 0; i <= lastNonBlank; i += 1) {
+        this.pushScrollback(altRows[i]!);
+      }
+
       this.alternateScreen = false;
       if (this.savedMainState) {
         this.mainScreen = this.savedMainState.screen.map((row) => cloneRow(row, this.columns));
