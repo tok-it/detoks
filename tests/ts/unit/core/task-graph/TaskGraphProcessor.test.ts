@@ -178,6 +178,41 @@ describe("TaskGraphProcessor", () => {
   });
 
   describe("multi 요청 — sequential 흐름", () => {
+    it("단일 산출물 요청의 컨텍스트 문장들은 하나의 create task로 병합한다", () => {
+      const result = TaskGraphProcessor.process({
+        sentences: [
+          "Next week prepare for the Hyundai IT team meeting.",
+          "From the perspective of AI PC adoption, focus on the advantages of Intel vPro and Core Ultra.",
+          "Create a presentation structure for 15 covering customer concerns, anticipated questions, key points compared to competitors, and reflect any content from the previous meeting.",
+        ],
+      });
+
+      expect(result.tasks).toHaveLength(1);
+      expect(result.tasks[0]).toMatchObject({
+        id: "t1",
+        type: "create",
+        depends_on: [],
+        title: "Next week prepare for the Hyundai IT team meeting. From the perspective of AI PC adoption, focus on the advantages of Intel vPro and Core Ultra. Create a presentation structure for 15 covering customer concerns, anticipated questions, key points compared to competitors, and reflect any content from the previous meeting.",
+      });
+    });
+
+    it("명시적인 선행 작업이 있는 산출물 요청은 병합하지 않는다", () => {
+      const result = TaskGraphProcessor.process({
+        sentences: [
+          "Fetch last month's sales data from the database",
+          "Analyze the differences",
+          "Create a visualization chart",
+        ],
+      });
+
+      expect(result.tasks).toHaveLength(3);
+      expect(result.tasks.map((task) => task.type)).toEqual([
+        "execute",
+        "analyze",
+        "create",
+      ]);
+    });
+
     it("explore → analyze → modify 흐름은 순차 의존을 생성한다", () => {
       const result = TaskGraphProcessor.process({
         sentences: [
