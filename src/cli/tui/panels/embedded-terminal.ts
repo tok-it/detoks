@@ -1510,18 +1510,22 @@ export class EmbeddedTerminalPane {
     }
 
     const normalized = event.data.replace(/\r\n/g, "\n");
-    const lines = normalized.split("\n");
+    const rawLines = normalized.split("\n");
+    const lines =
+      event.stream === "stderr"
+        ? rawLines.filter((line) => line.length > 0 && !shouldIgnoreCodexNoiseLine(line))
+        : rawLines;
+    const filteredData =
+      event.stream === "stderr"
+        ? `${lines.join("\n")}${normalized.endsWith("\n") && lines.length > 0 ? "\n" : ""}`
+        : event.data;
     const shouldTreatAsStructured = lines.some((line) => hasCodexJsonCandidate(line));
-    const shouldIgnoreAsNoise =
-      event.stream === "stderr" &&
-      lines.every((line) => line.length === 0 || shouldIgnoreCodexNoiseLine(line));
-
-    if (shouldIgnoreAsNoise) {
+    if (event.stream === "stderr" && lines.length === 0) {
       return;
     }
 
     if (!shouldTreatAsStructured) {
-      this.buffer.write(event.data);
+      this.buffer.write(filteredData);
       this.markRenderCacheDirty();
       this.scrollOffset = 0;
       return;

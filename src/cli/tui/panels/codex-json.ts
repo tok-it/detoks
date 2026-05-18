@@ -26,7 +26,7 @@ const CODEX_STDERR_NOISE_PATTERNS = [
   /^\[EXECUTE\]/,
   /^Context:/,
   /^tokens used/,
-  /^.*error-write_stdin failed: stdin is closed for this session\b/i,
+  /^.*error[=-]write_stdin failed: stdin is closed for this session\b/i,
   /^.*rerun exec_command with tty=true to keep stdin open\b/i,
 ] as const;
 
