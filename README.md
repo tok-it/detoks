@@ -4,16 +4,20 @@
   <a href="./README.en.md">English</a> | <a href="./README.ko.md">한국어</a>
 </p>
 
-detoks는 `codex`, `gemini`, `claude` 같은 LLM CLI 앞단에서 동작하는 **interactive wrapper CLI**입니다.
-입력, 컨텍스트, 세션, 실행 경계를 정리해 **LLM CLI 작업 흐름을 더 안정적이고 재현 가능하게** 만드는 것이 목표입니다.
+---
 
 ## 🔔 업데이트 안내
 
-최신 버전으로 업데이트하세요.
+`claude` 어댑터가 포함된 새 버전을 사용하려면, 설치된 detoks를 최신 릴리스로 업데이트하세요.
 
+- 전역 설치: `npm install -g @sorlros/detoks@latest`
 - 전역 업데이트: `npm update -g @sorlros/detoks`
-- 전역 재설치: `npm install -g @sorlros/detoks@latest`
-- 로컬 업데이트: `npm install @sorlros/detoks@latest`
+- 로컬 설치: `npm install @sorlros/detoks@latest`
+
+새 기능과 변경점은 GitHub Releases 또는 릴리스 노트에서 함께 안내하는 것을 권장합니다.
+
+detoks는 `codex`, `gemini`, `claude` 같은 LLM CLI 앞단에서 동작하는 **interactive wrapper CLI**입니다.
+입력, 컨텍스트, 세션, 실행 경계를 정리해 **LLM CLI 작업 흐름을 더 안정적이고 재현 가능하게** 만드는 것이 목표입니다.
 
 <p align="center">
   <img src="./content.png" alt="detoks preview" width="720" />
