@@ -47,7 +47,7 @@ import { ProjectMemory } from "../rag/project-memory.js";
 import { WorkflowGeneralizer } from "../rag/workflow-generalizer.js";
 import { CrossProjectStore } from "../rag/cross-project-store.js";
 import type { PtyTranscript } from "../../integrations/subprocess/types.js";
-import type { RequestCategory, SessionState, Task } from "../../schemas/pipeline.js";
+import type { RequestCategory, SessionState, Task, TaskGraph } from "../../schemas/pipeline.js";
 import type {
   Adapter,
   PipelineProgressEvent,
@@ -247,6 +247,53 @@ function applyProjectInfo(
   }
 
   return state;
+}
+
+function isSameSessionTurn(
+  state: SessionState,
+  rawInput: string,
+): boolean {
+  return (state.shared_context.raw_input as string | undefined)?.trim() === rawInput.trim();
+}
+
+function inferNextTurnIndex(state: SessionState): number {
+  const ids = new Set<string>([
+    ...(state.completed_task_ids ?? []),
+    ...Object.keys(state.task_results ?? {}),
+  ]);
+  let maxTurn = 1;
+  for (const id of ids) {
+    const turnMatch = /^turn(\d+)_/.exec(id);
+    if (turnMatch) {
+      maxTurn = Math.max(maxTurn, Number(turnMatch[1]));
+      continue;
+    }
+    if (/^t\d+$/.test(id)) {
+      maxTurn = Math.max(maxTurn, 1);
+    }
+  }
+  return maxTurn + 1;
+}
+
+function namespaceTaskGraphForTurn(
+  graph: TaskGraph,
+  turnIndex: number,
+): TaskGraph {
+  const prefix = `turn${turnIndex}_`;
+  return {
+    ...graph,
+    tasks: graph.tasks.map((task) => {
+      const taskId = String(task.id);
+      const dependsOn = Array.isArray(task.depends_on)
+        ? task.depends_on.map((depId) => `${prefix}${String(depId)}`)
+        : [];
+      return {
+        ...task,
+        id: `${prefix}${taskId}`,
+        depends_on: dependsOn,
+      };
+    }),
+  };
 }
 
 // RAG 메타데이터: Task 객체에서 task_results에 보존할 필드만 추출
@@ -903,7 +950,7 @@ export const orchestratePipeline = async (
   const compiledSentences = TaskSentenceSplitter.split(role2PromptInput.compiled_prompt);
   const rawGraph = TaskGraphProcessor.process(compiledSentences);
   const adapterModel = request.env?.ADAPTER_MODEL ?? process.env.ADAPTER_MODEL ?? "";
-  const graph = {
+  let graph = {
     ...rawGraph,
     tasks: rawGraph.tasks.map((task) => ({
       ...task,
@@ -924,7 +971,7 @@ export const orchestratePipeline = async (
   });
 
   // ── Step 3: DAG 검증 (Role 2.1 — 1차 검증) ───────────────────────────────
-  const validation = DAGValidator.validate(graph);
+  let validation = DAGValidator.validate(graph);
   await PipelineTracer.trace({
     sessionId, stage: "DAGValidator", role: "role2.1", phase: "output",
     dataType: "DAGValidationResult", data: validation,
@@ -968,7 +1015,7 @@ export const orchestratePipeline = async (
   }
 
   // ── Step 4: 의존성 해결 + stage 분류 (Role 2.1) ───────────────────────────
-  const resolution = DependencyResolver.resolve(graph, validation);
+  let resolution = DependencyResolver.resolve(graph, validation);
   await PipelineTracer.trace({
     sessionId, stage: "DependencyResolver", role: "role2.1", phase: "output",
     dataType: "DependencyResolution", data: {
@@ -985,7 +1032,7 @@ export const orchestratePipeline = async (
       })),
     },
   });
-  const { stages } = ParallelClassifier.classify(resolution);
+  let { stages } = ParallelClassifier.classify(resolution);
   await PipelineTracer.trace({
     sessionId, stage: "ParallelClassifier", role: "role2.1", phase: "output",
     dataType: "ParallelClassification", data: {
@@ -1027,15 +1074,20 @@ export const orchestratePipeline = async (
   let state: SessionState;
   const taskRecords: TaskExecutionRecord[] = [];
   const failedTaskIds = new Set<string>();
+  let sameSessionTurn = false;
 
   if (await SessionStateManager.sessionExists(sessionId, request.userRequest.cwd)) {
     logger.info(`기존 세션을 불러옵니다: ${sessionId}`);
     state = await SessionStateManager.loadSession(sessionId, request.userRequest.cwd);
-    const resolvedRawInput =
-      typeof state.shared_context.raw_input === "string" &&
-      state.shared_context.raw_input.trim().length > 0
-        ? state.shared_context.raw_input
-        : request.userRequest.raw_input;
+    sameSessionTurn = isSameSessionTurn(state, request.userRequest.raw_input);
+    const resolvedRawInput = sameSessionTurn
+      ? (
+          typeof state.shared_context.raw_input === "string" &&
+          state.shared_context.raw_input.trim().length > 0
+            ? state.shared_context.raw_input
+            : request.userRequest.raw_input
+        )
+      : request.userRequest.raw_input;
     state = {
       ...state,
       shared_context: {
@@ -1046,11 +1098,23 @@ export const orchestratePipeline = async (
         ...(request.executionMode !== "stub"
           ? { raw_input_hash: state.shared_context.raw_input_hash ?? hashRawInput(resolvedRawInput) }
           : {}),
+        ...(!sameSessionTurn ? { failed_task_ids: [] } : {}),
       },
+      ...(!sameSessionTurn ? { current_task_id: null } : {}),
     };
     // 이전에 실패한 작업들을 failedTaskIds에 추가하여 의존성 차단 로직이 작동하게 함
-    const loadedFailedIds = (state.shared_context.failed_task_ids as string[]) || [];
-    loadedFailedIds.forEach((id) => failedTaskIds.add(id));
+    if (sameSessionTurn) {
+      const loadedFailedIds = (state.shared_context.failed_task_ids as string[]) || [];
+      loadedFailedIds.forEach((id) => failedTaskIds.add(id));
+    } else if (state.completed_task_ids.length > 0 || Object.keys(state.task_results ?? {}).length > 0) {
+      graph = namespaceTaskGraphForTurn(graph, inferNextTurnIndex(state));
+      validation = DAGValidator.validate(graph);
+      if (!validation.valid) {
+        throw new Error(`Namespaced task graph validation failed: ${validation.reason}`);
+      }
+      resolution = DependencyResolver.resolve(graph, validation);
+      ({ stages } = ParallelClassifier.classify(resolution));
+    }
   } else {
     state = initSessionState(sessionId, request.userRequest.raw_input, request.executionMode, {
       adapter: request.adapter,
@@ -1431,15 +1495,38 @@ export const orchestratePipeline = async (
         }
 
         // (6) LLM 실행
-        // 모든 presentation mode에서 task-specific 지시를 유지한다.
-        // embedded-pane도 원본 프롬프트만 넘기면 여러 task가 같은 일을 반복할 수 있다.
-        const promptParts: string[] = [];
-        if (responseLanguageInstruction) promptParts.push(responseLanguageInstruction.trimEnd());
-        if (ragContext) promptParts.push(ragContext.trimEnd());
-        promptParts.push(`[${task.type.toUpperCase()}] ${task.title}`);
-        promptParts.push(`User request: ${compiledPrompt.compressed_prompt}`);
-        promptParts.push(`Context: ${executionContext.context_summary}`);
-        const prompt = promptParts.join("\n\n");
+        // embedded-pane: codex exec은 단순 작업 설명만 기대 — 구조화된 템플릿은 모델을 혼란시킴.
+        // 다른 모드: 번역된 원본 명령 + RAG 컨텍스트 + 태스크 정보 포함.
+        let prompt: string;
+        if (request.presentationMode === "embedded-pane") {
+          const embeddedContextSummary = executionContext.context_summary ?? "";
+          const hasUsableSessionContext =
+            embeddedContextSummary.trim().length > 0 &&
+            embeddedContextSummary.trim() !== "No previous task context available.";
+          const supplementalContext: string[] = [];
+          if (ragContext) {
+            supplementalContext.push(ragContext.trimEnd());
+          }
+          if (hasUsableSessionContext) {
+            supplementalContext.push(`Previous session context:\n${embeddedContextSummary}`);
+          }
+
+          const promptParts: string[] = [];
+          if (responseLanguageInstruction) promptParts.push(responseLanguageInstruction.trimEnd());
+          promptParts.push(compiledPrompt.compressed_prompt);
+          if (supplementalContext.length > 0) {
+            promptParts.push(`Use the following context if it helps:\n\n${supplementalContext.join("\n\n")}`);
+          }
+          prompt = promptParts.join("\n\n");
+        } else {
+          const promptParts: string[] = [];
+          if (responseLanguageInstruction) promptParts.push(responseLanguageInstruction.trimEnd());
+          if (ragContext) promptParts.push(ragContext.trimEnd());
+          promptParts.push(`[${task.type.toUpperCase()}] ${task.title}`);
+          promptParts.push(`User request: ${compiledPrompt.compressed_prompt}`);
+          promptParts.push(`Context: ${executionContext.context_summary}`);
+          prompt = promptParts.join("\n\n");
+        }
         if (process.env.DETOKS_DEBUG_ADAPTER_PROMPT === "1") {
           process.stderr.write(
             `[adapter-prompt] task=${task.id} type=${task.type} bytes=${Buffer.byteLength(prompt, "utf8")}\n` +
@@ -1587,57 +1674,69 @@ export const orchestratePipeline = async (
     void contributeToCrossProject(state, request.adapter).catch(() => undefined);
   }
 
+  const shouldBackgroundRagIndexing =
+    request.presentationMode === "embedded-pane" || process.env.DETOKS_RAG_INDEX_ASYNC === "1";
+
   // ── RAG indexing: 완료된 세션을 벡터 DB에 인덱싱 ─────────────────────────
   if (ragEmbedder && ragStore && !memoryDisabled) {
+    const runRagIndexing = async (): Promise<void> => {
+      try {
+        const indexer = new EmbeddingIndexer(ragStore, ragEmbedder);
+        const indexing = await indexer.indexSession(state as any);
+        const stats = ragStore.getStats();
+        ragIndexingSummary = {
+          status: indexing.failures.length === 0 ? "completed" : "partial",
+          attempted: indexing.attempted,
+          indexed: indexing.indexed,
+          skipped: indexing.skipped,
+          dbRowCount: stats.rowCount,
+          dbSessionCount: stats.sessionCount,
+          ...(indexing.failures.length > 0 ? { failures: indexing.failures } : {}),
+        };
+        await emitProgressWithLogging({
+          stage: "RAG Indexer",
+          status: "end",
+          message:
+            indexing.failures.length === 0
+              ? `RAG Indexer 완료 (${indexing.indexed}/${indexing.attempted}, DB ${stats.rowCount} rows/${stats.sessionCount} sessions)`
+              : `RAG Indexer 부분 완료 (${indexing.indexed}/${indexing.attempted}, ${indexing.skipped}개 스킵, DB ${stats.rowCount} rows/${stats.sessionCount} sessions)`,
+        });
+      } catch (idxErr) {
+        const reason = toErrorMessage(idxErr);
+        ragIndexingSummary = {
+          status: "failed",
+          attempted: 0,
+          indexed: 0,
+          skipped: 0,
+          failures: [{
+            id: `session::${sessionId}`,
+            kind: "output",
+            sessionId,
+            reason,
+          }],
+        };
+        logger.warn(`RAG indexing 실패 (non-fatal): ${reason}`);
+        await emitProgressWithLogging({
+          stage: "RAG Indexer",
+          status: "error",
+          message: `RAG Indexer 실패 (non-fatal): ${reason}`,
+        });
+      } finally {
+        await ragEmbedder.dispose().catch(() => {});
+        ragStore.close();
+      }
+    };
+
     await emitProgressWithLogging({
       stage: "RAG Indexer",
       status: "start",
-      message: "RAG Indexer 시작",
+      message: shouldBackgroundRagIndexing ? "RAG Indexer 백그라운드 시작" : "RAG Indexer 시작",
     });
-    try {
-      const indexer = new EmbeddingIndexer(ragStore, ragEmbedder);
-      const indexing = await indexer.indexSession(state as any);
-      const stats = ragStore.getStats();
-      ragIndexingSummary = {
-        status: indexing.failures.length === 0 ? "completed" : "partial",
-        attempted: indexing.attempted,
-        indexed: indexing.indexed,
-        skipped: indexing.skipped,
-        dbRowCount: stats.rowCount,
-        dbSessionCount: stats.sessionCount,
-        ...(indexing.failures.length > 0 ? { failures: indexing.failures } : {}),
-      };
-      await emitProgressWithLogging({
-        stage: "RAG Indexer",
-        status: "end",
-        message:
-          indexing.failures.length === 0
-            ? `RAG Indexer 완료 (${indexing.indexed}/${indexing.attempted}, DB ${stats.rowCount} rows/${stats.sessionCount} sessions)`
-            : `RAG Indexer 부분 완료 (${indexing.indexed}/${indexing.attempted}, ${indexing.skipped}개 스킵, DB ${stats.rowCount} rows/${stats.sessionCount} sessions)`,
-      });
-    } catch (idxErr) {
-      const reason = toErrorMessage(idxErr);
-      ragIndexingSummary = {
-        status: "failed",
-        attempted: 0,
-        indexed: 0,
-        skipped: 0,
-        failures: [{
-          id: `session::${sessionId}`,
-          kind: "output",
-          sessionId,
-          reason,
-        }],
-      };
-      logger.warn(`RAG indexing 실패 (non-fatal): ${reason}`);
-      await emitProgressWithLogging({
-        stage: "RAG Indexer",
-        status: "error",
-        message: `RAG Indexer 실패 (non-fatal): ${reason}`,
-      });
-    } finally {
-      await ragEmbedder.dispose().catch(() => {});
-      ragStore.close();
+
+    if (shouldBackgroundRagIndexing) {
+      void runRagIndexing().catch(() => undefined);
+    } else {
+      await runRagIndexing();
     }
   }
 

@@ -66,6 +66,9 @@ export class CodexStubAdapter implements CliAdapter {
         input: request.prompt,
         interactiveAfterInput: true,
         outputLastMessagePath,
+        autoTerminateOnOutputLastMessage: true,
+        outputLastMessageGraceMs: 1_200,
+        outputLastMessagePollMs: 250,
       };
     }
 

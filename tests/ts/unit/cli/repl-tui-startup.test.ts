@@ -91,12 +91,14 @@ describe("runReplCommand TUI startup flow", () => {
       verbose: false,
       trace: false,
       tui: "force",
+      sessionId: "demo-session",
       presentationMode: "embedded-pane",
       showHelp: false,
     });
 
     expect(mocks.runTuiRepl).toHaveBeenCalledWith(
       expect.objectContaining({
+        sessionId: "demo-session",
         presentationMode: "embedded-pane",
       }),
     );

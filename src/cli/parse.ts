@@ -757,6 +757,7 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
       return {
         mode: "repl",
         ...(cwd ? { cwd } : {}),
+        ...(sessionId ? { sessionId } : {}),
         adapter,
         executionMode,
         verbose,

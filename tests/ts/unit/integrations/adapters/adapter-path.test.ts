@@ -215,6 +215,9 @@ describe("adapter subprocess path", () => {
         input: "",
       interactiveAfterInput: true,
       outputLastMessagePath: expect.stringMatching(/last-message\.txt$/),
+      autoTerminateOnOutputLastMessage: true,
+      outputLastMessageGraceMs: 1_200,
+      outputLastMessagePollMs: 250,
     });
   });
 

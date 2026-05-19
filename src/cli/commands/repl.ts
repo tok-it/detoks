@@ -465,6 +465,7 @@ export const runReplCommand = async (baseArgs: CliArgs): Promise<void> => {
         executionMode: baseArgs.executionMode,
         verbose: baseArgs.verbose,
         cwd: executionCwd,
+        ...(baseArgs.sessionId ? { sessionId: baseArgs.sessionId } : {}),
         translationModel: getTranslationModel(),
         ...(baseArgs.presentationMode ? { presentationMode: baseArgs.presentationMode } : {}),
       };

@@ -244,6 +244,27 @@ describe("orchestratePipeline — RAG 캐시 통합", () => {
     });
   });
 
+  it("embedded-pane에서는 RAG 인덱싱을 백그라운드로 넘기고 즉시 반환한다", async () => {
+    vi.mocked(isRagEnabled).mockReturnValue(true);
+    let releaseIndexing!: () => void;
+    const indexingBlocked = new Promise<void>((resolve) => {
+      releaseIndexing = resolve;
+    });
+    embeddingServiceInstance.embed.mockImplementation(async () => {
+      await indexingBlocked;
+      return new Float32Array(1024);
+    });
+
+    const result = await orchestratePipeline({
+      ...baseRequest,
+      presentationMode: "embedded-pane",
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.ragIndexingSummary).toBeUndefined();
+    releaseIndexing();
+  });
+
   it("RAG 인덱싱 일부 실패는 partial로 표시하고 파이프라인은 성공 유지한다", async () => {
     vi.mocked(isRagEnabled).mockReturnValue(true);
     let callCount = 0;

@@ -8,7 +8,7 @@ import type {
   PtySessionController,
 } from "./types.js";
 import { spawn } from "node:child_process";
-import { closeSync, existsSync, openSync, readSync, statSync } from "node:fs";
+import { closeSync, existsSync, openSync, readFileSync, readSync, statSync } from "node:fs";
 import { extname, join } from "node:path";
 import { createInteractivePtySession } from "./pty-session.js";
 import * as pty from "node-pty";
@@ -184,6 +184,19 @@ interface PtyRunnerOptions {
 
 const isCodexJsonStreamRequest = (request: SubprocessRequest): boolean =>
   request.command === "codex" && request.args.includes("--json");
+
+const readOutputLastMessage = (path?: string): string | null => {
+  if (!path) {
+    return null;
+  }
+
+  try {
+    const text = readFileSync(path, "utf8").trim();
+    return text.length > 0 ? text : null;
+  } catch {
+    return null;
+  }
+};
 
 const runStreamingJsonProcess = (
   request: SubprocessRequest,
@@ -382,6 +395,11 @@ const runWithNodePty = (
   let stdoutPending = "";
   let stderrPending = "";
   const lineBufferedJson = isCodexJsonStreamRequest(request);
+  let outputLastMessageSeenAt: number | null = null;
+  let outputLastMessageReady = false;
+  let outputLastMessagePoll: NodeJS.Timeout | undefined;
+  let outputLastMessageKillTimer: NodeJS.Timeout | undefined;
+  let outputLastMessageForceKillTimer: NodeJS.Timeout | undefined;
 
   const pushLines = (
     chunk: string,
@@ -408,6 +426,18 @@ const runWithNodePty = (
       return;
     }
     settled = true;
+    if (outputLastMessagePoll) {
+      clearInterval(outputLastMessagePoll);
+      outputLastMessagePoll = undefined;
+    }
+    if (outputLastMessageKillTimer) {
+      clearTimeout(outputLastMessageKillTimer);
+      outputLastMessageKillTimer = undefined;
+    }
+    if (outputLastMessageForceKillTimer) {
+      clearTimeout(outputLastMessageForceKillTimer);
+      outputLastMessageForceKillTimer = undefined;
+    }
 
     const endTime = Date.now();
     emitEvent({ type: "exit", data: String(code) });
@@ -470,6 +500,56 @@ const runWithNodePty = (
     }
     finish(exitCode ?? 0, false);
   });
+
+  const scheduleTerminationAfterLastMessage = (): void => {
+    if (!request.autoTerminateOnOutputLastMessage || outputLastMessageReady) {
+      return;
+    }
+    outputLastMessageReady = true;
+    outputLastMessageSeenAt = Date.now();
+    const graceMs = Math.max(0, request.outputLastMessageGraceMs ?? 1_200);
+    outputLastMessageKillTimer = setTimeout(() => {
+      if (settled) {
+        return;
+      }
+      emitEvent({
+        type: "chunk",
+        stream: "stderr",
+        data: `[detoks] output-last-message detected; terminating lingering PTY after ${graceMs}ms grace period\n`,
+      });
+      try {
+        ptyProcess.kill("SIGTERM");
+      } catch {
+        // Best-effort only.
+      }
+      outputLastMessageForceKillTimer = setTimeout(() => {
+        if (settled) {
+          return;
+        }
+        try {
+          ptyProcess.kill("SIGKILL");
+        } catch {
+          // Best-effort only.
+        }
+      }, 1_500);
+    }, graceMs);
+  };
+
+  if (
+    request.autoTerminateOnOutputLastMessage &&
+    request.interactiveAfterInput &&
+    request.outputLastMessagePath
+  ) {
+    const pollMs = Math.max(50, request.outputLastMessagePollMs ?? 250);
+    outputLastMessagePoll = setInterval(() => {
+      if (settled || outputLastMessageReady) {
+        return;
+      }
+      if (readOutputLastMessage(request.outputLastMessagePath) !== null) {
+        scheduleTerminationAfterLastMessage();
+      }
+    }, pollMs);
+  }
 
   if (request.input !== undefined) {
     emitEvent({ type: "prompt", data: request.input });

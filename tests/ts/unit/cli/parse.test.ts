@@ -695,6 +695,20 @@ describe("parseCliArgs", () => {
     });
   });
 
+  it("parses repl with explicit session id", () => {
+    const parsed = parseCliArgs(["repl", "--session", "intel-sales-live-demo-final"]);
+    expect(parsed).toEqual({
+      mode: "repl",
+      sessionId: "intel-sales-live-demo-final",
+      adapter: "codex",
+      executionMode: "real",
+      verbose: false,
+      trace: false,
+      showHelp: false,
+      helpTopic: "repl",
+    });
+  });
+
   it("parses repl with --tui and other flags", () => {
     const parsed = parseCliArgs(["repl", "--tui", "--adapter", "claude", "--verbose"]);
     expect(parsed).toEqual({

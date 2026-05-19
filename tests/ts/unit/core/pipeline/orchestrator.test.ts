@@ -458,7 +458,7 @@ describe("orchestratePipeline", () => {
     expect(executeWithAdapterMock).toHaveBeenCalledWith(
       expect.objectContaining({
         presentationMode: "embedded-pane",
-        prompt: expect.stringContaining("[CREATE] Create a new file"),
+        prompt: expect.stringContaining("Create a new file"),
       }),
     );
     expect(executeWithAdapterMock).toHaveBeenCalledWith(
@@ -468,12 +468,12 @@ describe("orchestratePipeline", () => {
     );
     expect(executeWithAdapterMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        prompt: expect.stringContaining("User request: Create a new file"),
+        prompt: expect.not.stringContaining("User request:"),
       }),
     );
   });
 
-  it("keeps task-specific instructions in embedded-pane execution", async () => {
+  it("keeps simplified embedded-pane prompts readable per task", async () => {
     nodeRuntimeMocks.completeChatWithNodeLlamaCpp.mockResolvedValueOnce({
       content: "Find the module. Analyze the flow.",
       raw_response: {
@@ -504,14 +504,14 @@ describe("orchestratePipeline", () => {
       1,
       expect.objectContaining({
         presentationMode: "embedded-pane",
-        prompt: expect.stringContaining("[EXPLORE] Find the module."),
+        prompt: expect.stringContaining("Find the module."),
       }),
     );
     expect(executeWithAdapterMock).toHaveBeenNthCalledWith(
       2,
       expect.objectContaining({
         presentationMode: "embedded-pane",
-        prompt: expect.stringContaining("[ANALYZE] Analyze the flow."),
+        prompt: expect.stringContaining("Analyze the flow."),
       }),
     );
   });
@@ -546,6 +546,69 @@ describe("orchestratePipeline", () => {
       { taskId: "t2", status: "completed", rawOutput: "[mock] final analysis" },
     ]);
     expect(result.rawOutput).toBe("[mock] final analysis");
+  });
+
+  it("namespaces task ids for a new prompt on an existing session", async () => {
+    vi.spyOn(SessionStateManager, "sessionExists").mockResolvedValue(true);
+    const saveSessionSpy = vi
+      .spyOn(SessionStateManager, "saveSession")
+      .mockResolvedValue(undefined);
+    vi.spyOn(SessionStateManager, "loadSession").mockResolvedValue({
+      shared_context: {
+        session_id: "demo-session",
+        raw_input: "first prompt",
+        failed_task_ids: ["t1"],
+      },
+      task_results: {
+        t1: {
+          task_id: "t1",
+          success: true,
+          summary: "first summary",
+          raw_output: "first output",
+        },
+      },
+      current_task_id: "t1",
+      completed_task_ids: ["t1"],
+      updated_at: "2026-04-27T00:00:00.000Z",
+    } as any);
+    executeWithAdapterMock
+      .mockResolvedValueOnce({
+        ok: true,
+        adapter: "codex",
+        rawOutput: "[mock-turn2] t1",
+        exitCode: 0,
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        adapter: "codex",
+        rawOutput: "[mock-turn2] t2",
+        exitCode: 0,
+      });
+
+    const result = await orchestratePipeline({
+      mode: "run",
+      adapter: "codex",
+      executionMode: "stub",
+      verbose: false,
+      userRequest: {
+        raw_input: "Find the auth module. Test the auth module.",
+        session_id: "demo-session",
+      },
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.taskRecords).toEqual([
+      { taskId: "turn2_t1", status: "completed", rawOutput: "[mock-turn2] t1" },
+      { taskId: "turn2_t2", status: "completed", rawOutput: "[mock-turn2] t2" },
+    ]);
+    const savedState = saveSessionSpy.mock.calls.at(-1)?.[0] as any;
+    expect(savedState.shared_context.raw_input).toBe("Find the auth module. Test the auth module.");
+    expect(savedState.shared_context.failed_task_ids).toEqual([]);
+    expect(savedState.completed_task_ids).toEqual(["t1", "turn2_t1", "turn2_t2"]);
+    expect(savedState.task_graph.tasks.map((task: { id: string }) => task.id)).toEqual([
+      "turn2_t1",
+      "turn2_t2",
+    ]);
   });
 
   it("skips completed tasks from an existing session and resumes remaining work", async () => {

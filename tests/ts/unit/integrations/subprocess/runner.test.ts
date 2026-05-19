@@ -251,4 +251,5 @@ describe("createRealSubprocessRunner", () => {
 		expect(result.stdout).toContain("\"assistant_message\"");
 		expect(result.stdout).toContain("answer:y");
 	}, 10_000);
+
 });

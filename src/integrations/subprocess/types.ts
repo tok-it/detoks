@@ -6,6 +6,9 @@ export interface SubprocessRequest {
   input?: string;
   interactiveAfterInput?: boolean;
   outputLastMessagePath?: string;
+  autoTerminateOnOutputLastMessage?: boolean;
+  outputLastMessageGraceMs?: number;
+  outputLastMessagePollMs?: number;
 }
 
 export interface SubprocessResult {
