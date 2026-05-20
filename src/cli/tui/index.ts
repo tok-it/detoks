@@ -1681,7 +1681,21 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
                     )?.usage ?? input
                   : input;
               const normalizedPrompt = resolvedPrompt.trim();
-              executePrompt(resolvedPrompt);
+              const shouldRequestApproval =
+                embeddedPaneMode &&
+                options.executionMode === "real" &&
+                normalizedPrompt.length > 0 &&
+                !normalizedPrompt.startsWith("/");
+
+              if (shouldRequestApproval) {
+                hasExecuted = true;
+                registerRunBlock(resolvedPrompt, "pending-approval");
+                pendingApprovalPrompt = resolvedPrompt;
+                skipApprovalLineFeed = char === "\r";
+                render();
+              } else {
+                executePrompt(resolvedPrompt);
+              }
               // P3-3: capture in history + persist async (non-fatal on failure).
               inputHistory.push(normalizedPrompt);
               void saveHistoryToDisk(historyPath, inputHistory.toArray()).catch(
