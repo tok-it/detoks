@@ -290,6 +290,7 @@ const assertPrompt = (prompt: string | undefined): string => {
 export const parseCliArgs = (argv: string[]): CliArgs => {
   const positionals: string[] = [];
   let adapter: CliArgs["adapter"] = DEFAULT_ADAPTER;
+  let adapterExplicit = false;
   let executionMode: CliArgs["executionMode"] = DEFAULT_EXECUTION_MODE;
   let sessionId: string | undefined;
   let cwd: string | undefined;
@@ -408,6 +409,7 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
         throw new Error(`지원하지 않는 adapter: ${next}. codex, gemini, 또는 claude를 사용하세요.`);
       }
       adapter = next;
+      adapterExplicit = true;
       i += 1;
       continue;
     }
@@ -418,6 +420,7 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
         throw new Error(`지원하지 않는 adapter: ${inline}. codex, gemini, 또는 claude를 사용하세요.`);
       }
       adapter = inline;
+      adapterExplicit = true;
       continue;
     }
 
@@ -528,6 +531,7 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
         ...(cwd ? { cwd } : {}),
         ...(human ? { human: true } : {}),
         adapter,
+        ...(adapterExplicit ? { adapterExplicit: true } : {}),
         executionMode,
         verbose,
         trace,
@@ -759,6 +763,7 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
         ...(cwd ? { cwd } : {}),
         ...(sessionId ? { sessionId } : {}),
         adapter,
+        ...(adapterExplicit ? { adapterExplicit: true } : {}),
         executionMode,
         verbose,
         trace,
@@ -778,6 +783,7 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
       inputFile,
       ...(cwd ? { cwd } : {}),
       adapter,
+      ...(adapterExplicit ? { adapterExplicit: true } : {}),
       executionMode,
       verbose,
       trace,
@@ -793,6 +799,7 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
     ...(cwd ? { cwd } : {}),
     ...(sessionId ? { sessionId } : {}),
     adapter,
+    ...(adapterExplicit ? { adapterExplicit: true } : {}),
     executionMode,
     verbose,
     trace,

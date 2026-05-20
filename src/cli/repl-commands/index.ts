@@ -1,4 +1,5 @@
 import { stdout as output } from "node:process";
+import { join } from "node:path";
 import { createInterface } from "node:readline/promises";
 import { spawnSync } from "node:child_process";
 import type { Adapter } from "../../core/pipeline/types.js";
@@ -18,6 +19,7 @@ import { invalidateCache } from "../cache/cache-manager.js";
 import { getCacheStats, clearExpiredSessions, formatCacheStats } from "./cache-command.js";
 import { CACHE_TTL_DAYS } from "../../core/cache/cache-config.js";
 import { resolveSessionsDir } from "../../core/state/SessionStateManager.js";
+import { getDetoksHomeDir } from "../../core/state/storage-paths.js";
 import {
   getCodexReasoningEffortOverride,
   updateAdapterModel,
@@ -115,6 +117,8 @@ const BASE_COMMANDS: SlashCommand[] = [
     usage: "/exit",
   },
 ];
+
+const getSettingsPathLabel = (): string => join(getDetoksHomeDir(), "settings.json");
 
 const getAuthenticatedCommands = (
   adapter: Adapter,
@@ -682,7 +686,7 @@ export const handleCodexModels = async (streams?: SelectWithArrowsStreams): Prom
       }
     }
 
-    output.write(colors.muted(`  설정 저장됨: ~/.detoks/settings.json\n\n`));
+    output.write(colors.muted(`  설정 저장됨: ${getSettingsPathLabel()}\n\n`));
     shouldResumeInput = false;
     return true;
   } finally {
@@ -782,7 +786,7 @@ export const handleGeminiModels = async (streams?: SelectWithArrowsStreams): Pro
     updateAdapterModel("gemini", selected);
     output.write(
       colors.muted(
-        `  설정 저장됨: ~/.detoks/settings.json\n\n`,
+        `  설정 저장됨: ${getSettingsPathLabel()}\n\n`,
       ),
     );
   }
@@ -810,7 +814,7 @@ export const handleClaudeModels = async (streams?: SelectWithArrowsStreams): Pro
     updateAdapterModel("claude", selected);
     output.write(
       colors.muted(
-        `  설정 저장됨: ~/.detoks/settings.json\n\n`,
+        `  설정 저장됨: ${getSettingsPathLabel()}\n\n`,
       ),
     );
   }
@@ -884,7 +888,7 @@ const applySelectedModel = async (selectedModel: TranslationModel): Promise<void
       `\n✓ 번역 모델이 '${selectedModel.displayName}'로 변경되었습니다.\n`,
     ),
   );
-  output.write(colors.muted(`  설정 저장됨: ~/.detoks/settings.json\n\n`));
+  output.write(colors.muted(`  설정 저장됨: ${getSettingsPathLabel()}\n\n`));
 };
 
 const runCustomModelFlow = async (streams?: SelectWithArrowsStreams): Promise<boolean> => {

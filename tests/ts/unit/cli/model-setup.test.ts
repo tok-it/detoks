@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { TRANSLATION_MODELS } from "../../../../src/cli/model-setup/models.js";
+import { KURE_EMBEDDING_MODEL, TRANSLATION_MODELS } from "../../../../src/cli/model-setup/models.js";
 import {
   getDetoksModelDir,
   getDetoksModelFilePath,
@@ -21,7 +21,7 @@ vi.mock("../../../../src/cli/model-setup/download.js", () => ({
   downloadModel: mocks.downloadModel,
 }));
 
-import { runModelSetupIfNeeded } from "../../../../src/cli/model-setup/index.js";
+import { ensureEmbeddingModelReady, runModelSetupIfNeeded } from "../../../../src/cli/model-setup/index.js";
 
 const tempDirs: string[] = [];
 
@@ -63,6 +63,7 @@ beforeEach(() => {
   delete process.env.LOCAL_LLM_MODEL_PATH;
   delete process.env.LOCAL_LLM_HF_REPO;
   delete process.env.LOCAL_LLM_HF_FILE;
+  delete process.env.RAG_EMBEDDING_MODEL_PATH;
 });
 
 afterEach(() => {
@@ -76,10 +77,43 @@ afterEach(() => {
   delete process.env.LOCAL_LLM_MODEL_PATH;
   delete process.env.LOCAL_LLM_HF_REPO;
   delete process.env.LOCAL_LLM_HF_FILE;
+  delete process.env.RAG_EMBEDDING_MODEL_PATH;
 
   for (const dir of tempDirs.splice(0)) {
     rmSync(dir, { force: true, recursive: true });
   }
+});
+
+describe("ensureEmbeddingModelReady", () => {
+  it("does not download a missing embedding model during non-TTY startup", async () => {
+    const { cwd, home } = createWorkspace();
+    vi.stubEnv("HOME", home);
+    vi.stubEnv("DETOKS_HOME", join(home, "detoks-home"));
+    setTTY(false, false);
+
+    await ensureEmbeddingModelReady(cwd);
+
+    expect(mocks.downloadModel).not.toHaveBeenCalled();
+    expect(existsSync(join(cwd, ".env"))).toBe(false);
+    expect(process.env.RAG_EMBEDDING_MODEL_PATH).toBeUndefined();
+  });
+
+  it("sets RAG_EMBEDDING_MODEL_PATH when the embedding model already exists", async () => {
+    const { cwd, home } = createWorkspace();
+    vi.stubEnv("HOME", home);
+    setTTY(false, false);
+    const embeddingModelPath = getDetoksModelFilePath(KURE_EMBEDDING_MODEL);
+    mkdirSync(join(embeddingModelPath, ".."), { recursive: true });
+    writeFileSync(embeddingModelPath, "GGUFembedding", "utf8");
+
+    await ensureEmbeddingModelReady(cwd);
+
+    expect(mocks.downloadModel).not.toHaveBeenCalled();
+    expect(process.env.RAG_EMBEDDING_MODEL_PATH).toBe(embeddingModelPath);
+    expect(readFileSync(join(cwd, ".env"), "utf8")).toContain(
+      `RAG_EMBEDDING_MODEL_PATH=${embeddingModelPath}`,
+    );
+  });
 });
 
 describe("runModelSetupIfNeeded", () => {

@@ -11,7 +11,6 @@ import {
 
 describe("gemini adapter info", () => {
   const tempDirs: string[] = [];
-  const originalHome = process.env.HOME;
 
   beforeEach(() => {
     const home = mkdtempSync(join(tmpdir(), "detoks-gemini-cache-"));
@@ -24,11 +23,7 @@ describe("gemini adapter info", () => {
       rmSync(dir, { recursive: true, force: true });
     }
 
-    if (originalHome === undefined) {
-      vi.unstubAllEnvs();
-    } else {
-      vi.stubEnv("HOME", originalHome);
-    }
+    vi.unstubAllEnvs();
   });
 
   it("caches Gemini config and auth snapshots under ~/.detoks/cache", () => {
@@ -42,6 +37,14 @@ describe("gemini adapter info", () => {
       security: { auth: { selectedType: "oauth" } },
     };
     writeFileSync(settingsPath, JSON.stringify(firstConfig), "utf-8");
+    writeFileSync(
+      join(geminiDir, "oauth_creds.json"),
+      JSON.stringify({
+        access_token: "fresh-token",
+        expiry_date: Date.now() + 60_000,
+      }),
+      "utf-8",
+    );
 
     expect(getGeminiConfig()).toEqual({
       currentModel: "gemini-3.0-pro",
@@ -100,6 +103,33 @@ describe("gemini adapter info", () => {
     expect(getGeminiLoginStatus()).toEqual({
       authenticated: true,
       authType: "service_account",
+    });
+  });
+
+  it("does not report OAuth auth as usable when the access token is expired", () => {
+    const home = process.env.HOME ?? "";
+    const geminiDir = join(home, ".gemini");
+    mkdirSync(geminiDir, { recursive: true });
+    writeFileSync(
+      join(geminiDir, "settings.json"),
+      JSON.stringify({
+        security: { auth: { selectedType: "oauth-personal" } },
+      }),
+      "utf-8",
+    );
+    writeFileSync(
+      join(geminiDir, "oauth_creds.json"),
+      JSON.stringify({
+        access_token: "expired-token",
+        refresh_token: "refresh-token",
+        expiry_date: Date.now() - 60_000,
+      }),
+      "utf-8",
+    );
+
+    expect(getGeminiLoginStatus()).toEqual({
+      authenticated: false,
+      authType: "oauth-personal",
     });
   });
 });

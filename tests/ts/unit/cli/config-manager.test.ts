@@ -71,4 +71,20 @@ describe("release notice config", () => {
       },
     });
   });
+
+  it("prefers DETOKS_HOME over HOME for settings", () => {
+    const home = createTempHome();
+    const detoksHome = createTempHome();
+    vi.stubEnv("HOME", home);
+    vi.stubEnv("DETOKS_HOME", detoksHome);
+
+    updateLastSeenReleaseVersion("0.2.0");
+
+    const detoksConfigPath = join(detoksHome, "settings.json");
+    expect(JSON.parse(readFileSync(detoksConfigPath, "utf8"))).toMatchObject({
+      runtime: {
+        lastSeenReleaseVersion: "0.2.0",
+      },
+    });
+  });
 });

@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync, mkdirSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync, mkdirSync, writeFileSync, promises as fsPromises } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { describe, expect, it, beforeEach, afterEach, vi } from "vitest";
@@ -68,6 +68,19 @@ describe("lock PID 스테일 감지", () => {
   it("잠금 없는 경우 saveSession이 정상 완료", async () => {
     const state = makeMinimalSession("sess-no-lock") as any;
     await expect(SessionStateManager.saveSession(state, tmpDir)).resolves.toBeUndefined();
+  });
+
+  it("세션 디렉터리가 락 생성 직전 사라지면 재생성 후 saveSession 성공", async () => {
+    const originalOpen = fsPromises.open.bind(fsPromises);
+    const missingParent = Object.assign(new Error("missing parent"), { code: "ENOENT" });
+    const openSpy = vi.spyOn(fsPromises, "open");
+    openSpy
+      .mockRejectedValueOnce(missingParent as NodeJS.ErrnoException)
+      .mockImplementation(originalOpen as typeof fsPromises.open);
+
+    const state = makeMinimalSession("sess-parent-race") as any;
+    await expect(SessionStateManager.saveSession(state, tmpDir)).resolves.toBeUndefined();
+    expect(openSpy).toHaveBeenCalledTimes(2);
   });
 
   it("죽은 PID가 잠금 파일에 있으면 스테일로 처리 — saveSession 성공", async () => {

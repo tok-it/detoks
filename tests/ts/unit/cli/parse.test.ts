@@ -29,6 +29,7 @@ describe("parseCliArgs", () => {
     expect(parsed).toEqual({
       mode: "repl",
       adapter: "claude",
+      adapterExplicit: true,
       executionMode: "real",
       verbose: true,
       trace: false,
@@ -43,6 +44,7 @@ describe("parseCliArgs", () => {
       mode: "run",
       prompt: "hello detoks",
       adapter: "claude",
+      adapterExplicit: true,
       executionMode: "real",
       verbose: false,
       trace: false,
@@ -714,6 +716,7 @@ describe("parseCliArgs", () => {
     expect(parsed).toEqual({
       mode: "repl",
       adapter: "claude",
+      adapterExplicit: true,
       executionMode: "real",
       verbose: true,
       trace: false,

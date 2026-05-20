@@ -10,12 +10,14 @@ import type { ActionTimelineEvent } from "../../../../../src/core/timeline/types
 import type { SubprocessRequest, TranscriptAwareSubprocessRunner } from "../../../../../src/integrations/subprocess/types.js";
 
 const capturedRequests: SubprocessRequest[] = [];
+const fakePromptFor = (request: SubprocessRequest): string =>
+  request.input ?? request.args.at(-1) ?? "";
 
 const fakeRunner: TranscriptAwareSubprocessRunner = {
   async run(request: SubprocessRequest) {
     capturedRequests.push(request);
     return {
-      stdout: `[fake:${request.command}] ${request.input ?? ""}`,
+      stdout: `[fake:${request.command}] ${fakePromptFor(request)}`,
       stderr: "",
       exitCode: request.command === "gemini" ? 3 : 0,
       timedOut: false,
@@ -24,7 +26,7 @@ const fakeRunner: TranscriptAwareSubprocessRunner = {
   async runWithTranscript(request: SubprocessRequest) {
     capturedRequests.push(request);
     return {
-      stdout: `[fake:${request.command}] ${request.input ?? ""}`,
+      stdout: `[fake:${request.command}] ${fakePromptFor(request)}`,
       stderr: "",
       exitCode: request.command === "gemini" ? 3 : 0,
       timedOut: false,
@@ -177,6 +179,59 @@ describe("adapter execution modes", () => {
     expect(result.rawOutput).toBe("final embedded answer");
   });
 
+  it("strips terminal control sequences from final raw output while preserving transcript events", async () => {
+    const transcriptRunner: TranscriptAwareSubprocessRunner = {
+      async run(request: SubprocessRequest) {
+        capturedRequests.push(request);
+        return {
+          stdout: "unused",
+          stderr: "",
+          exitCode: 0,
+          timedOut: false,
+        };
+      },
+      async runWithTranscript(request: SubprocessRequest) {
+        capturedRequests.push(request);
+        const raw = "detoks clean ok\r\n\u001b[?1006l\u001b[>4m\u001b[<u\u001b7\u001b[r\u001b8\u001b]0;\u0007\u001b[?25h";
+        return {
+          stdout: raw,
+          stderr: "",
+          exitCode: 0,
+          timedOut: false,
+          transcript: {
+            events: [{
+              type: "chunk",
+              timestamp: 1,
+              stream: "stdout",
+              data: raw,
+            }],
+            startTime: 1,
+            endTime: 2,
+            totalDuration: 1,
+            exitCode: 0,
+            timedOut: false,
+          },
+        };
+      },
+    };
+
+    const result = await executeAdapterViaSubprocess(
+      new ClaudeStubAdapter(),
+      {
+        mode: "run",
+        prompt: "real prompt",
+        verbose: false,
+      },
+      {
+        executionMode: "real",
+        subprocessRunner: transcriptRunner,
+      },
+    );
+
+    expect(result.rawOutput).toBe("detoks clean ok");
+    expect(result.transcript?.events[0]?.data).toContain("\u001b[?1006l");
+  });
+
   it("records gemini real execution requests with the gemini command", async () => {
     capturedRequests.length = 0;
     const adapter = new GeminiStubAdapter();
@@ -198,7 +253,7 @@ describe("adapter execution modes", () => {
     expect(capturedRequests).toEqual([
       {
         command: "gemini",
-        args: ["--model", "gemini-2.5-pro"],
+        args: ["--model", "gemini-2.5-pro", "--prompt", ""],
         cwd: "/tmp",
         env: {
           GIT_CEILING_DIRECTORIES: "/",
@@ -235,16 +290,18 @@ describe("adapter execution modes", () => {
           "-p",
           "--output-format",
           "text",
+          "--setting-sources",
+          "project",
           "--permission-mode",
           "default",
           "--model",
           "claude-sonnet-4-6",
+          "real prompt",
         ],
         cwd: "/workspace",
         env: {
           GIT_CEILING_DIRECTORIES: "/",
         },
-        input: "real prompt",
       },
     ]);
     expect(realResult.rawOutput).toBe("[fake:claude] real prompt");

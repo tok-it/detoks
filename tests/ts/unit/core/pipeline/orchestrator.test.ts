@@ -266,6 +266,7 @@ describe("orchestratePipeline", () => {
   });
 
   it("surfaces Role 1 metadata from prompt normalization on success", async () => {
+    vi.stubEnv("DETOKS_MEMORY", "off");
     const compressionImplementation = vi.fn(async (text: string) => ({
       compressed: text.replace(/^Can you please /i, ""),
       compression_ratio: 0.56,
@@ -295,6 +296,7 @@ describe("orchestratePipeline", () => {
   });
 
   it("compresses only the selected execution context before adapter execution", async () => {
+    vi.stubEnv("DETOKS_MEMORY", "off");
     executeWithAdapterMock
       .mockResolvedValueOnce({
         ok: true,
@@ -335,6 +337,7 @@ describe("orchestratePipeline", () => {
   });
 
   it("bridges Korean input through the local LLM request contract when runtime overrides are provided", async () => {
+    vi.stubEnv("DETOKS_MEMORY", "off");
     nodeRuntimeMocks.completeChatWithNodeLlamaCpp.mockResolvedValueOnce({
       content: "Create a new file",
       raw_response: {
@@ -419,6 +422,7 @@ describe("orchestratePipeline", () => {
   });
 
   it("prepends Korean response instructions for embedded-pane execution", async () => {
+    vi.stubEnv("DETOKS_MEMORY", "off");
     nodeRuntimeMocks.completeChatWithNodeLlamaCpp.mockResolvedValueOnce({
       content: "Create a new file",
       raw_response: {
@@ -474,6 +478,7 @@ describe("orchestratePipeline", () => {
   });
 
   it("keeps simplified embedded-pane prompts readable per task", async () => {
+    vi.stubEnv("DETOKS_MEMORY", "off");
     nodeRuntimeMocks.completeChatWithNodeLlamaCpp.mockResolvedValueOnce({
       content: "Find the module. Analyze the flow.",
       raw_response: {
@@ -517,6 +522,7 @@ describe("orchestratePipeline", () => {
   });
 
   it("returns only the terminal task output for successful multi-task runs", async () => {
+    vi.stubEnv("DETOKS_MEMORY", "off");
     executeWithAdapterMock
       .mockResolvedValueOnce({
         ok: true,
@@ -772,6 +778,33 @@ describe("orchestratePipeline", () => {
       success: false,
       type: expect.any(String),
     });
+  });
+
+  it("does not persist failed execution state when memory is disabled", async () => {
+    vi.stubEnv("DETOKS_MEMORY", "off");
+    vi.spyOn(SessionStateManager, "sessionExists").mockResolvedValue(false);
+    const saveSessionSpy = vi
+      .spyOn(SessionStateManager, "saveSession")
+      .mockResolvedValue(undefined);
+    executeWithAdapterMock.mockResolvedValueOnce({
+      ok: false,
+      adapter: "codex",
+      rawOutput: "[mock-fail] memory disabled",
+      exitCode: 1,
+    });
+
+    const result = await orchestratePipeline({
+      mode: "run",
+      adapter: "codex",
+      executionMode: "stub",
+      verbose: false,
+      userRequest: {
+        raw_input: "Find the auth module. Test the auth module.",
+      },
+    });
+
+    expect(result.ok).toBe(false);
+    expect(saveSessionSpy).not.toHaveBeenCalled();
   });
 
   it("F1: 동일 input hash의 과거 세션이 있을 때 adapter를 호출하지 않고 캐시 결과 반환", async () => {

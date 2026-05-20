@@ -462,6 +462,7 @@ export const runReplCommand = async (baseArgs: CliArgs): Promise<void> => {
 
       const tuiOptions: any = {
         adapter: baseArgs.adapter,
+        ...(baseArgs.adapterExplicit ? { adapterExplicit: true } : {}),
         executionMode: baseArgs.executionMode,
         verbose: baseArgs.verbose,
         cwd: executionCwd,

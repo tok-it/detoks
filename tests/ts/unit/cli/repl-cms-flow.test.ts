@@ -1,4 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 const mocks = vi.hoisted(() => {
   const selectWithArrows = vi.fn(async (_options, title, streams) => {
@@ -65,13 +68,21 @@ import { handleSlashCommand } from "../../../../src/cli/repl-commands/index.js";
 
 const onOpen = vi.fn();
 const onClose = vi.fn();
+let tempHome: string | undefined;
 
 beforeEach(() => {
   vi.clearAllMocks();
+  tempHome = mkdtempSync(join(tmpdir(), "detoks-repl-cms-home-"));
+  vi.stubEnv("HOME", tempHome);
 });
 
 afterEach(() => {
+  vi.unstubAllEnvs();
   vi.restoreAllMocks();
+  if (tempHome) {
+    rmSync(tempHome, { recursive: true, force: true });
+    tempHome = undefined;
+  }
 });
 
 describe("/cms repl flow", () => {

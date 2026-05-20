@@ -21,7 +21,7 @@ export class GeminiStubAdapter implements CliAdapter {
         command: "gemini",
         args: [
           ...(request.model ? ["--model", request.model] : []),
-          ...(request.prompt ? [request.prompt] : []),
+          ...(request.prompt ? ["--prompt", request.prompt] : []),
         ],
         ...(request.cwd !== undefined ? { cwd: request.cwd } : {}),
         ...(workspaceEnv !== undefined ? { env: workspaceEnv } : {}),
@@ -31,7 +31,11 @@ export class GeminiStubAdapter implements CliAdapter {
     if (request.presentationMode === "embedded-pane") {
       return {
         command: "gemini",
-        args: request.model ? ["--model", request.model] : [],
+        args: [
+          ...(request.model ? ["--model", request.model] : []),
+          "--prompt",
+          "",
+        ],
         ...(request.cwd !== undefined ? { cwd: request.cwd } : {}),
         ...(workspaceEnv !== undefined ? { env: workspaceEnv } : {}),
         input: request.prompt,
@@ -40,7 +44,11 @@ export class GeminiStubAdapter implements CliAdapter {
 
     return {
       command: "gemini",
-      args: request.model ? ["--model", request.model] : [],
+      args: [
+        ...(request.model ? ["--model", request.model] : []),
+        "--prompt",
+        "",
+      ],
       ...(request.cwd !== undefined ? { cwd: request.cwd } : {}),
       ...(workspaceEnv !== undefined ? { env: workspaceEnv } : {}),
       input: request.prompt,

@@ -14,9 +14,18 @@ import {
 const getModelFileStatus = (model: TranslationModel) =>
   inspectLocalModelFile(getDetoksModelFilePath(model));
 
-export const ensureEmbeddingModelReady = async (cwd: string = process.cwd()): Promise<void> => {
+export const ensureEmbeddingModelReady = async (
+  cwd: string = process.cwd(),
+  options: { allowDownload?: boolean } = {},
+): Promise<void> => {
   const embeddingModelPath = getDetoksModelFilePath(KURE_EMBEDDING_MODEL);
   const status = inspectLocalModelFile(embeddingModelPath);
+  const allowDownload =
+    options.allowDownload ?? (Boolean(process.stdin.isTTY) && Boolean(process.stdout.isTTY));
+
+  if (!allowDownload && shouldDownloadModelFile(status)) {
+    return;
+  }
 
   if (status.kind === "invalid") {
     process.stdout.write(

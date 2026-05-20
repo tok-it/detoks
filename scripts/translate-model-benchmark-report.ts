@@ -14,12 +14,16 @@ import {
 	translate_to_english,
 	type TranslateToEnglishResult,
 } from "../src/core/translate/translate.js";
+import { getDetoksModelFilePath } from "../src/core/model-store.js";
+import { KURE_EMBEDDING_MODEL } from "../src/cli/model-setup/models.js";
 
 type JsonObject = Record<string, unknown>;
 
-const DEFAULT_EMBEDDING_MODEL_PATH =
-	"/Users/siho/.detoks/models/embedding/mykor-KURE-v1-gguf";
 const DEFAULT_EMBEDDING_MODEL_FILE = "KURE-v1-Q4_K_M.gguf";
+
+const getDefaultEmbeddingModelPath = (): string =>
+	process.env.RAG_EMBEDDING_MODEL_PATH?.trim() ||
+	getDetoksModelFilePath(KURE_EMBEDDING_MODEL);
 
 interface BenchmarkArgs {
 	modelsPath?: string;
@@ -134,7 +138,7 @@ export function parseArgs(argv: string[] = process.argv.slice(2)): BenchmarkArgs
 	let benchmarkOutputDir = "tmp/translate-model-benchmark";
 	let reportOutputPath = "docs/TRANSLATE_MODEL_BENCHMARK_REPORT.md";
 	let title = "번역 모델 벤치마크 분석";
-	let embeddingModelPath = DEFAULT_EMBEDDING_MODEL_PATH;
+	let embeddingModelPath = getDefaultEmbeddingModelPath();
 
 	for (let i = 0; i < argv.length; i += 1) {
 		const current = argv[i];

@@ -1,7 +1,7 @@
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
 import { join } from "node:path";
-import { homedir } from "node:os";
 import type { Adapter } from "../../core/pipeline/types.js";
+import { getDetoksHomeDir } from "../../core/state/storage-paths.js";
 import type { DetoksConfig } from "./types.js";
 import {
   CODEX_REASONING_EFFORT_VALUES,
@@ -10,7 +10,7 @@ import {
 import { DEFAULT_CONFIG } from "./types.js";
 
 const getConfigDir = (): string => {
-  return join(homedir(), ".detoks");
+  return getDetoksHomeDir();
 };
 
 const getConfigPath = (): string => {
