@@ -17,6 +17,13 @@ export interface RuntimeNoticeDependencies {
   log?: (message: string) => void;
 }
 
+const RELEASE_NOTICE_LINES = [
+  "주요 변경점:",
+  "- 로컬 LLM 실행이 node-llama-cpp Node.js 네이티브 바인딩 기반으로 변경되었습니다.",
+  "- 별도 llama-server 실행이나 Python 런타임 없이 GGUF 모델을 in-process로 로드합니다.",
+  "- RAG 의미 검색, Cross-Session Cache, TUI/embedded PTY 흐름이 강화되었습니다.",
+];
+
 const PACKAGE_JSON_CANDIDATES = [
   join(dirname(fileURLToPath(import.meta.url)), "../../package.json"),
   join(dirname(fileURLToPath(import.meta.url)), "../../../package.json"),
@@ -69,7 +76,8 @@ export const maybeShowRuntimeUpdateNotice = (
   log(
     [
       "",
-      `detoks ${packageMetadata.version}에 Claude adapter가 포함된 새 버전이 배포되었습니다.`,
+      `detoks ${packageMetadata.version} 업데이트 안내`,
+      ...RELEASE_NOTICE_LINES,
       `업데이트: npm install -g ${packageMetadata.name}@latest`,
     ].join("\n"),
   );

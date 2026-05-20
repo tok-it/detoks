@@ -37,7 +37,9 @@ describe("maybeShowRuntimeUpdateNotice", () => {
     });
 
     expect(logs).toHaveLength(1);
-    expect(logs[0]).toContain("Claude adapter가 포함된 새 버전");
+    expect(logs[0]).toContain("detoks 0.1.0 업데이트 안내");
+    expect(logs[0]).toContain("node-llama-cpp Node.js 네이티브 바인딩");
+    expect(logs[0]).toContain("llama-server 실행이나 Python 런타임 없이");
     expect(logs[0]).toContain("npm install -g detoks@latest");
     expect(seenVersion).toBe("0.1.0");
   });
