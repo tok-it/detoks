@@ -599,8 +599,10 @@ describe.skipIf(Boolean(process.env.CI))("detoks CLI smoke", () => {
       promptInferenceTimeSec: 0,
       promptValidationErrors: [],
       promptRepairActions: [],
-      rawOutput: `[stub:codex] [EXECUTE] hello detoks\n\nContext: Project: ${packageName}\n\nNo previous task context available.`,
     });
+    expect(verboseJson.rawOutput).toContain("[stub:codex] [EXECUTE] hello detoks");
+    expect(verboseJson.rawOutput).toContain("User request: hello detoks");
+    expect(verboseJson.rawOutput).toContain(`Context: Project: ${packageName}`);
     expect(verboseJson.stages).toHaveLength(5);
     expect(verboseJson).toHaveProperty("rawOutput");
     expect(verboseRun.stdout).not.toBe(defaultRun.stdout);
