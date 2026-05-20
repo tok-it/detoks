@@ -8,7 +8,14 @@
 
 ## 🔔 업데이트 안내
 
-`claude` 어댑터가 포함된 새 버전을 사용하려면, 설치된 detoks를 최신 릴리스로 업데이트하세요.
+`0.2.0` 릴리스는 기존 `main`의 `0.1.2` 대비 로컬 LLM 런타임과 RAG/TUI 흐름이 크게 바뀝니다.
+기존 detoks 설정 파일이 있는 사용자는 새 버전 실행 시 CLI에서 업데이트 안내를 1회 확인할 수 있습니다.
+
+주요 변경점:
+
+- 로컬 LLM 실행이 `node-llama-cpp` Node.js 네이티브 바인딩 기반으로 변경되었습니다.
+- 별도 `llama-server` 실행이나 Python 런타임 없이 GGUF 모델을 Node.js 프로세스 안에서 로드합니다.
+- RAG 의미 검색, Cross-Session Cache, TUI/embedded PTY 흐름이 강화되었습니다.
 
 - 전역 설치: `npm install -g @sorlros/detoks@latest`
 - 전역 업데이트: `npm update -g @sorlros/detoks`
@@ -30,6 +37,7 @@ detoks는 `codex`, `gemini`, `claude` 같은 LLM CLI 앞단에서 동작하는 *
 - adapter / subprocess 경계 분리: `codex` / `gemini` / `claude`
 - `stub` / `real` 실행 모드
 - 세션 저장 및 재개 기반 워크플로우 (checkpoint 지원)
+- **로컬 LLM 런타임**: `node-llama-cpp` Node.js 네이티브 바인딩으로 GGUF 모델을 in-process 로드
 - **RAG 시스템**: 세션 간 컨텍스트 재사용, 의미 검색, 실패 패턴 인식
 - **캐시 시스템**: Cross-Session Cache, 해시 기반 유효성 검사, `/cache` REPL 명령
 - **TUI 모드** (전체 화면):
@@ -45,6 +53,7 @@ detoks는 `codex`, `gemini`, `claude` 같은 LLM CLI 앞단에서 동작하는 *
 - Node.js `>=24.15.0 <26`
 - `codex`, `gemini`, 또는 `claude` CLI: 해당 adapter를 사용할 때
 - 로컬 모델 추론 사용 시: `node-llama-cpp`에서 로드 가능한 GGUF 모델
+- 로컬 LLM 실행은 Node.js 프로세스 안에서 처리되며, 별도 `llama-server` 실행이나 Python 런타임이 필요하지 않습니다.
 
 자세한 버전 기준은 [STACK_VERSIONS.md](./docs/STACK_VERSIONS.md)와 [LLAMA_CPP_SERVER_SPEC.md](./docs/LLAMA_CPP_SERVER_SPEC.md)를 참고하세요.
 
@@ -136,18 +145,45 @@ TUI 키보드 단축키:
 |------|------|--------|
 | `DETOKS_THEME` | TUI 테마: `dark` / `light` / `colorblind` | `dark` |
 | `DETOKS_NERD_FONT` | Nerd Font 아이콘 활성화 (`1` = on) | `0` |
+| `LOCAL_LLM_RUNTIME_PROVIDER` | 로컬 LLM 런타임 provider. 현재 `node-llama-cpp`만 지원 | `node-llama-cpp` |
+| `LOCAL_LLM_MODEL_NAME` | 로컬 LLM 모델 이름 | `unsloth/Qwen3.5-4B-GGUF` |
+| `LOCAL_LLM_MODEL_PATH` | 직접 지정한 GGUF 모델 파일 경로 | 없음 |
+| `LOCAL_LLM_MODEL_DIR` | GGUF 모델 캐시 디렉터리 | `~/.detoks/models/llm/<repo>` |
+| `LOCAL_LLM_HF_REPO` | Hugging Face GGUF repo와 quantization | `unsloth/Qwen3.5-4B-GGUF:Q4_K_M` |
+| `LOCAL_LLM_HF_FILE` | 로드할 GGUF 파일명 | `Qwen3.5-4B-Q4_K_M.gguf` |
+| `LOCAL_LLM_CONTEXT_SIZE` | 로컬 LLM context size | `4096` |
+| `LOCAL_LLM_MAX_TOKENS` | 로컬 LLM 기본 생성 토큰 수 | `512` |
+| `RAG_ENABLED` | RAG 비활성화 플래그 (`0` = off) | 모델 존재 시 on |
+| `RAG_EMBEDDING_MODEL_PATH` | RAG 임베딩 GGUF 모델 경로 | `~/.detoks/models/embedding/mykor-KURE-v1-gguf/KURE-v1-Q4_K_M.gguf` |
+| `DETOKS_CACHE_DISABLED` | Cross-session cache 비활성화 (`1` = off) | `0` |
 
 ## detoks가 해주는 일
 
 1. 입력을 작업 단위로 정리
 2. task graph와 의존성을 구성
 3. 현재 실행에 필요한 context만 주입 (RAG 의미 검색으로 세션 간 재사용)
-4. adapter / subprocess boundary를 통해 실행
+4. adapter / subprocess boundary 또는 `node-llama-cpp` in-process 런타임을 통해 실행
 5. 결과를 세션에 저장해 다음 실행에서 재사용 (캐시 + 패턴 학습)
 
 ## 변경 이력
 
-### 개발 버전 (dev — 다음 릴리스 예정)
+### 0.2.0 (main 병합 예정)
+
+**이전 main(0.1.2) 대비 핵심 변화**
+- 패키지 버전이 `0.1.2`에서 `0.2.0`으로 올라갑니다.
+- 로컬 LLM 실행 경로가 외부 `llama.cpp` / `llama-server` 프로세스 중심에서 `node-llama-cpp` Node.js 네이티브 바인딩 기반 in-process 런타임으로 변경되었습니다.
+- 로컬 모델 추론에 Python 런타임 또는 Python helper 스크립트를 사용하지 않습니다.
+- `LOCAL_LLM_RUNTIME_PROVIDER`는 현재 `node-llama-cpp`만 허용하며, GGUF 모델은 `LOCAL_LLM_MODEL_PATH` 또는 `LOCAL_LLM_MODEL_DIR` + `LOCAL_LLM_HF_FILE` 기준으로 로드합니다.
+- `node-llama-cpp`, `better-sqlite3`, `sqlite-vec`, `node-pty`가 런타임 의존성으로 추가되어 로컬 GGUF 추론, RAG 벡터 검색, embedded TUI/PTY 흐름을 지원합니다.
+- `add:py` 계열 Python 의존성 관리 스크립트가 제거되고, Node.js/TypeScript 중심의 build·test·packaging 흐름으로 정리되었습니다.
+- `main` push 이후 GitHub Release 및 npm publish가 연동되도록 릴리즈 자동화가 업데이트되었습니다.
+
+**로컬 LLM 런타임**
+- `node-llama-cpp`로 GGUF 모델을 Node.js 프로세스 안에서 직접 로드
+- 외부 OpenAI-compatible HTTP `llama-server` fallback 미지원
+- 기본 모델: `unsloth/Qwen3.5-4B-GGUF` / `Qwen3.5-4B-Q4_K_M.gguf`
+- 모델 선택 UI에서 내장 GGUF 모델 또는 사용자 지정 Hugging Face GGUF 파일 선택 가능
+- KURE-v1 GGUF 임베딩 모델 기반 RAG 인덱싱 지원
 
 **TUI 대폭 개선**
 - 테마 시스템: `dark` / `light` / `colorblind` 내장 팔레트 + `DETOKS_THEME` 환경 변수
@@ -187,7 +223,7 @@ TUI 키보드 단축키:
 - `claude` 어댑터 추가 (`codex`, `gemini`에 이어 세 번째 공식 어댑터)
 - task type 세션 결과 영속 (재시작 후에도 task 분류 유지)
 - codex reasoning flow 개선
-- node-llama-cpp 기반 로컬 모델 실행 (GGUF)
+- 초기 로컬 `llama-server` 연동 기반 Role 1 번역 파이프라인
 - TUI 기반 구축: embedded PTY, 실시간 스트리밍, 한글 IME 입력 처리
 - 세션 checkpoint 저장 및 재개 (list / continue / fork / restore)
 - Role 1 번역 파이프라인 + Guardrails 출력 검증
@@ -198,16 +234,12 @@ TUI 키보드 단축키:
 - [PIPELINE.md](./docs/PIPELINE.md)
 - [PROJECT_STRUCTURE.md](./docs/PROJECT_STRUCTURE.md)
 - [STACK_VERSIONS.md](./docs/STACK_VERSIONS.md)
+- [LLAMA_CPP_SERVER_SPEC.md](./docs/LLAMA_CPP_SERVER_SPEC.md)
 - [DEPENDENCY_WORKFLOW.md](./docs/DEPENDENCY_WORKFLOW.md)
 - [TESTING_GUIDE.md](./docs/TESTING_GUIDE.md)
 - [ROLES.md](./docs/ROLES.md)
 - [ENGINEERING_GUIDELINES.md](./docs/ENGINEERING_GUIDELINES.md)
 - [SCHEMAS.md](./docs/SCHEMAS.md)
-
-## Windows 사용
-
-Windows native 실행은 지원하지 않으며, WSL Ubuntu에서 실행합니다.
-자세한 설치/실행 절차는 [README.ko.md](./README.ko.md) 및 [LLAMA_CPP_SERVER_SPEC.md](./docs/LLAMA_CPP_SERVER_SPEC.md)를 참고하세요.
 
 ## Authors
 
