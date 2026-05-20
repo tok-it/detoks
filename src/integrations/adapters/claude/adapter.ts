@@ -5,6 +5,8 @@ import { buildStubRawOutput } from "../stub.js";
 import { buildWorkspaceIsolationEnv } from "../workspace-env.js";
 
 const CLAUDE_PERMISSION_MODE = "default" as const;
+const getClaudeSettingSources = (): string =>
+  process.env.DETOKS_CLAUDE_SETTING_SOURCES?.trim() || "project";
 
 export class ClaudeStubAdapter implements CliAdapter {
   readonly target = "claude" as const;
@@ -23,10 +25,15 @@ export class ClaudeStubAdapter implements CliAdapter {
       return {
         command: "claude",
         args: [
+          "-p",
+          "--output-format",
+          "text",
+          "--setting-sources",
+          getClaudeSettingSources(),
           ...(request.model ? ["--model", request.model] : []),
           "--permission-mode",
           CLAUDE_PERMISSION_MODE,
-          ...(request.prompt ? [request.prompt] : []),
+          ...(request.prompt !== undefined ? [request.prompt] : []),
         ],
         ...(request.cwd !== undefined ? { cwd: request.cwd } : {}),
         ...(workspaceEnv !== undefined ? { env: workspaceEnv } : {}),
@@ -40,13 +47,15 @@ export class ClaudeStubAdapter implements CliAdapter {
           "-p",
           "--output-format",
           "text",
+          "--setting-sources",
+          getClaudeSettingSources(),
           "--permission-mode",
           CLAUDE_PERMISSION_MODE,
           ...(request.model ? ["--model", request.model] : []),
+          ...(request.prompt !== undefined ? [request.prompt] : []),
         ],
         ...(request.cwd !== undefined ? { cwd: request.cwd } : {}),
         ...(workspaceEnv !== undefined ? { env: workspaceEnv } : {}),
-        input: request.prompt,
       };
     }
 
@@ -56,13 +65,15 @@ export class ClaudeStubAdapter implements CliAdapter {
         "-p",
         "--output-format",
         "text",
+        "--setting-sources",
+        getClaudeSettingSources(),
         "--permission-mode",
         CLAUDE_PERMISSION_MODE,
         ...(request.model ? ["--model", request.model] : []),
+        ...(request.prompt !== undefined ? [request.prompt] : []),
       ],
       ...(request.cwd !== undefined ? { cwd: request.cwd } : {}),
       ...(workspaceEnv !== undefined ? { env: workspaceEnv } : {}),
-      input: request.prompt,
     };
   }
 

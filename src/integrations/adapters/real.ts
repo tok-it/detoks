@@ -29,16 +29,26 @@ const readOutputLastMessage = (path?: string): string | null => {
   }
 };
 
+const sanitizeFinalAdapterOutput = (value: string): string =>
+  value
+    .replace(/\u001b\][^\u0007]*(?:\u0007|\u001b\\)/g, "")
+    .replace(/\u001b\[[0-?]*[ -/]*[@-~]/g, "")
+    .replace(/\u001b[78]/g, "")
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, "")
+    .trim();
+
 const resolveRawOutput = (
   result: { stdout: string; stderr: string; exitCode: number; timedOut: boolean },
   outputLastMessagePath?: string,
 ): string => {
   const lastMessage = readOutputLastMessage(outputLastMessagePath);
   if (!result.timedOut && result.exitCode === 0 && lastMessage !== null) {
-    return lastMessage;
+    return sanitizeFinalAdapterOutput(lastMessage);
   }
 
-  return !result.timedOut && result.exitCode === 0 ? result.stdout : (result.stdout || result.stderr);
+  return sanitizeFinalAdapterOutput(
+    !result.timedOut && result.exitCode === 0 ? result.stdout : (result.stdout || result.stderr),
+  );
 };
 
 export const shouldUseRealExecution = (context?: AdapterExecutionContext): boolean =>

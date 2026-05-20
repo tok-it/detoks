@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { homedir } from "node:os";
 import { join } from "node:path";
+import { getDetoksHomeDir } from "../../core/state/storage-paths.js";
 
 interface StoredCustomModel {
   hfRepo: string;
@@ -11,7 +11,7 @@ interface StoredCustomModel {
 }
 
 const getStorePath = (): string =>
-  join(homedir(), ".detoks", "custom-models.json");
+  join(getDetoksHomeDir(), "custom-models.json");
 
 export const loadLastCustomModel = (): StoredCustomModel | null => {
   const path = getStorePath();
@@ -28,7 +28,7 @@ export const loadLastCustomModel = (): StoredCustomModel | null => {
 
 export const saveCustomModel = (model: StoredCustomModel): void => {
   const path = getStorePath();
-  mkdirSync(join(homedir(), ".detoks"), { recursive: true });
+  mkdirSync(getDetoksHomeDir(), { recursive: true });
 
   const list: StoredCustomModel[] = [
     { ...model, savedAt: new Date().toISOString() },

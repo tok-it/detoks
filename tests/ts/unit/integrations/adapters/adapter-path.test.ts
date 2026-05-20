@@ -81,7 +81,7 @@ describe("adapter subprocess path", () => {
     });
   });
 
-  it("builds gemini subprocess requests explicitly", () => {
+  it("builds gemini subprocess requests as headless prompts", () => {
     const adapter = new GeminiStubAdapter();
     expect(
       adapter.buildSubprocessRequest({
@@ -93,7 +93,7 @@ describe("adapter subprocess path", () => {
       }),
     ).toEqual({
       command: "gemini",
-      args: ["--model", "gemini-2.5-pro"],
+      args: ["--model", "gemini-2.5-pro", "--prompt", ""],
       cwd: "/tmp",
       env: {
         GIT_CEILING_DIRECTORIES: "/",
@@ -102,7 +102,7 @@ describe("adapter subprocess path", () => {
     });
   });
 
-  it("builds gemini passthrough subprocess requests as interactive sessions", () => {
+  it("builds gemini passthrough subprocess requests as headless prompt args", () => {
     const adapter = new GeminiStubAdapter();
     expect(
       adapter.buildSubprocessRequest({
@@ -115,7 +115,7 @@ describe("adapter subprocess path", () => {
       }),
     ).toEqual({
       command: "gemini",
-      args: ["--model", "gemini-2.5-pro", "hello gemini"],
+      args: ["--model", "gemini-2.5-pro", "--prompt", "hello gemini"],
       cwd: "/tmp",
       env: {
         GIT_CEILING_DIRECTORIES: "/",
@@ -123,7 +123,7 @@ describe("adapter subprocess path", () => {
     });
   });
 
-  it("builds claude subprocess requests explicitly", () => {
+  it("builds claude subprocess requests as headless prompt args", () => {
     const adapter = new ClaudeStubAdapter();
     expect(
       adapter.buildSubprocessRequest({
@@ -139,20 +139,22 @@ describe("adapter subprocess path", () => {
         "-p",
         "--output-format",
         "text",
+        "--setting-sources",
+        "project",
         "--permission-mode",
         "default",
         "--model",
         "claude-sonnet-4-6",
+        "hello claude",
       ],
       cwd: "/tmp",
       env: {
         GIT_CEILING_DIRECTORIES: "/",
       },
-      input: "hello claude",
     });
   });
 
-  it("builds claude passthrough subprocess requests as interactive sessions", () => {
+  it("builds claude passthrough subprocess requests as headless prompt args", () => {
     const adapter = new ClaudeStubAdapter();
     expect(
       adapter.buildSubprocessRequest({
@@ -166,6 +168,11 @@ describe("adapter subprocess path", () => {
     ).toEqual({
       command: "claude",
       args: [
+        "-p",
+        "--output-format",
+        "text",
+        "--setting-sources",
+        "project",
         "--model",
         "claude-sonnet-4-6",
         "--permission-mode",
@@ -221,7 +228,7 @@ describe("adapter subprocess path", () => {
     });
   });
 
-  it("builds claude embedded-pane subprocess requests as one-shot stdin prompts", () => {
+  it("builds claude embedded-pane subprocess requests as headless prompt args", () => {
     const adapter = new ClaudeStubAdapter();
     expect(
       adapter.buildSubprocessRequest({
@@ -238,20 +245,22 @@ describe("adapter subprocess path", () => {
         "-p",
         "--output-format",
         "text",
+        "--setting-sources",
+        "project",
         "--permission-mode",
         "default",
         "--model",
         "claude-sonnet-4-6",
+        "",
       ],
       cwd: "/tmp",
       env: {
         GIT_CEILING_DIRECTORIES: "/",
       },
-      input: "",
     });
   });
 
-  it("builds gemini embedded-pane subprocess requests as one-shot stdin prompts", () => {
+  it("builds gemini embedded-pane subprocess requests as headless one-shot stdin prompts", () => {
     const adapter = new GeminiStubAdapter();
     expect(
       adapter.buildSubprocessRequest({
@@ -264,7 +273,7 @@ describe("adapter subprocess path", () => {
       }),
     ).toEqual({
       command: "gemini",
-      args: ["--model", "gemini-2.5-pro"],
+      args: ["--model", "gemini-2.5-pro", "--prompt", ""],
       cwd: "/tmp",
       env: {
         GIT_CEILING_DIRECTORIES: "/",
@@ -314,7 +323,7 @@ describe("adapter subprocess path", () => {
 
     expect(result.success).toBe(true);
     expect(result.rawOutput).toBe(
-      "[stub:subprocess] claude -p --output-format text --permission-mode default --model claude-sonnet-4-6",
+      "[stub:subprocess] claude -p --output-format text --setting-sources project --permission-mode default --model claude-sonnet-4-6 hello subprocess",
     );
     expect(result.exitCode).toBe(0);
   });
@@ -337,7 +346,7 @@ describe("adapter subprocess path", () => {
 
     expect(result.success).toBe(true);
     expect(result.rawOutput).toBe(
-      "[stub:subprocess] claude -p --output-format text --permission-mode default --model claude-sonnet-4-6",
+      "[stub:subprocess] claude -p --output-format text --setting-sources project --permission-mode default --model claude-sonnet-4-6 hello subprocess",
     );
     expect(result.exitCode).toBe(0);
   });

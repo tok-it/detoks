@@ -27,6 +27,34 @@ const getGeminiConfigPath = (): string => {
   return join(homedir(), ".gemini", "settings.json");
 };
 
+const getGeminiOAuthCredsPath = (): string => {
+  return join(homedir(), ".gemini", "oauth_creds.json");
+};
+
+const hasFreshGeminiOAuthAccessToken = (): boolean => {
+  try {
+    const parsed = JSON.parse(readFileSync(getGeminiOAuthCredsPath(), "utf-8")) as {
+      access_token?: unknown;
+      expiry_date?: unknown;
+    };
+    const expiryDate =
+      typeof parsed.expiry_date === "number"
+        ? parsed.expiry_date
+        : typeof parsed.expiry_date === "string"
+          ? Number.parseInt(parsed.expiry_date, 10)
+          : NaN;
+
+    return (
+      typeof parsed.access_token === "string" &&
+      parsed.access_token.trim().length > 0 &&
+      Number.isFinite(expiryDate) &&
+      expiryDate > Date.now()
+    );
+  } catch {
+    return false;
+  }
+};
+
 export const getGeminiConfig = (): GeminiConfig => {
   const cached = readCache<GeminiConfig>("adapter-config", "gemini", CACHE_TTL_MS.adapterConfig);
   if (cached) {
@@ -54,9 +82,15 @@ export const getGeminiLoginStatus = (): GeminiLoginStatus => {
   }
 
   const config = getGeminiConfig();
+  const authType = config.authType;
+  const authenticated = authType
+    ? authType.toLowerCase().includes("oauth")
+      ? hasFreshGeminiOAuthAccessToken()
+      : true
+    : false;
   const status = {
-    authenticated: !!config.authType,
-    authType: config.authType,
+    authenticated,
+    authType,
   };
 
   writeCache("adapter-status", "gemini", status, CACHE_TTL_MS.adapterStatus);
@@ -69,7 +103,7 @@ export const getGeminiAvailableModels = () => {
 
 export const geminiLogout = (): boolean => {
   try {
-    const configPath = join(homedir(), ".gemini", "oauth_creds.json");
+    const configPath = getGeminiOAuthCredsPath();
     if (existsSync(configPath)) {
       unlinkSync(configPath);
     }

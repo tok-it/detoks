@@ -1,5 +1,5 @@
-import { homedir } from "node:os";
 import { join } from "node:path";
+import { getDetoksHomeDir } from "./state/storage-paths.js";
 
 export type ModelRole = "llm" | "embedding" | "compress";
 
@@ -10,7 +10,7 @@ export interface DetoksModelDescriptor {
 }
 
 export const getDetoksModelsRootDir = (): string =>
-  join(homedir(), ".detoks", "models");
+  join(getDetoksHomeDir(), "models");
 
 const sanitizePathSegment = (value: string): string => {
   const sanitized = value

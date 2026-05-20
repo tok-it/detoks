@@ -1,7 +1,7 @@
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	buildModelRuntimeEnv,
 	calculateCosineSimilarity,
@@ -47,6 +47,7 @@ function makeItem(
 }
 
 afterEach(() => {
+	vi.unstubAllEnvs();
 	for (const dir of tempDirs) {
 		rmSync(dir, { recursive: true, force: true });
 	}
@@ -92,6 +93,23 @@ describe("translate-model-benchmark-report script", () => {
 
 		expect(args.fromJsonPaths).toEqual(["a.json", "b.json"]);
 		expect(args.reportOutputPath).toBe("tmp/report.md");
+	});
+
+	it("기본 임베딩 모델 경로는 DETOKS_HOME을 따른다", () => {
+		const detoksHome = makeTempDir();
+		vi.stubEnv("DETOKS_HOME", detoksHome);
+
+		const args = parseArgs([]);
+
+		expect(args.embeddingModelPath).toBe(
+			join(
+				detoksHome,
+				"models",
+				"embedding",
+				"mykor-KURE-v1-gguf",
+				"KURE-v1-Q4_K_M.gguf",
+			),
+		);
 	});
 
 	it("모델 manifest를 파싱하고 env override를 구성한다", () => {

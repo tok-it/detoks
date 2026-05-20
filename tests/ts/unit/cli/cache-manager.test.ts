@@ -3,11 +3,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { getDetoksCacheDir, invalidateCache } from "../../../../src/cli/cache/cache-manager.js";
+import { getDetoksCacheDir, invalidateCache, writeCache } from "../../../../src/cli/cache/cache-manager.js";
 
 describe("cache manager", () => {
   const tempDirs: string[] = [];
-  const originalHome = process.env.HOME;
 
   beforeEach(() => {
     const home = mkdtempSync(join(tmpdir(), "detoks-cache-manager-"));
@@ -19,12 +18,7 @@ describe("cache manager", () => {
     for (const dir of tempDirs.splice(0)) {
       rmSync(dir, { recursive: true, force: true });
     }
-
-    if (originalHome === undefined) {
-      vi.unstubAllEnvs();
-    } else {
-      vi.stubEnv("HOME", originalHome);
-    }
+    vi.unstubAllEnvs();
   });
 
   it("does nothing when the cache file is missing", () => {
@@ -48,5 +42,26 @@ describe("cache manager", () => {
 
     expect(() => invalidateCache("adapter-status", "claude")).not.toThrow();
     expect(existsSync(cachePath)).toBe(true);
+  });
+
+  it("uses DETOKS_HOME for cache files when set", () => {
+    const home = mkdtempSync(join(tmpdir(), "detoks-cache-home-"));
+    const detoksHome = mkdtempSync(join(tmpdir(), "detoks-cache-detoks-home-"));
+    tempDirs.push(home, detoksHome);
+    vi.stubEnv("HOME", home);
+    vi.stubEnv("DETOKS_HOME", detoksHome);
+
+    expect(getDetoksCacheDir()).toBe(join(detoksHome, "cache"));
+  });
+
+  it("keeps cache writes best-effort when DETOKS_HOME is not writable", () => {
+    const home = mkdtempSync(join(tmpdir(), "detoks-cache-unwritable-home-"));
+    const detoksHomeFile = join(home, "detoks-home-file");
+    writeFileSync(detoksHomeFile, "not a directory", "utf-8");
+    tempDirs.push(home);
+    vi.stubEnv("HOME", home);
+    vi.stubEnv("DETOKS_HOME", detoksHomeFile);
+
+    expect(() => writeCache("adapter-status", "gemini", { authenticated: false }, 10_000)).not.toThrow();
   });
 });

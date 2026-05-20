@@ -61,4 +61,34 @@ describe("downloadModel", () => {
     expect(existsSync(downloadedPath)).toBe(true);
     expect(readFileSync(downloadedPath, "utf8")).toBe("GGUF_test_payload");
   });
+
+  it("uses DETOKS_HOME for model downloads when set", async () => {
+    const { home } = createWorkspace();
+    const detoksHome = join(home, "detoks-home");
+    vi.stubEnv("HOME", join(home, "real-home"));
+    vi.stubEnv("DETOKS_HOME", detoksHome);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(new Blob([Buffer.from("GGUF_detoks_home")]), { status: 200 })),
+    );
+    const stdoutWriteSpy = vi
+      .spyOn(process.stdout, "write")
+      .mockImplementation(() => true);
+
+    try {
+      await downloadModel({
+        displayName: "Test Model",
+        role: "llm",
+        hfRepo: "test/repo",
+        hfFile: "detoks-home-model.gguf",
+        sizeMb: 1,
+      });
+    } finally {
+      stdoutWriteSpy.mockRestore();
+    }
+
+    const downloadedPath = join(detoksHome, "models", "llm", "test-repo", "detoks-home-model.gguf");
+    expect(existsSync(downloadedPath)).toBe(true);
+    expect(readFileSync(downloadedPath, "utf8")).toBe("GGUF_detoks_home");
+  });
 });

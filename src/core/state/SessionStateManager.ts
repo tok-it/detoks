@@ -177,6 +177,12 @@ export class SessionStateManager {
           { sessionId },
         );
       }
+      if (nodeError.code === 'ENOENT') {
+        // 테스트 병렬 실행 또는 외부 정리 작업이 ensureDirectories 이후
+        // 세션 디렉터리를 제거한 경우, 디렉터리를 재생성하고 제한적으로 재시도한다.
+        await fs.mkdir(this.sessionDir(cwd), { recursive: true });
+        return this.acquireLock(sessionId, cwd, retryDepth + 1);
+      }
       throw new StateIOError(`Failed to create lock file for session [${sessionId}]`, {
         sessionId,
         originalError: nodeError.message,

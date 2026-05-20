@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
-import { homedir } from "node:os";
 import { join } from "node:path";
+import { getDetoksHomeDir } from "../../core/state/storage-paths.js";
 
 export interface CacheEntry<T> {
   version: 1;
@@ -11,9 +11,7 @@ export interface CacheEntry<T> {
 
 const CACHE_VERSION = 1 as const;
 
-const getHomeDir = (): string => process.env.HOME ?? homedir();
-
-export const getDetoksCacheDir = (): string => join(getHomeDir(), ".detoks", "cache");
+export const getDetoksCacheDir = (): string => join(getDetoksHomeDir(), "cache");
 
 const getCacheFilePath = (namespace: string, key: string): string =>
   join(getDetoksCacheDir(), namespace, `${key}.json`);
@@ -65,17 +63,22 @@ export const writeCache = <T>(
   value: T,
   ttlMs: number,
 ): void => {
-  ensureCacheDir(namespace);
+  try {
+    ensureCacheDir(namespace);
 
-  const filePath = getCacheFilePath(namespace, key);
-  const payload: CacheEntry<T> = {
-    version: CACHE_VERSION,
-    cachedAt: new Date().toISOString(),
-    ttlMs,
-    value,
-  };
+    const filePath = getCacheFilePath(namespace, key);
+    const payload: CacheEntry<T> = {
+      version: CACHE_VERSION,
+      cachedAt: new Date().toISOString(),
+      ttlMs,
+      value,
+    };
 
-  writeFileSync(filePath, JSON.stringify(payload, null, 2), "utf-8");
+    writeFileSync(filePath, JSON.stringify(payload, null, 2), "utf-8");
+  } catch {
+    // Cache writes are best-effort: auth/status/model flows must still work
+    // when DETOKS_HOME or ~/.detoks is not writable in constrained runtimes.
+  }
 };
 
 export const invalidateCache = (namespace: string, key: string): void => {

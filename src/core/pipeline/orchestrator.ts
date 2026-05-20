@@ -1560,14 +1560,6 @@ export const orchestratePipeline = async (
         });
         if (!execResult.ok) {
           // 실패 — Strict 모드에 따라 후속 의존 Task도 차단됨
-          failedTaskIds.add(task.id);
-          state = markTaskFailed(state, task.id, execResult.rawOutput, task.type, task);
-          state = applySessionTokenMetrics(
-            state,
-            request.userRequest.raw_input,
-            compiledPrompt.compressed_prompt,
-          ).state;
-          await SessionStateManager.saveSession(state, request.userRequest.cwd);
           await PipelineTracer.trace({
             sessionId, stage: `Executor:${task.id}`, role: "role3", phase: "output",
             dataType: "ExecutionResult",

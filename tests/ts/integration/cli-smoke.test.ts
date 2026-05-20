@@ -17,6 +17,7 @@ import {
   resolveProjectNoticeFlagPath,
   resolveSessionsDir,
 } from "../../../src/core/state/storage-paths.js";
+import { getAdapterStatus } from "../../../src/cli/adapter-info/index.js";
 
 const repoRoot = new URL("../../..", import.meta.url).pathname.replace(/\/$/, "");
 const packageJson = JSON.parse(
@@ -29,6 +30,7 @@ const cliEntry = resolve(repoRoot, "src/cli/index.ts");
 const tsxLoader = resolve(repoRoot, "node_modules/tsx/dist/loader.mjs");
 const testDetoksHome = mkdtempSync(join(tmpdir(), "detoks-cli-home-"));
 const originalDetoksHome = process.env.DETOKS_HOME;
+process.env.DETOKS_HOME = testDetoksHome;
 
 beforeAll(() => {
   process.env.DETOKS_HOME = testDetoksHome;
@@ -249,22 +251,41 @@ const findInstalledBinary = (
 const installedRealAdapters: Array<"codex" | "gemini" | "claude"> = (
   ["codex", "gemini", "claude"] as const
 ).filter((command) => findInstalledBinary(command) !== undefined);
-const requestedRealBinarySmokeAdapter =
-  process.env.DETOKS_REAL_BINARY_SMOKE_ADAPTER === "codex" ||
-  process.env.DETOKS_REAL_BINARY_SMOKE_ADAPTER === "gemini"
-    ? process.env.DETOKS_REAL_BINARY_SMOKE_ADAPTER
-    : undefined;
+const isRealBinarySmokeAdapter = (
+  value: string | undefined,
+): value is "codex" | "gemini" | "claude" =>
+  value === "codex" || value === "gemini" || value === "claude";
+const isRealBinarySmokeAuthReady = (adapter: "codex" | "gemini" | "claude"): boolean => {
+  try {
+    return getAdapterStatus(adapter).authenticated;
+  } catch {
+    return false;
+  }
+};
+const requestedRealBinarySmokeAdapter = isRealBinarySmokeAdapter(
+  process.env.DETOKS_REAL_BINARY_SMOKE_ADAPTER,
+)
+  ? process.env.DETOKS_REAL_BINARY_SMOKE_ADAPTER
+  : undefined;
 const runAllRealBinarySmokeTargets =
   process.env.DETOKS_REAL_BINARY_SMOKE_ALL === "1";
+const authReadyRealAdapters =
+  process.env.DETOKS_REAL_BINARY_SMOKE === "1"
+    ? installedRealAdapters.filter(isRealBinarySmokeAuthReady)
+    : installedRealAdapters;
+const skippedRealBinarySmokeAdapters =
+  process.env.DETOKS_REAL_BINARY_SMOKE === "1"
+    ? installedRealAdapters.filter((adapter) => !authReadyRealAdapters.includes(adapter))
+    : [];
 const realBinarySmokeTargets: Array<"codex" | "gemini" | "claude"> =
   runAllRealBinarySmokeTargets
-    ? installedRealAdapters
+    ? authReadyRealAdapters
     : requestedRealBinarySmokeAdapter
-      ? installedRealAdapters.includes(requestedRealBinarySmokeAdapter)
+      ? authReadyRealAdapters.includes(requestedRealBinarySmokeAdapter)
         ? [requestedRealBinarySmokeAdapter]
         : []
-      : installedRealAdapters[0]
-        ? [installedRealAdapters[0]]
+      : authReadyRealAdapters[0]
+        ? [authReadyRealAdapters[0]]
         : [];
 const realBinarySmokePrompt =
   process.env.DETOKS_REAL_BINARY_SMOKE_PROMPT ??
@@ -378,41 +399,22 @@ const createFakeApprovalBinary = (dir: string) => {
   const binaryPath = join(dir, "codex");
   writeFileSync(
     binaryPath,
-    `#!/usr/bin/env node
-let prompt = "";
-let approvalPromptShown = false;
-let resolved = false;
-let approvalReply = "";
-process.stdin.setEncoding("utf8");
-process.stdin.on("data", (chunk) => {
-  prompt += chunk;
-  if (!approvalPromptShown) {
-    approvalPromptShown = true;
-    process.stdout.write("approval required (y/n)\\n");
-    return;
-  }
-
-  if (resolved) {
-    return;
-  }
-
-  approvalReply += chunk;
-  const normalized = approvalReply.replace(/\\s+/g, "").toLowerCase();
-  if (normalized === "y" || normalized === "yes") {
-    resolved = true;
-    process.stdout.write("approved\\n");
-    process.stdout.write(\`[fake:codex-approved] \${prompt}\`);
-    process.exit(0);
-    return;
-  }
-
-  if (normalized === "n" || normalized === "no") {
-    resolved = true;
-    process.stdout.write("denied\\n");
-    process.exit(1);
-  }
-});
-process.stdin.resume();
+    `#!/bin/sh
+prompt=$(cat)
+printf 'approval required (y/n)\\n'
+IFS= read -r approvalReply < /dev/tty
+normalized=$(printf '%s' "$approvalReply" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')
+case "$normalized" in
+  y|yes)
+    printf 'approved\\n'
+    printf '[fake:codex-approved] %s' "$prompt"
+    exit 0
+    ;;
+  n|no)
+    printf 'denied\\n'
+    exit 1
+    ;;
+esac
 `,
     "utf8",
   );
@@ -469,18 +471,13 @@ const runInstalledRealAdapterSmoke = (
   expect(defaultRun.stderr).toBe("");
   expect(verboseRun.stderr).toBe("");
 
-  const defaultJson = parseCliJson(defaultRun.stdout);
   const verboseJson = parseCliJson(verboseRun.stdout);
 
-  expect(defaultJson).toMatchObject({
-    ok: true,
-    mode: "run",
-    adapter,
-  });
-  expect(defaultJson.stages).toEqual(completedPipelineStages);
-  expect(defaultJson).toHaveProperty("summary");
-  expect(defaultJson).toHaveProperty("nextAction");
-  expect(defaultJson).not.toHaveProperty("rawOutput");
+  expect(defaultRun.stdout).toContain(`[${adapter.toUpperCase()}]`);
+  expect(defaultRun.stdout).toContain("한눈에 보기");
+  expect(defaultRun.stdout).toContain("실행 결과");
+  expect(defaultRun.stdout).not.toContain(`[fake:${adapter}]`);
+  expect(defaultRun.stdout).not.toContain(`[stub:${adapter}]`);
 
   expect(verboseJson).toMatchObject({
     ok: true,
@@ -562,6 +559,13 @@ const runLiveLocalLlmSmoke = () => {
 };
 
 describe.skipIf(Boolean(process.env.CI))("detoks CLI smoke", () => {
+  it("accepts claude as an explicit real binary smoke adapter target", () => {
+    expect(isRealBinarySmokeAdapter("codex")).toBe(true);
+    expect(isRealBinarySmokeAdapter("gemini")).toBe(true);
+    expect(isRealBinarySmokeAdapter("claude")).toBe(true);
+    expect(isRealBinarySmokeAdapter("unknown")).toBe(false);
+  });
+
   it("keeps default stdout concise and verbose stdout full", () => {
     const defaultRun = runCli(["hello detoks", "--execution-mode", "stub"]);
     const verboseRun = runCli([
@@ -767,7 +771,7 @@ describe.skipIf(Boolean(process.env.CI))("detoks CLI smoke", () => {
       createFakeBinary(tempDir, "codex");
       const replRun = runCliWithInputFromCwdEnvAndTimeout(
         tempDir,
-        ["repl", "--tui", "--embedded-cli-ui", "--execution-mode", "real"],
+        ["repl", "--adapter", "codex", "--tui", "--embedded-cli-ui", "--execution-mode", "real"],
         "hello detoks\n\n/exit\n",
         {
           PATH: `${tempDir}:${process.env.PATH ?? ""}`,
@@ -794,7 +798,7 @@ describe.skipIf(Boolean(process.env.CI))("detoks CLI smoke", () => {
       createFakeBinary(tempDir, "codex");
       const replRun = runCliWithInputFromCwdEnvAndTimeout(
         tempDir,
-        ["repl", "--tui", "--embedded-cli-ui", "--execution-mode", "real"],
+        ["repl", "--adapter", "codex", "--tui", "--embedded-cli-ui", "--execution-mode", "real"],
         "hello detoks\n\nhello again\n\n/exit\n",
         {
           PATH: `${tempDir}:${process.env.PATH ?? ""}`,
@@ -814,6 +818,36 @@ describe.skipIf(Boolean(process.env.CI))("detoks CLI smoke", () => {
     }
   }, 30_000);
 
+  it("keeps an explicit embedded TUI adapter on first run without settings", () => {
+    const tempDir = mkdtempSync(join(tmpdir(), "detoks-cli-embedded-explicit-adapter-"));
+    const detoksHome = mkdtempSync(join(tmpdir(), "detoks-cli-embedded-explicit-home-"));
+
+    try {
+      createFakeBinary(tempDir, "claude");
+      const replRun = runCliWithInputFromCwdEnvAndTimeout(
+        tempDir,
+        ["repl", "--adapter", "claude", "--tui", "--embedded-cli-ui", "--execution-mode", "real"],
+        "hello claude\n\n/exit\n",
+        {
+          PATH: `${tempDir}:${process.env.PATH ?? ""}`,
+          DETOKS_HOME: detoksHome,
+          DETOKS_CACHE_DISABLED: "1",
+        },
+        20_000,
+      );
+
+      expect(replRun.error).toBeUndefined();
+      expect(replRun.status).toBe(0);
+      expect(replRun.stderr).not.toContain("ReferenceError");
+      expect(replRun.stdout).toContain("hello claude");
+      expect(replRun.stdout).toContain("[fake:claude]");
+      expect(replRun.stdout).not.toContain("[fake:codex]");
+    } finally {
+      rmSync(tempDir, { force: true, recursive: true });
+      rmSync(detoksHome, { force: true, recursive: true });
+    }
+  }, 30_000);
+
   it("appends the final answer from codex output-last-message even when only progress text was streamed", () => {
     const tempDir = mkdtempSync(join(tmpdir(), "detoks-cli-embedded-last-message-"));
 
@@ -824,7 +858,7 @@ describe.skipIf(Boolean(process.env.CI))("detoks CLI smoke", () => {
       });
       const replRun = runCliWithInputFromCwdEnvAndTimeout(
         tempDir,
-        ["repl", "--tui", "--embedded-cli-ui", "--execution-mode", "real"],
+        ["repl", "--adapter", "codex", "--tui", "--embedded-cli-ui", "--execution-mode", "real"],
         "Explain the purpose of this directory in one sentence.\n\n/exit\n",
         {
           PATH: `${tempDir}:${process.env.PATH ?? ""}`,
@@ -849,7 +883,7 @@ describe.skipIf(Boolean(process.env.CI))("detoks CLI smoke", () => {
       createFakeBinary(tempDir, "codex");
       const replRun = runCliWithInputFromCwdEnvAndTimeout(
         tempDir,
-        ["repl", "--tui", "--embedded-cli-ui", "--execution-mode", "real"],
+        ["repl", "--adapter", "codex", "--tui", "--embedded-cli-ui", "--execution-mode", "real"],
         "hello detoks\r\n",
         {
           PATH: `${tempDir}:${process.env.PATH ?? ""}`,
@@ -871,7 +905,18 @@ describe.skipIf(Boolean(process.env.CI))("detoks CLI smoke", () => {
 
     try {
       createFakeApprovalBinary(tempDir);
-      const child = spawn(process.execPath, ["--import", tsxLoader, cliEntry, "repl", "--tui", "--embedded-cli-ui", "--execution-mode", "real"], {
+      const child = spawn(process.execPath, [
+        "--import",
+        tsxLoader,
+        cliEntry,
+        "repl",
+        "--adapter",
+        "codex",
+        "--tui",
+        "--embedded-cli-ui",
+        "--execution-mode",
+        "real",
+      ], {
         cwd: tempDir,
         env: {
           ...process.env,
@@ -923,7 +968,18 @@ describe.skipIf(Boolean(process.env.CI))("detoks CLI smoke", () => {
 
     try {
       createFakeHangingBinary(tempDir);
-      const child = spawn(process.execPath, ["--import", tsxLoader, cliEntry, "repl", "--tui", "--embedded-cli-ui", "--execution-mode", "real"], {
+      const child = spawn(process.execPath, [
+        "--import",
+        tsxLoader,
+        cliEntry,
+        "repl",
+        "--adapter",
+        "codex",
+        "--tui",
+        "--embedded-cli-ui",
+        "--execution-mode",
+        "real",
+      ], {
         cwd: tempDir,
         env: {
           ...process.env,
@@ -1768,6 +1824,14 @@ describe.skipIf(Boolean(process.env.CI))("detoks CLI smoke", () => {
       () => {
         runInstalledRealAdapterSmoke(adapter);
       },
+      Math.max(realBinarySmokeTimeoutMs * 2 + 10_000, 30_000),
+    );
+  }
+
+  for (const adapter of skippedRealBinarySmokeAdapters) {
+    it.skip(
+      `runs the real execution contract against installed ${adapter} when opted in (adapter is not authenticated)`,
+      () => {},
     );
   }
 

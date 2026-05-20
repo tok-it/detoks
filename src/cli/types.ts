@@ -37,6 +37,7 @@ export interface CliArgs {
   inputFile?: string;
   human?: boolean;
   adapter: Adapter;
+  adapterExplicit?: boolean;
   executionMode: ExecutionMode;
   verbose: boolean;
   trace: boolean;

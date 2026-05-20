@@ -110,6 +110,7 @@ import type { PtySessionController } from "../../integrations/subprocess/types.j
 
 interface TuiRunOptions {
   adapter: CliArgs["adapter"];
+  adapterExplicit?: boolean;
   executionMode: CliArgs["executionMode"];
   verbose: boolean;
   cwd?: string;
@@ -271,7 +272,7 @@ export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
       await runModelSetupIfNeeded(executionCwd);
       refreshRuntimeState();
 
-      if (!hasInitialConfig) {
+      if (!hasInitialConfig && !options.adapterExplicit) {
         await handleAdapterSwitch(state.adapter, async (newAdapter) => {
           state.adapter = newAdapter;
           loadAndApplyConfig(newAdapter);
