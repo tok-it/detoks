@@ -38,6 +38,7 @@
     "verify:role1": "tsx scripts/verify-role1.ts",
     "verify:role1:rows": "tsx scripts/verify-role1.ts --file tests/data/row_data.json",
     "benchmark": "tsx scripts/benchmark-pipeline.ts",
+    "benchmark:memory-effects": "tsx scripts/benchmark-memory-effects.ts",
     "benchmark:translate-report": "tsx scripts/translate-model-benchmark-report.ts"
   },
   "dependencies": {
