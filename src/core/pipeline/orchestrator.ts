@@ -64,6 +64,7 @@ import type {
 } from "./types.js";
 import { createActionTimelineEvent } from "../timeline/types.js";
 import type { ActionTimelineEvent } from "../timeline/types.js";
+import { extractRagMeta, toRagDisplayItem } from "./rag-display.js";
 
 const ADAPTER_MODEL_MAP: Record<string, string> = {
   claude: 'claude-3.5-sonnet',
@@ -293,47 +294,6 @@ function namespaceTaskGraphForTurn(
         depends_on: dependsOn,
       };
     }),
-  };
-}
-
-// RAG 메타데이터: Task 객체에서 task_results에 보존할 필드만 추출
-function extractRagMeta(task?: { title?: string; input_hash?: string; depends_on?: string[] }) {
-  if (!task) return {};
-  return {
-    ...(task.title !== undefined ? { title: task.title } : {}),
-    ...(task.input_hash !== undefined ? { input_hash: task.input_hash } : {}),
-    ...(task.depends_on !== undefined ? { depends_on: task.depends_on } : {}),
-  };
-}
-
-function normalizeRagPreview(content: string, maxLength = 80): string {
-  const normalized = content.replace(/\s+/g, " ").trim();
-  if (normalized.length <= maxLength) {
-    return normalized;
-  }
-  return `${normalized.slice(0, Math.max(0, maxLength - 3)).trimEnd()}...`;
-}
-
-function toRagDisplaySourceType(kind: RagSnippet["kind"]): RagContextDisplayItem["sourceType"] {
-  if (kind === "prompt") return "previous_request";
-  if (kind === "output") return "previous_output";
-  return "previous_task";
-}
-
-function toRagRelevance(distance: number): RagContextDisplayItem["relevance"] {
-  if (distance <= 0.35) return "high";
-  if (distance <= 0.65) return "medium";
-  return "low";
-}
-
-function toRagDisplayItem(snippet: RagSnippet): RagContextDisplayItem {
-  return {
-    sourceType: toRagDisplaySourceType(snippet.kind),
-    sessionId: snippet.session_id,
-    ...(snippet.task_id ? { taskId: snippet.task_id } : {}),
-    preview: normalizeRagPreview(snippet.content),
-    relevance: toRagRelevance(snippet.distance),
-    injected: false,
   };
 }
 
