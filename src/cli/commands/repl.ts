@@ -440,6 +440,21 @@ const resolveReplMode = (args: CliArgs): ReplModeResolution => {
   return { useTui: false, reason: "non-TTY/CI 환경" };
 };
 
+const resolvePresentationMode = (
+  args: CliArgs,
+  replMode: ReplModeResolution,
+): CliArgs["presentationMode"] => {
+  if (args.presentationMode) {
+    return args.presentationMode;
+  }
+
+  if (replMode.useTui && args.executionMode === "real") {
+    return "embedded-pane";
+  }
+
+  return undefined;
+};
+
 export const runReplCommand = async (baseArgs: CliArgs): Promise<void> => {
   const executionCwd = baseArgs.cwd ?? process.cwd();
 
@@ -448,6 +463,7 @@ export const runReplCommand = async (baseArgs: CliArgs): Promise<void> => {
 
   // TUI 모드 판정
   const replMode = resolveReplMode(baseArgs);
+  const presentationMode = resolvePresentationMode(baseArgs, replMode);
 
   // TUI 모드인 경우: TUI REPL 실행
   if (replMode.useTui) {
@@ -468,7 +484,7 @@ export const runReplCommand = async (baseArgs: CliArgs): Promise<void> => {
         cwd: executionCwd,
         ...(baseArgs.sessionId ? { sessionId: baseArgs.sessionId } : {}),
         translationModel: getTranslationModel(),
-        ...(baseArgs.presentationMode ? { presentationMode: baseArgs.presentationMode } : {}),
+        ...(presentationMode ? { presentationMode } : {}),
       };
 
       if (currentModel) {

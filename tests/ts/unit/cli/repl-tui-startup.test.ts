@@ -83,6 +83,24 @@ describe("runReplCommand TUI startup flow", () => {
     );
   });
 
+  it("defaults real-mode TUI startup to embedded native presentation", async () => {
+    await runReplCommand({
+      mode: "repl",
+      adapter: "codex",
+      executionMode: "real",
+      verbose: false,
+      trace: false,
+      tui: "force",
+      showHelp: false,
+    });
+
+    expect(mocks.runTuiRepl).toHaveBeenCalledWith(
+      expect.objectContaining({
+        presentationMode: "embedded-pane",
+      }),
+    );
+  });
+
   it("passes embedded presentation mode into the TUI startup flow", async () => {
     await runReplCommand({
       mode: "repl",
