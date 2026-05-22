@@ -1,4 +1,3 @@
-import { execSync } from "node:child_process";
 import { stdout, stdin } from "node:process";
 import { StringDecoder } from "node:string_decoder";
 import type { CliArgs } from "../types.js";
@@ -94,7 +93,6 @@ import { buildActionTimeline } from "../../core/timeline/action-timeline.js";
 import { readRole1ModelName, loadRole1RuntimeConfig } from "../../core/prompt/config.js";
 import { ensureLocalLlmRuntime } from "../../core/llm-client/local-runtime.js";
 import { onLlamaBuildPhase } from "../../core/llm-client/llama-build-events.js";
-import type { TokenReductionSnapshot } from "../../core/utils/tokenMetrics.js";
 import { statusColor } from "./design/tokens.js";
 import { formatError } from "../format.js";
 import {
@@ -107,6 +105,12 @@ import {
 import { loadAndApplyConfig } from "../config/loader.js";
 import type { PipelineProgressEvent } from "../../core/pipeline/types.js";
 import type { PtySessionController } from "../../integrations/subprocess/types.js";
+import {
+  formatCacheHitBadge,
+  formatTokenSavingsBadge,
+  resolveFooterBranchLabel,
+  truncateToDisplayWidth,
+} from "./run-view-helpers.js";
 
 interface TuiRunOptions {
   adapter: CliArgs["adapter"];
@@ -141,53 +145,6 @@ interface StickyPromptState {
   prompt: string;
   status: RunBlockStatus;
 }
-
-const truncateToDisplayWidth = (text: string, width: number): string => {
-  if (width <= 0) {
-    return "";
-  }
-
-  const [firstLine = ""] = wrapTextToDisplayWidth(text, width);
-  return firstLine;
-};
-
-const formatTokenSavingsBadge = (reduction?: TokenReductionSnapshot | null): string | undefined => {
-  if (!reduction) {
-    return undefined;
-  }
-
-  const percent = Math.max(0, Math.round(reduction.savedPercent));
-  return `tok -${percent}%`;
-};
-
-const formatCacheHitBadge = (cacheHit: import("../../core/pipeline/types.js").CacheHitInfo): string => {
-  const ageDays = Math.round(cacheHit.cacheAge / (24 * 60 * 60 * 1000));
-  const ageLabel = ageDays === 0 ? "오늘" : `${ageDays}일 전`;
-  const kindLabel = cacheHit.kind === "session" ? "세션" : "task";
-  return `cache hit(${kindLabel} · ${ageLabel})`;
-};
-
-const resolveFooterBranchLabel = (cwd: string): string | undefined => {
-  try {
-    const branch = execSync("git symbolic-ref --short HEAD", {
-      cwd,
-      stdio: ["ignore", "pipe", "ignore"],
-      encoding: "utf8",
-    }).trim();
-    return branch.length > 0 ? branch : undefined;
-  } catch {}
-
-  try {
-    const detachedHead = execSync("git rev-parse --short HEAD", {
-      cwd,
-      stdio: ["ignore", "pipe", "ignore"],
-      encoding: "utf8",
-    }).trim();
-    return detachedHead.length > 0 ? `detached@${detachedHead}` : undefined;
-  } catch {
-    return undefined;
-  }
-};
 
 export const runTuiRepl = async (options: TuiRunOptions): Promise<void> => {
   const screen = createScreenManager(stdout, stdin);
