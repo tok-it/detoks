@@ -331,6 +331,14 @@ function markTaskCompleted(
   };
 }
 
+function markTaskRunning(state: SessionState, taskId: string): SessionState {
+  return {
+    ...state,
+    current_task_id: taskId,
+    updated_at: new Date().toISOString(),
+  };
+}
+
 function markTaskFailed(
   state: SessionState,
   taskId: string,
@@ -693,6 +701,7 @@ export const orchestratePipeline = async (
     request.projectInfo?.projectId ??
     computeProjectId(request.userRequest.cwd ?? process.cwd());
   const gitHead = resolveGitHead(request.userRequest.cwd ?? process.cwd());
+  const adapterModel = request.env?.ADAPTER_MODEL ?? process.env.ADAPTER_MODEL ?? "";
 
   // ── F1: Cross-session input_hash cache bypass ────────────────────────────
   // stub 모드는 테스트/개발용이므로 캐시 우회 대상에서 제외
@@ -711,6 +720,7 @@ export const orchestratePipeline = async (
       ? isSessionCacheValid(cachedSession, {
           project_id: projectId,
           expected_adapter: request.adapter,
+          expected_adapter_model: adapterModel,
           ...(gitHead ? { expected_git_head: gitHead } : {}),
         })
       : "skip";
@@ -759,6 +769,7 @@ export const orchestratePipeline = async (
       const adviseCtx = cachedSession!.shared_context as Record<string, unknown>;
       const adviseReasons = deriveAdviseReasons(adviseCtx, {
         expected_adapter: request.adapter,
+        expected_adapter_model: adapterModel,
         ...(gitHead ? { expected_git_head: gitHead } : {}),
       });
       await emitActionTimelineWithLogging(
@@ -909,7 +920,6 @@ export const orchestratePipeline = async (
   PipelineTracer.startStage("TaskGraphBuilder");
   const compiledSentences = TaskSentenceSplitter.split(role2PromptInput.compiled_prompt);
   const rawGraph = TaskGraphProcessor.process(compiledSentences);
-  const adapterModel = request.env?.ADAPTER_MODEL ?? process.env.ADAPTER_MODEL ?? "";
   let graph = {
     ...rawGraph,
     tasks: rawGraph.tasks.map((task) => ({
@@ -1342,6 +1352,7 @@ export const orchestratePipeline = async (
           const f2Validity = cachedTask
             ? isTaskCacheValid(cachedTask.taskResult, {
                 expected_adapter: request.adapter,
+                expected_adapter_model: adapterModel,
                 ...(gitHead ? { expected_git_head: gitHead } : {}),
               })
             : "skip";
@@ -1371,6 +1382,7 @@ export const orchestratePipeline = async (
           if (f2Validity === "advise") {
             const f2AdviseReasons = deriveAdviseReasons(cachedTask!.taskResult, {
               expected_adapter: request.adapter,
+              expected_adapter_model: adapterModel,
               ...(gitHead ? { expected_git_head: gitHead } : {}),
             });
             await emitActionTimelineWithLogging(
@@ -1392,7 +1404,10 @@ export const orchestratePipeline = async (
           }
         }
 
-        // (4) ExecutionContext 생성
+        // (4) Running checkpoint — hard crash 후 F3 resume hint가 현재 task를 찾을 수 있게 저장
+        await saveSessionIfEnabled(markTaskRunning(stageBaseState, task.id));
+
+        // (5) ExecutionContext 생성
         await emitProgressWithLogging({
           stage: "Context Optimizer", status: "start", taskId: task.id,
           message: `Context Optimizer(${task.id}) 시작`,
@@ -1422,7 +1437,7 @@ export const orchestratePipeline = async (
           data: { tokensBeforeCompression, contextTokens, contextCompressionRepairActions: contextCompression.repairActions, compressedTaskIds, keptTaskIds },
         });
 
-        // (5) Budget Gate — stage 시작 시점 스냅샷 기준으로 결정
+        // (6) Budget Gate — stage 시작 시점 스냅샷 기준으로 결정
         const responseLanguageInstruction = compiledPrompt.language !== "en" ? "Respond entirely in Korean.\n\n" : "";
         const taskSnippets = perTaskSnippets.get(task.id) ?? [];
         const ragContextRaw = formatRagSnippetsForPrompt(taskSnippets);
@@ -1454,7 +1469,7 @@ export const orchestratePipeline = async (
           }
         }
 
-        // (6) LLM 실행
+        // (7) LLM 실행
         // embedded-pane: codex exec은 단순 작업 설명만 기대 — 구조화된 템플릿은 모델을 혼란시킴.
         // 다른 모드: 번역된 원본 명령 + RAG 컨텍스트 + 태스크 정보 포함.
         let prompt: string;

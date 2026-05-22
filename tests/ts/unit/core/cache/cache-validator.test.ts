@@ -63,6 +63,29 @@ describe("isSessionCacheValid", () => {
     expect(isSessionCacheValid(session, { expected_adapter: "claude" })).toBe("auto");
   });
 
+  it("adapter model 불일치 시 advise (stamp 있는 세션)", () => {
+    const session = makeSession({
+      shared_context: {
+        session_id: "s1",
+        project_id: "git-abc123",
+        adapter: "codex",
+        adapter_model: "old-model",
+      },
+    });
+    expect(isSessionCacheValid(session, { expected_adapter_model: "new-model" })).toBe("advise");
+  });
+
+  it("현재 adapter model이 기본값이어도 저장된 명시 model과 다르면 advise", () => {
+    const session = makeSession({
+      shared_context: {
+        session_id: "s1",
+        project_id: "git-abc123",
+        adapter_model: "old-explicit-model",
+      },
+    });
+    expect(isSessionCacheValid(session, { expected_adapter_model: "" })).toBe("advise");
+  });
+
   it("stamp 없는 구 세션은 adapter 불일치여도 auto (후방 호환)", () => {
     const session = makeSession(); // adapter stamp 없음
     expect(isSessionCacheValid(session, { expected_adapter: "claude" })).toBe("auto");
@@ -102,6 +125,15 @@ describe("isTaskCacheValid", () => {
 
   it("adapter 일치 시 auto", () => {
     expect(isTaskCacheValid({ success: true, adapter: "claude" }, { expected_adapter: "claude" })).toBe("auto");
+  });
+
+  it("adapter model 불일치 시 advise (stamp 있는 task)", () => {
+    expect(
+      isTaskCacheValid(
+        { success: true, adapter_model: "old-model" },
+        { expected_adapter_model: "new-model" },
+      ),
+    ).toBe("advise");
   });
 
   it("stamp 없는 구 task는 adapter 불일치여도 auto (후방 호환)", () => {
