@@ -18,7 +18,13 @@ export function isSessionCacheValid(
   session: SessionState,
   opts: CacheValidationOpts = {},
 ): CacheValidity {
-  const { project_id, recencyDays = CACHE_TTL_DAYS, expected_adapter, expected_git_head } = opts;
+  const {
+    project_id,
+    recencyDays = CACHE_TTL_DAYS,
+    expected_adapter,
+    expected_adapter_model,
+    expected_git_head,
+  } = opts;
 
   if (project_id && session.shared_context.project_id !== project_id) return "skip";
 
@@ -35,6 +41,13 @@ export function isSessionCacheValid(
   // 구 세션(stamp 필드 없음)은 adapter/git_head 필드 자체가 없으므로 비교 없이 통과
   const ctx = session.shared_context as Record<string, unknown>;
   if (expected_adapter && ctx.adapter && ctx.adapter !== expected_adapter) return "advise";
+  if (
+    expected_adapter_model !== undefined &&
+    ctx.adapter_model !== undefined &&
+    ctx.adapter_model !== expected_adapter_model
+  ) {
+    return "advise";
+  }
   if (expected_git_head && ctx.git_head && ctx.git_head !== expected_git_head) return "advise";
 
   return "auto";
@@ -42,11 +55,20 @@ export function isSessionCacheValid(
 
 export function deriveAdviseReasons(
   ctx: Record<string, unknown>,
-  opts: Pick<CacheValidationOpts, "expected_adapter" | "expected_git_head">,
+  opts: Pick<CacheValidationOpts, "expected_adapter" | "expected_adapter_model" | "expected_git_head">,
 ): string[] {
   const reasons: string[] = [];
   if (opts.expected_adapter && ctx.adapter && ctx.adapter !== opts.expected_adapter) {
     reasons.push(`adapter 불일치: 저장 ${String(ctx.adapter)} → 현재 ${opts.expected_adapter}`);
+  }
+  if (
+    opts.expected_adapter_model !== undefined &&
+    ctx.adapter_model !== undefined &&
+    ctx.adapter_model !== opts.expected_adapter_model
+  ) {
+    reasons.push(
+      `adapter model 불일치: 저장 ${String(ctx.adapter_model)} → 현재 ${opts.expected_adapter_model}`,
+    );
   }
   if (opts.expected_git_head && ctx.git_head && ctx.git_head !== opts.expected_git_head) {
     const stored = String(ctx.git_head).slice(0, 7);
@@ -60,7 +82,7 @@ export function isTaskCacheValid(
   taskResult: Record<string, unknown>,
   opts: CacheValidationOpts = {},
 ): CacheValidity {
-  const { recencyDays = CACHE_TTL_DAYS, expected_adapter, expected_git_head } = opts;
+  const { recencyDays = CACHE_TTL_DAYS, expected_adapter, expected_adapter_model, expected_git_head } = opts;
 
   if (taskResult.success !== true) return "skip";
 
@@ -71,6 +93,13 @@ export function isTaskCacheValid(
 
   // 구 세션(stamp 필드 없음)은 비교 없이 통과
   if (expected_adapter && taskResult.adapter && taskResult.adapter !== expected_adapter) return "advise";
+  if (
+    expected_adapter_model !== undefined &&
+    taskResult.adapter_model !== undefined &&
+    taskResult.adapter_model !== expected_adapter_model
+  ) {
+    return "advise";
+  }
   if (expected_git_head && taskResult.git_head && taskResult.git_head !== expected_git_head) return "advise";
 
   return "auto";

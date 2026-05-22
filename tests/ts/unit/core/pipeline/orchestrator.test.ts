@@ -136,6 +136,29 @@ describe("orchestratePipeline", () => {
     expect(savedState?.shared_context?.raw_input_hash).toBeUndefined();
   });
 
+  it("persists current_task_id before executing a task", async () => {
+    vi.spyOn(SessionStateManager, "sessionExists").mockResolvedValue(false);
+    const saveSessionSpy = vi
+      .spyOn(SessionStateManager, "saveSession")
+      .mockResolvedValue(undefined);
+
+    const result = await orchestratePipeline({
+      mode: "run",
+      adapter: "codex",
+      executionMode: "stub",
+      verbose: false,
+      userRequest: { raw_input: "running checkpoint test" },
+    });
+
+    expect(result.ok).toBe(true);
+    const runningState = saveSessionSpy.mock.calls
+      .map((call) => call[0] as any)
+      .find((state) => state.current_task_id === "t1");
+    expect(runningState).toBeDefined();
+    expect(runningState.completed_task_ids).toEqual([]);
+    expect(runningState.task_results).toEqual({});
+  });
+
   it("passes execution mode through to the executor boundary", async () => {
     vi.stubEnv("DETOKS_MEMORY", "off");
     executeWithAdapterMock.mockImplementationOnce(async (request) => {
@@ -848,6 +871,58 @@ describe("orchestratePipeline", () => {
     expect(result.cacheHit?.sourceSessionId).toBe("cached-session");
     expect(result.rawOutput).toContain("cached output");
     expect(executeWithAdapterMock).not.toHaveBeenCalled();
+  });
+
+  it("F1: adapter_model이 다르면 세션 캐시를 자동 적용하지 않고 새로 실행한다", async () => {
+    vi.stubEnv("RAG_ENABLED", "0");
+    vi.spyOn(SessionStateManager, "sessionExists").mockResolvedValue(false);
+    vi.spyOn(SessionStateManager, "saveSession").mockResolvedValue(undefined);
+    vi.spyOn(SessionStateManager, "findSuccessfulSessionByInputHash").mockResolvedValue({
+      shared_context: {
+        session_id: "cached-session-old-model",
+        raw_input_hash: "willbematched",
+        project_id: "git-test123",
+        adapter: "codex",
+        adapter_model: "old-model",
+        failed_task_ids: [],
+      },
+      task_results: {
+        t1: {
+          task_id: "t1",
+          success: true,
+          raw_output: "old model cached output",
+          summary: "old model cached output",
+        },
+      },
+      current_task_id: null,
+      completed_task_ids: ["t1"],
+      updated_at: new Date().toISOString(),
+    } as any);
+    executeWithAdapterMock.mockResolvedValueOnce({
+      ok: true,
+      adapter: "codex",
+      rawOutput: "fresh output",
+      exitCode: 0,
+    });
+
+    const result = await orchestratePipeline({
+      mode: "run",
+      adapter: "codex",
+      executionMode: "real",
+      verbose: false,
+      env: { ADAPTER_MODEL: "new-model" },
+      projectInfo: { projectId: "git-test123", projectPath: "/test", projectName: "test" },
+      userRequest: { raw_input: "cached prompt" },
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.cacheHit).toBeUndefined();
+    expect(result.rawOutput).toContain("fresh output");
+    expect(executeWithAdapterMock).toHaveBeenCalledTimes(1);
+    expect(result.actionTimeline?.some((event) =>
+      event.kind === "cache_advise" &&
+      event.details?.some((detail) => detail.includes("adapter model 불일치")),
+    )).toBe(true);
   });
 
   it("F1: 캐시된 multi-task 세션은 terminal task output만 반환한다", async () => {
